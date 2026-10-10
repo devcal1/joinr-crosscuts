@@ -3,6 +3,7 @@
 // inside the caller's existing transaction where there is one. They never throw:
 // a stage-bookkeeping problem must not break a board edit.
 const audit = require("./audit");
+const invoices = require("./invoices");
 const { sydneyToday, sydneyMonday } = require("./time");
 
 // Stages a row placed on the board moves to on_board. "complete" is here so a
@@ -54,14 +55,19 @@ function safely(label, fn) {
   }
 }
 
-// A row was placed on a week: pre-board stages (or no stage) become on_board.
-function onScheduled(db, jobId, req) {
-  return safely("onScheduled", () => {
+// A row was placed on a week (weekStart, a Monday): pre-board stages (or no
+// stage) become on_board. Then, whatever the stage did, the invoice hook gets
+// its chance (a deposit may fall due). It runs in its own savepoint and never
+// throws.
+function onScheduled(db, jobId, req, weekStart) {
+  const moved = safely("onScheduled", () => {
     const job = db.prepare("SELECT stage FROM jobs WHERE id = ?").get(jobId);
     if (!job) return false;
     if (job.stage == null || PRE_BOARD.has(job.stage)) return setStage(db, jobId, "on_board", req);
     return false;
   });
+  invoices.onScheduled(db, jobId, weekStart, req);
+  return moved;
 }
 
 // A job went to "To start": an on_board job with no rows from the reference
@@ -77,11 +83,14 @@ function onSentToBacklog(db, jobId, req, referenceMonday) {
 }
 
 // Finish week "complete": complete + completed_date, unless already complete/invoiced.
+// After a successful change the invoice hook runs (the final falls due).
 function onFinishedComplete(db, jobId, req) {
   return safely("onFinishedComplete", () => {
     const job = db.prepare("SELECT stage FROM jobs WHERE id = ?").get(jobId);
     if (!job || job.stage === "complete" || job.stage === "invoiced") return false;
-    return setStage(db, jobId, "complete", req, { completed_date: sydneyToday() });
+    const changed = setStage(db, jobId, "complete", req, { completed_date: sydneyToday() });
+    if (changed) invoices.onCompleted(db, jobId, req);
+    return changed;
   });
 }
 
