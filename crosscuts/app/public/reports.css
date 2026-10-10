@@ -1,0 +1,76 @@
+/* Reports (reports.html): the monthly report library. Tokens come from tokens.css, hs-
+   components from components.css, and the dialog frame from the shell's cc-dialog. Page
+   classes here are prefixed rp-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[hidden] { display: none !important; }
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.rp-page { max-width: 1280px; margin: 0 auto; padding: 22px 16px 48px; }
+.rp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.rp-head h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 700; color: var(--white); }
+
+.rp-tools { display: flex; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 10px; }
+.rp-filter { flex: 0 1 220px; min-width: 0; }
+.rp-filter label {
+  display: block; margin-bottom: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+.rp-filter .hs-input { color-scheme: dark; }
+.rp-count { margin: 0 0 4px; color: var(--label); }
+.rp-message { min-height: 20px; margin: 0 0 8px; }
+.rp-message.err { color: var(--stop-tint); }
+.rp-message.ok { color: var(--go-tint); }
+
+/* one block per month */
+.rp-month { margin-bottom: 18px; }
+.rp-month > .hs-sectionbar { margin-bottom: 8px; }
+.rp-month-n { font-size: 12px; color: var(--label); }
+.rp-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.rp-table { min-width: 860px; table-layout: fixed; }
+/* the same columns in every month's table */
+.rp-table th:nth-child(1) { width: 170px; }
+.rp-table th:nth-child(3) { width: 170px; }
+.rp-table th:nth-child(4) { width: 110px; }
+.rp-table th:nth-child(5) { width: 90px; }
+.rp-table th:nth-child(6) { width: 150px; }
+.rp-table th { padding: 10px 12px; }
+.rp-table td { padding: 10px 12px; vertical-align: top; }
+.rp-table tbody tr:last-child td { border-bottom: 0; }
+.rp-table tbody tr:hover { background: var(--raised); }
+.rp-table td.rp-cat { color: var(--white); font-weight: 700; }
+.rp-table td { overflow-wrap: anywhere; }
+.rp-table td.rp-title { min-width: 220px; overflow-wrap: anywhere; }
+.rp-table td.rp-title a { font-weight: 700; }
+.rp-notes { display: block; margin-top: 2px; font-size: 12px; color: var(--label); white-space: pre-wrap; overflow-wrap: anywhere; }
+.rp-fname { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.rp-table td.rp-when, .rp-table td.rp-size { white-space: nowrap; }
+.rp-table th.num, .rp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.rp-acts { white-space: nowrap; }
+.rp-acts .hs-btn { margin-right: 6px; padding: 6px 10px; }
+.rp-acts .hs-btn:last-child { margin-right: 0; }
+.rp-empty { padding: 28px 14px; text-align: center; color: var(--label); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+
+/* dialogs */
+.cc-dialog.rp-dialog { width: min(94vw, 520px); max-height: 92vh; overflow-y: auto; }
+.rp-dialog .hs-input { color-scheme: dark; min-height: 36px; }
+.rp-dialog textarea.hs-input { min-height: 72px; resize: vertical; }
+.rp-dialog input[type="file"].hs-input { padding: 6px 8px; }
+.rp-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rp-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.rp-dialog .cc-dialog-actions { align-items: center; }
+
+@media (max-width: 640px) {
+  .rp-head h1 { font-size: 20px; }
+  .rp-filter { flex: 1 1 100%; }
+  .rp-two { grid-template-columns: minmax(0, 1fr); }
+}
