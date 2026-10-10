@@ -7,10 +7,10 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **On the device:** 0.1.3 (Node 24, better-sqlite3 12.9.0, sharp 0.35), the old purple look. Verified over Tailscale: board edits save and are audited, and portrait photos upload upright.
 - **Local `main`, not pushed (ahead of origin):** M1.1 · 5.1 (Actions on Node-24 majors, `77e9b3a`), and M1.2 House style, built and **approved by Todd 2026-10-10** (`feaabd7`; review page https://claude.ai/artifact/CKpBd4aTFcNNypMECg5W9z). The version in `package.json` is still 0.1.3.
 - **Release deferred (Todd, 2026-10-10):** development continues locally with no new version and no Umbrel update for now. Commits accumulate on `main`. When Todd decides to release, there is one version bump (above 0.1.3), one push (Todd OK), CI, the store pin and push (Todd OK), then Update. The release notes then cover everything since 0.1.3: Actions, the house style, the job-page edit-rights fix, and whatever follows. Open release steps: M1.1 · 5.2, M1.2 · 2.1 and 2.2 (device check of the pages, the TV board and a JPG export).
-- **Milestones:** M2 Accounts at 1.3 (decisions recorded, awaiting plan approval). M1 CLOSED. M1.1 done except its release step (5.2). M1.2 done except its release (2.1, 2.2) and close (3.1).
-- **Next action:** **M2 · 1.3 finish: Todd approves `m2-plan.md` as amended** (decisions are in its §10). Then mark it approved and go to M2 · 2.1 (contracts, `m2-contracts.md`). New pages follow CLAUDE.md "Look and feel" (`tokens.css` and `components.css` `hs-` classes), and `node ci/style-check.js` must pass.
+- **Milestones:** M2 Accounts: plan approved (1.3 done), next 2.1. M1 CLOSED. M1.1 done except its release step (5.2). M1.2 done except its release (2.1, 2.2) and close (3.1).
+- **Next action:** **M2 · 2.1 (Contracts):** write `docs/plans/m2-contracts.md` from the approved `m2-plan.md` (names, schemas, API shapes, file ownership, the waves for stage 3). New pages follow CLAUDE.md "Look and feel", and `node ci/style-check.js` must pass.
 - **Carried LAN check (Todd, on the workshop LAN, Monday 12 Oct):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
-- **Waiting on Todd:** the LAN check; approval of `m2-plan.md` as amended (Crosscuts now issues the invoices; no phone push in M2). Small open items Q-A to Q-D in its §10 have defaults.
+- **Waiting on Todd:** the LAN check.
 - **Open branches/worktrees:** none.
 - **Tools for UI work (local only):** `tools/screenshots/seed.js` (sample data, test admin) and `tools/screenshots/shoot.js` (full-page PNGs of every page through headless Edge). See the comments at the top of each.
 - **Deferred findings:**
@@ -73,3 +73,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: M2 · 1.1 audit and 1.2 plan done (`m2-plan.md`: invoices, prompts, bell, ntfy push, Friday round-up, overdue view; no new feature keys). Six questions put to Todd. Next M2 · 1.3.
 - 2026-10-10: M2 · 1.3 decisions recorded (self-hosted ntfy, full-detail push, Materials ordered button, 10-day terms with Joinr due date later, no auto-invoices for old jobs, report library to M4). Awaiting plan approval.
 - 2026-10-10: M2 plan rewritten after Todd's changes: Crosscuts issues numbered tax invoices (new series, GST-inclusive, PDF via print), re-keyed into MYOB; no ntfy/phone push in M2; brief D10/D12 annotated. Awaiting plan approval.
+- 2026-10-10: M2 plan approved by Todd (M2 · 1.3 done). Next M2 · 2.1 contracts.

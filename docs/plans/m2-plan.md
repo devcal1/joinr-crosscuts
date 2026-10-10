@@ -1,6 +1,6 @@
 # Crosscuts — Milestone 2 plan: Accounts (2026-10-10)
 
-Status: **decisions recorded 2026-10-10 (§10); awaiting Todd's approval of the plan as amended.**
+Status: **approved by Todd 2026-10-10** (M2 · 1.3), with the decisions in §10. Open items Q-A to Q-D take their defaults.
 
 Source of truth: `crosscuts-brief.md` §5.1, §6.1, D9–D12. Todd changed D10 and D12 on 2026-10-10 (decision 7): **Crosscuts now issues the invoices**. Nothing is built until Todd approves. Steps: M2 · 1.1 (audit, §1), M2 · 1.2 (plan, §2–§9), M2 · 1.3 (decisions, §10).
 
