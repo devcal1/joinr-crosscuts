@@ -1,6 +1,6 @@
 # Crosscuts — Milestone 4 plan: Collaboration (2026-10-11)
 
-Status: **draft, awaiting Todd's answers** (M4 · 1.1 audit and 1.2 plan done; questions in §13). Steps: M4 · 1.1 (audit, §1), M4 · 1.2 (plan and questions), M4 · 1.3 (decisions).
+Status: **approved by Todd 2026-10-11** (M4 · 1.3), with the decisions in §13. Steps: M4 · 1.1 (audit, §1), M4 · 1.2 (plan and questions), M4 · 1.3 (decisions).
 
 Source of truth: `crosscuts-brief.md` §4 (home screen tiles), §5.1.5 (task queue), §5.1.6 (report library), §5.2.6 (tasks and comments on the job), §6.1 (bell, messaging), §8 (tables); roadmap M4 row; M2 decisions 1 and 6 (no phone push yet; report library and attachments moved to M4).
 
@@ -66,7 +66,7 @@ Bodies are capped (comments and messages 4,000 characters, task notes 10,000) an
 - **Lifecycle:** open → done (anyone who can see it; it records who and when) → reopen if needed. Cancel by the creator or Todd. Editing (title, notes, assignee, due date) by the creator, the assignee or Todd, with a stale-edit check: the page sends the `updated_at` it loaded, and a mismatch returns 409 ("someone else changed this task; reload").
 - **Pages:** `/tasks.html` with the views **Mine** (assigned to me, open, overdue first in red), **Raised by me**, **All open** and **Done**. A task opens in a dialog with its comments and files. The job page gets a **Tasks** section listing that job's tasks, with "New task" pre-filled with the job.
 - **The accounts queue** (brief §5.1.5) is these same tasks between Todd and accounts staff; the Accounts page gets a Tasks link to Mine. No separate mechanism.
-- **Alerts:** `task.assigned` to the new assignee (not if they assigned it themselves), `task.done` to the creator, `task.reopened` to the assignee. A **morning reminder** (weekdays 7:30 Sydney, the round-up's timer pattern) sends one alert per person listing their tasks due today or overdue (question 4).
+- **Alerts:** `task.assigned` to the new assignee (not if they assigned it themselves), `task.done` to the creator, `task.reopened` to the assignee. A **morning reminder** (weekdays 7:00 Sydney, the round-up's timer pattern) sends one alert per person listing their tasks due today or overdue (question 4).
 
 ## 5. Comments
 
@@ -133,10 +133,15 @@ No new feature keys. `docs/auth.md` loses the † on the three keys.
 
 ## 13. Questions for Todd (M4 · 1.2) and decisions (M4 · 1.3)
 
-Each has a recommended default; "defaults" takes them all.
+Asked 2026-10-11; Todd's answers are recorded under each.
 
 1. **Who sees tasks?** (a) *Recommended:* everyone with office access sees every task, with "Mine" as the default view. Simple for eight people, and anyone can pick up a task when someone is away. (b) Private: only the creator, the assignee and Todd.
+   - **Decision: (a)**, everyone sees every task; Mine is the default view.
 2. **Chat channels:** (a) *Recommended:* All, plus Accounts, Design/PM and Scheduling channels, fixed. (b) Only the company-wide channel.
+   - **Decision: (a)**, All plus Accounts, Design/PM and Scheduling, fixed.
 3. **Report library access:** (a) *Recommended:* Todd and all accounts staff see every report; the uploader or Todd can remove one (hidden, not destroyed). (b) Accounts staff upload, but only Todd sees the library.
+   - **Decision: (a)**, Todd and all accounts staff; the uploader or Todd can remove (soft).
 4. **Morning reminder** of tasks due today or overdue, weekdays at 7:30 Sydney, one alert per person: (a) *Recommended:* yes. (b) No: overdue tasks just show in red.
+   - **Decision: yes, at 7:00** Sydney on weekdays (Todd moved it from 7:30).
 5. **Comments and messages:** (a) *Recommended:* not editable; you can remove your own, Todd can remove any. (b) Editable by the author (shown as "edited").
+   - **Decision: (a)**, no edits; remove your own, Todd removes any; removals audited.
