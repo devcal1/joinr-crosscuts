@@ -3,6 +3,10 @@
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const roundup = require("../lib/roundup");
+const tasks = require("../lib/tasks");
+const messages = require("../lib/messages");
+const { can } = require("../lib/httperror");
+const { sydneyToday } = require("../lib/time");
 
 const r = defineRoutes("/api/notifications");
 
@@ -27,6 +31,8 @@ function unreadCount(userId) {
     .get(userId).n;
 }
 
+// ?before=<id> (M4): the page of rows older than that id. `more` says whether
+// older rows exist after this page.
 r.get("/", "login", (req, res) => {
   let limit = DEFAULT_LIMIT;
   if (req.query.limit !== undefined) {
@@ -36,14 +42,35 @@ r.get("/", "login", (req, res) => {
       return;
     }
   }
+  let before = null;
+  if (req.query.before !== undefined) {
+    before = Number(req.query.before);
+    if (!Number.isInteger(before) || before < 1) {
+      res.status(400).json({ error: "before must be a notification id" });
+      return;
+    }
+  }
+  // Ids only grow, so ordering by id is the same as by created_at and makes paging exact.
   const rows = db
-    .prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?")
-    .all(req.user.id, limit);
-  res.json({ rows: rows.map(shape), unread: unreadCount(req.user.id) });
+    .prepare(
+      `SELECT * FROM notifications WHERE user_id = ? AND (? IS NULL OR id < ?)
+        ORDER BY id DESC LIMIT ?`
+    )
+    .all(req.user.id, before, before, limit + 1);
+  const more = rows.length > limit;
+  res.json({ rows: rows.slice(0, limit).map(shape), unread: unreadCount(req.user.id), more });
 });
 
+// The menu bar counts (one poll for all three buttons). M4 adds tasks, tasksOverdue
+// and messages; unread is unchanged.
 r.get("/unread-count", "login", (req, res) => {
-  res.json({ unread: unreadCount(req.user.id) });
+  const t = can(req, "tasks.use") ? tasks.countsFor(db, req.user.id, sydneyToday()) : { open: 0, overdue: 0 };
+  res.json({
+    unread: unreadCount(req.user.id),
+    tasks: t.open,
+    tasksOverdue: t.overdue,
+    messages: messages.unreadTotal(db, req.user),
+  });
 });
 
 r.post("/read-all", "login", (req, res) => {

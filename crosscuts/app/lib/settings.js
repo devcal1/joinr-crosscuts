@@ -19,6 +19,7 @@ const DEFAULTS = {
   "invoice.pad": "4",
   "invoice.default_days": "10",
   "roundup.last_run": null,
+  "tasks.reminder_last_run": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 

@@ -312,6 +312,14 @@ width=$(echo "$upload_response" | jq -r '.created[0].width')
 echo "Confirming it shows up in the listing..."
 ccurl -sf "$BASE"/api/photos | jq -e ".[] | select(.id == $photo_id)" > /dev/null
 
+# M4: /photos serves top-level image files only; uploads/files/ (private) never.
+echo "Checking /photos serves only top-level image files..."
+for p_case in "$thumb_url:200" "/photos/files/:404" "/photos/files/x.pdf:404" "$thumb_url/:404" "/photos/:404"; do
+  p_path=${p_case%:*}; p_want=${p_case##*:}
+  status=$(ccurl -s -o /dev/null -w "%{http_code}" "$BASE$p_path")
+  [ "$status" = "$p_want" ] || { echo "GET $p_path: expected $p_want, got $status" >&2; exit 1; }
+done
+
 echo "Editing tags..."
 ccurl -sf -X PATCH -H "Content-Type: application/json" -d '{"tags":"ci-test-edited"}' \
   "$BASE/api/photos/$photo_id" | jq -e '.tags == "ci-test-edited"' > /dev/null
@@ -1100,6 +1108,19 @@ expect_status 200 "sched signs in again for the M2 suites"
 for f in "$(dirname "$0")"/smoke-m2-*.sh; do [ -f "$f" ] && source "$f"; done
 # M3 suites (ci/smoke-m3-*.sh): same rules; they must not assume a pristine DB.
 for f in "$(dirname "$0")"/smoke-m3-*.sh; do [ -f "$f" ] && source "$f"; done
+
+# M4 scaffold checks (docs/plans/m4-contracts.md section 9): the people picker and the
+# menu bar counts.
+req GET /api/people "$SCHED"
+expect_status 200 "sched GET /api/people"
+[ "$(jqr '[.rows[] | keys | sort == ["displayName","id"]] | all')" = "true" ]   || fail "/api/people rows must carry only id and displayName: ${BODY:0:300}"
+req GET /api/people "$SHOW"
+expect_status 403 "show GET /api/people"
+req GET /api/notifications/unread-count "$SCHED"
+expect_status 200 "sched GET /api/notifications/unread-count"
+[ "$(jqr '[.unread, .tasks, .tasksOverdue, .messages] | map(type == "number") | all')" = "true" ]   || fail "unread-count must have four number fields: ${BODY:0:300}"
+# M4 suites (ci/smoke-m4-*.sh): same rules; they must not assume a pristine DB.
+for f in "$(dirname "$0")"/smoke-m4-*.sh; do [ -f "$f" ] && source "$f"; done
 
 # ============================================================================
 step "k. cutover rehearsal: old public image, then this image on the same volume"

@@ -148,6 +148,15 @@
   line-height: 1;
   text-align: center;
 }
+/* M4: Tasks and Messages are links with the same badge; orange when a task is overdue. */
+.cc-count { text-decoration: none; }
+.cc-count[aria-current="page"] { border-color: var(--teal); color: var(--teal-tint); }
+.cc-bell-badge.cc-badge-attend { color: var(--orange-tint); background: var(--orange-16); border-color: var(--orange); }
+.cc-bell-older { align-self: center; margin: 6px 0 10px; }
+.cc-group.cc-group-counts { display: none; }
+.cc-count-link { display: flex; align-items: center; gap: 8px; }
+.cc-bell-older[hidden] { display: none; }
+
 .cc-bell-menu {
   display: none;
   position: absolute;
@@ -259,12 +268,20 @@
   .cc-link { padding-left: 6px; padding-right: 6px; letter-spacing: 0.08em; }
   .cc-group + .cc-group { margin-left: 4px; padding-left: 6px; }
 }
+/* M4: Tasks and Messages joined Alerts on the right, so below 1680 px the right-hand
+   buttons tighten and the wordmark goes (measured with the full admin link set). */
+@media (max-width: 1679px) {
+  .cc-brand-app { display: none; }
+  .cc-right { gap: 2px; }
+  .cc-right .cc-btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.04em; }
+  .cc-user-name { max-width: 10ch; }
+}
 @media (max-width: 1439px) {
   .cc-brand-app { display: none; }
 }
 
-/* Narrow screens: links collapse into a menu */
-@media (max-width: 1279px) {
+/* Narrow screens: links collapse into a menu (below 1366 px since M4) */
+@media (max-width: 1365px) {
   .cc-menu-btn { display: inline-flex; margin-left: 4px; }
   .cc-brand { margin-right: 0; }
   .cc-nav {
@@ -288,6 +305,15 @@
   .cc-group-label { display: block; }
   .cc-link { padding: 10px 12px; border-bottom: 0; border-left: 2px solid transparent; }
   .cc-link[aria-current="page"] { border-left-color: var(--teal); }
+}
+/* The phone-only counts group comes first in the nav; while it is hidden the next
+   group must not get the divider a following group has. */
+.cc-group-counts + .cc-group { margin-left: 0; padding-left: 0; border-left: 0; border-top: 0; margin-top: 0; padding-top: 0; }
+/* Phones: Tasks and Messages leave the bar for the top of the Menu panel. */
+@media (max-width: 640px) {
+  .cc-right .cc-count { display: none; }
+  .cc-group.cc-group-counts { display: flex; }
+  .cc-group-counts + .cc-group { border-top: 1px solid var(--hairline); margin-top: 6px; padding-top: 2px; }
 }
 @media (max-width: 520px) {
   .cc-brand-app { display: none; }

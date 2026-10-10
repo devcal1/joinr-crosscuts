@@ -43,4 +43,31 @@ function toKey(db, featureKey, payload, opts = {}) {
   })();
 }
 
-module.exports = { toUser, toKey, usersWithKey };
+// M4: one row for each id in userIds (duplicates and opts.exceptUserId skipped).
+// opts.dedupeUnread: skip a user who already has an UNREAD row with the same kind,
+// entity_type and entity_id. Returns how many were written.
+function toUsers(db, userIds, payload, opts = {}) {
+  const except = opts && opts.exceptUserId != null ? Number(opts.exceptUserId) : null;
+  const entityType = payload.entityType || null;
+  const entityId = payload.entityId == null ? null : String(payload.entityId);
+  const hasUnread = db.prepare(
+    `SELECT 1 FROM notifications
+      WHERE user_id = ? AND kind = ? AND entity_type IS ? AND entity_id IS ? AND read_at IS NULL
+      LIMIT 1`
+  );
+  return db.transaction(() => {
+    const seen = new Set();
+    let n = 0;
+    for (const raw of userIds || []) {
+      const id = Number(raw);
+      if (!Number.isInteger(id) || seen.has(id) || id === except) continue;
+      seen.add(id);
+      if (opts && opts.dedupeUnread && hasUnread.get(id, payload.kind, entityType, entityId)) continue;
+      toUser(db, id, payload);
+      n++;
+    }
+    return n;
+  })();
+}
+
+module.exports = { toUser, toKey, toUsers, usersWithKey };

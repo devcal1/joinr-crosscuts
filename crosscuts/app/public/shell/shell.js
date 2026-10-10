@@ -72,6 +72,8 @@
     openAlerts: function () { setTimeout(openAlerts, 0); },
     openAlert: function (n) { openAlert(n); },
     refreshAlerts: function () { return pollCount(); },
+    // M4: re-poll the Tasks, Messages and Alerts counts now (after reading messages, closing a task).
+    refreshCounts: function () { return pollCount(); },
     timeAgo: function (iso) { return timeAgo(iso); },
   });
 
@@ -394,7 +396,10 @@
   // A text button with an unread badge. The count is polled every 60 s and on window focus;
   // a 401 (signed out or locked elsewhere) simply stops the polling, it never redirects.
   var ALERT_POLL_MS = 60000;
-  var alerts = { btn: null, badge: null, panel: null, list: null, readAll: null, unread: 0, timer: null, running: false, stopped: false };
+  var alerts = { btn: null, badge: null, panel: null, list: null, readAll: null, older: null, unread: 0, timer: null, running: false, stopped: false };
+  // M4: the Tasks and Messages buttons beside Alerts share the same poll.
+  // On phones the bar buttons hide and the same counts show in the Menu panel (tasksNav, messagesNav).
+  var counts = { tasks: null, messages: null, tasksNav: null, messagesNav: null };
 
   function getJson(url) {
     return fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(function (res) {
@@ -445,9 +450,27 @@
         var n = Number(r.body.unread) || 0;
         var changed = n !== alerts.unread;
         setUnread(n);
+        var nt = Number(r.body.tasks) || 0, late = Number(r.body.tasksOverdue) > 0, nm = Number(r.body.messages) || 0;
+        setCount(counts.tasks, nt, late);
+        setCount(counts.tasksNav, nt, late);
+        setCount(counts.messages, nm, false);
+        setCount(counts.messagesNav, nm, false);
         if (changed && alertsOpen()) loadAlerts();
       })
       .catch(function () { /* offline: try again next time */ });
+  }
+  // A count button: a link with a badge. attend = orange (an overdue task).
+  function buildCount(label, href, noun, cls) {
+    var badge = h("span", { class: "cc-bell-badge", hidden: true, "aria-hidden": "true", text: "0" });
+    var link = h("a", { class: cls || "cc-btn cc-count", href: href, "aria-label": label, "aria-current": path === href ? "page" : false }, [label, badge]);
+    return { link: link, badge: badge, label: label, noun: noun };
+  }
+  function setCount(c, n, attend) {
+    if (!c) return;
+    c.badge.hidden = n < 1;
+    c.badge.textContent = n > 99 ? "99+" : String(n);
+    c.badge.classList.toggle("cc-badge-attend", !!attend && n > 0);
+    c.link.setAttribute("aria-label", n > 0 ? c.label + ", " + n + " " + c.noun + (attend ? ", some overdue" : "") : c.label);
   }
   function startAlerts() {
     if (alerts.running || devMode || onAuthPage) return;
@@ -497,18 +520,43 @@
     alerts.list.textContent = "";
     alerts.list.appendChild(h("li", { class: "cc-bell-empty", text: text }));
   }
+  function appendAlerts(rows) {
+    rows.forEach(function (n) {
+      var li = h("li", { class: "cc-bell-li" }, [alertItem(n)]);
+      li.setAttribute("data-id", String(n.id));
+      alerts.list.appendChild(li);
+    });
+  }
+  function setOlder(more) {
+    alerts.older.hidden = !more;
+    alerts.older.disabled = false;
+  }
+  // M4: "Show older" pages back by id.
+  function loadOlder() {
+    var last = alerts.list.querySelector(".cc-bell-li:last-child");
+    var before = last ? last.getAttribute("data-id") : "";
+    if (!before) return;
+    alerts.older.disabled = true;
+    getJson("/api/notifications?limit=30&before=" + encodeURIComponent(before))
+      .then(function (r) {
+        if (!r.ok) { alerts.older.disabled = false; return; }
+        appendAlerts(r.body.rows || []);
+        setOlder(!!r.body.more);
+      })
+      .catch(function () { alerts.older.disabled = false; });
+  }
   function loadAlerts() {
     return getJson("/api/notifications?limit=30")
       .then(function (r) {
+        setOlder(false);
         if (r.status === 401) { stopAlerts(); return alertNote("Your session has ended. Sign in again."); }
         if (!r.ok) return alertNote("Couldn't load alerts.");
         var rows = r.body.rows || [];
         setUnread(Number(r.body.unread) || 0);
         if (!rows.length) return alertNote("No alerts");
         alerts.list.textContent = "";
-        rows.forEach(function (n) {
-          alerts.list.appendChild(h("li", { class: "cc-bell-li" }, [alertItem(n)]));
-        });
+        appendAlerts(rows);
+        setOlder(!!r.body.more);
         // Keyboard users who opened an empty panel land on the first alert once it arrives.
         if (document.activeElement === alerts.panel) {
           var first = alerts.list.querySelector(".cc-bell-item");
@@ -548,11 +596,14 @@
     );
     var readAll = h("button", { class: "cc-btn cc-btn-quiet cc-btn-sm", type: "button", disabled: true, text: "Mark all read" });
     var list = h("ul", { class: "cc-bell-list" });
+    var older = h("button", { class: "cc-btn cc-btn-quiet cc-btn-sm cc-bell-older", type: "button", hidden: true, text: "Show older" });
     var panel = h("div", { class: "cc-bell-menu", id: "cc-bell-menu", role: "dialog", "aria-label": "Alerts", tabindex: "-1" }, [
       h("div", { class: "cc-bell-head" }, [h("span", { class: "cc-bell-heading", text: "Alerts" }), readAll]),
       list,
+      older,
     ]);
-    alerts.btn = btn; alerts.badge = badge; alerts.panel = panel; alerts.list = list; alerts.readAll = readAll;
+    alerts.btn = btn; alerts.badge = badge; alerts.panel = panel; alerts.list = list; alerts.readAll = readAll; alerts.older = older;
+    older.addEventListener("click", loadOlder);
 
     btn.addEventListener("click", function () {
       if (alertsOpen()) closeAlerts(false);
@@ -619,6 +670,23 @@
       });
       nav.appendChild(ul);
     });
+    // M4: on phones Tasks and Messages move from the bar into the top of the Menu panel
+    // (shell.css shows this group only at 640 px and below).
+    if (!devMode && !onAuthPage && (cc.can("tasks.use") || cc.can("messages.use"))) {
+      var cg = h("ul", { class: "cc-group cc-group-counts", "aria-labelledby": "cc-gl-counts" });
+      var cl = h("li", { class: "cc-group-label", id: "cc-gl-counts", text: "Tasks and messages" });
+      cl.setAttribute("role", "presentation");
+      cg.appendChild(cl);
+      if (cc.can("tasks.use")) {
+        counts.tasksNav = buildCount("Tasks", "/tasks.html", "open", "cc-link cc-count-link");
+        cg.appendChild(h("li", null, [counts.tasksNav.link]));
+      }
+      if (cc.can("messages.use")) {
+        counts.messagesNav = buildCount("Messages", "/messages.html", "unread", "cc-link cc-count-link");
+        cg.appendChild(h("li", null, [counts.messagesNav.link]));
+      }
+      nav.insertBefore(cg, nav.firstChild);
+    }
 
     var menuBtn = h(
       "button",
@@ -636,6 +704,15 @@
     // The bell needs a real session, so it is left out of dev mode and the auth pages.
     var right = h("div", { class: "cc-right" });
     if (!devMode && !onAuthPage) {
+      // M4: Tasks and Messages (each only with its key), then Alerts.
+      if (cc.can("tasks.use")) {
+        counts.tasks = buildCount("Tasks", "/tasks.html", "open");
+        right.appendChild(counts.tasks.link);
+      }
+      if (cc.can("messages.use")) {
+        counts.messages = buildCount("Messages", "/messages.html", "unread");
+        right.appendChild(counts.messages.link);
+      }
       var bell = buildBell();
       right.appendChild(bell.btn);
       right.appendChild(bell.panel);

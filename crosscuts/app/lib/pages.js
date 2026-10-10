@@ -20,6 +20,9 @@ const PAGE_ACCESS = {
   "/invoice.html": "accounts.view",
   "/design.html": "design.view",
   "/scheduling.html": "scheduling.view",
+  "/tasks.html": "tasks.use",
+  "/messages.html": "messages.use",
+  "/reports.html": "accounts.view",
 };
 
 // Any .html page not listed above.

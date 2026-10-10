@@ -20,11 +20,19 @@ app.get("/healthz", (req, res) => res.json({ ok: true }));
 app.use(auth.originCheck);
 app.use(auth.authenticate);
 app.use(auth.pageGate);
+// /photos serves top-level image files only (M4, docs/plans/m4-contracts.md section 8).
+// UPLOADS_DIR also holds the private files/ folder, which must never be reachable here:
+// anything that isn't a plain image name (subfolders, dotfiles, directories) is 404.
+const PHOTO_PATH = /^\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpe?g|png|webp|gif)$/i;
 app.use(
   "/photos",
   auth.requireLogin,
+  (req, res, next) => (PHOTO_PATH.test(req.path) ? next() : res.status(404).type("text/plain").send("Not found")),
   express.static(UPLOADS_DIR, {
     cacheControl: false,
+    index: false,
+    redirect: false,
+    dotfiles: "ignore",
     setHeaders: (res) => res.setHeader("Cache-Control", "private, max-age=2592000, immutable"),
   })
 );
@@ -48,6 +56,12 @@ const routers = [
   require("./routes/orders"),
   require("./routes/inspections"),
   require("./routes/scheduling"),
+  require("./routes/people"),
+  require("./routes/files"),
+  require("./routes/tasks"),
+  require("./routes/comments"),
+  require("./routes/messages"),
+  require("./routes/reports"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -64,4 +78,6 @@ app.listen(PORT, () => {
   console.log(`Crosscuts web listening on port ${PORT}`);
   // The Friday invoice round-up timer (ROUNDUP_DISABLED=1 turns it off).
   require("./lib/roundup").start(require("./db"));
+  // The weekday 7:00 Sydney task reminder (REMINDER_DISABLED=1 turns it off).
+  require("./lib/tasks").startReminder(require("./db"));
 });

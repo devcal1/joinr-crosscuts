@@ -402,6 +402,7 @@ Page prefixes: `tk-` tasks, `cm-` comments, `ms-` messages, `rp-` reports, `jo-`
 - `window.cc.refreshCounts()` re-polls now (pages call it after marking messages read or closing a task).
 - **Bell paging:** the panel shows a "Show older" button when the response has `more`; it loads `?before=<last id>` and appends.
 - Re-measure the menu bar at 1100, 1280, 1366, 1440 and 1600 px and adjust the `shell.css` breakpoints so nothing overlaps (report the widths in the scaffold commit).
+  - **As built (scaffold, 2026-10-11), measured with the full admin link set:** below 1680 px the right-hand buttons tighten (8 px side padding, 0.04em) and the "Crosscuts" wordmark is hidden; the links collapse into the Menu below **1366** px (was 1280). At 640 px and below, Tasks and Messages leave the bar and head the Menu panel as a "Tasks and messages" group with the same counts. No overflow at 1920, 1680, 1600, 1440, 1366, 1365, 1280, 1100, 800 or 375 px.
 - No `LINK_GROUPS` change.
 
 ### `/tasks.html` (Wave 1 A: `public/tasks.{html,css,js}`, and the shared `public/taskui.js` and `public/comments.js`)
@@ -526,6 +527,8 @@ How the shared files are split:
 Wave 2 starts only after Wave 1 is merged on `main`, so D codes against real APIs. No task edits files outside its row, the board files or `shared.js`. **Worktree base:** agent worktrees have been created at an old commit. Each agent runs `git log -1` first and resets to the scaffold commit the integrator names, and junctions `crosscuts/app/node_modules` from the main checkout.
 
 ## 11. Feature keys, docs, and points settled by the integrator (2026-10-11)
+
+9. **Scaffold findings (M4 · 2.2):** `FILES_DIR` is resolved to an absolute path, and `files.send` uses `sendFile(name, {root: FILES_DIR})` (with an absolute path, the dotfiles rule rejected the dev folder `.dev`). `accept()` awaits the removal of a refused `.part` file before it throws, so the smoke check for leftovers can't race it. The notifications list now orders by `id DESC` (same order as before, exact for paging).
 
 1. **Keys:** none added (21 stays). `docs/auth.md` drops the † from `tasks.use`, `messages.use` and `reports.upload`, and notes that `accounts.view` opens the report library.
 2. **Reports are viewed with `accounts.view`**, not a new key (decision 3: Todd and all accounts staff).
