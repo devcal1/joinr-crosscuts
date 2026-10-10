@@ -14,15 +14,19 @@ Crosscuts is the TH Cabinets operations app. It runs on the Umbrel home server, 
 
 ## Install from the store
 
-1. In umbrelOS, open the App Store and add a community app store with this URL: `https://github.com/devcal1/joinr-crosscuts`
-2. Find **Crosscuts** in that store and install it.
-3. Keep umbrelOS's **Require Umbrel login** toggle for Crosscuts **off**. Crosscuts does its own login, and the toggle would add a second one.
+This repo holds the code and the image build. The Umbrel app itself lives in the Tenon community store, `tenon-joinr-crosscuts` in [devcal1/tenon-umbrel-store](https://github.com/devcal1/tenon-umbrel-store).
+
+1. In umbrelOS, open the App Store, then **Community App Stores**, and add `https://github.com/devcal1/tenon-umbrel-store` if it is not already there.
+2. Find **Joinr Crosscuts** in the Tenon store and install it.
+3. Keep umbrelOS's **Require Umbrel login** toggle for Joinr Crosscuts **off**. Crosscuts does its own login, and the toggle would add a second one.
 
 Until cutover, Crosscuts is for testing. The TH Cabinets board is still the schedule of record.
 
+To release a new version, see "Release flow" in [CLAUDE.md](CLAUDE.md).
+
 ## First run
 
-1. Open `http://<your-umbrel-address>:4091/setup.html` in a browser.
+1. Open `http://<your-umbrel-address>:4933/setup.html` in a browser.
 2. Enter a username, your display name and a password. This creates the admin account and logs you in.
 3. The setup page stops working as soon as any user exists.
 4. Add the other users from the Users page. Follow [docs/how-to-add-user.md](docs/how-to-add-user.md).

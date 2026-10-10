@@ -4,16 +4,22 @@ name: Build and publish crosscuts-web
 # Only a push to main publishes: each architecture pushes the exact image it
 # just tested (tagged and pushed from the smoke-tested local image, no second
 # build), and the merge job stitches the two digests into the
-# :latest / :sha-<sha> multi-arch tags. This follows Docker's "distribute build
-# across multiple runners" pattern.
+# :<version> / :latest / :sha-<sha> multi-arch tags. This follows Docker's
+# "distribute build across multiple runners" pattern.
+#
+# The version is `version` in crosscuts/app/package.json. A version tag is
+# immutable: the merge job fails, before it creates any tag, if
+# ghcr.io/<owner>/crosscuts-web:<version> already exists. It then prints the
+# `image:` line to paste into tenon-umbrel-store/tenon-joinr-crosscuts/
+# docker-compose.yml in the run summary. The Umbrel manifest and compose file
+# live in that repository, not this one.
 on:
   push:
     branches: [main]
     paths:
-      # crosscuts/** covers the app, the Dockerfile, the lockfile and the
-      # manifest. The manifest has to be in the filter so a follow-up push that
-      # only bumps version: (after the guard step below blocks a forgotten
-      # bump) still triggers a publish.
+      # crosscuts/** covers the app, the Dockerfile, the lockfile and
+      # package.json, so a follow-up push that only bumps the version (after the
+      # guard step below blocks a forgotten bump) still triggers a publish.
       - "crosscuts/**"
       - "ci/**"
       - ".github/workflows/**"
@@ -55,9 +61,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Non-negotiable #1: Umbrel only offers an Update when version: changes,
-      # so an app-code push without a bump would silently drift :latest away
-      # from what the device runs. Fail fast instead.
+      # Non-negotiable #1: the image tag is the package.json version, and a
+      # version tag is immutable, so an app-code push without a bump has no tag
+      # to publish under (and Umbrel would never offer the update). Fail fast.
       - name: Require a version bump for app changes
         if: github.event_name == 'push'
         run: |
@@ -65,10 +71,19 @@ jobs:
           # New branch or force-push with an unreachable before-SHA — nothing to compare.
           git rev-parse -q --verify "$before^{commit}" >/dev/null || exit 0
           git diff --quiet "$before" "${{ github.sha }}" -- crosscuts/app/ && exit 0
-          git diff "$before" "${{ github.sha }}" -- crosscuts/umbrel-app.yml > /tmp/manifest.diff
-          grep -q '^+version:' /tmp/manifest.diff && exit 0
-          echo "crosscuts/app/ changed but umbrel-app.yml version: was not bumped — Umbrel would never offer this update." >&2
+          old=$(git show "$before:crosscuts/app/package.json" 2>/dev/null \
+            | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version' 2>/dev/null || true)
+          new=$(node -p 'require("./crosscuts/app/package.json").version')
+          [ "$old" != "$new" ] && exit 0
+          echo "crosscuts/app/ changed but \"version\" in crosscuts/app/package.json is still $new — bump it. Version tags are immutable, and Umbrel would never offer this update." >&2
           exit 1
+
+      # Fail early on a version that could not be a tag, before a long build.
+      - name: Check the version in package.json
+        run: |
+          version=$(node -p 'require("./crosscuts/app/package.json").version')
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "package.json version '$version' is not MAJOR.MINOR.PATCH" >&2; exit 1; }
+          echo "Version: $version"
 
       - name: Prepare
         run: |
@@ -141,6 +156,18 @@ jobs:
     needs: build-test
     runs-on: ubuntu-24.04
     steps:
+      # Only package.json is needed: the version is the image tag.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: crosscuts/app/package.json
+          sparse-checkout-cone-mode: false
+
+      - name: Read the version
+        run: |
+          version=$(node -p 'require("./crosscuts/app/package.json").version')
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "package.json version '$version' is not MAJOR.MINOR.PATCH" >&2; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
@@ -158,15 +185,62 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Version tags are immutable: the compose file in tenon-umbrel-store pins
+      # this tag AND its digest, so a tag that quietly moved would no longer
+      # match what the device runs. `imagetools inspect` succeeding means the
+      # tag exists. A failure other than "not found" (auth, network) is not
+      # treated as "free": it fails the job too. Nothing has been tagged yet.
+      # A re-run after a successful publish fails here by design; the first
+      # run's summary already holds the line to paste.
+      - name: Refuse to overwrite an existing version tag
+        run: |
+          if out=$(docker buildx imagetools inspect "$IMAGE:$VERSION" 2>&1); then
+            echo "::error::$IMAGE:$VERSION already exists. Version tags are immutable: bump version in crosscuts/app/package.json."
+            exit 1
+          elif grep -qiE 'not found|manifest unknown|name unknown' <<<"$out"; then
+            echo "$IMAGE:$VERSION does not exist yet — good."
+          else
+            echo "Could not tell whether $IMAGE:$VERSION exists:" >&2
+            echo "$out" >&2
+            exit 1
+          fi
+
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
           ls -1
           [ "$(ls -1 | wc -l)" -eq 2 ] || { echo "Expected 2 digests (amd64 + arm64)" >&2; exit 1; }
           docker buildx imagetools create \
+            -t "$IMAGE:$VERSION" \
             -t "$IMAGE:latest" \
             -t "$IMAGE:sha-${{ github.sha }}" \
             $(printf "$IMAGE@sha256:%s " *)
 
       - name: Inspect image
-        run: docker buildx imagetools inspect "$IMAGE:sha-${{ github.sha }}"
+        run: docker buildx imagetools inspect "$IMAGE:$VERSION"
+
+      # The digest to pin is the manifest list's own: the top-level "digest" of
+      # `imagetools inspect --format '{{json .Manifest}}'`. It is cross-checked
+      # against the sha256 of the raw manifest bytes, and against the other two
+      # tags, so a wrong line cannot reach the summary.
+      - name: Print the compose image line
+        run: |
+          digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "No manifest-list digest from inspect: '$digest'" >&2; exit 1; }
+          raw=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --raw | sha256sum | cut -d' ' -f1)
+          [ "sha256:$raw" = "$digest" ] || { echo "Digest mismatch: inspect says $digest, raw manifest hashes to sha256:$raw" >&2; exit 1; }
+          for tag in latest "sha-${{ github.sha }}"; do
+            other=$(docker buildx imagetools inspect "$IMAGE:$tag" --format '{{json .Manifest}}' | jq -r .digest)
+            [ "$other" = "$digest" ] || { echo "$IMAGE:$tag is $other, not $digest" >&2; exit 1; }
+          done
+          line="image: $IMAGE:$VERSION@$digest"
+          echo "$line"
+          {
+            echo "### crosscuts-web $VERSION published"
+            echo
+            echo "Paste this line over the \`image:\` line in \`tenon-umbrel-store/tenon-joinr-crosscuts/docker-compose.yml\`, then bump \`version:\` and \`releaseNotes:\` in that folder's \`umbrel-app.yml\` and push:"
+            echo
+            echo '```yaml'
+            echo "$line"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

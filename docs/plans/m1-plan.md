@@ -4,6 +4,8 @@ Source of truth: `crosscuts-brief.md`. This plan answers the M1 questions in bri
 
 ## 1. Repo and app setup
 
+> **Update 2026-10-10: moved to the Tenon store.** The Umbrel packaging no longer lives in this repo, so the separate store described below is superseded. The app is now `tenon-joinr-crosscuts` ("Joinr Crosscuts", port 4933) in the existing `tenon` community store, `devcal1/tenon-umbrel-store`, next to Joinr Backup. The app id is permanent. This repo keeps the code and the image build; the version comes from `crosscuts/app/package.json`, and the store's compose file pins `ghcr.io/devcal1/crosscuts-web:<version>@sha256:<digest>`. See CLAUDE.md for the release flow. The text below is the original plan, kept as written: its store id `crosscuts`, app id `crosscuts`, port 4091, `APP_HOST` `crosscuts_web_1` and the `umbrel-app-store.yml` / `crosscuts/umbrel-app.yml` layout are superseded. The first bullet's rule still holds: the app id starts with the store id, which is why it is `tenon-joinr-crosscuts`.
+
 **Store decision: a second, separate community store.** The new public repo `devcal1/joinr-crosscuts` *is* the store (store id `crosscuts`; the repo name doesn't affect ids).
 - Umbrel silently drops any app whose id doesn't start with its store's id (umbreld `app-repository.ts` L184). Inside the old `thcabinets` store the app would have to be `thcabinets-crosscuts`, and the old repo would need editing.
 - A separate store with `id: crosscuts` gives the clean id `crosscuts` and never touches the old repo.
