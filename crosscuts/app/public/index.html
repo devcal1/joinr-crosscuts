@@ -24,17 +24,23 @@
       <p class="dash-empty" id="tiles-empty" hidden>Nothing has been switched on for your account yet. Ask an administrator which sections you should see.</p>
     </section>
 
+    <section class="dash-section" id="alerts-section" aria-labelledby="alerts-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 class="dash-h2" id="alerts-h">Notifications</h2>
+        <button class="hs-btn hs-btn-quiet" type="button" id="alerts-all">See all</button>
+      </div>
+      <div class="hs-card alerts-card">
+        <ul class="alerts-list" id="alerts-list"></ul>
+        <p class="alerts-empty" id="alerts-empty" hidden>No alerts</p>
+      </div>
+    </section>
+
     <section class="dash-section" aria-labelledby="later-h">
       <div class="hs-sectionbar"><h2 class="dash-h2" id="later-h">Coming later</h2></div>
       <div class="tiles">
         <article class="tile tile-later hs-card">
           <h3 class="tile-title">My tasks</h3>
           <p class="tile-text">Tasks assigned to you will collect here.</p>
-          <p class="tile-badge hs-badge hs-badge-na">Coming in a later update</p>
-        </article>
-        <article class="tile tile-later hs-card">
-          <h3 class="tile-title">Notifications</h3>
-          <p class="tile-text">Messages and alerts will show here.</p>
           <p class="tile-badge hs-badge hs-badge-na">Coming in a later update</p>
         </article>
       </div>

@@ -301,6 +301,85 @@
     })
   );
 
+  // --- Business details and invoicing ---
+
+  const TEXT_FIELDS = {
+    tradingName: "setTradingName",
+    legalName: "setLegalName",
+    abn: "setAbn",
+    address: "setAddress",
+    phone: "setPhone",
+    email: "setEmail",
+    bankAccountName: "setBankAccountName",
+    bsb: "setBsb",
+    accountNumber: "setAccountNumber",
+  };
+  const NUMBERING = ["setPrefix", "setNextNumber", "setPad"];
+  let numberLocked = false;
+
+  function showSettingsError(msg) {
+    $("settingsError").textContent = msg || "";
+    $("settingsError").hidden = !msg;
+  }
+
+  function fillSettings(s) {
+    for (const [field, id] of Object.entries(TEXT_FIELDS)) $(id).value = s.business[field] || "";
+    $("setTermsText").value = s.invoice.termsText || "";
+    $("setPrefix").value = s.invoice.prefix;
+    $("setNextNumber").value = s.invoice.nextNumber;
+    $("setPad").value = s.invoice.pad;
+    $("setDefaultDays").value = s.invoice.defaultDays;
+    numberLocked = !!s.invoice.numberLocked;
+    for (const id of NUMBERING) $(id).disabled = numberLocked;
+    $("setLockNote").hidden = !numberLocked;
+  }
+
+  // Whole-number fields: "" or a non-integer is a mistake the person should see, not a silent skip.
+  function intField(id, label) {
+    const raw = $(id).value.trim();
+    if (!/^\d+$/.test(raw)) throw new Error(`${label} must be a whole number`);
+    return Number(raw);
+  }
+
+  async function loadSettings() {
+    fillSettings(await api("/api/settings"));
+  }
+
+  $("settingsForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showSettingsError("");
+    const btn = $("settingsSave");
+    btn.disabled = true;
+    try {
+      const business = {};
+      for (const [field, id] of Object.entries(TEXT_FIELDS)) business[field] = $(id).value;
+      const invoice = { termsText: $("setTermsText").value, defaultDays: intField("setDefaultDays", "Default days to pay") };
+      // Locked numbering is left out of the request; the server would also accept the unchanged values.
+      if (!numberLocked) {
+        invoice.prefix = $("setPrefix").value;
+        invoice.nextNumber = intField("setNextNumber", "Next number");
+        invoice.pad = intField("setPad", "Number padding");
+      }
+      fillSettings(await api("/api/settings", { method: "PUT", body: JSON.stringify({ business, invoice }) }));
+      toast("Saved");
+    } catch (err) {
+      showSettingsError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $("roundupBtn").addEventListener(
+    "click",
+    guarded(async () => {
+      if (!confirm("Send the invoice round-up now to everyone who can edit invoices?")) return;
+      const r = await api("/api/notifications/roundup/run", { method: "POST" });
+      toast(r && r.sent > 0 ? `Round-up sent to ${r.sent} ${r.sent === 1 ? "person" : "people"}` : "Nothing to report");
+    })
+  );
+
+  guarded(loadSettings)();
+
   // --- Boot ---
 
   guarded(async () => {

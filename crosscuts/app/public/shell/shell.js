@@ -64,6 +64,13 @@
     ready: new Promise(function (resolve) {
       resolveReady = resolve;
     }),
+    // Alerts, for pages that show them too (the dashboard).
+    // Deferred, so the click that asked for it finishes bubbling (and reaches the outside-click
+    // handler) before the panel opens.
+    openAlerts: function () { setTimeout(openAlerts, 0); },
+    openAlert: function (n) { openAlert(n); },
+    refreshAlerts: function () { return pollCount(); },
+    timeAgo: function (iso) { return timeAgo(iso); },
   });
 
   // ---------- small DOM helpers ----------
@@ -381,6 +388,195 @@
     ]);
   }
 
+  // ---------- alerts (the bell) ----------
+  // A text button with an unread badge. The count is polled every 60 s and on window focus;
+  // a 401 (signed out or locked elsewhere) simply stops the polling, it never redirects.
+  var ALERT_POLL_MS = 60000;
+  var alerts = { btn: null, badge: null, panel: null, list: null, readAll: null, unread: 0, timer: null, running: false, stopped: false };
+
+  function getJson(url) {
+    return fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        return { ok: res.ok, status: res.status, body: body || {} };
+      });
+    });
+  }
+  function timeAgo(iso) {
+    var t = Date.parse(iso);
+    if (isNaN(t)) return "";
+    var m = Math.floor(Math.max(0, Date.now() - t) / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return m + " min ago";
+    var hr = Math.floor(m / 60);
+    if (hr < 24) return hr + (hr === 1 ? " hour ago" : " hours ago");
+    var d = Math.floor(hr / 24);
+    if (d < 7) return d + (d === 1 ? " day ago" : " days ago");
+    return new Date(t).toLocaleDateString("en-AU", { timeZone: "Australia/Sydney", day: "numeric", month: "short" });
+  }
+  // Links are site-relative; anything else is ignored.
+  function safeLink(link) {
+    return typeof link === "string" && /^\/(?!\/)/.test(link) ? link : "";
+  }
+  function alertsOpen() {
+    return !!alerts.btn && alerts.btn.getAttribute("aria-expanded") === "true";
+  }
+  function setUnread(n) {
+    alerts.unread = n;
+    if (!alerts.btn) return;
+    alerts.badge.hidden = n < 1;
+    alerts.badge.textContent = n > 99 ? "99+" : String(n);
+    alerts.btn.setAttribute("aria-label", n > 0 ? "Alerts, " + n + " unread" : "Alerts");
+    alerts.readAll.disabled = n < 1;
+  }
+  function stopAlerts() {
+    alerts.stopped = true;
+    if (alerts.timer) clearInterval(alerts.timer);
+    alerts.timer = null;
+    window.removeEventListener("focus", pollCount);
+  }
+  function pollCount() {
+    if (alerts.stopped || !alerts.btn) return Promise.resolve();
+    return getJson("/api/notifications/unread-count")
+      .then(function (r) {
+        if (r.status === 401) return stopAlerts();
+        if (!r.ok) return;
+        var n = Number(r.body.unread) || 0;
+        var changed = n !== alerts.unread;
+        setUnread(n);
+        if (changed && alertsOpen()) loadAlerts();
+      })
+      .catch(function () { /* offline: try again next time */ });
+  }
+  function startAlerts() {
+    if (alerts.running || devMode || onAuthPage) return;
+    alerts.running = true;
+    alerts.timer = setInterval(pollCount, ALERT_POLL_MS);
+    window.addEventListener("focus", pollCount);
+    pollCount();
+  }
+
+  function markRead(id) {
+    return post("/api/notifications/" + id + "/read").catch(function () {});
+  }
+  // Mark one alert read, then follow its link (or just refresh when it has none).
+  function openAlert(n) {
+    var href = safeLink(n.link);
+    var go = function () {
+      if (href) location.assign(href);
+      else { pollCount(); if (alertsOpen()) loadAlerts(); }
+    };
+    if (n.readAt) return go();
+    markRead(n.id).then(go);
+  }
+  function alertItem(n) {
+    var unread = !n.readAt;
+    var href = safeLink(n.link);
+    var item = h(href ? "a" : "button", {
+      class: "cc-bell-item" + (unread ? " cc-unread" : ""),
+      href: href || false,
+      type: href ? false : "button",
+    }, [
+      unread ? h("span", { class: "cc-sr", text: "Unread: " }) : null,
+      h("span", { class: "cc-bell-title", text: n.title }),
+      n.body ? h("span", { class: "cc-bell-body", text: n.body }) : null,
+      h("span", { class: "cc-bell-time", text: timeAgo(n.createdAt) }),
+    ]);
+    item.addEventListener("click", function (e) {
+      if (href && (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey)) {
+        if (unread) markRead(n.id); // opened in a new tab: let the browser do that
+        return;
+      }
+      e.preventDefault();
+      openAlert(n);
+    });
+    return item;
+  }
+  function alertNote(text) {
+    alerts.list.textContent = "";
+    alerts.list.appendChild(h("li", { class: "cc-bell-empty", text: text }));
+  }
+  function loadAlerts() {
+    return getJson("/api/notifications?limit=30")
+      .then(function (r) {
+        if (r.status === 401) { stopAlerts(); return alertNote("Your session has ended. Sign in again."); }
+        if (!r.ok) return alertNote("Couldn't load alerts.");
+        var rows = r.body.rows || [];
+        setUnread(Number(r.body.unread) || 0);
+        if (!rows.length) return alertNote("No alerts");
+        alerts.list.textContent = "";
+        rows.forEach(function (n) {
+          alerts.list.appendChild(h("li", { class: "cc-bell-li" }, [alertItem(n)]));
+        });
+        // Keyboard users who opened an empty panel land on the first alert once it arrives.
+        if (document.activeElement === alerts.panel) {
+          var first = alerts.list.querySelector(".cc-bell-item");
+          if (first) first.focus();
+        }
+      })
+      .catch(function () { alertNote("Couldn't reach the server."); });
+  }
+  function openAlerts() {
+    if (!alerts.btn || alertsOpen()) return;
+    closeAllPopups(alerts.btn);
+    setOpen(alerts.btn, true);
+    alerts.panel.focus();
+    loadAlerts();
+  }
+  function closeAlerts(returnFocus) {
+    if (!alerts.btn) return;
+    setOpen(alerts.btn, false);
+    if (returnFocus) alerts.btn.focus();
+  }
+
+  function buildBell() {
+    var badge = h("span", { class: "cc-bell-badge", hidden: true, "aria-hidden": "true", text: "0" });
+    var btn = h(
+      "button",
+      {
+        class: "cc-btn cc-bell",
+        type: "button",
+        id: "cc-bell-btn",
+        "data-cc-toggle": "",
+        "aria-haspopup": "dialog",
+        "aria-expanded": "false",
+        "aria-controls": "cc-bell-menu",
+        "aria-label": "Alerts",
+      },
+      ["Alerts", badge]
+    );
+    var readAll = h("button", { class: "cc-btn cc-btn-quiet cc-btn-sm", type: "button", disabled: true, text: "Mark all read" });
+    var list = h("ul", { class: "cc-bell-list" });
+    var panel = h("div", { class: "cc-bell-menu", id: "cc-bell-menu", role: "dialog", "aria-label": "Alerts", tabindex: "-1" }, [
+      h("div", { class: "cc-bell-head" }, [h("span", { class: "cc-bell-heading", text: "Alerts" }), readAll]),
+      list,
+    ]);
+    alerts.btn = btn; alerts.badge = badge; alerts.panel = panel; alerts.list = list; alerts.readAll = readAll;
+
+    btn.addEventListener("click", function () {
+      if (alertsOpen()) closeAlerts(false);
+      else openAlerts();
+    });
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown" && !alertsOpen()) { e.preventDefault(); openAlerts(); }
+    });
+    readAll.addEventListener("click", function () {
+      post("/api/notifications/read-all").then(function () { setUnread(0); loadAlerts(); }).catch(function () {});
+    });
+    panel.addEventListener("keydown", function (e) {
+      var stops = Array.prototype.slice.call(panel.querySelectorAll("button:not(:disabled), a[href]"));
+      var i = stops.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); if (stops.length) stops[(i + 1) % stops.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); if (stops.length) stops[(i - 1 + stops.length) % stops.length].focus(); }
+    });
+    // Tabbing out of the panel closes it; clicking inside it never does.
+    panel.addEventListener("focusout", function (e) {
+      var to = e.relatedTarget;
+      if (to && !panel.contains(to) && to !== btn) closeAlerts(false);
+    });
+    setUnread(alerts.unread);
+    return { btn: btn, panel: panel };
+  }
+
   // ---------- render ----------
   function isCurrent(href) {
     var here = PAGE_ALIASES[path] || path;
@@ -433,11 +629,17 @@
       setOpen(menuBtn, open);
     });
 
-    // The old bell was a disabled placeholder that opened nothing, so it is gone
-    // until notifications exist.
     var um = buildUserMenu(user.displayName || user.username || "dev");
 
-    var right = h("div", { class: "cc-right" }, [um.btn, um.menu]);
+    // The bell needs a real session, so it is left out of dev mode and the auth pages.
+    var right = h("div", { class: "cc-right" });
+    if (!devMode && !onAuthPage) {
+      var bell = buildBell();
+      right.appendChild(bell.btn);
+      right.appendChild(bell.panel);
+    }
+    right.appendChild(um.btn);
+    right.appendChild(um.menu);
     bar.appendChild(menuBtn);
     bar.appendChild(nav);
     bar.appendChild(right);
@@ -479,6 +681,7 @@
       cc.dev = devMode;
       cc.loaded = true;
       if (!onAuthPage || user) render(root, user);
+      if (user) startAlerts();
       resolveReady(cc);
       document.dispatchEvent(new Event("cc:ready"));
       if (user && user.mustChangePassword && !devMode) {

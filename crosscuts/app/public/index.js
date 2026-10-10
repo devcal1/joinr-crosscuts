@@ -27,6 +27,7 @@
       title: "Accounts",
       text: "Invoices, overdue accounts and reports.",
       any: ["accounts.view"],
+      stat: "accounts",
       links: [{ label: "Accounts", href: "/accounts.html", key: "accounts.view" }],
     },
     {
@@ -88,6 +89,7 @@
       var tile = el("article", "tile hs-card");
       tile.appendChild(el("h3", "tile-title", d.title));
       tile.appendChild(el("p", "tile-text", d.text));
+      if (d.stat === "accounts") tile.appendChild(accountsStat());
       var links = el("div", "tile-links");
       d.links.forEach(function (l) {
         if (!cc.can(l.key)) return;
@@ -100,6 +102,57 @@
       shown++;
     });
     if (!shown) document.getElementById("tiles-empty").hidden = false;
+  }
+
+  // "N due · N overdue" on the Accounts tile. Overdue turns red only when there is some.
+  function accountsStat() {
+    var line = el("p", "tile-stat");
+    line.hidden = true;
+    api("/api/invoices/summary")
+      .then(function (s) {
+        if (!s) return;
+        line.textContent = "";
+        line.appendChild(el("strong", null, s.dueCount + " due"));
+        line.appendChild(document.createTextNode(" · "));
+        line.appendChild(el("strong", s.overdueCount > 0 ? "stat-overdue" : null, s.overdueCount + " overdue"));
+        line.hidden = false;
+      })
+      .catch(function () { /* optional; leave it hidden */ });
+    return line;
+  }
+
+  // The latest five alerts. Each one marks itself read and follows its link, as in the bell.
+  function renderAlerts(cc) {
+    if (cc.dev) return;
+    var section = document.getElementById("alerts-section");
+    var list = document.getElementById("alerts-list");
+    document.getElementById("alerts-all").addEventListener("click", function () { cc.openAlerts(); });
+    api("/api/notifications?limit=5")
+      .then(function (data) {
+        if (!data) return;
+        section.hidden = false;
+        var rows = data.rows || [];
+        document.getElementById("alerts-empty").hidden = rows.length > 0;
+        rows.forEach(function (n) {
+          var link = typeof n.link === "string" && /^\/(?!\/)/.test(n.link) ? n.link : "";
+          var item = el(link ? "a" : "button", "alert-item" + (n.readAt ? "" : " alert-unread"));
+          if (link) item.href = link;
+          else item.type = "button";
+          if (!n.readAt) item.appendChild(el("span", "alert-sr", "Unread: "));
+          item.appendChild(el("span", "alert-title", n.title));
+          if (n.body) item.appendChild(el("span", "alert-body", n.body));
+          item.appendChild(el("span", "alert-time", cc.timeAgo(n.createdAt)));
+          item.addEventListener("click", function (e) {
+            if (link && (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey)) return;
+            e.preventDefault();
+            cc.openAlert(n);
+          });
+          var li = el("li", "alert-li");
+          li.appendChild(item);
+          list.appendChild(li);
+        });
+      })
+      .catch(function () { /* optional; leave it hidden */ });
   }
 
   function renderWeek(cc) {
@@ -125,6 +178,7 @@
     renderGreeting(cc);
     renderTiles(cc);
     renderWeek(cc);
+    renderAlerts(cc);
   }
 
   if (window.cc && window.cc.loaded) init(window.cc);
