@@ -1,0 +1,22 @@
+# Runtime volumes — persistent app data on the Umbrel, never source.
+# photos.db here holds the ENTIRE live schedule (workers / jobs / week_rows /
+# assignments / day_flags), so on any machine that has actually run the app a
+# stray `git add -A` would publish real business data to a public repo.
+# The .gitkeep files stay tracked so the volume mount points survive a clone.
+crosscuts/data/**
+!crosscuts/data/**/
+!crosscuts/data/**/.gitkeep
+
+# Default runtime dirs when DB_DIR / UPLOADS_DIR / CONFIG_DIR are not set
+# (local runs only; the container always sets them).
+crosscuts/app/data/
+crosscuts/app/uploads/
+crosscuts/app/config/
+
+# Local dev scratch (database, uploads, config for the node:sqlite shim).
+.dev/
+
+# Installed dependencies. package-lock.json is deliberately NOT ignored — the
+# image build wants it committed.
+node_modules/
+npm-debug.log*

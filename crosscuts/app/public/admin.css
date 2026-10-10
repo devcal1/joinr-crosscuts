@@ -1,0 +1,185 @@
+@import url('tokens.css');
+
+:root {
+  /* Intentionally darker/more purple than search.css/schedule.css's logo-matched
+     black — this page was always meant to read as an internal tool, not the
+     customer-facing pages. Don't "fix" this to match them. */
+  --color-bg: #161826;
+
+  --space-2: 5.6px;
+  --space-3: 8.4px;
+  --space-4: 11.2px;
+  --space-6: 16.8px;
+  --space-8: 22.4px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+}
+
+html, body { margin: 0; background: var(--color-bg); }
+body {
+  color: var(--color-text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-8);
+}
+
+h1 { font-size: 25px; font-weight: 500; margin: 0 0 4px; }
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); font-size: 14px; }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin-top: var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  background: #1a1c28;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+.input:focus-visible { outline: none; border-color: var(--color-accent); }
+
+.upload-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.upload-row .field { flex: 1; min-width: 220px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  font-family: var(--font);
+  font-weight: 500;
+  font-size: 14px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { color: var(--color-accent); border-color: var(--color-accent); background: transparent; }
+.btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.btn-ghost { color: #e08a9b; padding: 4px 10px; font-size: 13px; }
+.btn-ghost:hover { background: color-mix(in srgb, #e08a9b 12%, transparent); }
+.btn-secondary { color: var(--color-text); border-color: var(--color-divider); background: transparent; }
+.btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+
+.status { font-size: 13px; min-height: 18px; }
+.status.error { color: #e08a9b; }
+.status.ok { color: #7fd28f; }
+
+.table-wrap { overflow-x: auto; margin-top: var(--space-6); }
+.table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-divider);
+}
+.table td {
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+  vertical-align: middle;
+}
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.table img {
+  width: 192px;
+  height: 192px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+.table .tags-input { min-width: 220px; }
+.row-actions { display: flex; gap: var(--space-2); align-items: center; }
+
+.file-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-top: 8px;
+}
+.file-preview img {
+  max-width: 240px;
+  max-height: 240px;
+  width: auto;
+  height: auto;
+  display: block;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-divider);
+}
+
+.add-tag-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.add-tag-row .input {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.add-tag-row .btn {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.row-suggest-btn {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  margin-top: 6px;
+}
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tag-chip {
+  cursor: pointer;
+  border: 1px solid var(--color-accent);
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+}
+.tag-chip:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workers — TH Cabinets</title>
+<link rel="stylesheet" href="schedule.css">
+<link rel="stylesheet" href="vendor/phosphor/style.css">
+<style>
+  .worker-table { width: 100%; border-collapse: collapse; max-width: 640px; }
+  .worker-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 160px 90px;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .worker-row.archived { opacity: 0.55; }
+  .swatch { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; }
+  .worker-row input[type="text"] { width: 100%; }
+  .hue-row { display: flex; align-items: center; gap: 8px; }
+  .hue-row input[type="range"] { flex: 1; accent-color: var(--color-accent); }
+  .add-worker { display: flex; gap: 8px; margin: var(--space-6) 0; max-width: 420px; }
+  .add-worker input { flex: 1; }
+</style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="nav-brand" href="/">TH Cabinets</a>
+    <a href="/schedule.html">Schedule</a>
+    <a href="/workers.html" aria-current="page">Workers</a>
+  </nav>
+
+  <main>
+    <div class="page-head">
+      <h1>Workers</h1>
+      <p class="text-muted">Add, rename, recolour, or archive the crew shown on the schedule. Archiving keeps their
+        history on past weeks but hides them from new assignments.</p>
+    </div>
+
+    <div class="add-worker">
+      <input id="newWorkerName" class="input" type="text" placeholder="New worker name">
+      <button id="addWorkerBtn" class="btn btn-primary" type="button">+ Add worker</button>
+    </div>
+
+    <div id="workerList" class="worker-table"></div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="workers.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schedule — TH Cabinets</title>
+<link rel="stylesheet" href="schedule.css">
+<link rel="stylesheet" href="vendor/phosphor/style.css">
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="nav-brand" href="/">TH Cabinets</a>
+    <a href="/schedule.html" aria-current="page">Schedule</a>
+    <a href="/workers.html">Workers</a>
+    <div class="nav-spacer"></div>
+    <button id="prevWeekBtn" class="btn btn-secondary btn-icon" type="button" aria-label="Previous week"><i class="ph ph-caret-left"></i></button>
+    <input id="weekPicker" class="input" type="date" title="Jump to week">
+    <button id="nextWeekBtn" class="btn btn-secondary btn-icon" type="button" aria-label="Next week"><i class="ph ph-caret-right"></i></button>
+    <button id="todayBtn" class="btn btn-secondary" type="button">This week</button>
+    <button id="exportPdfBtn" class="btn btn-secondary" type="button"><i class="ph ph-file-pdf"></i> PDF</button>
+    <button id="exportJpgBtn" class="btn btn-secondary" type="button"><i class="ph ph-image"></i> JPG</button>
+  </nav>
+
+  <main id="main">
+    <div class="board">
+      <!-- Left column: To start, then the page title and the worker legend. -->
+      <div class="board-side">
+        <aside id="backlogPanel" class="backlog" aria-label="To start"></aside>
+        <div class="page-head">
+          <h1>Live schedule</h1>
+          <p class="text-muted">Manufacturing and installing, Mon–Fri.</p>
+        </div>
+        <h3 class="legend-title">Workers</h3>
+        <div id="legend" class="legend"></div>
+      </div>
+      <div id="weeksContainer">
+        <div class="empty-schedule">Loading…</div>
+      </div>
+    </div>
+  </main>
+
+  <div id="popover" class="popover" hidden></div>
+  <dialog id="finishDialog" class="finish-dialog" aria-label="Finish week"></dialog>
+
+  <script src="shared.js"></script>
+  <script src="schedule.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+version: "3.7"
+
+services:
+
+  app_proxy:
+    environment:
+      # Format: <app-id>_<docker-service-name>_1
+      APP_HOST: crosscuts_web_1
+      APP_PORT: 3000
+      # Crosscuts does its own login (personal accounts, sessions, roles), so
+      # umbrelOS's proxy auth is switched off. Also keep the per-app "Require
+      # Umbrel login" toggle in the umbrelOS UI OFF: on 2.0 it overrides this.
+      PROXY_AUTH_ADD: "false"
+
+  web:
+    image: ghcr.io/devcal1/crosscuts-web:latest
+    restart: on-failure
+    volumes:
+      - ${APP_DATA_DIR}/data/uploads:/app/uploads
+      - ${APP_DATA_DIR}/data/db:/app/db
+      - ${APP_DATA_DIR}/data/config:/app/config

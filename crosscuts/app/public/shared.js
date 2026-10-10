@@ -1,0 +1,43 @@
+// Shared helpers for the schedule/workers pages (plain global functions, no
+// build step — load this before the page's own script).
+
+async function api(path, options) {
+  const res = await fetch(path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options && options.headers) },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed (${res.status})`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function toast(msg) {
+  const el = document.createElement("div");
+  el.textContent = msg;
+  el.style.cssText =
+    "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--color-surface);" +
+    "color:var(--color-text);border:1px solid var(--color-divider);border-radius:8px;padding:8px 14px;" +
+    "font-size:13px;z-index:50;box-shadow:var(--shadow-md)";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+function guarded(fn) {
+  return async (...args) => {
+    try {
+      await fn(...args);
+    } catch (e) {
+      toast(`Error: ${e.message}`);
+    }
+  };
+}
+
+// Kept in sync by hand with hueColors() in server.js — the server copy is
+// authoritative (it colors the chips the board and JPG export show); this one
+// only drives the workers-page hue-slider preview.
+function hueColors(hue) {
+  return { bg: `oklch(30% 0.06 ${hue})`, fg: `oklch(86% 0.10 ${hue})` };
+}

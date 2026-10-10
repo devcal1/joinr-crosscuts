@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TH Cabinets — Photo Admin</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div class="page">
+    <h1>Photo Admin</h1>
+    <p class="text-muted">Upload job photos and tag them so they show up in the search page. Not linked publicly — bookmark this page.</p>
+
+    <form class="card" id="upload-form">
+      <div class="upload-row">
+        <div class="field" style="flex:2">
+          <label for="files">Photos</label>
+          <input class="input" type="file" id="files" name="photos" accept="image/jpeg,image/png,image/webp" multiple required>
+          <div class="file-preview" id="file-preview"></div>
+          <button class="btn btn-secondary" type="button" id="suggest-tags-btn" style="margin-top:8px">Suggest tags from photos</button>
+        </div>
+        <div class="field" style="flex:2">
+          <label for="tags">Tags (comma-separated, applied to all selected photos)</label>
+          <input class="input" type="text" id="tags" name="tags" placeholder="kitchen, farmhouse, oak, matte black hardware">
+          <div class="tag-chips" id="suggest-chips"></div>
+        </div>
+        <button class="btn btn-primary" type="submit" id="upload-btn">Upload</button>
+      </div>
+      <div class="status" id="upload-status"></div>
+    </form>
+
+    <div class="card" id="bulk-card">
+      <div class="field">
+        <label for="bulk-folder">Bulk import from a folder</label>
+        <input class="input" type="file" id="bulk-folder" webkitdirectory directory multiple>
+      </div>
+      <p class="text-muted" style="margin:0">
+        Pick a folder containing one subfolder per category (e.g. <code>Hamptons Kitchen/</code>,
+        <code>Laundry/</code>). Each subfolder becomes a tag you can edit below before importing.
+      </p>
+      <div id="bulk-review" style="display:none">
+        <div class="table-wrap">
+          <table class="table" id="bulk-review-table">
+            <thead>
+              <tr>
+                <th style="width:28px"></th>
+                <th>Folder</th>
+                <th>Tag</th>
+                <th>Photos</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-review-tbody"></tbody>
+          </table>
+        </div>
+        <div id="bulk-skipped" class="text-muted" style="font-size:13px;margin-top:8px"></div>
+        <div class="upload-row" style="margin-top:12px">
+          <button class="btn btn-primary" type="button" id="bulk-import-btn">Import selected</button>
+          <button class="btn btn-ghost" type="button" id="bulk-cancel-btn" style="color:var(--color-neutral-500)">Cancel</button>
+        </div>
+        <div class="status" id="bulk-status"></div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="photo-table">
+        <thead>
+          <tr>
+            <th>Photo</th>
+            <th>Tags</th>
+            <th>Uploaded</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="photo-tbody">
+          <tr><td colspan="4" class="text-muted">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+/* Shared design tokens for admin.css / search.css / schedule.css.
+   Only values that are genuinely identical across all three pages live here —
+   --color-bg, spacing, and radius scale are deliberately page-local (admin's
+   background and schedule's larger TV-display scale are intentional
+   differences, not drift), so they stay declared per-page. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9;
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  --color-neutral-500: #9397ab;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+
+  --font: "Inter", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }

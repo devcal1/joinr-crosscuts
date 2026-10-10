@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TH Cabinets — Job Photo Search</title>
+<link rel="stylesheet" href="search.css">
+<link rel="stylesheet" href="vendor/phosphor/style.css">
+</head>
+<body>
+
+  <div class="banner-bar">
+    <img src="assets/th-header-banner.png" alt="TH Cabinets">
+  </div>
+
+  <div class="hero">
+    <div class="hero-logo">
+      <img src="logo.png" alt="TH Cabinets">
+    </div>
+    <div class="search-wrap">
+      <i class="ph ph-magnifying-glass"></i>
+      <input class="input" id="search-input" type="text" placeholder="Dream in oak, ask in words..." autocomplete="off">
+    </div>
+  </div>
+
+  <div class="results">
+    <div class="result-count">
+      <span class="text-muted" id="result-count">Loading…</span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty-state" id="empty-state" style="display:none">
+      <i class="ph ph-image-broken"></i>
+      No photos match those filters.
+    </div>
+  </div>
+
+  <div class="dialog-backdrop" id="lightbox">
+    <div class="dialog">
+      <img id="lightbox-img" src="" alt="">
+      <button class="btn btn-icon btn-secondary" id="lightbox-close" aria-label="Close">
+        <i class="ph ph-x"></i>
+      </button>
+    </div>
+  </div>
+
+  <script src="vendor/fuse.min.js"></script>
+  <script src="search.js"></script>
+</body>
+</html>
