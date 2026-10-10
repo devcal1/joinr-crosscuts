@@ -18,12 +18,10 @@ const STAGES = [
 const MANUAL_STAGES = new Set(["lead", "quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"]);
 const BENCHTOPS = new Set(["laminate", "stone", "none"]);
 
-// Permission check. Once auth is real, req.user carries perms (a Set). Auth is
-// still a pass-through stub locally, which leaves req.user null; in that case
-// (and ONLY outside production) every permission is treated as granted so the
-// feature can be exercised. In production a null user has nothing.
+// Permission check. requirePerm has already guaranteed a logged-in user; a
+// missing user is treated as having nothing.
 function can(req, key) {
-  if (!req.user) return process.env.NODE_ENV !== "production";
+  if (!req.user) return false;
   const perms = req.user.perms;
   if (perms instanceof Set) return perms.has(key);
   if (Array.isArray(perms)) return perms.includes(key);
