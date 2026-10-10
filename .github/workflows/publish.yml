@@ -534,7 +534,7 @@ jobs:
           [ "$status" = "204" ] || { echo "Expected 204 deleting dup row, got $status" >&2; exit 1; }
 
           echo "Verifying the row deletes left no orphaned day_flags behind..."
-          orphan_flags=$(docker exec smoke-test node -e "console.log(require('better-sqlite3')('/app/db/photos.db').prepare('SELECT COUNT(*) AS n FROM day_flags').get().n)")
+          orphan_flags=$(docker exec smoke-test node -e "console.log(require('better-sqlite3')('/data/db/photos.db').prepare('SELECT COUNT(*) AS n FROM day_flags').get().n)")
           [ "$orphan_flags" = "0" ] || { echo "Expected 0 day_flags after row deletes, got $orphan_flags" >&2; exit 1; }
 
           echo "Schedule API smoke test passed."

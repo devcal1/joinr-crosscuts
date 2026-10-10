@@ -16,6 +16,6 @@ services:
     image: ghcr.io/devcal1/crosscuts-web:latest
     restart: on-failure
     volumes:
-      - ${APP_DATA_DIR}/data/uploads:/app/uploads
-      - ${APP_DATA_DIR}/data/db:/app/db
-      - ${APP_DATA_DIR}/data/config:/app/config
+      - ${APP_DATA_DIR}/data/uploads:/data/uploads
+      - ${APP_DATA_DIR}/data/db:/data/db
+      - ${APP_DATA_DIR}/data/config:/data/config

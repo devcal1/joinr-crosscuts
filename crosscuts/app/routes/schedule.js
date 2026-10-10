@@ -139,8 +139,8 @@ r.patch("/rows/:id/move", "board.edit", (req, res) => {
 
   // --- send the row back to the To start list ---
   if (req.body.backlog === true) {
-    // Same scoped cleanup as DELETE /api/rows/:id: day_flags has no FK
-    // enforcement, so child rows are removed here in the same transaction.
+    // Same scoped cleanup as DELETE /api/rows/:id: child rows (flags, then
+    // assignments) go first in the same transaction so the FK check holds.
     // Only this row id is touched. The job itself stays, and goes onto the
     // backlog as a pointer, unless it is already waiting there.
     const send = db.transaction(() => {

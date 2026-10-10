@@ -9,9 +9,11 @@ RUN npm install --omit=dev
 # an enumerated COPY silently drops any new server-side file from the image.
 COPY . .
 
-ENV UPLOADS_DIR=/app/uploads
-ENV DB_DIR=/app/db
-ENV CONFIG_DIR=/app/config
+# Data lives OUTSIDE /app: app/db/ is source code (migrations), so a volume
+# mounted at /app/db would hide it. Host layout (data/db etc.) is unchanged.
+ENV UPLOADS_DIR=/data/uploads
+ENV DB_DIR=/data/db
+ENV CONFIG_DIR=/data/config
 ENV PORT=3000
 
 EXPOSE 3000
