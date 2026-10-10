@@ -308,7 +308,7 @@ function issue(db, id, req) {
       number = prefix + String(n).padStart(pad, "0");
       n += 1;
     } while (db.prepare("SELECT 1 AS x FROM invoices WHERE number = ?").get(number));
-    settings.set(db, "invoice.next_number", n, req);
+    settings.set(db, "invoice.next_number", n, req, { audit: false });
 
     // Materialise the lines (a live standard line becomes stored rows).
     if (!inv.lines_custom) {

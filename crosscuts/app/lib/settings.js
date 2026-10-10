@@ -37,7 +37,9 @@ function getAll(db) {
 }
 
 // Upserts one setting. Unknown keys are a programming error, not user input.
-function set(db, key, value, req) {
+// {audit:false} is for bookkeeping writes already covered by another audit row
+// (the invoice counter, whose step is recorded by invoice.issue).
+function set(db, key, value, req, { audit: auditIt = true } = {}) {
   if (!Object.prototype.hasOwnProperty.call(DEFAULTS, key)) {
     throw new Error(`Unknown setting key: ${key}`);
   }
@@ -48,7 +50,7 @@ function set(db, key, value, req) {
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at,
        updated_by = excluded.updated_by`
   ).run(key, v, new Date().toISOString(), (req && req.user && req.user.id) || null);
-  if (!key.startsWith("roundup.") && before !== v) {
+  if (auditIt && !key.startsWith("roundup.") && before !== v) {
     audit.log(req, {
       action: "settings.update",
       entityType: "settings",
