@@ -73,7 +73,9 @@ Design/PM gets a **Pipeline** page: one column per stage from Lead to Invoiced, 
 
 **`jobs.materials_in_date`:** Sydney date, nullable. Set when the last open order line is received, cleared if a new line is added later. It's the flag the M5 board indicator will read.
 
-No card-position column (Q2). No change to stored tags (Q4).
+No card-position column (Q2).
+
+**`011_tidy_photo_tags.js` (the one-off tag tidy, Q4, signed off by Todd 2026-10-11):** rewrites `photos.tags` only. Each photo's tags are split on commas, trimmed, lowercased, emptied entries dropped, and duplicates removed (first occurrence kept, order otherwise unchanged), then joined with `, `. No row is deleted and no other column changes. A photo whose tags are already tidy is not written. It runs on boot like any migration, so the runner's `VACUUM INTO` backup is taken first; at cutover it runs on the loaded live data and the cutover count checks compare photo counts before and after. It's its own file so it can be reviewed on its own.
 
 ## 4. Pipeline board
 
@@ -113,7 +115,7 @@ No card-position column (Q2). No change to stored tags (Q4).
 - **Linking:** the upload page gets an optional **Job** picker (open and recent jobs). The admin table shows each photo's job and filters by it, and a photo's job can be changed or cleared. Needs `photos.admin`.
 - **Job page section "Photos"** (`jobs.view`): thumbnails of the job's photos, with **Upload photos** for `photos.admin`. Any job can have photos (the brief mentions completed jobs, but nothing stops an earlier one).
 - **Showroom privacy** (trap 7): `GET /api/photos` returns `jobId` and the job name only to `jobs.view` holders. The showroom role sees exactly what it sees today. Smoke-tested.
-- **Tags, new version:** `GET /api/photos/tags` returns `[{tag, count}]`, trimmed and matched without regard to case ("Kitchen" and "kitchen" count as one, shown in the most common spelling). New and edited tags are saved trimmed, lowercased and de-duplicated. Existing tags aren't rewritten (Q4).
+- **Tags, new version:** `GET /api/photos/tags` returns `[{tag, count}]`, trimmed and lowercased (after the tidy there is one spelling per tag). New and edited tags are saved trimmed, lowercased and de-duplicated, and migration 011 tidies the existing ones the same way (Q4), so after M3 every stored tag is in one form.
 - **Tag chips on the showroom search** (and the admin table): pick one or more chips to narrow the photos (all chosen tags must match), alongside the existing fuzzy search. Counts refresh after every edit, fixing the WIP's stale-count bug.
 - **Keyboard:** search tiles become buttons (Tab, Enter, Space), the caption shows on focus as well as hover, and the lightbox takes focus and returns it on close. This clears the M1.2 deferred finding.
 - Photo upload, tag edit, job link and delete write audit rows.
@@ -130,7 +132,7 @@ No card-position column (Q2). No change to stored tags (Q4).
 ## 9. Build, tests, release
 
 **Waves** (fixed at M3 · 2.1 in `m3-contracts.md`; likely shape):
-- **2.2 Scaffold (me):** migration 010; `lib/orders.js` with `markMaterialsOrdered` moved out of the route (the button keeps working); the stage-move function and its rules in `lib/jobstage.js`; `notify` `exceptUserId`; empty guarded routers.
+- **2.2 Scaffold (me):** migrations 010 and 011 (tag tidy, checked against a copy of the dev DB with mixed-case tags); `lib/orders.js` with `markMaterialsOrdered` moved out of the route (the button keeps working); the stage-move function and its rules in `lib/jobstage.js`; `notify` `exceptUserId`; empty guarded routers.
 - **3.1 Wave 1, in parallel:**
   - **A, pipeline:** the stage endpoint, `/pipeline.html` with pointer-event drag, the job page's stage dropdown.
   - **B, orders and inspections backend:** routes, Materials in, notifications, audit.
@@ -143,7 +145,7 @@ No card-position column (Q2). No change to stored tags (Q4).
 - Stage moves: Lead → Quoted fills `quoted_date`; a stale `from` gives 409; a drop on `complete` or `on_board` gives 400 for everyone; an `on_board` job can't be moved; Ready to cut adds a "To start" row; back to Won removes it; Archived ticks `archived`.
 - Orders: dpm can't mark a line ordered (403), admin can; the last line ordered → the progress invoice is due once; the button afterwards → 409; a second line added and ordered → no second invoice; all received → `materials_in_date` and a bell row for sched, not for the actor.
 - Inspections: booking notifies sched; dpm 200, acct 403 on edit.
-- Photos: upload with `jobId`; the showroom's `GET /api/photos` has no `jobId` or job name; tags endpoint merges case; the existing upload/orientation checks still pass.
+- Photos: upload with `jobId`; the showroom's `GET /api/photos` has no `jobId` or job name; tags endpoint merges case; photos uploaded with mixed-case tags before 011 come out tidy after it (checked locally, since CI starts empty); the existing upload/orientation checks still pass.
 
 **Release:** deferred (Todd, 2026-10-10). M3 is built and committed locally; when Todd releases, everything since 0.1.3 goes out in one version.
 
@@ -158,4 +160,9 @@ No card-position column (Q2). No change to stored tags (Q4).
 - **Q4. Existing photo tags with mixed case:** *Recommended: leave them as typed and match without regard to case.* Alternative: a one-off tidy that lowercases stored tags (this changes live data at cutover, so it would need its own sign-off).
 - **Q5. Archived stage and the Archived checkbox:** *Recommended: linked, so moving a job to Archived also hides it from the board's job picker.* Alternative: keep them separate as today.
 
-**Decisions:** none yet.
+**Decisions from Todd (2026-10-11):**
+1. **Q1: only Todd marks order lines ordered** (`orders.mark_ordered`). design_pm adds lines and marks them received.
+2. **Q2: card order by promised install date** (default; not asked separately).
+3. **Q3: a job moved back out of Ready to cut leaves "To start" automatically** if it isn't on the board.
+4. **Q4: one-off tidy of stored photo tags** (migration 011, rule in §3). This is the data change Todd signed off; it lowercases, trims and de-duplicates tags, nothing else.
+5. **Q5: the Archived stage and the Archived checkbox are linked.**
