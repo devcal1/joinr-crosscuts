@@ -4,16 +4,17 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 ## Now (2026-10-10)
 
-- **Milestone:** **M1 Foundation is CLOSED** (2026-10-10), on the Tailscale checks; one LAN re-check is carried (below). **Next step: M1.1 · 1.1 (Plan).**
+- **Milestone:** **M1.1 Maintenance**, in progress. M1.1 · 1.1 (plan approved) and 2.1 (better-sqlite3 12.9.0 build, 0.1.1) are done. **Next step: M1.1 · 2.2 (release 0.1.1).** M1 is CLOSED (2026-10-10), with one LAN re-check carried (below).
 - **M1 · 6.1 results:** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), so Umbrel proxy login is not in front of the app.
 - **M1 · 6.2 results (Tailscale, `100.111.185.96:4933`), all PASS:**
   - logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login
   - Todd's admin login works and he sees everything (the login POST passing proves the gateway passes `Host` through)
   - test user "Showroom" (showroom role) sees only photo search; the admin page and workers are blocked
-- **Carried LAN check (needs Todd on the workshop LAN, due before M1.1 · 2.2, the first M1.1 release):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
-- **M1.1 · 1.1 drafted:** `docs/plans/m1.1-plan.md`. Todd chose Node 24 (not 22) on 2026-10-10, so the order is better-sqlite3 12.9.0 (on Node 20) → Node 24 → sharp 0.35 → Actions, as 0.1.1 to 0.1.4. The sharp upload pipeline tested identical under 0.33.5 and 0.35.5. The CI-only release bumps the version but is not pinned in the store.
-- **Next action:** Todd approves (or amends) `m1.1-plan.md`; then M1.1 · 2.1 (better-sqlite3 12.9.0 build), no Todd needed until 2.2.
-- **Waiting on Todd:** approval of `m1.1-plan.md`; the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
+- **Carried LAN check (needs Todd on the workshop LAN, done in the M1.1 · 2.3 device visit):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
+- **M1.1 plan approved** (2026-10-10): `docs/plans/m1.1-plan.md`. Todd chose Node 24 (not 22). The order is better-sqlite3 12.9.0 (on Node 20) → Node 24 → sharp 0.35 → Actions, as 0.1.1 to 0.1.4.
+- **M1.1 · 2.1 done:** `better-sqlite3` pinned exactly to 12.9.0 (the last version with Node 20 and Node 24 Alpine binaries); version 0.1.1 in `package.json` and the lockfile. New smoke step 0 checks the Node major in the image against the Dockerfile and the better-sqlite3 version against the lockfile, and prints the SQLite version. Locally checked: the expressions return 12.9.0 / SQLite 3.53.0, the Dockerfile parses to 20, and `bash -n` passes. No Docker on the dev box, so CI is the first real run.
+- **Next action (M1.1 · 2.2, needs Todd):** Todd's OK to push `joinr-crosscuts` `main` (this also pushes the docs commits waiting locally). Then watch CI, pin the 0.1.1 image line in tenon-umbrel-store with `version: 0.1.1` and release notes, and push that repo on Todd's OK.
+- **Waiting on Todd:** OK to push `joinr-crosscuts` for 0.1.1; the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
@@ -53,3 +54,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: Roadmap now numbers every step (e.g. M1 · 6.1, M1.1 · 2.2) with ✂ clear points; M1.1 has its own step list, one release per upgrade. App not yet installed; next step M1 · 6.1.
 - 2026-10-10: M1 · 6.1 and 6.2 done on Tailscale (logged-out 401/302, admin login, showroom role limited to photo search). **M1 closed**; LAN re-check carried. Next step M1.1 · 1.1.
 - 2026-10-10: M1.1 · 1.1 plan drafted (`m1.1-plan.md`), awaiting Todd's approval.
+- 2026-10-10: M1.1 plan approved (Node 24). M1.1 · 2.1 done: better-sqlite3 12.9.0, version 0.1.1, smoke step 0 (runtime versions). Next M1.1 · 2.2 (push needs Todd).

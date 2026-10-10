@@ -5,6 +5,7 @@
 #
 # The image is started with a fresh temp host directory mounted at /data/db,
 # /data/uploads and /data/config on port 3000. Steps (in order):
+#   0  runtime versions (Node major, better-sqlite3) match the source
 #   a  first-run setup            b  logged-out sweep (every routed API, pages)
 #   c  photo + schedule suite     d  one user per role preset, overrides
 #   e  wrong password / lockout   f  remember-me cookie lifetime
@@ -195,6 +196,24 @@ docker rm -f "${CONTAINERS[@]}" >/dev/null 2>&1 || true
 echo "Starting $IMAGE with a fresh data dir at $DATA..."
 start_container "$CONTAINER" "$IMAGE" "$DATA" /data
 wait_healthy "$CONTAINER"
+
+# ============================================================================
+step "0. runtime versions match the Dockerfile and the lockfile"
+# ============================================================================
+
+# Expected values are read from the source, so an upgrade release proves itself
+# here without this script being edited.
+APP_SRC="$(cd "$(dirname "$0")/.." && pwd)/crosscuts/app"
+want_node=$(sed -nE 's/^FROM node:([0-9]+)-.*/\1/p' "$APP_SRC/Dockerfile")
+want_bsq=$(jq -r '.packages["node_modules/better-sqlite3"].version' "$APP_SRC/package-lock.json")
+[ -n "$want_node" ] || fail "could not read the Node major from the Dockerfile FROM line"
+got_node=$(docker exec "$CONTAINER" node -p 'process.versions.node.split(".")[0]')
+expect_eq "$got_node" "$want_node" "Node major in the image"
+got_bsq=$(docker exec "$CONTAINER" node -p 'require("better-sqlite3/package.json").version')
+expect_eq "$got_bsq" "$want_bsq" "better-sqlite3 version in the image"
+sqlite=$(docker exec "$CONTAINER" node -p \
+  'new (require("better-sqlite3"))(":memory:").prepare("select sqlite_version() v").get().v')
+echo "Node $(docker exec "$CONTAINER" node -v), better-sqlite3 $got_bsq, SQLite $sqlite"
 
 # ============================================================================
 step "a. first-run setup"
