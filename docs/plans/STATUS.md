@@ -1,21 +1,13 @@
 # Crosscuts status
 
-Read this right after `CLAUDE.md`. The stages and clear points are defined in `docs/plans/roadmap.md`.
+Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) and clear points are defined in `docs/plans/roadmap.md`.
 
 ## Now (2026-10-10)
 
-- **Milestone:** M1 Foundation. **Stage 5 (Release) is done; stage 6 (Verify on the Umbrel) is in progress.**
-- **Next action:** Todd installs "Joinr Crosscuts" from the Tenon store. Then, with Todd:
-  1. Run `/setup.html` on port 4933 to create Todd's admin account.
-  2. Confirm "Require Umbrel login" is OFF for the app.
-  3. Over BOTH the LAN (`umbrel.local:4933`) and Tailscale (`100.111.185.96:4933`), check:
-     - logged out, `/api/workers` returns 401 and `/schedule.html` returns 302 to `/login.html`
-     - login with "remember this device" works
-     - the board loads
-     - a non-admin role gets 403 where expected
-  4. Confirm the gateway passes `Host` through: a POST from the browser must not get "Cross-origin request refused".
-  5. Then mark M1 closed below and move to M1.1 stage 1.
-- **Waiting on Todd:** the install, and the on-device checks above.
+- **Milestone:** M1 Foundation. Stages 1–5 done. **Next step: M1 · 6.1 (Install and set up).**
+- **Next action (M1 · 6.1, needs Todd):** Todd installs "Joinr Crosscuts" from the Tenon store, runs `/setup.html` on port 4933 to create his admin account (Todd types the password himself), and confirms "Require Umbrel login" is OFF. Then go straight on to **M1 · 6.2**, the on-device checks listed in the roadmap (LAN and Tailscale: 401/302 logged out, remember-device login, board loads, non-admin 403, no "Cross-origin request refused" on a browser POST). Then **M1 · 6.3** closes M1.
+  - Checked 2026-10-10: the Umbrel answers over Tailscale (`100.111.185.96`), but nothing listens on port 4933 yet, so the app is not installed. `umbrel.local` does not resolve from Git Bash on the dev box; use the browser for the LAN checks.
+- **Waiting on Todd:** the install and setup (M1 · 6.1).
 - **Open branches/worktrees:** none unmerged. Old agent worktrees under `.claude/worktrees/` are merged and can be cleaned up.
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
@@ -47,8 +39,9 @@ Read this right after `CLAUDE.md`. The stages and clear points are defined in `d
   - Finish-week "not started" sends the job back to `ready_to_cut`.
   - A completed job placed back on the board becomes `on_board`.
   - Deleting a row doesn't change the stage.
-- Follow-ups agreed in principle, each as its own release with Todd's OK: Node 22, sharp 0.35, and Actions versions. That is M1.1.
+- Follow-ups agreed in principle, each as its own release with Todd's OK: Node 22, sharp 0.35, and Actions versions. That is M1.1 (steps in the roadmap).
 
 ## History
 
 - 2026-10-10: M1 audit and plan approved; contracts written; Wave 0 plus T1–T7 built in parallel and merged; independent review (2 major, 6 minor) fixed; joinr-crosscuts pushed; CI green; 0.1.0 published; moved to the Tenon store and pushed. Now at M1 stage 6.
+- 2026-10-10: Roadmap now numbers every step (e.g. M1 · 6.1, M1.1 · 2.2) with ✂ clear points; M1.1 has its own step list, one release per upgrade. App not yet installed; next step M1 · 6.1.
