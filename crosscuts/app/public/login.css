@@ -1,0 +1,83 @@
+/* Login and setup pages. Colours come from tokens.css. */
+:root {
+  --login-bg: #1b1d27;
+  --login-field: #161822;
+  --login-error: #f08a8a;
+}
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--login-bg);
+  color: var(--color-text);
+  font-family: var(--font);
+  font-size: 15px;
+}
+
+.card {
+  width: 100%;
+  max-width: 22rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.brand {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+h2 { margin: 0; font-size: 16px; font-weight: 600; }
+
+.stack { display: flex; flex-direction: column; gap: 14px; }
+
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--color-neutral-500); }
+
+input[type="text"],
+input[type="password"] {
+  font: inherit;
+  font-size: 15px;
+  color: var(--color-text);
+  background: var(--login-field);
+  border: 1px solid var(--color-neutral-800);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+input:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--color-text); }
+
+button.primary {
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-accent);
+  border: 0;
+  border-radius: 8px;
+  padding: 11px 14px;
+  cursor: pointer;
+}
+button.primary:disabled { opacity: 0.6; cursor: default; }
+
+.muted { margin: 0; color: var(--color-neutral-500); font-size: 13px; }
+.error { margin: 0; min-height: 1.2em; color: var(--login-error); font-size: 13px; }
+.links { margin: 0; display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.links a { color: var(--color-accent); }
+
+[hidden] { display: none !important; }

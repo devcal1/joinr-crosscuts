@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in - Crosscuts</title>
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/login.css">
+</head>
+<body>
+  <main class="card">
+    <h1 class="brand">Crosscuts</h1>
+
+    <p id="loading" class="muted">Loading...</p>
+
+    <form id="form-login" class="stack" hidden autocomplete="on">
+      <h2>Sign in</h2>
+      <label>Username
+        <input id="login-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label>Password
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <label class="check">
+        <input id="login-remember" type="checkbox"> Remember this device
+      </label>
+      <button type="submit" class="primary">Sign in</button>
+      <p class="error" role="alert" data-error></p>
+    </form>
+
+    <form id="form-unlock" class="stack" hidden autocomplete="off">
+      <h2 id="unlock-title">Unlock</h2>
+      <label id="unlock-pin-wrap" hidden>PIN
+        <input id="unlock-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off">
+      </label>
+      <label id="unlock-password-wrap" hidden>Password
+        <input id="unlock-password" type="password" autocomplete="current-password">
+      </label>
+      <button type="submit" class="primary" id="unlock-submit">Unlock</button>
+      <p class="error" role="alert" data-error></p>
+      <p class="links">
+        <a href="#" id="unlock-toggle" hidden>Use password instead</a>
+        <a href="#" id="unlock-signout">Sign out</a>
+      </p>
+    </form>
+
+    <form id="form-change" class="stack" hidden autocomplete="off">
+      <h2>Choose a new password</h2>
+      <p class="muted">Your password was set by an administrator. Pick your own to continue.</p>
+      <label>Current password
+        <input id="change-current" type="password" autocomplete="current-password" required>
+      </label>
+      <label>New password (at least 8 characters)
+        <input id="change-new" type="password" autocomplete="new-password" minlength="8" required>
+      </label>
+      <label>Confirm new password
+        <input id="change-confirm" type="password" autocomplete="new-password" minlength="8" required>
+      </label>
+      <button type="submit" class="primary">Change password</button>
+      <p class="error" role="alert" data-error></p>
+    </form>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>
