@@ -82,7 +82,7 @@ All triggers run inside the existing transactions, in their own savepoint, and a
 
 | Event | Code point | Creates | Notes |
 |---|---|---|---|
-| Job placed on the board | `onScheduled` (backlog place, add row, duplicate row) | deposit `due`, if the job has **no deposit row at all** | "No deposit row" is the "first scheduled" marker, so return visits and re-placements don't fire it again |
+| Job placed on the board | `onScheduled` (backlog place, add row, duplicate row) | deposit `due`, if the job has **no deposit row at all** and no earlier week rows (decision 5) | "No deposit row" is the "first scheduled" marker, so return visits and re-placements don't fire it again |
 | Todd's **Materials ordered** | new action on the job page, `orders.mark_ordered` (Q3) | progress `due`; sets `materials_ordered_date` | M3 Orders will call the same function when every order line reaches *ordered* |
 | Finish week → Complete | `onFinishedComplete` | final `due`; pending extras → `due` | Also fires on an admin hand-set `complete` |
 | Final marked Invoiced | invoices route | job stage → `invoiced` | Through `setStage`, so it is audited as `job.stage` |
