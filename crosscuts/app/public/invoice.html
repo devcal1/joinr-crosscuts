@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="invoice.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="inv-page">
+    <div class="inv-toolbar">
+      <button class="hs-btn hs-btn-primary" id="btn-pdf" type="button" disabled>Save as PDF</button>
+      <a class="hs-btn" id="btn-back" href="/accounts.html">Back</a>
+      <span class="inv-state" id="inv-state"></span>
+    </div>
+    <div class="inv-scroll">
+      <article class="inv-sheet" id="sheet" aria-live="polite">
+        <p class="inv-loading">Loading…</p>
+      </article>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="invoice.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
