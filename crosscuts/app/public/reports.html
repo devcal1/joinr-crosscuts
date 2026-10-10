@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reports.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="rp-page">
+    <div class="rp-head">
+      <h1>Reports</h1>
+      <a class="hs-btn" href="/accounts.html">Accounts</a>
+      <button id="upload" class="hs-btn hs-btn-primary" type="button" hidden>Upload report</button>
+    </div>
+
+    <div class="rp-tools">
+      <div class="rp-filter">
+        <label for="year">Year</label>
+        <select id="year" class="hs-input">
+          <option value="">All years</option>
+        </select>
+      </div>
+      <div class="rp-filter">
+        <label for="category">Category</label>
+        <select id="category" class="hs-input">
+          <option value="">All categories</option>
+        </select>
+      </div>
+    </div>
+
+    <p id="count" class="rp-count" role="status" aria-live="polite">Loading...</p>
+    <p id="message" class="rp-message" role="status"></p>
+
+    <div id="months"></div>
+    <div id="empty" class="rp-empty" hidden></div>
+  </main>
+
+  <dialog id="dlg" class="cc-dialog rp-dialog" aria-labelledby="dlgTitle"></dialog>
+
+  <script src="shared.js"></script>
+  <script src="reports.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
