@@ -4,7 +4,7 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 ## Now (2026-10-10)
 
-- **Milestone:** **M1.1 Maintenance**, in progress. 1.1 (plan) and 2.1 (0.1.1 build) are done; **2.2 (release 0.1.1) is half done: the image is published, the store push is waiting on Todd.** M1 is CLOSED (2026-10-10), with one LAN re-check carried (below).
+- **Milestone:** **M1.1 Maintenance**, in progress. 1.1, 2.1 and 2.2 (0.1.1 released to the Tenon store) are done. **Next step: M1.1 · 2.3 (Todd updates and checks on the device).** M1 is CLOSED (2026-10-10), with one LAN re-check carried (below).
 - **M1 · 6.1 results:** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), so Umbrel proxy login is not in front of the app.
 - **M1 · 6.2 results (Tailscale, `100.111.185.96:4933`), all PASS:**
   - logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login
@@ -13,9 +13,9 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **Carried LAN check (needs Todd on the workshop LAN, done in the M1.1 · 2.3 device visit):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
 - **M1.1 plan approved** (2026-10-10): `docs/plans/m1.1-plan.md`. Todd chose Node 24 (not 22). The order is better-sqlite3 12.9.0 (on Node 20) → Node 24 → sharp 0.35 → Actions, as 0.1.1 to 0.1.4.
 - **M1.1 · 2.1 done:** `better-sqlite3` pinned exactly to 12.9.0 (the last version with Node 20 and Node 24 Alpine binaries); version 0.1.1 in `package.json` and the lockfile. New smoke step 0 checks the Node major in the image against the Dockerfile and the better-sqlite3 version against the lockfile, and prints the SQLite version. Locally checked: the expressions return 12.9.0 / SQLite 3.53.0, the Dockerfile parses to 20, and `bash -n` passes. No Docker on the dev box, so CI is the first real run.
-- **M1.1 · 2.2 in progress:** joinr-crosscuts pushed (`d7e3872`, Todd OK), CI run 38036478402 green on both architectures, 0.1.1 published (the 0.1.1, latest and sha tags all resolve to the same digest). tenon-umbrel-store commit `c092f89` (pin 0.1.1, `version: '0.1.1'`, release notes) is committed locally, not pushed.
-- **Next action (needs Todd):** Todd's OK to push tenon-umbrel-store. Then Todd clicks Update (M1.1 · 2.3): log in, the board loads, one board edit saves and shows in the audit log, over LAN and Tailscale, plus the carried LAN check.
-- **Waiting on Todd:** OK to push tenon-umbrel-store for 0.1.1; then Update and the 2.3 checks; the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
+- **M1.1 · 2.2 done:** joinr-crosscuts pushed (`d7e3872`, Todd OK), CI run 38036478402 green on both architectures, 0.1.1 published (the 0.1.1, latest and sha tags all resolve to the same digest). tenon-umbrel-store commit `c092f89` (pin 0.1.1, `version: '0.1.1'`, release notes) pushed (Todd OK).
+- **Next action (M1.1 · 2.3, needs Todd):** Todd clicks Update (the device was on 0.1.0): log in, the board loads, one board edit saves and shows in the audit log, over LAN and Tailscale, plus the carried LAN check.
+- **Waiting on Todd:** Update to 0.1.1 and the 2.3 checks; the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
@@ -57,3 +57,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: M1.1 · 1.1 plan drafted (`m1.1-plan.md`), awaiting Todd's approval.
 - 2026-10-10: M1.1 plan approved (Node 24). M1.1 · 2.1 done: better-sqlite3 12.9.0, version 0.1.1, smoke step 0 (runtime versions). Next M1.1 · 2.2 (push needs Todd).
 - 2026-10-10: 0.1.1 pushed (Todd OK), CI green, image published; store pin committed locally, store push waiting on Todd.
+- 2026-10-10: tenon-umbrel-store pushed (`c092f89`, Todd OK): 0.1.1 offered. M1.1 · 2.2 done; next 2.3 on the device.
