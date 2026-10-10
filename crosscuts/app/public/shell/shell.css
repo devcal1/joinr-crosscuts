@@ -253,8 +253,18 @@
 .cc-menu-item:focus-visible { background: var(--raised); color: var(--white); }
 .cc-menu-sep { height: 1px; margin: 6px 4px; background: var(--hairline); border: 0; }
 
+/* Mid widths: tighter links so the full admin set fits beside the right-hand
+   buttons (M3 added Pipeline and Orders). */
+@media (max-width: 1599px) {
+  .cc-link { padding-left: 6px; padding-right: 6px; letter-spacing: 0.08em; }
+  .cc-group + .cc-group { margin-left: 4px; padding-left: 6px; }
+}
+@media (max-width: 1439px) {
+  .cc-brand-app { display: none; }
+}
+
 /* Narrow screens: links collapse into a menu */
-@media (max-width: 1099px) {
+@media (max-width: 1279px) {
   .cc-menu-btn { display: inline-flex; margin-left: 4px; }
   .cc-brand { margin-right: 0; }
   .cc-nav {
