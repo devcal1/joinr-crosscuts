@@ -1,0 +1,221 @@
+/* Pipeline (pipeline.html). Tokens come from tokens.css and the hs- components from
+   components.css; the shell styles its own bar via cc- classes. Page classes are pl-.
+   No shadows: a lifted card is shown by a teal outline. */
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--ink);
+}
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.muted { color: var(--label); }
+
+.pl-page {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.pl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.pl-head h1 { margin: 0; font-size: 26px; font-weight: 700; color: var(--white); }
+.pl-status { margin: 0; flex: 1 1 auto; font-size: 13px; min-width: 0; }
+.pl-help { margin: 10px 0 0; font-size: 13px; }
+
+/* Visually hidden live region for move announcements. */
+.pl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The board: columns scroll sideways inside it, never the page. */
+.pl-board {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.pl-board.pl-dragging { scroll-snap-type: none; }
+
+.pl-col {
+  flex: 0 0 264px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--ink);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  scroll-snap-align: start;
+}
+.pl-col-head .pl-count {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+.pl-hint {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pl-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  padding: 2px;
+}
+.pl-empty { margin: 0; padding: 8px 4px; font-size: 13px; color: var(--muted); }
+.pl-foot { display: flex; justify-content: center; }
+
+/* Drag states. Allowed columns get a dashed teal outline, the one under the pointer a
+   solid one; the rest are muted. */
+.pl-dragging .pl-col:not(.pl-col-ok) { opacity: 0.45; }
+.pl-col-ok { outline: 2px dashed var(--teal); outline-offset: -2px; }
+.pl-col-over { outline: 2px solid var(--teal); outline-offset: -2px; background: var(--teal-8); }
+body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+
+/* Card */
+.pl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  flex: none;
+  background: var(--surface);
+}
+.pl-card-attend { border-left: 3px solid var(--orange); }
+.pl-card[aria-busy="true"] { opacity: 0.6; }
+.pl-lifted { opacity: 0.35; }
+
+.pl-handle {
+  padding: 10px 12px 2px;
+  font-weight: 700;
+  color: var(--white);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pl-editable .pl-handle {
+  cursor: grab;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+.pl-client { padding: 0 12px; font-size: 13px; color: var(--label); overflow-wrap: anywhere; }
+.pl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--body);
+}
+.pl-install-attend { color: var(--orange-tint); font-weight: 700; }
+.pl-foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 8px;
+}
+
+/* The ghost follows the pointer. It is a clone of the card, so it needs no card rules
+   of its own beyond these. */
+.pl-ghost {
+  position: fixed;
+  z-index: 300;
+  margin: 0;
+  pointer-events: none;
+  background: var(--raised);
+  outline: 2px solid var(--teal);
+  opacity: 0.95;
+}
+
+/* Move to... menu */
+.pl-menu {
+  position: fixed;
+  z-index: 250;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--raised);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+}
+.pl-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--r-control);
+  padding: 9px 10px;
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.pl-menu-item:hover,
+.pl-menu-item:focus-visible { background: var(--teal-16); color: var(--teal-tint); }
+
+.pl-toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 20px;
+  z-index: 400;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  color: var(--body);
+  font-size: 14px;
+}
+.pl-toast-err { border-left-color: var(--orange); }
+
+@media (max-width: 640px) {
+  .pl-head h1 { font-size: 22px; }
+  .pl-cards { max-height: calc(100vh - 260px); }
+}

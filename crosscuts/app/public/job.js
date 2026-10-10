@@ -14,6 +14,13 @@
   ];
   // Set automatically by the board (and later accounts); only users.admin may set them by hand.
   const DERIVED = new Set(["on_board", "complete", "invoiced"]);
+  const MANUAL = ["lead", "quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+  // Mirror of jobstage.allowedTargets (docs/plans/m3-contracts.md section 2); the server stays authoritative.
+  function allowedTargets(from) {
+    if (from === "on_board") return [];
+    if (from === "complete" || from === "invoiced") return ["archived"];
+    return MANUAL.filter((s) => s !== from);
+  }
 
   // Permissions come from the shell (window.cc.can) when it is present. If it is
   // not, assume allowed: the server enforces everything regardless.
@@ -309,9 +316,28 @@
     if (inputs.materialsOrderedDate) fillMaterials(inputs.materialsOrderedDate, job ? job.materialsOrderedDate : null);
     if (inputs.stage && editable) {
       const isAdmin = can("users.admin");
-      for (const opt of inputs.stage.options) opt.disabled = DERIVED.has(opt.value) && !isAdmin;
-      // A job already in a derived stage keeps showing it, but a non-admin can only move away from it.
-      inputs.stage.title = isAdmin ? "" : "On board, Complete and Invoiced are set automatically.";
+      if (isAdmin) {
+        // Admins see every option; the server applies the override rules.
+        for (const opt of inputs.stage.options) opt.disabled = false;
+        inputs.stage.title = "";
+      } else if (isNew) {
+        // A new job starts in a manual stage.
+        for (const opt of inputs.stage.options) opt.disabled = DERIVED.has(opt.value);
+        inputs.stage.title = "On board, Complete and Invoiced are set automatically.";
+      } else {
+        // The pipeline rules: only the stages allowedTargets() gives, plus where the job is now.
+        const cur = job ? job.stage : null;
+        const ok = new Set(allowedTargets(cur));
+        for (const opt of inputs.stage.options) opt.disabled = opt.value !== cur && !ok.has(opt.value);
+        if (cur === "on_board") {
+          inputs.stage.disabled = true;
+          inputs.stage.title = "Moves from the board";
+        } else if (cur === "complete" || cur === "invoiced") {
+          inputs.stage.title = "Complete and invoiced jobs can only be archived.";
+        } else {
+          inputs.stage.title = "On board, Complete and Invoiced are set automatically.";
+        }
+      }
     }
     if (saveBtn) saveBtn.hidden = !editable;
     bannerEl.replaceChildren(
@@ -427,6 +453,8 @@
             body[f.key] = v;
           }
         } else {
+          // The stage goes by its own request after the fields (see onSubmit).
+          if (f.key === "stage") continue;
           if (f.key === "name" && v == null) throw new Error("Job name is required");
           const before = job[f.key];
           // Only send what changed (valueCents is absent from `job` without jobs.value, and is then not rendered).
@@ -447,7 +475,11 @@
       setStatus(e.message, "err");
       return;
     }
-    if (!isNew && Object.keys(body).length === 0) {
+    // The chosen stage, when it differs from the saved one (existing jobs only).
+    const newStage = isNew || !inputs.stage ? null : fromInput({ type: "stage" }, inputs.stage);
+    const stageChanged = !isNew && !!newStage && newStage !== job.stage;
+    const hasFields = Object.keys(body).length > 0;
+    if (!isNew && !hasFields && !stageChanged) {
       setStatus("No changes to save.", "muted");
       return;
     }
@@ -459,12 +491,37 @@
         location.replace("/job.html?id=" + created.id);
         return;
       }
-      job = await api("/api/job-records/" + jobId, { method: "PATCH", body: JSON.stringify(body) });
+      if (hasFields) job = await api("/api/job-records/" + jobId, { method: "PATCH", body: JSON.stringify(body) });
+      let stageError = null;
+      if (stageChanged) {
+        try {
+          const isAdmin = can("users.admin");
+          const viaStage = MANUAL.includes(newStage) && allowedTargets(job.stage).includes(newStage);
+          if (viaStage || !isAdmin) {
+            // The pipeline path. A non-admin's other moves also go here, so the server gives the reason.
+            job = await api("/api/job-records/" + jobId + "/stage", {
+              method: "POST",
+              body: JSON.stringify({ stage: newStage, from: job.stage }),
+            });
+          } else {
+            // The admin's override: a derived stage, or a move out of a locked stage.
+            job = await api("/api/job-records/" + jobId, { method: "PATCH", body: JSON.stringify({ stage: newStage }) });
+          }
+        } catch (e) {
+          stageError = e.message;
+          // Show where the job really is.
+          try { job = await api("/api/job-records/" + jobId); } catch (e2) { /* keep the last copy */ }
+        }
+      }
       titleEl.textContent = job.name;
       document.title = job.name + " - Crosscuts";
       fill();
       renderMeta();
-      setStatus("Saved.", "ok");
+      if (stageError) {
+        setStatus((hasFields ? "Saved, but the stage was not changed: " : "The stage was not changed: ") + stageError, "err");
+      } else {
+        setStatus("Saved.", "ok");
+      }
     } catch (e) {
       setStatus(e.message, "err");
     } finally {
