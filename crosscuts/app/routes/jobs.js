@@ -5,7 +5,8 @@ const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const audit = require("../lib/audit");
 const jobstage = require("../lib/jobstage");
-const { DATE_RE, parseDateUTC, formatDateUTC } = require("../lib/time");
+const invoices = require("../lib/invoices");
+const { DATE_RE, parseDateUTC, formatDateUTC, sydneyToday } = require("../lib/time");
 
 const r = defineRoutes("/api/job-records");
 
@@ -38,6 +39,7 @@ const FIELDS = {
   clientName: { col: "client_name", kind: "text" },
   clientPhone: { col: "client_phone", kind: "text" },
   clientEmail: { col: "client_email", kind: "text" },
+  clientAbn: { col: "client_abn", kind: "text" },
   siteAddress: { col: "site_address", kind: "text" },
   sheetCount: { col: "sheet_count", kind: "int" },
   isTwoPac: { col: "is_two_pac", kind: "bool" },
@@ -48,7 +50,6 @@ const FIELDS = {
   quotedDate: { col: "quoted_date", kind: "date" },
   wonDate: { col: "won_date", kind: "date" },
   designSignedOffDate: { col: "design_signed_off_date", kind: "date" },
-  materialsOrderedDate: { col: "materials_ordered_date", kind: "date" },
   readyToCutDate: { col: "ready_to_cut_date", kind: "date" },
   promisedInstallDate: { col: "promised_install_date", kind: "date" },
   completedDate: { col: "completed_date", kind: "date" },
@@ -112,6 +113,9 @@ function coerce(key, f, v) {
 // HttpError (400 validation, 403 for valueCents without jobs.value).
 function parseBody(req, body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw bad("JSON body required");
+  // Not a plain field: it is set by POST /:id/materials-ordered, which also
+  // makes the progress invoice due. It is still returned in the job object.
+  if (body.materialsOrderedDate !== undefined) throw bad("Use Materials ordered");
   const out = {};
   for (const [key, f] of Object.entries(FIELDS)) {
     if (!Object.prototype.hasOwnProperty.call(body, key) || body[key] === undefined) continue;
@@ -293,10 +297,43 @@ r.patch("/:id", "jobs.edit", handle((req, res) => {
       if (newStage === "ready_to_cut") {
         // Sets the stage (audited as job.stage) and puts the job on the backlog.
         jobstage.onDesignReadyToCut(db, id, req);
+      } else if (newStage === "complete" && existing.stage !== "invoiced") {
+        // Same as Finish week -> Complete: completed_date, and the final invoice
+        // falls due. (invoiced -> complete is an admin override: plain setStage.)
+        jobstage.onFinishedComplete(db, id, req);
       } else {
         jobstage.setStage(db, id, newStage, req);
       }
     }
+  })();
+  res.json(loadOne(req, id));
+}));
+
+// "Materials ordered": sets materials_ordered_date and makes the progress
+// invoice due. M3 Orders will call the same invoices hook.
+r.post("/:id/materials-ordered", "orders.mark_ordered", handle((req, res) => {
+  const id = parseId(req);
+  const existing = id && db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  const b = req.body && typeof req.body === "object" ? req.body : {};
+  const date = b.date === undefined || b.date === null || b.date === "" ? sydneyToday() : b.date;
+  if (!validDate(date)) throw bad("date must be a valid YYYY-MM-DD date");
+  if (existing.materials_ordered_date) throw new HttpError(409, "Materials already marked ordered");
+
+  db.transaction(() => {
+    db.prepare("UPDATE jobs SET materials_ordered_date = ?, updated_at = ? WHERE id = ?").run(
+      date,
+      new Date().toISOString(),
+      id
+    );
+    audit.log(req, {
+      action: "job.update",
+      entityType: "job",
+      entityId: id,
+      before: { materials_ordered_date: null },
+      after: { materials_ordered_date: date },
+    });
+    invoices.onMaterialsOrdered(db, id, date, req);
   })();
   res.json(loadOne(req, id));
 }));

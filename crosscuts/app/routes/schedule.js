@@ -106,6 +106,7 @@ r.post("/rows", "board.edit", (req, res) => {
   const snappedWeekStart = mondayOf(weekStart);
 
   let resolvedJobId = null;
+  let newJobName = null;
   if (Number.isInteger(jobId)) {
     const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
     if (!job) {
@@ -114,25 +115,32 @@ r.post("/rows", "board.edit", (req, res) => {
     }
     resolvedJobId = job.id;
   } else {
-    const name = typeof jobName === "string" ? jobName.trim() : "";
-    if (!name) {
+    newJobName = typeof jobName === "string" ? jobName.trim() : "";
+    if (!newJobName) {
       res.status(400).json({ error: "jobId or jobName is required" });
       return;
     }
-    resolvedJobId = jobstage.createBoardJob(db, req, {
-      name, notes: typeof notes === "string" ? notes : "", stage: "on_board",
-    });
   }
 
-  const maxOrder = db
-    .prepare("SELECT MAX(sort_order) AS m FROM week_rows WHERE week_start = ? AND panel = ?")
-    .get(snappedWeekStart, panel).m;
-  const info = db
-    .prepare("INSERT INTO week_rows (job_id, week_start, panel, sort_order) VALUES (?, ?, ?, ?)")
-    .run(resolvedJobId, snappedWeekStart, panel, (maxOrder ?? -1) + 1);
-  jobstage.onScheduled(db, resolvedJobId, req);
+  // One transaction: the new job (if any), the row and the stage/invoice hooks
+  // land together or not at all.
+  const newRowId = db.transaction(() => {
+    const rowJobId =
+      resolvedJobId ??
+      jobstage.createBoardJob(db, req, {
+        name: newJobName, notes: typeof notes === "string" ? notes : "", stage: "on_board",
+      });
+    const maxOrder = db
+      .prepare("SELECT MAX(sort_order) AS m FROM week_rows WHERE week_start = ? AND panel = ?")
+      .get(snappedWeekStart, panel).m;
+    const info = db
+      .prepare("INSERT INTO week_rows (job_id, week_start, panel, sort_order) VALUES (?, ?, ?, ?)")
+      .run(rowJobId, snappedWeekStart, panel, (maxOrder ?? -1) + 1);
+    jobstage.onScheduled(db, rowJobId, req, snappedWeekStart);
+    return info.lastInsertRowid;
+  })();
 
-  const weekRow = selectRowWithJob.get(info.lastInsertRowid);
+  const weekRow = selectRowWithJob.get(newRowId);
   res.status(201).json(buildScheduleRow(weekRow));
 });
 
@@ -277,7 +285,7 @@ r.post("/rows/:id/duplicate", "board.edit", (req, res) => {
       "INSERT INTO assignments (week_row_id, day, worker_id) VALUES (?, ?, ?)"
     );
     for (const a of assignments) insertAssignment.run(info.lastInsertRowid, a.day, a.worker_id);
-    jobstage.onScheduled(db, row.job_id, req);
+    jobstage.onScheduled(db, row.job_id, req, toWeekStart);
     return info.lastInsertRowid;
   })();
 
@@ -446,7 +454,7 @@ r.post("/jobs/backlog/:id/place", "board.edit", (req, res) => {
     }
 
     db.prepare("DELETE FROM backlog WHERE id = ?").run(id);
-    jobstage.onScheduled(db, backlogRow.job_id, req);
+    jobstage.onScheduled(db, backlogRow.job_id, req, snappedWeekStart);
     return newId;
   })();
 
