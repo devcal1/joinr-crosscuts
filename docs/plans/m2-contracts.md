@@ -269,3 +269,19 @@ Docker isn't available on the dev box, so smoke files are checked locally with `
 | **M2 · 4.1 Integrate** | integrator (+ Haiku for docs) | merges; `docs/how-to-invoice.md` (a short guide for accounts staff and Todd's first-time settings) |
 
 Wave 2 starts only after Wave 1 is merged on `main`, so the pages code against real APIs. Tasks don't edit files outside their row. A task that needs a change elsewhere reports it.
+
+## 10. Changes after the M2 · 4.2 review (integrator, 2026-10-10)
+
+These override the sections above where they differ.
+
+1. **The deposit rule (§2, §3)** is now: no deposit row in any status, **and no `week_rows` for the job other than the row just placed**. This replaces "no week rows before `weekStart`", which still fired for legacy jobs given a second row in the same week or an earlier one. Plan decision 5's intent is unchanged.
+2. **Issued invoices never change on reprint.** Migration `007_invoice_freeze.sql` (additive) adds `invoices.contract_value_cents INTEGER` and `invoices.invoiced_before_cents INTEGER`. `issue()` freezes:
+   - the job value;
+   - the sum of the job's deposit, progress and final invoices already `issued` or `paid` (extras and voids excluded).
+   `GET /:id` returns `contract` from the frozen columns for issued, paid and void invoices. For drafts it computes the same sum live. `invoice.js` uses the job's live client name, ABN, site and name only for `pending` or `due` invoices; issued ones print only their snapshot.
+3. **Issue guards:**
+   - `POST /:id/issue` accepts an optional `{expectedTotalCents}`. It returns 409 `"The amount changed; check and issue again"` if that is sent and differs from the live total. `accounts.js` always sends it.
+   - Issue also returns 409 `"Bill-to name required"` when there is neither an edited bill-to name nor a job client name.
+4. **Un-waive:** a new `POST /:id/unwaive` (`invoices.edit`) takes `waived` back to `due`. It is audited as `invoice.waive` with after `{status:'due'}`.
+5. **A hand-set `complete` keeps a `completedDate` sent in the same PATCH.** `jobstage.onFinishedComplete(db, jobId, req, completedDate?)` gains the optional date.
+6. **Invoice page colours:** paid is teal (`hs-badge-teal`) and void is neutral, not green or red.

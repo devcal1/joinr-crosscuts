@@ -1093,6 +1093,10 @@ expect_status 200 "GET /api/schedule with no week"
 expect_eq "$(jqr '.weeks[0].start')" "$expected_monday" "weeks[0].start is this week's Sydney Monday"
 
 # M2 suites (ci/smoke-m2-*.sh) share this shell: helpers, jars, $CONTAINER.
+# Step g revoked every sched session, so sign the $SCHED jar in again first.
+new_jar "$SCHED"
+login "$SCHED" sched "$SCHED_PW"
+expect_status 200 "sched signs in again for the M2 suites"
 for f in "$(dirname "$0")"/smoke-m2-*.sh; do [ -f "$f" ] && source "$f"; done
 
 # ============================================================================

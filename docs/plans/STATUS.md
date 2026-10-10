@@ -7,13 +7,25 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **On the device:** 0.1.3 (Node 24, better-sqlite3 12.9.0, sharp 0.35), the old purple look. Verified over Tailscale: board edits save and are audited, and portrait photos upload upright.
 - **Local `main`, not pushed (ahead of origin):** M1.1 · 5.1 (Actions on Node-24 majors, `77e9b3a`), and M1.2 House style, built and **approved by Todd 2026-10-10** (`feaabd7`; review page https://claude.ai/artifact/CKpBd4aTFcNNypMECg5W9z). The version in `package.json` is still 0.1.3.
 - **Release deferred (Todd, 2026-10-10):** development continues locally with no new version and no Umbrel update for now. Commits accumulate on `main`. When Todd decides to release, there is one version bump (above 0.1.3), one push (Todd OK), CI, the store pin and push (Todd OK), then Update. The release notes then cover everything since 0.1.3: Actions, the house style, the job-page edit-rights fix, and whatever follows. Open release steps: M1.1 · 5.2, M1.2 · 2.1 and 2.2 (device check of the pages, the TV board and a JPG export).
-- **Milestones:** M2 Accounts: built and integrated on `main` (4.1 done), next 4.2 review. M1 CLOSED. M1.1 done except its release step (5.2). M1.2 done except its release (2.1, 2.2) and close (3.1).
-- **Next action:** **M2 · 4.2 (Review):** an independent review subagent reviews the whole M2 diff (`git diff bf7076f..main`, i.e. since the contracts); findings are listed here, then fixed or deferred at 4.3.
+- **Milestones:** M2 Accounts: reviewed (4.2 done), next 4.3 fixes. M1 CLOSED. M1.1 done except its release step (5.2). M1.2 done except its release (2.1, 2.2) and close (3.1).
+- **Next action:** **M2 · 4.3 (Fix):** one Sonnet subagent fixes review findings 2–8 and 10 plus the nits, per `m2-contracts.md` §10 (migration 007, deposit rule, issue guards, un-waive, completed date, colours). Finding 1 is already fixed by the integrator, and 9 goes in the how-to. Then a local end-to-end run, and `docs/how-to-invoice.md`.
 - **Carried LAN check (Todd, on the workshop LAN, Monday 12 Oct):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
 - **Waiting on Todd:** the LAN check.
 - **Open branches/worktrees:** M2 worktrees under `.claude/worktrees/` (agent-a4d4551cd68dabac8 A, agent-a9b47abdc9dbb6d5f B, agent-a9b852aa6631e1f12 C, agent-ade3a7d8a0117b074 D, agent-aa2c08da9c8390337 E), all merged: clean up at M2 · 6.2.
 - **Tools for UI work (local only):** `tools/screenshots/seed.js` (sample data, test admin) and `tools/screenshots/shoot.js` (full-page PNGs of every page through headless Edge). See the comments at the top of each.
 - **Deferred findings:**
+  - **M2 review (4.2, 2026-10-10)**, fix status in brackets:
+    1. Critical: the M2 smoke files ran with a revoked `$SCHED` session (step g). [fixed by the integrator: re-login before the source loop]
+    2. Major: the invoices smoke expected a raw ABN and BSB. [4.3]
+    3. Major: a reprinted issued invoice could change (live contract summary, live client fallbacks). [4.3, migration 007]
+    4. Major: the deposit fired for legacy jobs given another row. [4.3: now "no other week rows"]
+    5. Minor: a hand-set complete overwrote the completed date. [4.3]
+    6. Minor: waive was terminal. [4.3: un-waive]
+    7. Minor: issue could freeze an amount different from the one shown. [4.3: expectedTotalCents]
+    8. Minor: issue needed no bill-to name. [4.3: required]
+    9. Minor: a voided final leaves the job at `invoiced` until the replacement is issued. [kept; noted in the how-to]
+    10. Minor: paid showed green and void red on the invoice page. [4.3]
+    - Nits: the hardcoded "10 days" text, `safeLink` `/` [4.3]; future paid dates accepted, and no confirm on Materials ordered [kept].
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
   - Search tiles are not keyboard-focusable (plain divs); worth fixing when the photo pages are next touched (M3).
   - The audit changed-value highlight was not seen in a screenshot (the sample data had no before/after entry).
@@ -78,3 +90,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: M2 · 2.2 scaffold committed: migration 006, `sydneyParts`/`latestFridayNoon`, working minimal `settings`/`notify`, `invoices`/`roundup` stubs, three empty guarded routers mounted, round-up start after listen, smoke-m2 source hook, auth.md keys live. Local shim boot passed (006 applied, FK check ok, helpers checked). Next M2 · 3.1.
 - 2026-10-10: M2 · 3.1 Wave 1 done. A invoices backend `worktree-agent-a4d4551cd68dabac8` @ `4193bc7`, local flow pass (smoke file `bash -n` only); B notifications/settings/round-up `worktree-agent-a9b47abdc9dbb6d5f` @ `1993dfe`, local pass. Both merged on `main`; integrator fix: the invoice counter no longer writes a settings.update audit row per issue. Combined local run passed (settings PUT, place → deposit due + bell row, issue CC-0001 with GST, round-up, number lock). Next M2 · 3.2.
 - 2026-10-10: M2 · 3.2 Wave 2 done and merged: C accounts/job pages `50b6ad8`, D invoice document `9b6489a`, E bell/dashboard/settings `ef7f1c7` (each: node --check, style check, shim boot, headless-Edge screenshots pass). M2 · 4.1: local end-to-end run on merged main passed (place → deposit, materials ordered → progress, finish week → final, issue CC-0001..3 with exact split and GST, stage invoiced, pages 200, log clean). Next M2 · 4.2 review.
+- 2026-10-10: M2 · 4.2 review done (1 critical, 3 major, 6 minor; numbering, locking, money, XSS, access and the round-up all found sound). Finding 1 fixed; contracts §10 records the 4.3 changes. Next M2 · 4.3.
