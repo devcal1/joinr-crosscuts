@@ -1,6 +1,6 @@
 # Crosscuts — Milestone 3 plan: Design/PM (2026-10-11)
 
-Status: **draft, awaiting Todd's approval** (M3 · 1.2). Nothing is built until Todd approves. Steps: M3 · 1.1 (audit, §1), M3 · 1.2 (plan, §2–§9, questions in §10), M3 · 1.3 (decisions, recorded in §10).
+Status: **approved by Todd 2026-10-11** (M3 · 1.3), with the decisions in §10. Steps: M3 · 1.1 (audit, §1), M3 · 1.2 (plan, §2–§9, questions in §10), M3 · 1.3 (decisions, recorded in §10).
 
 Source of truth: `crosscuts-brief.md` §5.2 (items 3, 4, 5, 7, 8) and §8; roadmap M3 row.
 
