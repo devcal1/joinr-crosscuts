@@ -1,10 +1,28 @@
 // Job lifecycle stage helpers, called from the board routes (routes/schedule.js)
 // and from routes/jobs.js. Each takes (db, jobId, req) and is meant to run
-// inside the caller's existing transaction where there is one. They never throw:
-// a stage-bookkeeping problem must not break a board edit.
+// inside the caller's existing transaction where there is one. The board hooks
+// never throw: a stage-bookkeeping problem must not break a board edit.
+// The M3 hand-move path (moveStage, addToBacklog, removeFromBacklog; see
+// docs/plans/m3-contracts.md section 2) does throw, so a failed move rolls the
+// whole request back.
 const audit = require("./audit");
 const invoices = require("./invoices");
+const { bad, notFound, conflict } = require("./httperror");
 const { sydneyToday, sydneyMonday } = require("./time");
+
+const STAGES = [
+  "lead", "quoted", "won", "design_ordering", "ready_to_cut",
+  "on_board", "complete", "invoiced", "lost", "archived",
+];
+// Stages a user may move a job to by hand; the derived ones are set by the
+// board hooks (and later accounts).
+const MANUAL_STAGES = ["lead", "quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+const DERIVED_STAGES = ["on_board", "complete", "invoiced"];
+// The key date a stage fills on entry when it is still empty.
+const STAGE_DATE = { quoted: "quoted_date", won: "won_date", ready_to_cut: "ready_to_cut_date" };
+
+const ON_BOARD_MSG = "This job is on the board; it moves from the board";
+const DONE_MSG = "Complete and invoiced jobs can only be archived";
 
 // Stages a row placed on the board moves to on_board. "complete" is here so a
 // finished job put back on the board (a return visit) is live again; invoiced,
@@ -129,6 +147,98 @@ function createBoardJob(db, req, { name, notes, stage }) {
   return id;
 }
 
+// --- M3 hand moves (pipeline, job page) ---------------------------------
+
+// The manual stages a job may be moved to from `fromStage` (never fromStage
+// itself). Pure; public/pipeline.js and public/job.js mirror it.
+function allowedTargets(fromStage) {
+  if (fromStage === "on_board") return [];
+  if (fromStage === "complete" || fromStage === "invoiced") return ["archived"];
+  return MANUAL_STAGES.filter((s) => s !== fromStage);
+}
+
+// Put the job at the end of "To start", unless it has current or future week
+// rows (backlog.job_id is UNIQUE, so a second add is ignored). Returns true if
+// a row was added. Throws on error.
+function addToBacklog(db, jobId) {
+  if (hasCurrentOrFutureRows(db, jobId)) return false;
+  const maxOrder = db.prepare("SELECT MAX(sort_order) AS m FROM backlog").get().m;
+  const info = db
+    .prepare("INSERT OR IGNORE INTO backlog (job_id, sort_order) VALUES (?, ?)")
+    .run(jobId, (maxOrder ?? -1) + 1);
+  return info.changes > 0;
+}
+
+// Take the job off "To start", unless it has current or future week rows. A
+// backlog row is a pointer, not data. Returns true if a row was removed.
+// Throws on error.
+function removeFromBacklog(db, jobId) {
+  if (hasCurrentOrFutureRows(db, jobId)) return false;
+  return db.prepare("DELETE FROM backlog WHERE job_id = ?").run(jobId).changes > 0;
+}
+
+// The one path for hand moves. `from` (when not undefined) must match the
+// job's current stage. `override` is the admin's PATCH (contracts section 3).
+// Returns {changed, from, to, toStart}; throws HttpError on a rule break and
+// rethrows anything else, after rolling its own savepoint back.
+function moveStage(db, jobId, { stage, from } = {}, req, { override = false } = {}) {
+  if (typeof stage !== "string" || !STAGES.includes(stage)) {
+    throw bad(`stage must be one of ${STAGES.join(", ")}`);
+  }
+  if (!MANUAL_STAGES.includes(stage)) {
+    throw bad(`stage '${stage}' is set automatically and cannot be changed by hand`);
+  }
+  const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
+  if (!job) throw notFound();
+  const current = job.stage == null ? null : job.stage;
+  if (from !== undefined && from !== current) {
+    throw conflict("Someone else has moved this job", { stage: current });
+  }
+  if (stage === current) return { changed: false, from: current, to: stage, toStart: null };
+
+  if (!override) {
+    if (!allowedTargets(current).includes(stage)) {
+      throw conflict(current === "on_board" ? ON_BOARD_MSG : DONE_MSG);
+    }
+  } else if (current === "on_board" && hasCurrentOrFutureRows(db, jobId)) {
+    throw conflict(ON_BOARD_MSG);
+  }
+
+  return db.transaction(() => {
+    const before = { stage: current };
+    const after = { stage };
+    const cols = {};
+    const dateCol = STAGE_DATE[stage];
+    if (dateCol && (job[dateCol] == null || job[dateCol] === "")) cols[dateCol] = sydneyToday();
+    if (stage === "archived" && Number(job.archived) !== 1) cols.archived = 1;
+    else if (current === "archived" && stage !== "archived" && Number(job.archived) !== 0) cols.archived = 0;
+    for (const [c, v] of Object.entries(cols)) {
+      before[c] = job[c];
+      after[c] = v;
+    }
+
+    const now = nowIso();
+    const sets = ["stage = ?", "stage_changed_at = ?", "updated_at = ?"];
+    const vals = [stage, now, now];
+    for (const [c, v] of Object.entries(cols)) {
+      sets.push(`${c} = ?`);
+      vals.push(v);
+    }
+    db.prepare(`UPDATE jobs SET ${sets.join(", ")} WHERE id = ?`).run(...vals, jobId);
+
+    let toStart = null;
+    if (stage === "ready_to_cut") {
+      if (addToBacklog(db, jobId)) toStart = "added";
+    } else if (current === "ready_to_cut") {
+      if (removeFromBacklog(db, jobId)) toStart = "removed";
+    }
+    if (toStart) after.toStart = toStart;
+
+    audit.log(req, { action: "job.stage", entityType: "job", entityId: jobId, before, after });
+    return { changed: true, from: current, to: stage, toStart };
+  })();
+}
+
 module.exports = {
   setStage,
   onScheduled,
@@ -136,4 +246,13 @@ module.exports = {
   onFinishedComplete,
   onDesignReadyToCut,
   createBoardJob,
+  // M3
+  STAGES,
+  MANUAL_STAGES,
+  DERIVED_STAGES,
+  STAGE_DATE,
+  allowedTargets,
+  addToBacklog,
+  removeFromBacklog,
+  moveStage,
 };

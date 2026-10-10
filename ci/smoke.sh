@@ -1098,6 +1098,8 @@ new_jar "$SCHED"
 login "$SCHED" sched "$SCHED_PW"
 expect_status 200 "sched signs in again for the M2 suites"
 for f in "$(dirname "$0")"/smoke-m2-*.sh; do [ -f "$f" ] && source "$f"; done
+# M3 suites (ci/smoke-m3-*.sh): same rules; they must not assume a pristine DB.
+for f in "$(dirname "$0")"/smoke-m3-*.sh; do [ -f "$f" ] && source "$f"; done
 
 # ============================================================================
 step "k. cutover rehearsal: old public image, then this image on the same volume"
@@ -1180,6 +1182,17 @@ printf '%s' "$old_next" | jq -e '(.weeks[0].installing | length) >= 1' >/dev/nul
   || fail "rehearsal: next week looks unseeded: $old_next"
 ok
 
+# Migration 011 (the photo tag tidy, m3-contracts section 8): two photos with
+# untidy and tidy tags. The old app trims the whole string and keeps the rest
+# as typed. --form-string sends the value literally.
+echo "Uploading two tagged photos to the old app..."
+curl -sf -F "photos=@$WORK/test.png;type=image/png" --form-string "tags=  Kitchen, kitchen ,White Oak,, OAK " \
+  "$BASE/api/photos" >/dev/null || fail "rehearsal: old app photo upload 1 failed"
+curl -sf -F "photos=@$WORK/test.png;type=image/png" --form-string "tags=already, tidy" \
+  "$BASE/api/photos" >/dev/null || fail "rehearsal: old app photo upload 2 failed"
+old_photos=$(oapi "$BASE/api/photos" | jq 'length')
+expect_eq "$old_photos" "2" "rehearsal: old app holds two photos"
+
 # Flush the WAL so the files on the volume are self-contained, then stop.
 docker exec "$OLD_CONTAINER" node -e 'require("better-sqlite3")("/app/db/photos.db").pragma("wal_checkpoint(TRUNCATE)")' >/dev/null || true
 docker stop "$OLD_CONTAINER" >/dev/null
@@ -1239,6 +1252,18 @@ expect_eq "$backups" "1" "rehearsal: pre-migration backup photos-pre-001-* exist
 # docker logs and fail the pipeline even on a match.
 logs=$(docker logs "$RH_CONTAINER" 2>&1)
 grep -q 'foreign_key_check: ok' <<<"$logs" || fail "rehearsal: foreign_key_check was not clean"
+ok
+
+# Migration 011 tidied the old app's tags: same row count, one row rewritten.
+rh_tags=$(docker exec "$RH_CONTAINER" node -e '
+const db = require("better-sqlite3")("/data/db/photos.db");
+console.log(JSON.stringify(db.prepare("SELECT tags FROM photos ORDER BY id").all().map((r) => r.tags)));
+')
+expect_eq "$(printf '%s' "$rh_tags" | jq 'length')" "$old_photos" "rehearsal: photo count after 011"
+expect_eq "$(printf '%s' "$rh_tags" | jq -r '.[0]')" "kitchen, white oak, oak" "rehearsal: 011 tidied the untidy tags"
+expect_eq "$(printf '%s' "$rh_tags" | jq -r '.[1]')" "already, tidy" "rehearsal: 011 left the tidy tags alone"
+grep -qF '[migrate] 011 tag tidy: 1 of 2 photo(s) rewritten' <<<"$logs" \
+  || fail "rehearsal: logs lack the 011 tag tidy line"
 ok
 
 echo "Restarting: nothing may re-apply and no new backup may appear..."

@@ -45,6 +45,9 @@ const routers = [
   require("./routes/invoices"),
   require("./routes/notifications"),
   require("./routes/settings"),
+  require("./routes/orders"),
+  require("./routes/inspections"),
+  require("./routes/scheduling"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

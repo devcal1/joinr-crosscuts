@@ -5,7 +5,7 @@ const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const audit = require("../lib/audit");
 const jobstage = require("../lib/jobstage");
-const invoices = require("../lib/invoices");
+const orders = require("../lib/orders");
 const { DATE_RE, parseDateUTC, formatDateUTC, sydneyToday } = require("../lib/time");
 
 const r = defineRoutes("/api/job-records");
@@ -312,7 +312,7 @@ r.patch("/:id", "jobs.edit", handle((req, res) => {
 }));
 
 // "Materials ordered": sets materials_ordered_date and makes the progress
-// invoice due. M3 Orders will call the same invoices hook.
+// invoice due (orders.markMaterialsOrdered; the M3 orders path calls it too).
 r.post("/:id/materials-ordered", "orders.mark_ordered", handle((req, res) => {
   const id = parseId(req);
   const existing = id && db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
@@ -320,23 +320,9 @@ r.post("/:id/materials-ordered", "orders.mark_ordered", handle((req, res) => {
   const b = req.body && typeof req.body === "object" ? req.body : {};
   const date = b.date === undefined || b.date === null || b.date === "" ? sydneyToday() : b.date;
   if (!validDate(date)) throw bad("date must be a valid YYYY-MM-DD date");
-  if (existing.materials_ordered_date) throw new HttpError(409, "Materials already marked ordered");
-
-  db.transaction(() => {
-    db.prepare("UPDATE jobs SET materials_ordered_date = ?, updated_at = ? WHERE id = ?").run(
-      date,
-      new Date().toISOString(),
-      id
-    );
-    audit.log(req, {
-      action: "job.update",
-      entityType: "job",
-      entityId: id,
-      before: { materials_ordered_date: null },
-      after: { materials_ordered_date: date },
-    });
-    invoices.onMaterialsOrdered(db, id, date, req);
-  })();
+  // The update, audit and invoice hook live in lib/orders.js (M3), shared with
+  // the orders path. It returns false when the date was already set.
+  if (!orders.markMaterialsOrdered(db, id, req, date)) throw new HttpError(409, "Materials already marked ordered");
   res.json(loadOne(req, id));
 }));
 

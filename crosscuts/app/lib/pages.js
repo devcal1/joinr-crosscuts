@@ -12,6 +12,8 @@ const PAGE_ACCESS = {
   "/admin.html": "photos.admin",
   "/jobs.html": "jobs.view",
   "/job.html": "jobs.view",
+  "/pipeline.html": "jobs.view",
+  "/orders.html": "jobs.view",
   "/users.html": "users.admin",
   "/audit.html": "audit.view",
   "/accounts.html": "accounts.view",

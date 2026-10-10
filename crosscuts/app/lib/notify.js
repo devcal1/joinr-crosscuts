@@ -33,9 +33,11 @@ function usersWithKey(db, featureKey) {
 }
 
 // One row for each of those users; returns how many were notified.
-function toKey(db, featureKey, payload) {
+// opts.exceptUserId (M3): skip that user even if they hold the key (the actor).
+function toKey(db, featureKey, payload, opts = {}) {
+  const except = opts && opts.exceptUserId != null ? opts.exceptUserId : null;
   return db.transaction(() => {
-    const ids = usersWithKey(db, featureKey);
+    const ids = usersWithKey(db, featureKey).filter((id) => except === null || Number(id) !== Number(except));
     for (const id of ids) toUser(db, id, payload);
     return ids.length;
   })();

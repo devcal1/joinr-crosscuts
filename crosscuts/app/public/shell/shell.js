@@ -23,6 +23,8 @@
       label: "Jobs and money",
       items: [
         { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
+        { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
+        { label: "Orders", href: "/orders.html", key: "jobs.view" },
         { label: "Design/PM", href: "/design.html", key: "design.view" },
         { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
       ],
