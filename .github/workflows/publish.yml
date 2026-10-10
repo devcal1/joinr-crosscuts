@@ -1,21 +1,26 @@
 name: Build and publish crosscuts-web
 
+# Pull requests and pushes build and smoke-test the image on both architectures.
+# Only a push to main publishes: each architecture pushes the exact image it
+# just tested (by digest), and the merge job stitches the two digests into the
+# :latest / :sha-<sha> multi-arch tags. This follows Docker's "distribute build
+# across multiple runners" pattern.
 on:
   push:
     branches: [main]
     paths:
-      - "crosscuts/app/**"
-      # The manifest is in the paths so a follow-up push that only bumps
-      # version: (after the guard step below blocks a forgotten bump) still
-      # triggers a publish.
-      - "crosscuts/umbrel-app.yml"
-      - ".github/workflows/publish.yml"
+      # crosscuts/** covers the app, the Dockerfile, the lockfile and the
+      # manifest. The manifest has to be in the filter so a follow-up push that
+      # only bumps version: (after the guard step below blocks a forgotten
+      # bump) still triggers a publish.
+      - "crosscuts/**"
+      - "ci/**"
+      - ".github/workflows/**"
+  pull_request: {}
   workflow_dispatch: {}
 
-# A new push cancels any still-running build for the same branch, rather than
-# leaving an old run to hang around (or occasionally stall for a long time on
-# the multi-arch build step — a GitHub Actions runner/cache issue, not this
-# workflow's code) alongside a newer one.
+# A new push cancels any still-running build for the same ref, rather than
+# leaving an old run to hang around alongside a newer one.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -28,8 +33,22 @@ permissions:
   packages: write
 
 jobs:
-  build-test-publish:
-    runs-on: ubuntu-latest
+  build-test:
+    name: build-test (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      # True only for a push to main: the only case that publishes.
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,494 +69,95 @@ jobs:
           echo "crosscuts/app/ changed but umbrel-app.yml version: was not bumped — Umbrel would never offer this update." >&2
           exit 1
 
+      - name: Prepare
+        run: |
+          platform='${{ matrix.platform }}'
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+
+      # ci/smoke.sh needs curl and jq (both ship on GitHub's Ubuntu images).
+      - name: Check smoke-test tooling
+        run: |
+          command -v curl >/dev/null || { sudo apt-get update && sudo apt-get install -y curl; }
+          command -v jq >/dev/null || { sudo apt-get update && sudo apt-get install -y jq; }
+          jq --version
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build single-arch image for smoke test
+      # Native build for this runner's architecture (no QEMU).
+      - name: Build image for smoke test
         uses: docker/build-push-action@v6
         with:
           context: crosscuts/app
+          platforms: ${{ matrix.platform }}
           load: true
           tags: crosscuts-web:smoke-test
-          cache-from: type=gha
+          provenance: false
+          cache-from: type=gha,scope=crosscuts-${{ matrix.arch }}
           # ignore-error: a GHA cache-service hiccup during export must not
           # red a run whose build actually succeeded (the known step-8 issue).
-          cache-to: type=gha,mode=max,ignore-error=true
+          cache-to: type=gha,mode=max,scope=crosscuts-${{ matrix.arch }},ignore-error=true
 
       - name: Smoke test the built image
+        run: bash ci/smoke.sh crosscuts-web:smoke-test
+
+      # ---- publish (push to main only) -------------------------------------
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same context, platform and cache as the tested build above, so every
+      # layer is a cache hit: the pushed image is built from the layers the
+      # smoke test just ran, not a fresh rebuild.
+      - name: Push the tested image by digest
+        id: push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: crosscuts/app
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=crosscuts-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=crosscuts-${{ matrix.arch }},ignore-error=true
+
+      - name: Export digest
+        if: env.PUBLISH == 'true'
         run: |
-          set -euo pipefail
-
-          docker run -d --name smoke-test -p 3000:3000 crosscuts-web:smoke-test
-          trap 'docker logs smoke-test || true; docker rm -f smoke-test || true' EXIT
-
-          echo "Waiting for the server to come up..."
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000/healthz > /dev/null; then
-              echo "Server is up."
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "Server never came up." >&2
-              exit 1
-            fi
-            sleep 1
-          done
-
-          echo "GET /api/photos should start empty..."
-          body=$(curl -sf http://localhost:3000/api/photos)
-          [ "$body" = "[]" ] || { echo "Expected [], got: $body" >&2; exit 1; }
-
-          echo "Uploading a test photo..."
-          printf '%s' "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" | base64 -d > /tmp/test.png
-          upload_response=$(curl -sf -F "photos=@/tmp/test.png;type=image/png" -F "tags=ci-test" http://localhost:3000/api/photos)
-          echo "$upload_response"
-          failed_count=$(echo "$upload_response" | jq -r '.failed | length')
-          [ "$failed_count" = "0" ] || { echo "Expected no failed uploads, got: $upload_response" >&2; exit 1; }
-          photo_id=$(echo "$upload_response" | jq -r '.created[0].id')
-          thumb_url=$(echo "$upload_response" | jq -r '.created[0].thumbUrl')
-          width=$(echo "$upload_response" | jq -r '.created[0].width')
-          [ "$photo_id" != "null" ] || { echo "No photo id in response" >&2; exit 1; }
-          [ "$thumb_url" != "null" ] && [ -n "$thumb_url" ] || { echo "No thumbUrl in response" >&2; exit 1; }
-          [ "$width" = "1" ] || { echo "Expected width 1, got $width" >&2; exit 1; }
-
-          echo "Confirming it shows up in the listing..."
-          curl -sf http://localhost:3000/api/photos | jq -e ".[] | select(.id == $photo_id)" > /dev/null
-
-          echo "Editing tags..."
-          curl -sf -X PATCH -H "Content-Type: application/json" -d '{"tags":"ci-test-edited"}' \
-            "http://localhost:3000/api/photos/$photo_id" | jq -e '.tags == "ci-test-edited"' > /dev/null
-
-          echo "Deleting..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/photos/$photo_id")
-          [ "$status" = "204" ] || { echo "Expected 204 on delete, got $status" >&2; exit 1; }
-
-          echo "Confirming it's gone..."
-          body=$(curl -sf http://localhost:3000/api/photos)
-          [ "$body" = "[]" ] || { echo "Expected [] after delete, got: $body" >&2; exit 1; }
-
-          echo "Photo API smoke test passed."
-
-          echo "--- Schedule API ---"
-
-          echo "GET /api/workers should have the seeded roster..."
-          worker_count=$(curl -sf http://localhost:3000/api/workers | jq 'length')
-          [ "$worker_count" -ge 1 ] || { echo "Expected at least 1 seeded worker, got $worker_count" >&2; exit 1; }
-
-          echo "Creating a CI worker..."
-          worker_id=$(curl -sf -X POST -H "Content-Type: application/json" -d '{"name":"CI Worker"}' \
-            http://localhost:3000/api/workers | jq -r '.id')
-          [ "$worker_id" != "null" ] || { echo "No worker id returned" >&2; exit 1; }
-
-          echo "GET /api/schedule should return a two-week fortnight, 7 days apart..."
-          schedule=$(curl -sf "http://localhost:3000/api/schedule?week=2025-11-19")
-          week1_start=$(echo "$schedule" | jq -r '.weeks[0].start')
-          week2_start=$(echo "$schedule" | jq -r '.weeks[1].start')
-          week1_dow=$(date -u -d "$week1_start" +%u)
-          [ "$week1_dow" = "1" ] || { echo "Expected week1 to start on a Monday, got $week1_start (dow $week1_dow)" >&2; exit 1; }
-          expected_week2=$(date -u -d "$week1_start + 7 days" +%F)
-          [ "$week2_start" = "$expected_week2" ] || { echo "Expected week2 $expected_week2, got $week2_start" >&2; exit 1; }
-
-          echo "Adding a job row to week 1 manufacturing..."
-          row=$(curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"weekStart\":\"$week1_start\",\"panel\":\"manufacturing\",\"jobName\":\"CI Job\",\"notes\":\"n1\"}" \
-            http://localhost:3000/api/rows)
-          row_id=$(echo "$row" | jq -r '.rowId')
-          job_id=$(echo "$row" | jq -r '.jobId')
-          [ "$row_id" != "null" ] || { echo "No rowId returned: $row" >&2; exit 1; }
-
-          echo "Confirming the job shows up in /api/jobs..."
-          curl -sf http://localhost:3000/api/jobs | jq -e ".[] | select(.id == $job_id and .name == \"CI Job\")" > /dev/null
-
-          echo "Assigning the CI worker to Monday..."
-          assignment=$(curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"day\":\"mon\",\"workerId\":$worker_id}" \
-            "http://localhost:3000/api/rows/$row_id/assignments")
-          assignment_id=$(echo "$assignment" | jq -r '.assignmentId')
-          [ "$assignment_id" != "null" ] || { echo "No assignmentId returned: $assignment" >&2; exit 1; }
-
-          echo "Confirming the assignment shows up in the schedule..."
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e ".weeks[0].manufacturing[] | select(.rowId == $row_id) | .cells.mon[] | select(.workerId == $worker_id)" > /dev/null
-
-          echo "Re-adding the same worker to the same day should be idempotent..."
-          dup_assignment=$(curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"day\":\"mon\",\"workerId\":$worker_id}" \
-            "http://localhost:3000/api/rows/$row_id/assignments")
-          dup_assignment_id=$(echo "$dup_assignment" | jq -r '.assignmentId')
-          [ "$dup_assignment_id" = "$assignment_id" ] || { echo "Expected existing assignmentId $assignment_id, got $dup_assignment_id" >&2; exit 1; }
-          chip_count=$(curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq "[.weeks[0].manufacturing[] | select(.rowId == $row_id) | .cells.mon[]] | length")
-          [ "$chip_count" = "1" ] || { echo "Expected 1 chip after repeat assignment, got $chip_count" >&2; exit 1; }
-
-          echo "Editing job notes..."
-          curl -sf -X PATCH -H "Content-Type: application/json" -d '{"notes":"updated"}' \
-            "http://localhost:3000/api/jobs/$job_id" | jq -e '.notes == "updated"' > /dev/null
-
-          echo "Duplicating the row to next week..."
-          dup=$(curl -sf -X POST -H "Content-Type: application/json" -d '{}' \
-            "http://localhost:3000/api/rows/$row_id/duplicate")
-          dup_row_id=$(echo "$dup" | jq -r '.rowId')
-          [ "$dup_row_id" != "null" ] && [ "$dup_row_id" != "$row_id" ] || { echo "Duplicate row not created: $dup" >&2; exit 1; }
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e ".weeks[1].manufacturing[] | select(.rowId == $dup_row_id) | .cells.mon[] | select(.workerId == $worker_id)" > /dev/null
-
-          echo "Adding a job row to week 1 installing (for flag testing)..."
-          install_row=$(curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"weekStart\":\"$week1_start\",\"panel\":\"installing\",\"jobId\":$job_id}" \
-            http://localhost:3000/api/rows)
-          install_row_id=$(echo "$install_row" | jq -r '.rowId')
-          [ "$install_row_id" != "null" ] || { echo "No rowId returned: $install_row" >&2; exit 1; }
-
-          echo "Flagging Tuesday as locked in on the installing row..."
-          curl -sf -X POST -H "Content-Type: application/json" -d '{"day":"tue"}' \
-            "http://localhost:3000/api/rows/$install_row_id/flags" | jq -e '.flagged == true' > /dev/null
-
-          echo "Confirming the flag shows up in the schedule response..."
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e ".weeks[0].installing[] | select(.rowId == $install_row_id) | .flags.tue == true" > /dev/null
-
-          echo "Flagging a manufacturing row should be rejected..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d '{"day":"mon"}' \
-            "http://localhost:3000/api/rows/$row_id/flags")
-          [ "$status" = "400" ] || { echo "Expected 400 flagging a manufacturing row, got $status" >&2; exit 1; }
-
-          echo "Unflagging Tuesday..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/rows/$install_row_id/flags/tue")
-          [ "$status" = "204" ] || { echo "Expected 204 unflagging, got $status" >&2; exit 1; }
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e ".weeks[0].installing[] | select(.rowId == $install_row_id) | .flags.tue == false" > /dev/null
-
-          echo "Re-flagging Tuesday so the row delete runs with a live flag..."
-          curl -sf -X POST -H "Content-Type: application/json" -d '{"day":"tue"}' \
-            "http://localhost:3000/api/rows/$install_row_id/flags" | jq -e '.flagged == true' > /dev/null
-
-          echo "Cleaning up the installing row..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/rows/$install_row_id")
-          [ "$status" = "204" ] || { echo "Expected 204 deleting installing row, got $status" >&2; exit 1; }
-
-          echo "Flag smoke test passed."
-
-          echo "--- Row reordering and week moves ---"
-          # These two modes rewrite stored ordering (sort_order across a whole
-          # panel) and stored placement (week_start), so they get exercised
-          # against a real container and real SQLite before anything publishes.
-
-          echo "Adding three manufacturing rows to reorder..."
-          add_order_row() {
-            curl -sf -X POST -H "Content-Type: application/json" \
-              -d "{\"weekStart\":\"$week1_start\",\"panel\":\"manufacturing\",\"jobName\":\"CI Order $1\"}" \
-              http://localhost:3000/api/rows | jq -r '.rowId'
-          }
-          ra=$(add_order_row A)
-          rb=$(add_order_row B)
-          rc=$(add_order_row C)
-          for r in "$ra" "$rb" "$rc"; do
-            [ "$r" != "null" ] && [ -n "$r" ] || { echo "A reorder row got no rowId" >&2; exit 1; }
-          done
-
-          # Order of just these three rows, in board order.
-          panel_order() {
-            curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-              | jq -r "[.weeks[0].manufacturing[] | select(.rowId==$ra or .rowId==$rb or .rowId==$rc) | .rowId] | join(\",\")"
-          }
-          got=$(panel_order)
-          [ "$got" = "$ra,$rb,$rc" ] || { echo "Expected $ra,$rb,$rc on insert, got $got" >&2; exit 1; }
-
-          echo "Dragging the last row to the front of the panel..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json" \
-            -d '{"toIndex":0}' "http://localhost:3000/api/rows/$rc/move")
-          [ "$status" = "204" ] || { echo "Expected 204 on toIndex move, got $status" >&2; exit 1; }
-          got=$(panel_order)
-          [ "$got" = "$rc,$ra,$rb" ] || { echo "Expected $rc,$ra,$rb after drag, got $got" >&2; exit 1; }
-
-          echo "A move with no direction/toIndex/week must be rejected..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json" \
-            -d '{}' "http://localhost:3000/api/rows/$ra/move")
-          [ "$status" = "400" ] || { echo "Expected 400 on empty move body, got $status" >&2; exit 1; }
-
-          echo "Assigning a worker so the week move has something to carry..."
-          curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"day\":\"wed\",\"workerId\":$worker_id}" \
-            "http://localhost:3000/api/rows/$ra/assignments" > /dev/null
-
-          next_week=$(date -u -d "$week1_start + 7 days" +%F)
-          echo "Moving that row to next week..."
-          curl -sf -X PATCH -H "Content-Type: application/json" -d '{"week":"next"}' \
-            "http://localhost:3000/api/rows/$ra/move" | jq -e ".weekStart == \"$next_week\"" > /dev/null
-
-          echo "It must be gone from this week and present next week, worker intact..."
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e "[.weeks[0].manufacturing[] | select(.rowId == $ra)] | length == 0" > /dev/null
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e ".weeks[1].manufacturing[] | select(.rowId == $ra) | .cells.wed[] | select(.workerId == $worker_id)" > /dev/null
-
-          echo "Moving it back to the original week..."
-          curl -sf -X PATCH -H "Content-Type: application/json" -d '{"week":"prev"}' \
-            "http://localhost:3000/api/rows/$ra/move" | jq -e ".weekStart == \"$week1_start\"" > /dev/null
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e ".weeks[0].manufacturing[] | select(.rowId == $ra) | .cells.wed[] | select(.workerId == $worker_id)" > /dev/null
-
-          echo "Cleaning up the reorder rows..."
-          for r in $ra $rb $rc; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/rows/$r")
-            [ "$status" = "204" ] || { echo "Expected 204 deleting reorder row $r, got $status" >&2; exit 1; }
-          done
-
-          echo "Reorder and week-move smoke test passed."
-
-          echo "--- Backlog and finish-week ---"
-          # All of this runs in 2031 so it can't collide with the 2025 rows above.
-          # Every row and backlog entry created here is deleted at the end.
-
-          # Sends a request, keeps the response body in /tmp/ci-body.json, prints the status code.
-          ci_req() {
-            curl -s -o /tmp/ci-body.json -w "%{http_code}" "$@"
-          }
-
-          echo "Adding a backlog item..."
-          status=$(ci_req -X POST -H "Content-Type: application/json" -d '{"name":"CI Backlog"}' \
-            http://localhost:3000/api/jobs/backlog)
-          [ "$status" = "201" ] || { echo "Expected 201 adding backlog item, got $status: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          backlog_id=$(jq -r '.id' /tmp/ci-body.json)
-          [ "$backlog_id" != "null" ] || { echo "No backlog id returned: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-
-          echo "Confirming it shows up in the backlog on the schedule response..."
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e ".backlog[] | select(.id == $backlog_id and .name == \"CI Backlog\")" > /dev/null
-
-          echo "An empty backlog name must be rejected..."
-          status=$(ci_req -X POST -H "Content-Type: application/json" -d '{"name":""}' \
-            http://localhost:3000/api/jobs/backlog)
-          [ "$status" = "400" ] || { echo "Expected 400 on empty backlog name, got $status" >&2; exit 1; }
-
-          echo "Deleting the backlog item..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/jobs/backlog/$backlog_id")
-          [ "$status" = "204" ] || { echo "Expected 204 deleting backlog item, got $status" >&2; exit 1; }
-          echo "Confirming it's gone from the backlog..."
-          curl -sf "http://localhost:3000/api/schedule?week=$week1_start" \
-            | jq -e "[.backlog[] | select(.id == $backlog_id)] | length == 0" > /dev/null
-
-          echo "Deleting an unknown backlog id should be 404..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/jobs/backlog/999999999")
-          [ "$status" = "404" ] || { echo "Expected 404 deleting unknown backlog id, got $status" >&2; exit 1; }
-
-          echo "Backlog round trip passed."
-
-          echo "Placing a backlog item into a week's installing panel..."
-          place_week="2031-03-24"
-          status=$(ci_req -X POST -H "Content-Type: application/json" -d '{"name":"CI Placed"}' \
-            http://localhost:3000/api/jobs/backlog)
-          [ "$status" = "201" ] || { echo "Expected 201 adding backlog item, got $status: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          placed_backlog_id=$(jq -r '.id' /tmp/ci-body.json)
-
-          echo "A bad panel must be rejected, and the backlog item must survive it..."
-          status=$(ci_req -X POST -H "Content-Type: application/json" \
-            -d "{\"weekStart\":\"$place_week\",\"panel\":\"sideways\"}" \
-            "http://localhost:3000/api/jobs/backlog/$placed_backlog_id/place")
-          [ "$status" = "400" ] || { echo "Expected 400 on bad panel, got $status" >&2; exit 1; }
-          curl -sf "http://localhost:3000/api/schedule?week=$place_week" \
-            | jq -e ".backlog[] | select(.id == $placed_backlog_id)" > /dev/null
-
-          echo "Placing it into the installing panel..."
-          status=$(ci_req -X POST -H "Content-Type: application/json" \
-            -d "{\"weekStart\":\"$place_week\",\"panel\":\"installing\"}" \
-            "http://localhost:3000/api/jobs/backlog/$placed_backlog_id/place")
-          [ "$status" = "201" ] || { echo "Expected 201 placing backlog item, got $status: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          placed_row_id=$(jq -r '.rowId' /tmp/ci-body.json)
-          [ "$placed_row_id" != "null" ] || { echo "No rowId returned: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-
-          echo "Confirming the row shows up in that week's installing panel..."
-          curl -sf "http://localhost:3000/api/schedule?week=$place_week" \
-            | jq -e ".weeks[0].installing[] | select(.rowId == $placed_row_id)" > /dev/null
-
-          echo "Confirming the backlog item is gone..."
-          curl -sf "http://localhost:3000/api/schedule?week=$place_week" \
-            | jq -e "[.backlog[] | select(.id == $placed_backlog_id)] | length == 0" > /dev/null
-
-          echo "Placing an unknown backlog id should be 404..."
-          status=$(ci_req -X POST -H "Content-Type: application/json" \
-            -d "{\"weekStart\":\"$place_week\",\"panel\":\"installing\"}" \
-            "http://localhost:3000/api/jobs/backlog/999999999/place")
-          [ "$status" = "404" ] || { echo "Expected 404 placing unknown backlog id, got $status" >&2; exit 1; }
-
-          echo "Backlog placement passed."
-
-          echo "Finish-week: creating jobs in the source week..."
-          fw_src="2031-03-03"
-          fw_next=$(date -u -d "$fw_src + 7 days" +%F)
-
-          # Adds a row to the source week for a job (args: job name, panel); prints the response JSON.
-          new_src_row() {
-            curl -sf -X POST -H "Content-Type: application/json" \
-              -d "{\"weekStart\":\"$fw_src\",\"panel\":\"$2\",\"jobName\":\"$1\"}" \
-              http://localhost:3000/api/rows
-          }
-
-          mfg_job=$(new_src_row "CI Finish Mfg" manufacturing | jq -r '.jobId')
-
-          inst=$(new_src_row "CI Finish Install" installing)
-          inst_job=$(echo "$inst" | jq -r '.jobId')
-          inst_row=$(echo "$inst" | jq -r '.rowId')
-          echo "Assigning the CI worker to the source installing row (should be copied forward)..."
-          curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"day\":\"mon\",\"workerId\":$worker_id}" \
-            "http://localhost:3000/api/rows/$inst_row/assignments" > /dev/null
-
-          idle_job=$(new_src_row "CI Finish Idle" manufacturing | jq -r '.jobId')
-          done_job=$(new_src_row "CI Finish Done" manufacturing | jq -r '.jobId')
-          probe_job=$(new_src_row "CI Finish Probe" manufacturing | jq -r '.jobId')
-          for j in "$mfg_job" "$inst_job" "$idle_job" "$done_job" "$probe_job"; do
-            [ "$j" != "null" ] && [ -n "$j" ] || { echo "A finish-week job got no jobId" >&2; exit 1; }
-          done
-
-          # Source-week rows (ids and cells) as compact JSON, to prove finish-week leaves them alone.
-          fw_src_state() {
-            curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-              | jq -c '[(.weeks[0].manufacturing + .weeks[0].installing)[] | {rowId, cells}] | sort_by(.rowId)'
-          }
-          # Row count across the fortnight plus backlog count, as compact JSON.
-          fw_counts() {
-            curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-              | jq -c '[((.weeks[0].manufacturing + .weeks[0].installing + .weeks[1].manufacturing + .weeks[1].installing) | length), (.backlog | length)]'
-          }
-
-          fw_body="{\"weekStart\":\"$fw_src\",\"results\":[{\"jobId\":$mfg_job,\"outcome\":\"manufacturing\"},{\"jobId\":$inst_job,\"outcome\":\"install\"},{\"jobId\":$idle_job,\"outcome\":\"not_started\"},{\"jobId\":$done_job,\"outcome\":\"complete\"}]}"
-          src_before=$(fw_src_state)
-
-          echo "Calling finish-week for the source week..."
-          status=$(ci_req -X POST -H "Content-Type: application/json" -d "$fw_body" \
-            http://localhost:3000/api/rows/finish-week)
-          [ "$status" = "200" ] || { echo "Expected 200 from finish-week, got $status: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          counts_first=$(fw_counts)
-
-          echo "Manufacturing job should land in next week's manufacturing panel..."
-          curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -e ".weeks[1].manufacturing[] | select(.jobId == $mfg_job)" > /dev/null
-
-          echo "Install job should land in next week's installing panel, with the worker copied..."
-          curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -e ".weeks[1].installing[] | select(.jobId == $inst_job) | .cells.mon[] | select(.workerId == $worker_id)" > /dev/null
-
-          echo "Not-started job should be in the backlog and in no panel next week..."
-          curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -e ".backlog[] | select(.jobId == $idle_job)" > /dev/null
-          curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -e "[(.weeks[1].manufacturing + .weeks[1].installing)[] | select(.jobId == $idle_job)] | length == 0" > /dev/null
-
-          echo "Complete job should create nothing at all..."
-          curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -e "[(.weeks[1].manufacturing + .weeks[1].installing)[] | select(.jobId == $done_job)] | length == 0" > /dev/null
-          curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -e "[.backlog[] | select(.jobId == $done_job)] | length == 0" > /dev/null
-
-          echo "Source week must be unchanged..."
-          [ "$(fw_src_state)" = "$src_before" ] || { echo "Source week changed after finish-week" >&2; exit 1; }
-
-          echo "Repeating the identical finish-week call should create nothing new..."
-          status=$(ci_req -X POST -H "Content-Type: application/json" -d "$fw_body" \
-            http://localhost:3000/api/rows/finish-week)
-          [ "$status" = "200" ] || { echo "Expected 200 from repeat finish-week, got $status: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          jq -e '(.created | length) == 0 and (.skipped | length) > 0' /tmp/ci-body.json > /dev/null \
-            || { echo "Repeat finish-week should create nothing and skip everything: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          [ "$(fw_counts)" = "$counts_first" ] || { echo "Repeat finish-week changed row or backlog counts" >&2; exit 1; }
-
-          echo "Bad finish-week bodies must be rejected and write nothing..."
-          counts_before_bad=$(fw_counts)
-          for body in \
-            "{\"weekStart\":\"$fw_src\",\"results\":[{\"jobId\":$probe_job,\"outcome\":\"manufacturing\"},{\"jobId\":$probe_job,\"outcome\":\"sideways\"}]}" \
-            "{\"weekStart\":\"$fw_src\",\"results\":[{\"jobId\":$probe_job,\"outcome\":\"manufacturing\"},{\"jobId\":999999999,\"outcome\":\"manufacturing\"}]}" \
-            "{\"weekStart\":\"$fw_src\",\"results\":[{\"jobId\":$probe_job,\"outcome\":\"manufacturing\"},{\"jobId\":$probe_job,\"outcome\":\"install\"}]}" \
-            "{\"weekStart\":\"$fw_src\",\"results\":[]}"; do
-            status=$(ci_req -X POST -H "Content-Type: application/json" -d "$body" \
-              http://localhost:3000/api/rows/finish-week)
-            [ "$status" = "400" ] || { echo "Expected 400 from bad finish-week body, got $status: $body" >&2; exit 1; }
-          done
-          [ "$(fw_counts)" = "$counts_before_bad" ] || { echo "Rejected finish-week calls still changed row or backlog counts" >&2; exit 1; }
-          curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -e "[(.weeks[1].manufacturing + .weeks[1].installing)[] | select(.jobId == $probe_job)] | length == 0" > /dev/null
-
-          echo "Cleaning up the finish-week backlog entry..."
-          idle_backlog_id=$(curl -sf "http://localhost:3000/api/schedule?week=$fw_src" \
-            | jq -r ".backlog[] | select(.jobId == $idle_job) | .id")
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/jobs/backlog/$idle_backlog_id")
-          [ "$status" = "204" ] || { echo "Expected 204 deleting finish-week backlog entry, got $status" >&2; exit 1; }
-
-          echo "Cleaning up the CI rows in both test fortnights..."
-          for week in "$fw_src" "$place_week"; do
-            rows=$(curl -sf "http://localhost:3000/api/schedule?week=$week" \
-              | jq -r '(.weeks[0].manufacturing + .weeks[0].installing + .weeks[1].manufacturing + .weeks[1].installing)[] | .rowId')
-            for r in $rows; do
-              status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/rows/$r")
-              [ "$status" = "204" ] || { echo "Expected 204 deleting CI row $r, got $status" >&2; exit 1; }
-            done
-          done
-
-          echo "Send-back to backlog: creating a row to send back..."
-          sb_week="2031-03-24"
-          sb_body=$(curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"weekStart\":\"$sb_week\",\"panel\":\"manufacturing\",\"jobName\":\"CI Send Back\"}" \
-            http://localhost:3000/api/rows)
-          sb_row=$(echo "$sb_body" | jq -r '.rowId')
-          sb_job=$(echo "$sb_body" | jq -r '.jobId')
-          [ "$sb_row" != "null" ] && [ "$sb_job" != "null" ] || { echo "Send-back row not created: $sb_body" >&2; exit 1; }
-
-          echo "Sending the row back to the To start list..."
-          status=$(ci_req -X PATCH -H "Content-Type: application/json" -d '{"backlog":true}' \
-            "http://localhost:3000/api/rows/$sb_row/move")
-          [ "$status" = "200" ] || { echo "Expected 200 sending row back, got $status: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          sb_backlog_id=$(jq -r '.backlogId' /tmp/ci-body.json)
-          [ "$sb_backlog_id" != "null" ] || { echo "No backlogId returned: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-
-          echo "Confirming the row is gone from the week and the job is in the backlog..."
-          curl -sf "http://localhost:3000/api/schedule?week=$sb_week" \
-            | jq -e "[(.weeks[0].manufacturing + .weeks[0].installing + .weeks[1].manufacturing + .weeks[1].installing)[] | select(.rowId == $sb_row)] | length == 0" > /dev/null
-          curl -sf "http://localhost:3000/api/schedule?week=$sb_week" \
-            | jq -e ".backlog[] | select(.id == $sb_backlog_id and .jobId == $sb_job)" > /dev/null
-
-          echo "Adding a second row for the same job, then sending it back..."
-          sb_row2=$(curl -sf -X POST -H "Content-Type: application/json" \
-            -d "{\"weekStart\":\"$sb_week\",\"panel\":\"installing\",\"jobId\":$sb_job}" \
-            http://localhost:3000/api/rows | jq -r '.rowId')
-          [ "$sb_row2" != "null" ] || { echo "Second send-back row not created" >&2; exit 1; }
-          status=$(ci_req -X PATCH -H "Content-Type: application/json" -d '{"backlog":true}' \
-            "http://localhost:3000/api/rows/$sb_row2/move")
-          [ "$status" = "200" ] || { echo "Expected 200 on second send-back, got $status: $(cat /tmp/ci-body.json)" >&2; exit 1; }
-          [ "$(jq -r '.backlogId' /tmp/ci-body.json)" = "$sb_backlog_id" ] || { echo "Second send-back created a different backlog id" >&2; exit 1; }
-          echo "Confirming the job still has exactly one backlog entry..."
-          curl -sf "http://localhost:3000/api/schedule?week=$sb_week" \
-            | jq -e "[.backlog[] | select(.jobId == $sb_job)] | length == 1" > /dev/null
-
-          echo "Sending an unknown row back should be 404..."
-          status=$(ci_req -X PATCH -H "Content-Type: application/json" -d '{"backlog":true}' \
-            "http://localhost:3000/api/rows/999999999/move")
-          [ "$status" = "404" ] || { echo "Expected 404 sending unknown row back, got $status" >&2; exit 1; }
-
-          echo "Cleaning up the send-back backlog entry..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/jobs/backlog/$sb_backlog_id")
-          [ "$status" = "204" ] || { echo "Expected 204 deleting send-back backlog entry, got $status" >&2; exit 1; }
-
-          echo "Send-back to backlog passed."
-
-          echo "Backlog and finish-week smoke test passed."
-
-          echo "Archiving the CI worker..."
-          curl -sf -X PATCH -H "Content-Type: application/json" -d '{"archived":true}' \
-            "http://localhost:3000/api/workers/$worker_id" | jq -e '.archived == true' > /dev/null
-
-          echo "Deleting the assignment and both rows..."
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/assignments/$assignment_id")
-          [ "$status" = "204" ] || { echo "Expected 204 deleting assignment, got $status" >&2; exit 1; }
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/rows/$row_id")
-          [ "$status" = "204" ] || { echo "Expected 204 deleting row, got $status" >&2; exit 1; }
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "http://localhost:3000/api/rows/$dup_row_id")
-          [ "$status" = "204" ] || { echo "Expected 204 deleting dup row, got $status" >&2; exit 1; }
-
-          echo "Verifying the row deletes left no orphaned day_flags behind..."
-          orphan_flags=$(docker exec smoke-test node -e "console.log(require('better-sqlite3')('/data/db/photos.db').prepare('SELECT COUNT(*) AS n FROM day_flags').get().n)")
-          [ "$orphan_flags" = "0" ] || { echo "Expected 0 day_flags after row deletes, got $orphan_flags" >&2; exit 1; }
-
-          echo "Schedule API smoke test passed."
+          mkdir -p "${{ runner.temp }}/digests"
+          digest='${{ steps.push.outputs.digest }}'
+          [ -n "$digest" ] || { echo "No digest from the push step" >&2; exit 1; }
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: merge multi-arch manifest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -546,19 +166,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up QEMU (for arm64 build)
-        uses: docker/setup-qemu-action@v3
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          ls -1
+          [ "$(ls -1 | wc -l)" -eq 2 ] || { echo "Expected 2 digests (amd64 + arm64)" >&2; exit 1; }
+          docker buildx imagetools create \
+            -t "$IMAGE:latest" \
+            -t "$IMAGE:sha-${{ github.sha }}" \
+            $(printf "$IMAGE@sha256:%s " *)
 
-      - name: Build and push multi-arch image
-        uses: docker/build-push-action@v6
-        with:
-          context: crosscuts/app
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:sha-${{ github.sha }}
-          cache-from: type=gha
-          # ignore-error: cache export runs after the push — a cache-service
-          # failure here previously turned successful publishes red.
-          cache-to: type=gha,mode=max,ignore-error=true
+      - name: Inspect image
+        run: docker buildx imagetools inspect "$IMAGE:sha-${{ github.sha }}"
