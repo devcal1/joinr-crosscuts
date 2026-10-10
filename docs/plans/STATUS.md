@@ -10,7 +10,7 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **Milestones:** M2 Accounts at 1.3 (decisions recorded, awaiting plan approval). M1 CLOSED. M1.1 done except its release step (5.2). M1.2 done except its release (2.1, 2.2) and close (3.1).
 - **Next action:** **M2 · 1.3 finish: Todd approves `m2-plan.md` as amended** (decisions are in its §10). Then mark it approved and go to M2 · 2.1 (contracts, `m2-contracts.md`). New pages follow CLAUDE.md "Look and feel" (`tokens.css` and `components.css` `hs-` classes), and `node ci/style-check.js` must pass.
 - **Carried LAN check (Todd, on the workshop LAN, Monday 12 Oct):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
-- **Waiting on Todd:** the LAN check; approval of `m2-plan.md` as amended. Before M2 can be checked on the device, Todd installs the ntfy Umbrel app and the ntfy phone app (a how-to doc comes with the build).
+- **Waiting on Todd:** the LAN check; approval of `m2-plan.md` as amended (Crosscuts now issues the invoices; no phone push in M2). Small open items Q-A to Q-D in its §10 have defaults.
 - **Open branches/worktrees:** none.
 - **Tools for UI work (local only):** `tools/screenshots/seed.js` (sample data, test admin) and `tools/screenshots/shoot.js` (full-page PNGs of every page through headless Edge). See the comments at the top of each.
 - **Deferred findings:**
@@ -72,3 +72,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: M1.2 approved by Todd. Release deferred: development continues locally (no version bump, no Umbrel update). Screenshot tools moved to tools/screenshots/. Clear point; next M2 · 1.1 unless Todd says otherwise.
 - 2026-10-10: M2 · 1.1 audit and 1.2 plan done (`m2-plan.md`: invoices, prompts, bell, ntfy push, Friday round-up, overdue view; no new feature keys). Six questions put to Todd. Next M2 · 1.3.
 - 2026-10-10: M2 · 1.3 decisions recorded (self-hosted ntfy, full-detail push, Materials ordered button, 10-day terms with Joinr due date later, no auto-invoices for old jobs, report library to M4). Awaiting plan approval.
+- 2026-10-10: M2 plan rewritten after Todd's changes: Crosscuts issues numbered tax invoices (new series, GST-inclusive, PDF via print), re-keyed into MYOB; no ntfy/phone push in M2; brief D10/D12 annotated. Awaiting plan approval.

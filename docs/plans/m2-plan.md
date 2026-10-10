@@ -2,9 +2,19 @@
 
 Status: **decisions recorded 2026-10-10 (§10); awaiting Todd's approval of the plan as amended.**
 
-Source of truth: `crosscuts-brief.md` §5.1, §6.1, D9–D12. Nothing is built until Todd approves. Steps: M2 · 1.1 (audit, §1) and M2 · 1.2 (plan, §2–§8, questions in §9).
+Source of truth: `crosscuts-brief.md` §5.1, §6.1, D9–D12. Todd changed D10 and D12 on 2026-10-10 (decision 7): **Crosscuts now issues the invoices**. Nothing is built until Todd approves. Steps: M2 · 1.1 (audit, §1), M2 · 1.2 (plan, §2–§9), M2 · 1.3 (decisions, §10).
 
-**M2 scope (roadmap):** the invoice table (deposit / progress / final / extras), invoice prompts from job events, the Friday 12:00 Sydney round-up, ntfy push to Todd, and the overdue list. The task queue moves to M4 (Collaboration), with the rest of tasks and comments. The report library is Q7.
+**M2 scope:**
+- invoice prompts from job events;
+- **issuing the tax invoices** (numbered, printable to PDF);
+- the invoice table with invoiced/paid tracking and the overdue list;
+- the Friday 12:00 Sydney round-up;
+- the in-app notification bell.
+
+**Not in M2:**
+- Phone push (decision 1–2): it waits for the phone companion app.
+- The task queue and the report library: these go to M4 (decision 6).
+- Any MYOB link. Accounts re-key issued invoices into MYOB (decision 8).
 
 ## 1. Audit findings (M2 · 1.1)
 
@@ -37,145 +47,201 @@ Two read-only surveys of the code, 2026-10-10.
 - `ci/smoke.sh` asserts exactly 21 feature keys, and `docs/auth.md` lists them. Both change if a key is added. This plan adds none.
 - A hand-set `complete` on the job page (admin only) doesn't set `completed_date` and doesn't run `onFinishedComplete`. M2 treats it like Finish week.
 
+
 ## 2. How it works, in one paragraph
 
-Each job gets up to four kinds of invoice: **deposit**, **progress**, **final**, and any number of **extras**. An invoice row appears, marked **due**, when its event happens:
+Each job gets up to four kinds of invoice: **deposit**, **progress**, **final**, and any number of **extras**. An invoice appears, marked **due**, when its event happens:
 - the job's first placement on the board makes the deposit due;
 - Todd's "Materials ordered" makes the progress invoice due;
 - Finish week → Complete makes the final, plus any extras, due.
 
-Each due invoice sends a notification to everyone with `invoices.edit` (Todd, Chloe, Tracy, Jill) and an ntfy push to Todd's phone. Accounts staff mark it **Invoiced** (reference and date) and then **Paid** (date). An invoice not paid by its payment due date is **overdue**. Every Friday at 12:00 Sydney a round-up lists everything due but not invoiced, plus anything overdue, and it repeats each week until the list is clear. When the final invoice is marked invoiced, the job moves to the `invoiced` stage.
+Each due invoice puts a notification in the bell of everyone with `invoices.edit` (Todd, Chloe, Tracy, Jill).
+
+An accounts user opens the due invoice. It comes pre-filled with one standard line, the client and the amount. They check or edit it, then **Issue** it. Issuing gives it the next number in the new series, locks it, and opens the printable tax invoice, which they save as a PDF and email to the client from their own mail (Crosscuts sends no email, D9). They then enter it into MYOB and tick "Entered in MYOB".
+
+When the money lands they mark it **Paid**. An issued invoice not paid within its due date (10 days by default, set per invoice) is **overdue**.
+
+Every Friday at 12:00 Sydney a round-up lists everything due but not issued, plus anything overdue, and it repeats each week until the list is clear. When the final invoice is issued, the job moves to the `invoiced` stage.
 
 ## 3. Data (migration `006_accounts.sql`, additive only)
 
-Money is in integer cents. Business dates are Sydney `YYYY-MM-DD`; timestamps are UTC ISO (the M1 contract).
+Money is integer cents, **GST-inclusive** (decision 10). Business dates are Sydney `YYYY-MM-DD`; timestamps are UTC ISO (the M1 contract).
 
 **`invoices`**, one row per invoice:
-- `id`, `job_id` (FK jobs), `kind` (`deposit` / `progress` / `final` / `extra`), and `description` (required for extras).
-- `status`: `pending` (extras only, before completion) / `due` / `invoiced` / `paid` / `waived`. For deposit, progress and final, "not due" means there is no row yet.
-- `amount_cents`: null until set. While it is null, the table shows the suggested amount from the job value (§4).
-- `due_date`: the day it became due. `due_reason`: `scheduled` / `materials_ordered` / `completed` / `manual`.
-- `invoice_ref`, `invoiced_date`, `payment_due_date` (default: invoice date + 10 days, decision 4; editable per invoice), `paid_date`.
-- `external_id`: the MYOB slot (D12). Stored, never called.
+- `id`, `job_id` (FK jobs), `kind` (`deposit` / `progress` / `final` / `extra`).
+- `status`:
+  - `pending`: extras only, before completion;
+  - `due`: an editable draft;
+  - `issued`: numbered and locked;
+  - `paid`;
+  - `waived`: not needed;
+  - `void`: issued, then cancelled.
+  - For deposit, progress and final, "not due" means there is no row yet.
+- `number`: unique; null until issued (§5).
+- `issue_date`, `due_date` (issue date + 10 days by default, editable before issue), `paid_date`.
+- `became_due_date`, `due_reason`: `scheduled` / `materials_ordered` / `completed` / `manual`.
+- `total_cents`: the sum of its lines. `gst_cents` is stored at issue: the total ÷ 11, rounded to the cent.
+- Client snapshot at issue: `bill_to_name`, `bill_to_address`, `bill_to_abn` (optional; Q-A), and `site_address`. Later edits to the job don't change an issued invoice.
+- `myob_entered_date`: accounts tick it once the invoice is keyed into MYOB, so nothing is missed (decision 8).
+- `external_id`: the MYOB slot (D12), kept for later.
 - `notes`, `last_contacted_date`, `follow_up_notes`: for Jill's overdue work.
-- `created_at`, `updated_at`, `archived` (soft delete, brief §8.5).
-- At most one deposit, one progress and one final per job (a unique index that excludes extras and archived rows).
+- `void_reason`, `replaced_by_id`: a voided invoice points to its replacement.
+- `created_at`, `updated_at`.
+- At most one live (not `void`) deposit, progress and final per job.
 
-**`notifications`:** `id`, `user_id`, `kind`, `title`, `body`, `link`, `entity_type`, `entity_id`, `created_at`, `read_at`. Each recipient gets their own row, so "mark read" is per person.
+**`invoice_lines`:** `id`, `invoice_id`, `sort_order`, `description`, `amount_cents` (GST-inclusive). Lines are editable while the invoice is `due` and frozen once it is issued.
 
-**`push_outbox`:** `id`, `title`, `body`, `link`, `created_at`, `attempts`, `last_attempt_at`, `last_error`, `sent_at`. Every push is written here first and sent by the background sender, so an ntfy failure never blocks a request. Anything still unsent is visible in-app (§6).
+**`invoice_number_seq`:** a single-row counter, so each number is used once, in order, inside the issue transaction. The series prefix and start number are set once by Todd (decision 9).
 
-**`app_meta`:** key/value, for example `roundup.last_run` = the Friday's date, so a restart never repeats it and a missed one is caught up.
+**`notifications`:** `id`, `user_id`, `kind`, `title`, `body`, `link`, `entity_type`, `entity_id`, `created_at`, `read_at`. Each recipient gets their own row.
 
-Extras: any number of `extra` rows, entered by hand. Before completion an extra is `pending`. It becomes due with the final, or straight away if the job is already complete.
+**`app_settings`:** key/value, edited by admin:
+- **Business details** for the invoice: trading name, legal name, ABN, address, phone, email, bank account name, BSB and account number, payment terms text, and logo (the existing `logo.png`).
+- The number prefix and start number.
+- `roundup.last_run`.
+- Todd enters these himself on the settings panel. Nothing is entered by Claude.
 
-## 4. Amounts
+## 4. Amounts and GST
 
-- **Suggested split** from `jobs.value_cents`: deposit 10%, progress 50%, final = value − deposit − progress, so the three always add up to the value exactly (rounded to the cent).
-- **Editable per invoice** (`invoices.edit`). Once someone sets `amount_cents`, it stops following the job value. Marking an invoice **Invoiced** freezes the amount shown at that moment into `amount_cents`, so later value changes can't rewrite history.
-- If a job has no value, the cells show "no value". Accounts can still type an amount.
-- Amounts are taken exactly as the job value is entered. Crosscuts does no GST maths; MYOB stays the book of record (D10).
+- **Suggested split** from `jobs.value_cents` (GST-inclusive): deposit 10%, progress 50%, final = value − deposit − progress, so the three always add up to the value exactly.
+- The pre-filled line (decision 11) is, for example, "Deposit (10%): Smith kitchen, 12 Rose St, $4,500.00". It is editable, and lines can be added before issue. Extras start with the description typed when the extra was entered.
+- GST shown on each invoice: total ÷ 11 ("Total includes GST of $409.09"). Rounded per invoice; amounts are never shown ex-GST.
+- A job with no value gives an empty line to fill in by hand.
+- **Partial payments are out of scope.** "Paid" means paid in full, and anything odd goes in the notes. Say if this is wrong.
 
-## 5. Triggers
+## 5. Issuing, numbering, corrections
 
-All triggers run inside the existing transactions, in their own savepoint, and are audited (`invoice.due`, actor = the person whose action caused it).
+- **Issue** (`invoices.edit`), in one transaction:
+  - takes the next number;
+  - snapshots the client details and lines;
+  - stores the GST;
+  - sets `issue_date` (today) and `due_date`;
+  - sets the status to `issued`;
+  - audits `invoice.issue`.
+  - Issuing the final also sets the job stage to `invoiced`.
+- **Number format:** a new series (decision 9), proposed as `CC-0001`, `CC-0002`, ... The prefix and start number are fixed in the settings panel before the first invoice is issued, and locked after it.
+- **Corrections:** an issued invoice is never edited. To correct one, **Void** it (a reason is required; audited). That creates a new `due` copy with the same lines for editing, and the new copy gets a new number when it is issued. The void stays in the record and its number is never reused.
+  - Accounts must also void it in MYOB, and the dialog says so.
+  - Formal credit notes (for an invoice already paid) are deferred unless Todd wants them in M2.
+- **Waive** (a due invoice that isn't needed, e.g. a warranty visit) needs a note and is audited.
+
+## 6. The tax invoice document
+
+- `/invoice.html?id=…` shows the invoice as a document page. **On screen** it uses the house-style frame. **When printed** it is a clean black-on-white A4 page, following the TH Cabinets Brand & Document Style Guide v1.0.
+- Staff use the browser's **Print → Save as PDF**, which needs no PDF library and no build step (brief §7).
+  - The page has a "Save as PDF" button that opens print and sets a sensible filename (e.g. `CC-0012 Smith kitchen.pdf`).
+  - A server-side PDF can come later if the browser output isn't good enough.
+- **Contents**, built to the ATO's tax-invoice requirements (to be checked by Tracy, Q-B):
+  - the words "Tax invoice";
+  - the business name and ABN;
+  - the issue date and invoice number;
+  - the client's name and address. The ATO wants the buyer identified on invoices of $1,000 or more, and nearly all of these are.
+  - the site address;
+  - each line's description and amount;
+  - the total, and "Total includes GST of $X";
+  - the due date;
+  - bank details and payment terms;
+  - and for a deposit, progress or final invoice, a small summary: contract price, invoiced to date, and this invoice.
+- A due (draft) invoice can be previewed, but it prints a large "DRAFT – not a tax invoice" mark and no number.
+- Void invoices print "VOID".
+
+## 7. Triggers
+
+All triggers run inside the existing transactions, in their own savepoint (so a failure never blocks the board), and are audited (`invoice.due`, actor = the person whose action caused it).
 
 | Event | Code point | Creates | Notes |
 |---|---|---|---|
-| Job placed on the board | `onScheduled` (backlog place, add row, duplicate row) | deposit `due`, if the job has **no deposit row at all** and no earlier week rows (decision 5) | "No deposit row" is the "first scheduled" marker, so return visits and re-placements don't fire it again |
-| Todd's **Materials ordered** | new action on the job page, `orders.mark_ordered` (Q3) | progress `due`; sets `materials_ordered_date` | M3 Orders will call the same function when every order line reaches *ordered* |
-| Finish week → Complete | `onFinishedComplete` | final `due`; pending extras → `due` | Also fires on an admin hand-set `complete` |
-| Final marked Invoiced | invoices route | job stage → `invoiced` | Through `setStage`, so it is audited as `job.stage` |
-| By hand | invoice table "Add" | any kind, `due_reason = manual` | For jobs that predate tracking (Q5) and odd cases |
+| Job placed on the board | `onScheduled` (backlog place, add row, duplicate row) | deposit `due`, if the job has **no deposit at all and no earlier week rows** | Return visits, re-placements and pre-go-live jobs don't fire it (decision 5) |
+| Todd's **Materials ordered** | new button on the job page, `orders.mark_ordered` | progress `due`; sets `materials_ordered_date` | M3 Orders will call the same function (decision 3) |
+| Finish week → Complete | `onFinishedComplete` | final `due`; pending extras → `due` | Only for jobs that already have an invoice (decision 5). Also fires on an admin hand-set `complete`. |
+| Final issued | invoices route | job stage → `invoiced` | Through `setStage`, audited as `job.stage` |
+| By hand | invoice table "New invoice" | any kind, `due_reason = manual` | For jobs that predate tracking, and odd cases |
 
-Marks are audited as `invoice.invoiced`, `invoice.paid`, `invoice.waived`, `invoice.update` (amount, dates, notes) and `invoice.create` (extras or manual), each with before and after values.
+The other audit actions are `invoice.update` (lines, dates and notes while due), `invoice.issue`, `invoice.paid`, `invoice.void`, `invoice.waive`, `invoice.myob` and `invoice.create`, each with before and after values. Settings changes are audited as `settings.update`.
 
-**Waived:** an accounts user can mark any due invoice "not needed" (a cash job, a warranty visit, a deposit taken outside Crosscuts). Waiving needs a note, is audited, and clears the invoice from the round-up.
+## 8. Pages
 
-## 6. Notifications and push
-
-**In-app (the start of brief §6.1; M4 widens it to tasks and messages):**
-- A **bell** comes back in the shell's top bar, with an unread count. It polls every 60 s and opens a list with "Mark read" and "Mark all read".
-- The bell is hidden on the board page. The TV doesn't need it, and the board's layout is frozen.
-- The dashboard's "Notifications" placeholder tile becomes the latest five, with a link.
-- Invoice prompts go to every active user holding `invoices.edit`.
-
-**ntfy push to Todd** (Q1, Q2):
-- Todd's notifications (anything addressed to a user flagged "push to my phone"; only Todd for now) are also queued in `push_outbox`.
-- A background sender wakes every 30 s and POSTs each one to the ntfy topic, with a 10 s timeout. On failure it retries with growing gaps (1, 5, 15, 60 min, then hourly), for up to 24 h.
-- **Self-hosted ntfy on the Umbrel** (decision 1). Crosscuts posts to the ntfy Umbrel app over the Umbrel's local network, so the push never leaves the house. The phone's ntfy app subscribes to the Umbrel's Tailscale address. That means the phone only receives while Tailscale is connected, and on an iPhone ntfy relays a content-free wake-up through ntfy.sh.
-- A short how-to doc covers installing the ntfy Umbrel app, picking a topic, and subscribing the phone.
-- The ntfy server URL, topic and optional access token live in `/data/config/ntfy.json`, set from an admin **Push settings** panel (on the users page, `users.admin`) with a **Send test** button.
-- No file means push is off. Nothing breaks, and the panel says "Push not set up".
-- Unsent or failed pushes show in that panel. An orange notice also appears in Todd's bell list when a push has failed for over an hour.
-- Push text is full detail (decision 2), for example "Deposit due: Smith kitchen, $4,500.00". Every push links to `http://<Tailscale address>:4933/accounts.html`, so it opens over Tailscale from the phone. The address is set in the same panel.
-
-**Friday round-up:**
-- An in-process timer checks once a minute. The first time it finds it is Friday at or after 12:00 Sydney and `roundup.last_run` isn't this Friday, it runs.
-- If the app was down at noon, it runs as soon as it's back, any time before the next Friday.
-- Content: the count and total of due-but-not-invoiced invoices, the count and total overdue, and the oldest few by name. It goes as a notification to each `invoices.edit` user plus one push to Todd. An empty list sends nothing.
-- An admin **Run round-up now** button (also used by CI) runs it on demand, without changing `last_run`.
-- Sydney time-of-day and weekday helpers are added to `lib/time.js` with `Intl`, so daylight saving is handled.
-
-## 7. Pages
-
-**`/accounts.html` becomes the invoice table** (gated by `accounts.view`). The brief says it must be fast with no navigation, so the table is the department page itself:
-- One row per job that has any invoice (or a value, with "Show all jobs"). The columns are Job · Client · Value · Deposit · Progress · Final · Extras.
-- Each cell shows *not due* / **due** (orange) / *invoiced* (ref, date) / *paid* (date) / *waived*, plus the amount.
-- **Overdue** cells are red. That is red's one approved use (CLAUDE.md "Look and feel").
-- Clicking a cell opens a small dialog with **Invoiced** (ref, date = today, editable amount) or **Paid** (date = today), plus amount, notes and waive.
-- Filters: Due, Unpaid, Overdue, This month, Client (search). The totals row shows outstanding and overdue.
-- An **Overdue** view (a filter preset, Jill's list): the invoice, client phone, days overdue, last contacted, follow-up notes, and a "Contacted today" button.
-- The page is built from the house-style components (`hs-table`, `hs-badge`, `hs-btn`, `cc-dialog`), modelled on `audit.html` and `jobs.html`. It must pass `ci/style-check.js`.
+**`/accounts.html` becomes the invoice table** (gated by `accounts.view`). The brief says it must be fast with no navigation:
+- One row per job that has any invoice ("Show all jobs" lists the rest). The columns are Job · Client · Value · Deposit · Progress · Final · Extras.
+- Each cell shows *not due* / **due** (orange) / *issued* (number, date) / *paid* (date) / *waived*, with the amount.
+- **Overdue** cells are red, red's one approved use. A small mark shows issued invoices not yet entered in MYOB.
+- Clicking a due cell opens the invoice editor (lines, client, due date, **Preview**, **Issue**). Clicking an issued cell opens the document with **Paid** (date = today), **Entered in MYOB**, **Void** and notes.
+- Filters: Due, Unpaid, Overdue, Not in MYOB, This month, and Client (search). The totals row shows outstanding and overdue.
+- An **Overdue** view (Jill's list): number, client and phone, days overdue, last contacted, follow-up notes, and a "Contacted today" button.
+- Built from the house-style components (`hs-table`, `hs-badge`, `hs-btn`, `cc-dialog`), modelled on `audit.html` and `jobs.html`. It must pass `ci/style-check.js`.
 
 **Job page:**
-- An **Invoices** section, shown to `accounts.view` holders, lists the job's invoices read-only, with a link to the table.
-- A **Materials ordered** button for `orders.mark_ordered` (Todd). It replaces the plain date field, which shows the date once it is set.
+- An **Invoices** section for `accounts.view` holders: the job's invoices, read-only, with links.
+- A **Materials ordered** button for `orders.mark_ordered` (Todd), replacing the plain date field.
 
-**Dashboard:** the Accounts tile shows "N due · N overdue" for `accounts.view` holders. The Notifications tile goes live.
+**Settings (admin):** a **Business details and invoicing** panel on the users page (`users.admin`): business details, bank details, the number prefix and start number (locked after the first issue), and a **Run round-up now** button.
 
-**Feature keys:** no new keys. Seeing the table needs `accounts.view`; marking, editing, waiving and adding extras need `invoices.edit`; Materials ordered needs `orders.mark_ordered`; push settings and the round-up button need `users.admin`. Design/PM and Scheduling see no money beyond what M1 already gives them. The CI count of 21 and `docs/auth.md` stay as they are, apart from changing "gates a shell page only" to "live" for these keys.
+**Bell and dashboard:**
+- The bell comes back in the shell's top bar with an unread count. It polls every 60 s and offers "Mark read" and "Mark all read". It is hidden on the board.
+- The dashboard's Notifications tile goes live (the latest five).
+- The Accounts tile shows "N due · N overdue".
 
-## 8. Build, tests, release
+**Feature keys:** none added. Seeing needs `accounts.view`; drafting, issuing, marking paid, voiding and waiving need `invoices.edit`; Materials ordered needs `orders.mark_ordered`; settings need `users.admin`. The CI count of 21 stays. In `docs/auth.md` these keys change from "gates a shell page only" to live.
+
+## 9. Round-up, build, tests, release
+
+**Friday round-up (in-app only):**
+- An in-process timer checks once a minute. The first time it is Friday at or after 12:00 Sydney and `roundup.last_run` isn't this Friday, it runs.
+- If the app was down at noon, it runs as soon as it is back, any time before the next Friday.
+- Content: the count and total due but not issued, the count and total overdue, the count not yet entered in MYOB, and the oldest few by name.
+- It goes as a notification to each `invoices.edit` user. An empty list sends nothing.
+- Sydney time-of-day and weekday helpers are added to `lib/time.js` with `Intl`, so daylight saving is handled.
 
 **Waves** (fixed at M2 · 2.1 in `m2-contracts.md`; likely shape):
 - **2.2 Scaffold (me):** migration 006, `lib/invoices.js` and `lib/notify.js` stubs with agreed signatures, and the Sydney time helpers.
 - **3.1 Wave 1, in parallel:**
-  - **A, invoices backend:** `lib/invoices.js`, `routes/invoices.js`, the hooks in `jobstage.js` / `schedule.js` / `jobs.js`, and wrapping `POST /api/rows` in a transaction.
-  - **B, notifications backend:** `lib/notify.js`, `routes/notifications.js`, the push sender, the round-up timer and the ntfy settings.
+  - **A, invoices backend:** `lib/invoices.js`, `routes/invoices.js` (draft, issue, number, void, paid, waive), the hooks in `jobstage.js` / `schedule.js` / `jobs.js`, and wrapping `POST /api/rows` in a transaction.
+  - **B, notifications and settings backend:** `lib/notify.js`, `routes/notifications.js`, the round-up timer, and `routes/settings.js`.
 - **3.2 Wave 2, in parallel:**
-  - **C:** `accounts.*`, plus the job-page section and button.
-  - **D:** the shell bell, the dashboard tiles and the push settings panel.
+  - **C:** `accounts.*`, the invoice editor, the job-page section and button.
+  - **D:** `invoice.html`, the document and its print styles.
+  - **E:** the shell bell, the dashboard tiles and the settings panel.
 
 **Smoke additions (CI is the real check):**
-- acct gets 200 and sched / dpm / show get 403 on the invoice routes. The page check for `/accounts.html` is already there.
-- Place a backlog job → a deposit is due, with a notification for acct and admin. Place it again → no second deposit. Finish week Complete → the final is due. Materials ordered (admin 200, dpm 403) → the progress invoice is due.
-- Mark invoiced → the stage becomes `invoiced`. Then paid, waive, and audit rows for each.
-- The suggested split adds up to the value exactly for an awkward value (e.g. $10,000.01).
-- Round-up now → a notification exists. Push with no `ntfy.json` → queued, nothing crashes. A test ntfy target pointed at a dead address → recorded as failed, app fine.
-- A restart doesn't re-run the round-up for the same Friday.
+- acct gets 200 and sched / dpm / show get 403 on the invoice and settings routes.
+- Place a backlog job → a deposit is due, with a bell notification for acct and admin. Place it again → no second deposit. Finish week Complete → the final is due. Materials ordered (admin 200, dpm 403) → the progress invoice is due. A job with earlier week rows → no deposit.
+- **Numbers:**
+  - Issuing two invoices gives consecutive numbers.
+  - Issuing an already issued invoice fails.
+  - Editing an issued invoice fails.
+  - Void → a new due copy exists, and the voided number is never reused.
+  - The prefix is locked after the first issue.
+- The split adds up to the value exactly for an awkward value (e.g. $10,000.01), and the GST is the total ÷ 11 rounded.
+- Issuing the final → the stage becomes `invoiced`. Then paid, the MYOB tick, waive, and audit rows for each.
+- `/invoice.html` is 403 for sched and 200 for acct.
+- Round-up now → notifications exist. A restart doesn't re-run the same Friday.
 
-**Release:** release is deferred (Todd, 2026-10-10). M2 is built and committed locally like M1.2. When Todd chooses to release, everything since 0.1.3 goes out in one version.
+**Release:** release is deferred (Todd, 2026-10-10). M2 is built and committed locally. When Todd chooses to release, everything since 0.1.3 goes out in one version.
 
-## 9. Questions for Todd
-
-1. **ntfy server.** *Recommended: ntfy.sh with a long random private topic.* It works on the phone anywhere with no Tailscale needed for the push itself, and it's free. Self-hosting on the Umbrel means the phone can only receive over Tailscale. On an iPhone, a self-hosted server still relays a wake-up through ntfy.sh, so it doesn't avoid ntfy.sh anyway.
-2. **What the push says.** ntfy.sh messages can be read by anyone who guesses the topic, and are cached for up to 12 h. *Recommended: job name and invoice kind, no amounts or client details* ("Deposit due: Smith kitchen"). Alternatives are full detail, or just "2 invoices due, open Crosscuts".
-3. **Materials ordered before M3.** *Recommended: a Todd-only "Materials ordered" button on the job page now*, which M3 Orders later also drives. The alternative is that the progress invoice is added by hand until M3.
-4. **Payment terms** (when an invoice becomes overdue): 7 days, 14 days, or 30 days after the invoice date? It stays editable per invoice.
-5. **Jobs that predate tracking** (now, and at cutover). *Recommended: no automatic invoices for jobs already on the board or complete when M2 goes live.* Accounts adds those by hand, so nothing floods them with stale "due" prompts. The alternative is to create due deposits (and finals for complete jobs) for all of them.
-6. **Report library** (brief §5.1.6, monthly uploads): *recommended for M4*, with the task queue and attachments, which share the file-upload work. Or add it to M2.
+**Before the first real invoice** (the on-device check, M2 · 6.1):
+- Todd fills in the business and bank details and the start number.
+- Tracy checks a printed sample against what the ATO and MYOB need (Q-B).
 
 ## 10. Decisions from Todd (2026-10-10)
 
-1. **ntfy: self-hosted on the Umbrel** (not ntfy.sh). Crosscuts posts to the ntfy Umbrel app locally; the phone subscribes over Tailscale (§6).
-2. **Push text: full detail**, amounts included (e.g. "Deposit due: Smith kitchen, $4,500.00"). This is acceptable because the push stays on Todd's own server.
+1. **No phone push in M2.** Todd will use a companion app on his phone over Tailscale, and would rather not install an extra app (ntfy). M2 ships the in-app bell and round-up only. Phone alerts are added once the companion app exists (no ntfy, no `push_outbox`).
+2. *(Superseded by 1: push wording.)*
 3. **Materials ordered: Todd's own button now** on the job page (`orders.mark_ordered`). It sets `materials_ordered_date` and makes the progress invoice due. M3 Orders later drives the same function.
-4. **Payment terms: 10 days.** Todd: "due date is set in the Joinr quoting app."
-   - M2 has no Joinr link, so the default due date is the invoice date + 10 days, editable per invoice.
-   - When Joinr intake arrives (M6), the quote's due date or terms should be carried into the job and used in place of the default. **Add this to the Joinr contract document.**
-5. **Jobs that predate tracking: no automatic invoices.** Accounts add those by hand ("Add" on the invoice table). Only jobs first placed on the board after go-live get prompts.
-   - Mechanism: the migration creates no invoice rows. The deposit hook fires only for jobs with no deposit row **and** no week rows before the current one.
-   - So a legacy job already on the board doesn't trigger a deposit when it is next placed or duplicated. The same guard applies at cutover.
-   - The final hook likewise fires only for jobs that have a deposit or progress row, or any invoice row at all. A legacy job finishing gets no prompt.
+4. **Due date: 10 days is standard, set per invoice** in Crosscuts (pre-filled as issue date + 10 days and editable before issue). There is no Joinr due date. This replaces the earlier reading of "set in Joinr".
+5. **Jobs that predate tracking get no automatic invoices.** Accounts create those by hand with "New invoice". Mechanism:
+   - The migration creates no invoice rows.
+   - The deposit hook fires only for jobs with no deposit and no week rows before the current one.
+   - The final hook fires only for jobs that already have an invoice.
+   - The same rules apply at cutover.
 6. **Report library: M4**, with the task queue and file attachments.
+7. **Crosscuts issues the invoices** (numbered tax invoices, printed or saved as PDF). This changes brief D10 ("MYOB stays the book of record") and D12, and the brief is annotated.
+8. **MYOB: accounts re-key each issued invoice into MYOB by hand for now**, so the books, BAS and reconciliation are unchanged. Crosscuts tracks "Entered in MYOB". A CSV export for MYOB import may come later.
+9. **Numbering: a new series**, proposed `CC-0001` upwards. Todd sets the prefix and start number before the first issue.
+10. **Job value is GST-inclusive.** The 10/50/40 split is of the inclusive price, and each invoice shows its GST as the total ÷ 11.
+11. **Invoice lines: one standard pre-filled line, editable**, with extra lines allowed before issue.
+
+**Still open (small; defaults stand unless Todd says otherwise):**
+- **Q-A:** should the client's ABN be on the job and the invoice (business clients)? Default: an optional field.
+- **Q-B:** Tracy checks the sample invoice before first use.
+- **Q-C:** credit notes for paid invoices: deferred.
+- **Q-D:** partial payments: out of scope ("paid" means in full).

@@ -82,9 +82,9 @@ reachable from home over Tailscale.
 | D7 | **Username + password, admin-managed.** Todd creates users and resets passwords. Optional **PIN**, valid only on a device that has already logged in with a password. | No email anywhere in the system, so there is no self-service reset. Todd is the single point of failure for logins — accepted. |
 | D8 | **Long-lived sessions**: "remember this device" ≈ 30 days. | Required so the organiser's Chromebook never logs out mid-day. |
 | D9 | **No outbound email, ever.** Notifications are in-app, plus ntfy push to Todd's phone, plus a weekly in-app/ntfy invoice round-up. | An internal messaging system replaces email digests. |
-| D10 | **Accounts holds dollar amounts.** Job value, invoice amounts, paid dates. | MYOB stays the book of record; Crosscuts is the operational view. |
+| D10 | **Accounts holds dollar amounts.** Job value, invoice amounts, paid dates. | MYOB stays the book of record; Crosscuts is the operational view. **Changed by Todd 2026-10-10: Crosscuts issues the tax invoices (numbered, PDF); accounts re-key them into MYOB, which keeps the books. See `docs/plans/m2-plan.md` §10.** |
 | D11 | **Invoice schedule:** 10% when first scheduled, 50% when Todd flags materials ordered, 40% + extras on completion. | Stages: deposit, progress, final, variations/extras. "Invoiced" and "paid" are marked by hand. |
-| D12 | **No MYOB integration now**; keep a slot for an external invoice id so a read-only MYOB link can be added later. | |
+| D12 | **No MYOB integration now**; keep a slot for an external invoice id so a read-only MYOB link can be added later. | 2026-10-10: still no MYOB link; issued invoices are re-keyed by hand, and Crosscuts tracks "Entered in MYOB". |
 | D13 | **Board layout unchanged.** Two panels, one week, as today. New data appears as small indicators only. | Lowest risk to the live board. `exportJpg` mirror rule still applies to any new indicator. |
 | D14 | **Only Design/PM creates jobs and moves lifecycle stages**, but the board keeps a **quick-add** that creates a minimal job at "ready to cut". | Design/PM fills the rest in later. |
 | D15 | **Production stage is captured at Finish week only** (extend the existing dialog), not live. | Stages: cut & edge, kit, assemble, inspect, paint, install, return visit. |
