@@ -20,8 +20,9 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **M1.1 · 4.1 done (local):** sharp ^0.35.5 (lockfile has the linuxmusl x64/arm64 0.35.5 binaries), version 0.1.3, one stale comment fixed. New smoke check: an EXIF-orientation-6 JPEG must store as 2x4 with an upright 2x4 WebP thumbnail. Local end-to-end (shim, Node 24, sharp 0.35.5): orientation-6 upload gives 2x4 and the PNG 1x1, both thumbnails correct.
 - **Push plan, decided 2026-10-10:** Todd chose **combined**. One push of `main` publishes 0.1.3 (Node 24 + sharp 0.35); 0.1.2 is never published on its own. M1.1 · 3.2/3.3 merge into 4.2/4.3. If 0.1.3 misbehaves, roll back to 0.1.1 and split. The push itself still needs Todd's OK.
 - **0.1.3 published:** joinr-crosscuts pushed (`4b887f3`, Todd OK); CI run 38044147206 green on both architectures; `0.1.3@sha256:237de19c202059febb58087794c1f98112a307fa05a75f8520ac95653b34e246` (the 0.1.3, latest and sha tags agree; 0.1.2 was never published, by design). tenon-umbrel-store `81bfb3e` (pin 0.1.3) pushed (Todd OK).
-- **Next action (needs Todd, M1.1 · 4.3):** Todd clicks Update to 0.1.3, then over Tailscale: log in, the board loads, one board edit, upload a portrait phone photo and check its thumbnail is upright.
-- **Waiting on Todd:** Update to 0.1.3 and the checks; the LAN check above.
+- **M1.1 · 4.3 PASSED over Tailscale (2026-10-10):** Todd updated to 0.1.3 (Node 24 + sharp 0.35) and uploaded a portrait phone photo; it displays vertical (EXIF orientation applied).
+- **Next action:** M1.1 · 5.1, the Actions upgrade, built locally (no Todd needed until the push).
+- **Waiting on Todd:** the LAN check above.
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
   - The shell's purple accent (`--cc-bar-accent: #9184d9`) is off the house style (teal `#17C8A0` is the only working accent; see CLAUDE.md "Look and feel", added 2026-10-10). Re-theme it the next time the shell is touched, likely M2.
@@ -71,3 +72,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: Todd chose to release Node 24 and sharp 0.35 combined as 0.1.3 (one push and CI run).
 - 2026-10-10: 0.1.3 pushed (Todd OK), CI green, image published; store pin committed locally.
 - 2026-10-10: tenon-umbrel-store pushed (`81bfb3e`, Todd OK): 0.1.3 offered. Next: device checks (M1.1 · 4.3).
+- 2026-10-10: M1.1 · 4.3 passed on 0.1.3 (portrait photo upright). Next 5.1 (Actions).
