@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jobs - Crosscuts</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="jobs.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="jobs-page">
+    <div class="jobs-head">
+      <h1>Jobs</h1>
+      <a id="newJob" class="jobs-btn primary" href="/job.html" hidden>New job</a>
+    </div>
+
+    <div class="jobs-tools">
+      <input id="q" class="jobs-input grow" type="search" placeholder="Search name, client, address, reference" autocomplete="off">
+      <select id="stage" class="jobs-select" aria-label="Filter by stage">
+        <option value="">All stages</option>
+      </select>
+      <label class="jobs-check"><input id="showArchived" type="checkbox"> Show archived</label>
+    </div>
+
+    <div class="jobs-tablewrap">
+      <table class="jobs-table">
+        <thead id="head"></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p id="count" class="muted" style="margin-top:10px"></p>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="jobs.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>

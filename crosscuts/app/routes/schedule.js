@@ -13,6 +13,9 @@ const {
   getWeekRowOr404,
 } = require("../lib/schedule");
 
+const jobstage = require("../lib/jobstage");
+const audit = require("../lib/audit");
+
 const r = defineRoutes("/api");
 
 // --- Workers ---
@@ -69,7 +72,15 @@ r.patch("/jobs/:id", ["board.edit", "jobs.edit"], (req, res) => {
   }
   const name = typeof req.body.name === "string" ? req.body.name.trim() || row.name : row.name;
   const notes = typeof req.body.notes === "string" ? req.body.notes : row.notes;
-  db.prepare("UPDATE jobs SET name = ?, notes = ? WHERE id = ?").run(name, notes, id);
+  db.prepare("UPDATE jobs SET name = ?, notes = ?, updated_at = ? WHERE id = ?").run(
+    name, notes, new Date().toISOString(), id
+  );
+  if (name !== row.name || notes !== row.notes) {
+    audit.log(req, {
+      action: "job.update", entityType: "job", entityId: id,
+      before: { name: row.name, notes: row.notes }, after: { name, notes },
+    });
+  }
   res.json(rowToJob(db.prepare("SELECT * FROM jobs WHERE id = ?").get(id)));
 });
 
@@ -108,10 +119,9 @@ r.post("/rows", "board.edit", (req, res) => {
       res.status(400).json({ error: "jobId or jobName is required" });
       return;
     }
-    const info = db
-      .prepare("INSERT INTO jobs (name, notes) VALUES (?, ?)")
-      .run(name, typeof notes === "string" ? notes : "");
-    resolvedJobId = info.lastInsertRowid;
+    resolvedJobId = jobstage.createBoardJob(db, req, {
+      name, notes: typeof notes === "string" ? notes : "", stage: "on_board",
+    });
   }
 
   const maxOrder = db
@@ -120,6 +130,7 @@ r.post("/rows", "board.edit", (req, res) => {
   const info = db
     .prepare("INSERT INTO week_rows (job_id, week_start, panel, sort_order) VALUES (?, ?, ?, ?)")
     .run(resolvedJobId, snappedWeekStart, panel, (maxOrder ?? -1) + 1);
+  jobstage.onScheduled(db, resolvedJobId, req);
 
   const weekRow = selectRowWithJob.get(info.lastInsertRowid);
   res.status(201).json(buildScheduleRow(weekRow));
@@ -147,6 +158,7 @@ r.patch("/rows/:id/move", "board.edit", (req, res) => {
       db.prepare("DELETE FROM day_flags WHERE week_row_id = ?").run(id);
       db.prepare("DELETE FROM assignments WHERE week_row_id = ?").run(id);
       db.prepare("DELETE FROM week_rows WHERE id = ?").run(id);
+      jobstage.onSentToBacklog(db, row.job_id, req);
       const existing = db.prepare("SELECT id FROM backlog WHERE job_id = ?").get(row.job_id);
       if (existing) return { backlogId: existing.id, jobId: row.job_id };
       const maxOrder = db.prepare("SELECT MAX(sort_order) AS m FROM backlog").get().m;
@@ -265,6 +277,7 @@ r.post("/rows/:id/duplicate", "board.edit", (req, res) => {
       "INSERT INTO assignments (week_row_id, day, worker_id) VALUES (?, ?, ?)"
     );
     for (const a of assignments) insertAssignment.run(info.lastInsertRowid, a.day, a.worker_id);
+    jobstage.onScheduled(db, row.job_id, req);
     return info.lastInsertRowid;
   })();
 
@@ -360,12 +373,12 @@ r.post("/jobs/backlog", "board.edit", (req, res) => {
     return;
   }
   const add = db.transaction(() => {
-    const jobInfo = db.prepare("INSERT INTO jobs (name, notes) VALUES (?, '')").run(name);
+    const newJobId = jobstage.createBoardJob(db, req, { name, notes: "", stage: "ready_to_cut" });
     const maxOrder = db.prepare("SELECT MAX(sort_order) AS m FROM backlog").get().m;
     const backlogInfo = db
       .prepare("INSERT INTO backlog (job_id, sort_order) VALUES (?, ?)")
-      .run(jobInfo.lastInsertRowid, (maxOrder ?? -1) + 1);
-    return { backlogId: backlogInfo.lastInsertRowid, jobId: jobInfo.lastInsertRowid };
+      .run(newJobId, (maxOrder ?? -1) + 1);
+    return { backlogId: backlogInfo.lastInsertRowid, jobId: newJobId };
   });
   const { backlogId, jobId } = add();
   res.status(201).json({ id: backlogId, jobId, name, notes: "" });
@@ -433,6 +446,7 @@ r.post("/jobs/backlog/:id/place", "board.edit", (req, res) => {
     }
 
     db.prepare("DELETE FROM backlog WHERE id = ?").run(id);
+    jobstage.onScheduled(db, backlogRow.job_id, req);
     return newId;
   })();
 
@@ -486,6 +500,7 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
   db.transaction(() => {
     for (const { jobId, outcome } of results) {
       if (outcome === "complete") {
+        jobstage.onFinishedComplete(db, jobId, req);
         completed.push(jobId);
         continue;
       }
