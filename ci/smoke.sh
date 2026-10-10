@@ -118,7 +118,7 @@ jqr() {
 
 expect_status() {
   local want=$1 what=${2:-$LAST_REQ}
-  [ "$STATUS" = "$want" ] || fail "$what: expected HTTP $want, got $STATUS: $(printf '%s' "$BODY" | head -c 400)"
+  [ "$STATUS" = "$want" ] || fail "$what: expected HTTP $want, got $STATUS: ${BODY:0:400}"
   ok
 }
 
@@ -127,7 +127,7 @@ expect_refused() {
   local what=${1:-$LAST_REQ}
   case $STATUS in
     4* | 5*) ok ;;
-    *) fail "$what: expected a refusal (4xx), got $STATUS: $(printf '%s' "$BODY" | head -c 400)" ;;
+    *) fail "$what: expected a refusal (4xx), got $STATUS: ${BODY:0:400}" ;;
   esac
 }
 
@@ -135,7 +135,7 @@ expect_refused() {
 expect_jq() {
   local filter=$1 what=${2:-$LAST_REQ}
   printf '%s' "$BODY" | jq -e "$filter" >/dev/null \
-    || fail "$what: jq '$filter' is not true for: $(printf '%s' "$BODY" | head -c 600)"
+    || fail "$what: jq '$filter' is not true for: ${BODY:0:600}"
   ok
 }
 
@@ -868,6 +868,25 @@ login "$LOCKJ" locktest 'not-the-password-11'
 expect_status 429 "eleventh wrong password"
 expect_jq '(.retryAfterSec | type) == "number"' "429 carries retryAfterSec"
 
+echo "30 parallel bad logins for one fresh username..."
+# Attempts are reserved before scrypt runs, so a burst can't outrun the limit:
+# at most 10 may be answered 401, everything else must be refused with 429
+# (lockout, or the busy response when the scrypt cap is full).
+BURST="$WORK/burst"
+mkdir -p "$BURST"
+for i in $(seq 1 30); do
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Origin: $ORIGIN_OK" -H 'Content-Type: application/json' \
+    --data '{"username":"burstuser","password":"not-the-password-burst"}' "$BASE/api/auth/login" >"$BURST/$i" &
+done
+wait
+burst_codes=$(cat "$BURST"/*)
+n401=$(grep -c '^401$' <<<"$burst_codes" || true)
+n429=$(grep -c '^429$' <<<"$burst_codes" || true)
+[ "$n401" -le 10 ] || fail "burst: $n401 of 30 parallel bad logins got 401 (limit is 10)"
+ok
+[ "$((n401 + n429))" -eq 30 ] || fail "burst: expected only 401/429 answers, got: $(tr '\n' ' ' <<<"$burst_codes")"
+ok
+
 # ============================================================================
 step "f. remember-me cookie lifetime"
 # ============================================================================
@@ -938,6 +957,32 @@ req POST /api/auth/unlock "$PINJ" "$(jq -nc --arg p "$SCHED_PW" '{password:$p}')
 expect_status 200 "unlock with the password"
 req GET /api/schedule "$PINJ"
 expect_status 200 "GET /api/schedule after the password unlock"
+
+echo "a device revoked by an admin cannot PIN-unlock..."
+REVJ="$WORK/jar-revoked-device"
+new_jar "$REVJ"
+login "$REVJ" sched "$SCHED_PW" true
+expect_status 200 "login sched (remember) for the device revoke"
+dev_cookie() { { grep crosscuts_dev "$1" || true; } | awk '{print $NF}'; }
+old_dev=$(dev_cookie "$REVJ")
+[ -n "$old_dev" ] || fail "remembered login set no crosscuts_dev cookie"
+req POST /api/auth/lock "$REVJ"
+expect_status 204 "lock (revoked-device jar)"
+req GET /api/auth/status "$REVJ"
+expect_jq '.locked == true and .pinAvailable == true' "PIN is offered before the revoke"
+req POST "/api/users/$SCHED_ID/sessions/revoke" "$ADMIN"
+expect_status 204 "admin revokes the sessions of sched"
+req POST /api/auth/unlock "$REVJ" '{"pin":"4321"}'
+expect_refused "PIN unlock after the device was revoked"
+req GET /api/schedule "$REVJ"
+expect_status 401 "revoked session stays out"
+live_devs=$(docker exec "$CONTAINER" node -e "console.log(require('better-sqlite3')('/data/db/photos.db').prepare('SELECT COUNT(*) AS n FROM devices WHERE user_id = $SCHED_ID AND revoked_at IS NULL').get().n)")
+expect_eq "$live_devs" "0" "no live devices left for sched after the revoke"
+login "$REVJ" sched "$SCHED_PW" true
+expect_status 200 "remembered login after the revoke"
+new_dev=$(dev_cookie "$REVJ")
+[ -n "$new_dev" ] && [ "$new_dev" != "$old_dev" ] || fail "remembered login reused the revoked device cookie"
+ok
 
 # ============================================================================
 step "h. foreign Origin is refused"
@@ -1143,7 +1188,10 @@ expect_eq "$real_flags" "1" "rehearsal: the real day flag survived the sweep"
 
 backups=$(docker exec "$RH_CONTAINER" sh -c 'ls /data/db/backups | grep -c "^photos-pre-001-.*\.db$"' || true)
 expect_eq "$backups" "1" "rehearsal: pre-migration backup photos-pre-001-* exists"
-docker logs "$RH_CONTAINER" 2>&1 | grep -q 'foreign_key_check: ok' || fail "rehearsal: foreign_key_check was not clean"
+# Capture first, then grep: under pipefail, grep -q exiting early would SIGPIPE
+# docker logs and fail the pipeline even on a match.
+logs=$(docker logs "$RH_CONTAINER" 2>&1)
+grep -q 'foreign_key_check: ok' <<<"$logs" || fail "rehearsal: foreign_key_check was not clean"
 ok
 
 echo "Restarting: nothing may re-apply and no new backup may appear..."
@@ -1151,7 +1199,8 @@ docker restart "$RH_CONTAINER" >/dev/null
 wait_healthy "$RH_CONTAINER"
 backups=$(docker exec "$RH_CONTAINER" sh -c 'ls /data/db/backups | grep -c "^photos-pre-"' || true)
 expect_eq "$backups" "1" "rehearsal: backup count after restart"
-docker logs "$RH_CONTAINER" 2>&1 | grep -q '\[migrate\] up to date' || fail "rehearsal: logs do not say migrations are up to date after the restart"
+logs=$(docker logs "$RH_CONTAINER" 2>&1)
+grep -q '\[migrate\] up to date' <<<"$logs" || fail "rehearsal: logs do not say migrations are up to date after the restart"
 ok
 req GET /api/auth/status
 expect_jq '.setupNeeded == false' "rehearsal: users survived the restart"

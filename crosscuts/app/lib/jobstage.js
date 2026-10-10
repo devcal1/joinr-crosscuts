@@ -5,7 +5,10 @@
 const audit = require("./audit");
 const { sydneyToday, sydneyMonday } = require("./time");
 
-const PRE_BOARD = new Set(["lead", "quoted", "won", "design_ordering", "ready_to_cut"]);
+// Stages a row placed on the board moves to on_board. "complete" is here so a
+// finished job put back on the board (a return visit) is live again; invoiced,
+// lost and archived are left alone.
+const PRE_BOARD = new Set(["lead", "quoted", "won", "design_ordering", "ready_to_cut", "complete"]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -35,10 +38,11 @@ function setStage(db, jobId, to, req, extra) {
   return true;
 }
 
-function hasCurrentOrFutureRows(db, jobId) {
+// Rows from `fromMonday` (default: this Sydney week's Monday) onwards.
+function hasCurrentOrFutureRows(db, jobId, fromMonday) {
   return !!db
     .prepare("SELECT 1 AS x FROM week_rows WHERE job_id = ? AND week_start >= ? LIMIT 1")
-    .get(jobId, sydneyMonday());
+    .get(jobId, fromMonday || sydneyMonday());
 }
 
 function safely(label, fn) {
@@ -60,10 +64,14 @@ function onScheduled(db, jobId, req) {
   });
 }
 
-// A row was sent back to "To start": if nothing current/future remains, ready_to_cut.
-function onSentToBacklog(db, jobId, req) {
+// A job went to "To start": an on_board job with no rows from the reference
+// Monday (default: the current Sydney Monday) onwards becomes ready_to_cut.
+// Any other stage (complete, invoiced, lost, archived, ...) is left alone.
+function onSentToBacklog(db, jobId, req, referenceMonday) {
   return safely("onSentToBacklog", () => {
-    if (hasCurrentOrFutureRows(db, jobId)) return false;
+    const job = db.prepare("SELECT stage FROM jobs WHERE id = ?").get(jobId);
+    if (!job || job.stage !== "on_board") return false;
+    if (hasCurrentOrFutureRows(db, jobId, referenceMonday)) return false;
     return setStage(db, jobId, "ready_to_cut", req);
   });
 }

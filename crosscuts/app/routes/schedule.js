@@ -514,6 +514,9 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
         const info = db
           .prepare("INSERT INTO backlog (job_id, sort_order) VALUES (?, ?)")
           .run(jobId, (maxOrder ?? -1) + 1);
+        // The job is going back to the backlog; judge "still on the board" from
+        // the week after the one just finished.
+        jobstage.onSentToBacklog(db, jobId, req, nextWeek);
         created.push({ jobId, outcome, backlogId: info.lastInsertRowid });
         continue;
       }

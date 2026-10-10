@@ -2,7 +2,8 @@ name: Build and publish crosscuts-web
 
 # Pull requests and pushes build and smoke-test the image on both architectures.
 # Only a push to main publishes: each architecture pushes the exact image it
-# just tested (by digest), and the merge job stitches the two digests into the
+# just tested (tagged and pushed from the smoke-tested local image, no second
+# build), and the merge job stitches the two digests into the
 # :latest / :sha-<sha> multi-arch tags. This follows Docker's "distribute build
 # across multiple runners" pattern.
 on:
@@ -111,28 +112,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Same context, platform and cache as the tested build above, so every
-      # layer is a cache hit: the pushed image is built from the layers the
-      # smoke test just ran, not a fresh rebuild.
-      - name: Push the tested image by digest
-        id: push
-        if: env.PUBLISH == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: crosscuts/app
-          platforms: ${{ matrix.platform }}
-          provenance: false
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=crosscuts-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=crosscuts-${{ matrix.arch }},ignore-error=true
-
-      - name: Export digest
+      # Tag and push the very image ci/smoke.sh just ran (no second build), then
+      # read the registry digest back off it for the merge job.
+      - name: Push the tested image
         if: env.PUBLISH == 'true'
         run: |
+          ref="$IMAGE:ci-${{ github.sha }}-${{ matrix.arch }}"
+          docker tag crosscuts-web:smoke-test "$ref"
+          docker push "$ref"
+          repo_digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$ref")
+          digest=${repo_digest#*@sha256:}
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || { echo "No sha256 digest from the push: '$repo_digest'" >&2; exit 1; }
           mkdir -p "${{ runner.temp }}/digests"
-          digest='${{ steps.push.outputs.digest }}'
-          [ -n "$digest" ] || { echo "No digest from the push step" >&2; exit 1; }
-          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+          touch "${{ runner.temp }}/digests/$digest"
 
       - name: Upload digest
         if: env.PUBLISH == 'true'

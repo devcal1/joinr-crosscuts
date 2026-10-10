@@ -7,7 +7,11 @@
   // Only same-origin absolute paths; never the login page itself.
   function safeNext() {
     var n = params.get("next") || "";
-    if (n.charAt(0) !== "/" || n.charAt(1) === "/" || n.charAt(1) === "\\" || /[\r\n]/.test(n)) return "/";
+    if (n.charAt(0) !== "/" || n.charAt(1) === "/" || /[\u0000-\u001F\u007F\\]/.test(n)) return "/";
+    var u;
+    try { u = new URL(n, location.origin); } catch (e) { return "/"; }
+    if (u.origin !== location.origin) return "/";
+    n = u.pathname + u.search + u.hash;
     if (/^\/login\.html(\?|#|$)/i.test(n)) return "/";
     return n;
   }
