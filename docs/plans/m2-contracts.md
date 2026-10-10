@@ -254,7 +254,7 @@ Sourced files share the helpers, the jars (`$ADMIN $SCHED $ACCT $DPM $SHOW`), `$
   - the `shouldRun` cases via `docker exec "$CONTAINER" node -e` (Friday 11:59 / 12:00 Sydney, the DST weekend, and the same Friday twice);
   - a restart doesn't re-run.
 
-Docker isn't available on the dev box, so smoke files are checked locally with `bash -n` only. **Local verification** for every task is a shim boot plus `curl` against the routes it owns (logged in through `/api/auth/setup` and `/api/auth/login` on a fresh `.dev-<task>/` data dir). Report what was run.
+Docker isn't available on the dev box, so smoke files are checked locally with `bash -n` only. **Local verification** for every task is a shim boot plus `curl` against the routes it owns (logged in through `/api/auth/setup` and `/api/auth/login` on a fresh `.dev/<task>/` data dir (git-ignored)). Report what was run.
 
 ## 9. Waves and file ownership
 
