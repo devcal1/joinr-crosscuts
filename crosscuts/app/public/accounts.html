@@ -5,51 +5,66 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Accounts - Crosscuts</title>
 <link rel="icon" href="logo.png">
-<link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="accounts.css">
 </head>
 <body>
   <div id="cc-shell"></div>
 
-  <main class="dash">
-    <header class="dash-head">
+  <main class="ac-page">
+    <div class="ac-head">
       <h1>Accounts</h1>
-      <p class="dash-date">This section is not built yet. Here is what it will become.</p>
-    </header>
+      <button id="newInvoice" class="hs-btn hs-btn-primary" type="button" hidden>New invoice</button>
+      <button id="addExtra" class="hs-btn" type="button" hidden>Add extra</button>
+    </div>
 
-    <section class="dash-section" aria-labelledby="planned-h">
-      <div class="hs-sectionbar"><h2 class="dash-h2" id="planned-h">Planned</h2></div>
-      <div class="tiles">
-        <article class="tile tile-later hs-card">
-          <h3 class="tile-title">Invoice table</h3>
-          <p class="tile-text">Every job's invoices in one place, with what has been sent and what has been paid.</p>
-          <p class="tile-badge hs-badge hs-badge-na">Planned</p>
-        </article>
-        <article class="tile tile-later hs-card">
-          <h3 class="tile-title">Invoice prompts</h3>
-          <p class="tile-text">A nudge when a job reaches a stage that needs an invoice raised.</p>
-          <p class="tile-badge hs-badge hs-badge-na">Planned</p>
-        </article>
-        <article class="tile tile-later hs-card">
-          <h3 class="tile-title">Overdue list</h3>
-          <p class="tile-text">Invoices past their due date, oldest first.</p>
-          <p class="tile-badge hs-badge hs-badge-na">Planned</p>
-        </article>
-        <article class="tile tile-later hs-card">
-          <h3 class="tile-title">Task queue</h3>
-          <p class="tile-text">Accounts tasks assigned to you or the team.</p>
-          <p class="tile-badge hs-badge hs-badge-na">Planned</p>
-        </article>
-        <article class="tile tile-later hs-card">
-          <h3 class="tile-title">Report library</h3>
-          <p class="tile-text">A shelf for uploaded accounting reports, so they are easy to find again.</p>
-          <p class="tile-badge hs-badge hs-badge-na">Planned</p>
-        </article>
+    <div class="ac-views" role="group" aria-label="View">
+      <button id="viewTable" class="hs-btn hs-btn-primary" type="button" aria-pressed="true">Invoice table</button>
+      <button id="viewOverdue" class="hs-btn" type="button" aria-pressed="false">Overdue list</button>
+    </div>
+
+    <section id="tableView">
+      <div class="ac-tools">
+        <div id="filters" class="ac-filters" role="group" aria-label="Filter invoices"></div>
+        <input id="q" class="hs-input ac-search" type="search" placeholder="Search client, job, address or number" autocomplete="off" aria-label="Search">
+        <label class="ac-check"><input id="allJobs" type="checkbox"> Show all jobs</label>
+      </div>
+      <p id="totals" class="ac-totals" role="status" aria-live="polite">Loading...</p>
+      <div class="ac-wrap">
+        <table class="hs-table ac-table">
+          <thead>
+            <tr>
+              <th>Job</th><th>Client</th><th class="num">Value</th>
+              <th>Deposit</th><th>Progress</th><th>Final</th><th>Extras</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div id="empty" class="ac-empty" hidden></div>
       </div>
     </section>
 
-    <p class="dash-empty"><a class="hs-btn" href="/">Back to the dashboard</a></p>
+    <section id="overdueView" hidden>
+      <p id="overdueSummary" class="ac-totals" role="status" aria-live="polite">Loading...</p>
+      <div class="ac-wrap">
+        <table class="hs-table ac-table ac-overdue">
+          <thead>
+            <tr>
+              <th>Number</th><th>Job</th><th>Client</th><th>Phone</th><th class="num">Amount</th>
+              <th>Due</th><th class="num">Days overdue</th><th>Last contacted</th><th>Follow-up notes</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="overdueRows"></tbody>
+        </table>
+        <div id="overdueEmpty" class="ac-empty" hidden>Nothing is overdue.</div>
+      </div>
+    </section>
   </main>
 
-  <script src="shell/shell.js"></script>
+  <dialog id="dlg" class="cc-dialog ac-dialog" aria-labelledby="dlgTitle"></dialog>
+
+  <script src="shared.js"></script>
+  <script src="accounts.js"></script>
+  <script src="/shell/shell.js"></script>
 </body>
 </html>
