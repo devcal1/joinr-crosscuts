@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users - Crosscuts</title>
+<link rel="stylesheet" href="users.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1>Users</h1>
+        <p class="text-muted">Who can sign in, what role they have, and any per-person exceptions to that role.</p>
+      </div>
+      <button class="btn btn-primary" type="button" id="addToggle">Add user</button>
+    </div>
+
+    <form class="card" id="addForm" hidden autocomplete="off">
+      <h2>New user</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label for="newUsername">Username</label>
+          <input class="input" id="newUsername" type="text" autocomplete="off" autocapitalize="none" spellcheck="false"
+                 placeholder="e.g. sam" required>
+          <div class="hint">Lowercase letters, numbers, dot, dash, underscore (2-32).</div>
+        </div>
+        <div class="field">
+          <label for="newDisplayName">Display name</label>
+          <input class="input" id="newDisplayName" type="text" autocomplete="off" placeholder="e.g. Sam Reid" required>
+        </div>
+        <div class="field">
+          <label for="newPassword">First password</label>
+          <input class="input" id="newPassword" type="text" autocomplete="off" minlength="8" required>
+          <div class="hint">At least 8 characters. They must change it on first sign-in.</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Roles</label>
+        <div class="role-checks" id="newRoles"></div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="submit">Create user</button>
+        <button class="btn" type="button" id="addCancel">Cancel</button>
+      </div>
+    </form>
+
+    <div class="table-wrap">
+      <table class="user-table" id="userTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Roles</th>
+            <th>Status</th>
+            <th>Last login</th>
+            <th class="num">Sessions</th>
+          </tr>
+        </thead>
+        <tbody id="userRows"></tbody>
+      </table>
+      <p class="text-muted empty" id="emptyMsg" hidden>No users yet.</p>
+    </div>
+
+    <section class="card" id="detail" hidden>
+      <div class="detail-head">
+        <h2 id="detailTitle"></h2>
+        <button class="btn btn-quiet" type="button" id="detailClose">Close</button>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-col">
+          <h3>Profile and roles</h3>
+          <div class="field">
+            <label for="editDisplayName">Display name</label>
+            <input class="input" id="editDisplayName" type="text" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>Roles</label>
+            <div class="role-checks" id="editRoles"></div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" type="button" id="saveProfile">Save changes</button>
+          </div>
+
+          <h3>Account</h3>
+          <div class="actions">
+            <button class="btn" type="button" id="toggleDisabled"></button>
+            <button class="btn" type="button" id="signOutAll">Sign out everywhere</button>
+          </div>
+          <div class="field">
+            <label for="resetPassword">Reset password</label>
+            <div class="inline">
+              <input class="input" id="resetPassword" type="text" autocomplete="off" minlength="8"
+                     placeholder="New temporary password">
+              <button class="btn" type="button" id="resetBtn">Reset</button>
+            </div>
+            <div class="hint">Signs them out everywhere and makes them choose a new password at next sign-in.</div>
+          </div>
+        </div>
+
+        <div class="detail-col">
+          <h3>Overrides</h3>
+          <p class="text-muted small">Each key starts from what the person's roles give them. Grant or revoke to make an
+            exception for this person only.</p>
+          <div class="override-list" id="overrideList"></div>
+        </div>
+      </div>
+
+      <div class="effective">
+        <h3>Effective permissions <span class="text-muted" id="effectiveCount"></span></h3>
+        <div class="chips" id="effectiveChips"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/shell/shell.js"></script>
+  <script src="/shared.js"></script>
+  <script src="/users.js"></script>
+</body>
+</html>
