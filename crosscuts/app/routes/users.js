@@ -174,10 +174,15 @@ function enabledAdminCount() {
     .get().n;
 }
 
+// Revokes the user's sessions and remembered devices (a revoked device can't
+// PIN-unlock; the next remembered login creates a fresh one). Returns the
+// number of sessions revoked.
 function revokeSessions(userId) {
+  const now = nowIso();
+  db.prepare("UPDATE devices SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").run(now, userId);
   return db
     .prepare("UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
-    .run(nowIso(), userId).changes;
+    .run(now, userId).changes;
 }
 
 function isUniqueError(e) {

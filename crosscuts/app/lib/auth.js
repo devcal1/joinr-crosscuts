@@ -265,7 +265,9 @@ function requirePerm(access) {
 
 // Canonical form of a request path for the page table: decode once, flip
 // backslashes, resolve "." / ".." / duplicate slashes, so "/./schedule.html"
-// cannot dodge the entry that static serving would resolve it to.
+// cannot dodge the entry that static serving would resolve it to. Trailing
+// slashes go too (after decoding), so "/schedule.html%2f" is gated as
+// "/schedule.html" instead of slipping past as a non-page path.
 function canonicalPagePath(p) {
   let s = String(p || "/");
   try {
@@ -273,7 +275,7 @@ function canonicalPagePath(p) {
   } catch {
     // keep as is
   }
-  s = path.posix.normalize(s.replace(/\\/g, "/"));
+  s = path.posix.normalize(s.replace(/\\/g, "/")).replace(/\/+$/, "");
   return s.startsWith("/") ? s : "/" + s;
 }
 

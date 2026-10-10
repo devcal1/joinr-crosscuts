@@ -28,7 +28,7 @@ Adding a key changes code, so it ships in a release. Follow [CLAUDE.md](../CLAUD
    - one role that the key permits, returning 200;
    - one role without it, returning 403.
 
-   Put these in the smoke suite. `ci/smoke.sh` is the planned home, but it is not in the repo yet, so for now they go inline in `.github/workflows/publish.yml`.
+   Put these in the smoke suite, `ci/smoke.sh`.
 
 7. **Check locally, then rely on CI.** Boot with the shim command in CLAUDE.md. A local run is not the real test.
 

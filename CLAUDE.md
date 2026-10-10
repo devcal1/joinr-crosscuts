@@ -22,7 +22,7 @@ Crosscuts runs alongside the old app until cutover. The old app is the schedule 
   - `public/`: HTML, CSS and JS. `public/shell/` holds the shared shell.
   - `server.js`.
 - `tools/dev-sqlite-shim.js`: local dev only. Outside the Docker context.
-- `ci/smoke.sh`: the smoke test script. Not in the repo yet. The smoke steps are currently inline in `.github/workflows/publish.yml`.
+- `ci/smoke.sh`: the smoke test script. `.github/workflows/publish.yml` runs it against the built image.
 - `docs/`: the brief, plans, and the how-to and reference docs.
 
 ## Non-negotiables

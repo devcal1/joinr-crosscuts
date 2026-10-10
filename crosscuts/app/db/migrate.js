@@ -53,10 +53,16 @@ function hasUserTables(db) {
 function backupBefore(db, dbDir, firstPendingVersion) {
   const dir = path.join(dbDir, "backups");
   fs.mkdirSync(dir, { recursive: true });
-  const dest = path.join(
-    dir,
-    `photos-pre-${String(firstPendingVersion).padStart(3, "0")}-${utcStamp()}.db`
-  );
+  // A failed migration rolls back, so an earlier backup for this same version
+  // is still the pristine copy: reuse it rather than writing one per crash-loop boot.
+  const prefix = `photos-pre-${String(firstPendingVersion).padStart(3, "0")}-`;
+  const existing = fs.readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith(".db")).sort();
+  if (existing.length > 0) {
+    const reused = path.join(dir, existing[0]);
+    console.log(`[migrate] backup for migration ${firstPendingVersion} already exists, reusing: ${reused}`);
+    return reused;
+  }
+  const dest = path.join(dir, `${prefix}${utcStamp()}.db`);
   db.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
   console.log(`[migrate] backup written: ${dest}`);
   return dest;

@@ -21,7 +21,10 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 
 - A password a user chooses must be at least 8 characters.
 - 10 failed logins for one username from one IP within 15 minutes triggers a lockout (HTTP 429 with a retry time).
-- Every attempt is recorded in `auth_attempts` and the audit log.
+- 30 failed password attempts from one IP within 15 minutes, across any usernames, also trigger a lockout (HTTP 429 with a retry time).
+- An attempt is recorded in `auth_attempts` before the password is checked and marked successful afterwards, so a burst of simultaneous guesses counts against the limits while it is still running. Attempts are also written to the audit log.
+- At most 4 password or PIN checks run at once across the whole app. Beyond that the server answers `429 {"error":"Busy, try again","retryAfterSec":2}` and records no attempt.
+- Changing your own password signs out your other sessions and forgets your other remembered devices.
 
 ## Roles and feature keys
 
