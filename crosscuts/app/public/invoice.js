@@ -142,9 +142,10 @@
   }
 
   function buildParties(inv) {
-    // The job's live details stand in only while the invoice is a draft; an
-    // issued, paid or void invoice prints just its snapshot, so a reprint never changes.
-    var job = isDraft(inv) ? inv.job || {} : {};
+    // The job's live details stand in only while the invoice was never issued
+    // (a draft, or waived); an issued, paid or void invoice prints just its
+    // snapshot, so a reprint never changes.
+    var job = isDraft(inv) || inv.status === "waived" ? inv.job || {} : {};
     var wrap = el("section", "inv-parties");
 
     var billName = has(inv.billToName) ? inv.billToName : job.clientName;
