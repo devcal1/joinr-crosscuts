@@ -9,6 +9,10 @@ const { assertAllRoutesGuarded } = require("./lib/routes");
 require("./db");
 
 const app = express();
+// umbrelOS 2.0's app gateway is exactly one hop in front of us and SETS (not
+// appends) X-Forwarded-For to the real client socket address, so trusting one
+// hop gives req.ip = the real device (used for login rate limits and audit).
+app.set("trust proxy", 1);
 
 // Middleware order is part of the contract (docs/plans/m1-contracts.md).
 app.use(express.json());
