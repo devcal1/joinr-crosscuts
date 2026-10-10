@@ -4,12 +4,16 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 ## Now (2026-10-10)
 
-- **Milestone:** M1 Foundation. Stages 1–5 done. **M1 · 6.1 done; M1 · 6.2 (on-device checks) in progress.**
-- **M1 · 6.1 results (2026-10-10):** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), which shows Umbrel proxy login is not in front of the app.
-- **M1 · 6.2 so far:** over Tailscale (`100.111.185.96:4933`), logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login. PASS.
-- **Next action (M1 · 6.2, needs Todd):** in the browser, over BOTH `umbrel.local:4933` and `100.111.185.96:4933`: login with "remember this device" (the login POST passing also proves the gateway passes `Host` through); the board loads; create a non-admin test user and confirm it gets 403 / a hidden page where expected. LAN logged-out check too (`umbrel.local` does not resolve from Git Bash on the dev box). Then **M1 · 6.3** closes M1.
-- **Waiting on Todd:** the browser checks above.
-- **Open branches/worktrees:** none unmerged. Old agent worktrees under `.claude/worktrees/` are merged and can be cleaned up.
+- **Milestone:** **M1 Foundation is CLOSED** (2026-10-10), on the Tailscale checks; one LAN re-check is carried (below). **Next step: M1.1 · 1.1 (Plan).**
+- **M1 · 6.1 results:** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), so Umbrel proxy login is not in front of the app.
+- **M1 · 6.2 results (Tailscale, `100.111.185.96:4933`), all PASS:**
+  - logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login
+  - Todd's admin login works and he sees everything (the login POST passing proves the gateway passes `Host` through)
+  - test user "Showroom" (showroom role) sees only photo search; the admin page and workers are blocked
+- **Carried LAN check (needs Todd on the workshop LAN, due before M1.1 · 2.2, the first M1.1 release):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
+- **Next action (M1.1 · 1.1, no Todd needed until approval):** research the three upgrades (Node 20 → 22 base image, sharp 0.33 → 0.35 breaking changes, GitHub Actions to Node-24-native versions, and how a CI-only change releases given the immutable-tag guard) and write a short `docs/plans/m1.1-plan.md` with the release order and per-release checks. Then put it to Todd for approval.
+- **Waiting on Todd:** the LAN check above; an OK to remove the old worktrees (below).
+- **Open branches/worktrees:** none unmerged. Nine old agent worktrees under `.claude/worktrees/` (branches `worktree-agent-*`) are all merged into `main` with no uncommitted changes; removing them was blocked by the permission check, so it waits for Todd's OK (or Todd removes them himself).
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
   - The dev-only `.dev/` and `node_modules` folders are local and ignored.
@@ -46,3 +50,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 - 2026-10-10: M1 audit and plan approved; contracts written; Wave 0 plus T1–T7 built in parallel and merged; independent review (2 major, 6 minor) fixed; joinr-crosscuts pushed; CI green; 0.1.0 published; moved to the Tenon store and pushed. Now at M1 stage 6.
 - 2026-10-10: Roadmap now numbers every step (e.g. M1 · 6.1, M1.1 · 2.2) with ✂ clear points; M1.1 has its own step list, one release per upgrade. App not yet installed; next step M1 · 6.1.
+- 2026-10-10: M1 · 6.1 and 6.2 done on Tailscale (logged-out 401/302, admin login, showroom role limited to photo search). **M1 closed**; LAN re-check carried. Next step M1.1 · 1.1.

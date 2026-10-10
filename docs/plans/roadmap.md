@@ -94,7 +94,7 @@ This follows brief §9. The reasoning: money first, because it is the reason for
 
 | Milestone | Scope | Notes |
 |---|---|---|
-| **M1** Foundation | logins, roles, user admin, audit, job record, shell, existing features behind login | Built and released as 0.1.0; on-device verification pending (M1 · 6.1–6.3) |
+| **M1** Foundation | logins, roles, user admin, audit, job record, shell, existing features behind login | **Closed 2026-10-10** (0.1.0, verified over Tailscale; LAN re-check carried in STATUS) |
 | **M1.1** Maintenance | Node 20 → 22 in the image; sharp 0.33 → 0.35 (security fixes; breaking, so test photo upload/thumbnails); GitHub Actions to Node-24-native versions | Small; its own step list above (one release per upgrade) |
 | **M2** Accounts | invoice table (deposit/progress/final/extras), invoice prompts from job events, Friday 12:00 Sydney round-up, ntfy push to Todd, overdue list | Decide ntfy self-hosted vs ntfy.sh in the plan |
 | **Cutover runbook** | `docs/cutover.md` per brief §9a, rehearsed on a fresh copy of the live DB | Written before any cutover date is proposed |
