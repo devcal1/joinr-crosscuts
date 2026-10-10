@@ -9,6 +9,13 @@ App root: `crosscuts/app/`. CommonJS, Express 4, `better-sqlite3`, no build step
 - Business dates are Australia/Sydney local `YYYY-MM-DD`.
 - `lib/time.js` exports `sydneyToday()` and `sydneyMonday(dateStr?)`, both returning `YYYY-MM-DD`. They are built on `Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Sydney'})`.
 
+## Runtime paths
+- Inside the container the data directories are `/data/db`, `/data/uploads` and `/data/config`, set by the Dockerfile env and compose volumes.
+- Never mount anything at `/app/db`, because `app/db/` is source code.
+- The host layout is `data/db`, `data/uploads` and `data/config`, the same as the old app.
+- `lib/config.js` exports `DB_DIR`, `UPLOADS_DIR` and `CONFIG_DIR`.
+- `lib/pages.js` exports `PAGE_ACCESS`, `pageAccess(path)` (returns `null` for non-pages) and `isPagePath(path)`.
+
 ## Database (`db/index.js`; `require('./db')` returns the better-sqlite3 handle)
 - The DB is opened at `${DB_DIR}/photos.db` with `journal_mode=WAL`.
 - Next, `db/migrate.js` runs `migrate(db)`:
@@ -142,7 +149,7 @@ These are the exports, with their exact names:
 - Cookie `crosscuts_sid` is set `HttpOnly; SameSite=Lax; Path=/`, with no `Secure` flag.
   - "Remember this device" adds `Max-Age` = 30 days and is sliding. Otherwise it is a session cookie and expires 12 hours after login on the server side.
   - The device cookie is `crosscuts_dev`.
-- `lib/password.js` (T1): `hashSecret(plain)` and `verifySecret(plain, stored)` use `crypto.scrypt`, stored as `scrypt$N$r$p$saltB64$hashB64`. These are used for both passwords and PINs.
+- `lib/password.js` (written by the integrator; done): `async hashSecret(plain)` and `async verifySecret(plain, stored)` use scrypt. They are used for both passwords and PINs.
 
 ## Pages (`lib/pages.js`, Wave 0): page → access
 - `'/'` and `'/index.html'`: `'login'`.
@@ -228,3 +235,77 @@ cd crosscuts/app && DB_DIR=../../.dev/db UPLOADS_DIR=../../.dev/uploads CONFIG_D
 ```
 
 `.dev/` is git-ignored. CI is the real verification.
+
+## New M1 API surface (exact paths, access and JSON shapes)
+- Errors are always `{error:"..."}` with a 4xx/5xx status.
+- Validation failure → 400. Not found → 404.
+
+### T1: `/api/auth`
+- `GET /status` (public)
+  - Returns `{setupNeeded, loggedIn, locked, user:{displayName}|null, pinAvailable}`.
+  - `pinAvailable` is true only if the session is locked and remembered, the device cookie matches that session's device, the device isn't pin-locked, and the user has a PIN.
+- `POST /setup` (public)
+  - Body: `{username, displayName, password}`.
+  - Returns 404 if any user exists. Otherwise it creates an admin and logs them in with remember on, then returns 201 `{user}`.
+- `POST /login` (public)
+  - Body: `{username, password, remember}` → 200 `{user}`, or 401 for a bad login.
+  - Returns 429 `{error, retryAfterSec}` after 10 failures per username and IP in 15 minutes. Failures are recorded in `auth_attempts`.
+  - With `remember`, it creates the device (or reuses the existing `crosscuts_dev` if it belongs to the same user and isn't revoked) and resets that device's PIN counters.
+  - A disabled user gets 401.
+- `POST /logout` (public; works while locked)
+  - Revokes the session and clears `crosscuts_sid`. It keeps the device cookie, but a PIN can't start a new session.
+  - Returns 204.
+- `GET /me` (`login`)
+  - Returns `{user:{id,username,displayName,roles,perms:[...sorted],mustChangePassword}, session:{remember}}`.
+- `POST /lock` (`login`) → 204.
+- `POST /unlock` (public; needs a locked session)
+  - Body: `{pin}` or `{password}` → 200 `{user}`.
+  - A wrong PIN increments `devices.pin_failures`, and 5 sets `pin_locked=1`.
+  - 10 PIN failures per user in 60 minutes disables PIN for that user until the next password login (count from `auth_attempts`).
+  - A password unlock clears the device's PIN lock.
+- `POST /pin` (`login`)
+  - Body: `{currentPassword, pin}`. `pin` is 4–6 digits, or `null` to clear.
+  - Returns 204.
+- `POST /password` (`login`)
+  - Body: `{currentPassword, newPassword}`. `newPassword` must be at least 8 characters.
+  - Clears `must_change_password` and returns 204.
+- Session rules:
+  - A default session expires 12 hours after login (absolute).
+  - A remembered session expires 30 days after `last_seen_at`. `last_seen_at` and `expires_at` are refreshed at most every 5 minutes.
+  - A disabled user, or a revoked or expired session, means logged out.
+
+### T2: `/api/users` (all `users.admin`)
+- `GET /meta` → `{roles, keys, presets}`.
+- `GET /` → list of `{id, username, displayName, roles, overrides:[{key,effect}], disabled, mustChangePassword, lastLoginAt, activeSessions, perms:[...]}`.
+- `POST /`
+  - Body: `{username, displayName, password, roles}` → 201 with the user. Sets `must_change_password=1`.
+  - Returns 409 for a duplicate username.
+- `PATCH /:id`
+  - Body: `{displayName?, disabled?, roles?}` → the user.
+  - Disabling revokes the user's sessions.
+  - You can't disable yourself, remove your own admin role, or remove the last enabled admin (409).
+- `POST /:id/password`
+  - Body: `{password}` → 204. Sets `must_change_password=1` and revokes sessions.
+- `PUT /:id/overrides/:key`
+  - Body: `{effect:'grant'|'revoke'}` → the user. An unknown key → 400.
+- `DELETE /:id/overrides/:key` → the user.
+- `POST /:id/sessions/revoke` → 204.
+
+### T3: `/api/job-records`
+- `GET /` (`jobs.view`)
+  - Query: `?stage=&q=&archived=0|1`.
+  - Returns a list of job objects.
+- `GET /:id` (`jobs.view`) → a job object.
+- `POST /` (`jobs.edit`) → 201 with a job object.
+- `PATCH /:id` (`jobs.edit`) → a job object.
+- A job object has every `jobs` column in camelCase, e.g. `valueCents`, `promisedInstallDate`, `isTwoPac`, plus `onBoardWeeks:[weekStart...]` and `inBacklog`.
+- Without `jobs.value`, `valueCents` is omitted from responses, and setting it returns 403.
+
+### T4: `/api/audit` (all `audit.view`)
+- `GET /`
+  - Query: `?actor=<userId>&action=<prefix>&entityType=&entityId=&from=&to=&limit<=500&offset`.
+  - Returns `{rows:[{id,at,actorUserId,actorLabel,action,entityType,entityId,before,after,ip}], total}`. `before` and `after` are parsed JSON.
+- `GET /actions` → distinct action names.
+
+### T5: `/api/dashboard`
+- `GET /week` (`board.view`) → `{weekStart, manufacturing, installing, backlog}`, counting rows for the current Sydney week.
