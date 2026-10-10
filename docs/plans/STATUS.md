@@ -39,10 +39,12 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
   - Search tiles are not keyboard-focusable (plain divs); worth fixing when the photo pages are next touched (M3).
   - The audit changed-value highlight was not seen in a screenshot (the sample data had no before/after entry).
   - Print/PDF of the board was not checked after the re-theme (the print CSS was kept black on white).
-- **Gotchas learned in M1.1/M1.2:**
+- **Gotchas learned (M1.1 onwards):**
   - npm 11.19 (Node 24 images) skips install scripts not listed in `package.json` `allowScripts`. The entry names `better-sqlite3@12.9.0` exactly, so **any better-sqlite3 bump must update it**.
   - Some source files mix CRLF and LF: `sed -i` rewrites every line ending. Edit with exact string replacement.
   - The image tag is immutable: a push that publishes needs a version bump, even CI-only changes.
+  - Agent worktrees (`isolation: worktree`) have been created at an old commit (4b887f3), not `main`'s HEAD. Tell each build agent to check `git log -1` and reset to the intended base commit first, and to junction `crosscuts/app/node_modules` from the main checkout.
+  - `jq` and Docker aren't on the dev box: smoke files get `bash -n` locally (or a jq stand-in); CI is their first real run. Python isn't installed either; use node for scripts.
 
 ## Facts a fresh session needs
 
