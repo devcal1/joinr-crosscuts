@@ -13,6 +13,10 @@ name: Build and publish crosscuts-web
 # `image:` line to paste into tenon-umbrel-store/tenon-joinr-crosscuts/
 # docker-compose.yml in the run summary. The Umbrel manifest and compose file
 # live in that repository, not this one.
+#
+# The paths filter below means the very first push of a new branch (nothing to
+# diff against) starts no run: use workflow_dispatch, or a commit touching a
+# filtered path, to start one.
 on:
   push:
     branches: [main]
