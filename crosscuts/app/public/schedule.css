@@ -1,8 +1,9 @@
 @import url('tokens.css');
 
 :root {
-  /* Matched to logo.png's own background pixel color, same as search.css. */
-  --color-bg: #0a0607;
+  /* The ground is --ink everywhere. --color-bg stays only because the untouched
+     .nav rule still reads it. */
+  --color-bg: var(--ink);
 
   /* This page's spacing/radius scale is ~1.2x the base used elsewhere —
      deliberately larger so the schedule board reads clearly on a workshop TV
@@ -13,45 +14,39 @@
   --space-6: 20px;
   --space-8: 27px;
 
-  --radius-md: 10px;
-  --radius-lg: 17px;
-
-  --shadow-sm: 0 0 0 1px #3f424d;
-  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
+  --radius-md: var(--r-control);
+  --radius-lg: var(--r-card);
 }
 
 html, body {
   margin: 0;
   min-height: 100%;
-  background: var(--color-bg);
+  background: var(--ink);
 }
 
 body {
-  color: var(--color-text);
+  color: var(--body);
   font-family: var(--font);
   font-size: 18px;
   line-height: 1.55;
 }
 
-::-webkit-scrollbar { width: 10px; }
-::-webkit-scrollbar-thumb { background: var(--color-neutral-800); border-radius: 6px; }
-
-.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.text-muted { color: var(--label); }
 
 .input {
   min-height: 43px;
   padding: 7px 12px;
   font: inherit;
   font-size: 17px;
-  color: var(--color-text);
-  caret-color: var(--color-accent);
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-md);
+  color: var(--white);
+  caret-color: var(--teal);
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
 }
-.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
-.input:focus-visible { outline: none; border-color: var(--color-accent); }
+.input::placeholder { color: var(--muted); }
+.input:hover { border-color: var(--label); }
+.input:focus-visible { outline: none; border-color: var(--teal); }
 
 textarea.input { min-height: 77px; width: 100%; font-family: var(--font); resize: vertical; }
 
@@ -64,18 +59,25 @@ textarea.input { min-height: 77px; width: 100%; font-family: var(--font); resize
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-family: var(--font);
-  font-weight: 500;
-  font-size: 16px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
   padding: 8px 14px;
   min-height: 41px;
 }
+/* Icons keep the size they had; the button text is set smaller because it is
+   now uppercase and letterspaced. */
+.btn .ph { font-size: 16px; }
 .btn-icon { width: 36px; height: 36px; padding: 0; min-height: 0; }
-.btn-primary { background: var(--color-accent); color: #17131d; }
-.btn-primary:hover { filter: brightness(1.08); }
-.btn-secondary { border-color: var(--color-divider); color: var(--color-text); background: var(--color-surface); }
-.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-.btn-ghost { background: transparent; color: var(--color-neutral-500); }
-.btn-ghost:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-primary { border-color: var(--teal); color: var(--teal-tint); }
+.btn-primary:hover { background: var(--teal-16); }
+.btn-secondary { border-color: var(--na); color: var(--body); }
+.btn-secondary:hover { border-color: var(--teal); color: var(--teal-tint); }
+.btn-ghost { color: var(--label); }
+.btn-ghost:hover { border-color: var(--teal); color: var(--teal-tint); }
+.btn-ghost.btn-del:hover { border-color: var(--stop); color: var(--stop-tint); }
 .btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
 
 /* — nav — */
@@ -92,7 +94,7 @@ textarea.input { min-height: 77px; width: 100%; font-family: var(--font); resize
   flex-wrap: wrap;
 }
 .nav-brand { font-weight: 700; margin-right: var(--space-4); color: var(--color-text); text-decoration: none; }
-.nav a { color: var(--color-neutral-500); text-decoration: none; font-size: 17px; font-weight: 500; padding: 7px 2px; }
+.nav a { color: var(--color-neutral-500); text-decoration: none; font-size: 17px; font-weight: 400; padding: 7px 2px; }
 .nav a:hover { color: var(--color-text); }
 .nav a[aria-current="page"] { color: var(--color-text); border-bottom: 2px solid var(--color-accent); }
 .nav-spacer { flex: 1; }
@@ -123,7 +125,8 @@ main {
    There they stack: one worker per line, left aligned. */
 .board-side .page-head { margin: var(--space-4) 0 0; }
 .board-side .page-head p { line-height: 1.35; }
-.legend-title { margin: var(--space-4) 0 var(--space-3); font-size: 16px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-accent); }
+.page-head h1 { color: var(--white); }
+.legend-title { margin: var(--space-4) 0 var(--space-3); font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--label); }
 .board-side .legend { margin: 0; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 6px; }
 
 .chip-worker {
@@ -131,10 +134,10 @@ main {
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.01em;
   padding: 4px 10px;
-  border-radius: 7px;
+  border-radius: var(--r-control);
   width: fit-content;
   border: none;
   cursor: default;
@@ -158,7 +161,9 @@ main {
    loops, so showing a fortnight again is a one-line change in loadSchedule.) */
 .week-section {
   margin-bottom: var(--space-4);
-  border-top: 4px solid var(--color-accent);
+  /* The week band is the spectrum rule, exactly 4px as the accent band was. */
+  border-top: var(--accent-border) solid transparent;
+  border-image: var(--spectrum) 1;
 }
 .week-head {
   display: flex;
@@ -171,11 +176,11 @@ main {
   position: sticky;
   top: var(--nav-h, 62px);
   z-index: 4;
-  background: var(--color-bg);
+  background: var(--ink);
   padding: 4px 0;
-  border-bottom: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--hairline);
 }
-.week-head h2 { margin: 0; font-size: 24px; color: var(--color-accent); }
+.week-head h2 { margin: 0; font-size: 24px; font-weight: 700; color: var(--white); }
 .week-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -184,26 +189,27 @@ main {
 }
 @media (max-width: 900px) { .week-cols { grid-template-columns: 1fr; } }
 
-.panel h3 { margin: 0 0 var(--space-2); font-size: 16px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-accent); }
+.panel h3 { margin: 0 0 var(--space-2); font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--teal-tint); }
 
 .sched-grid { width: 100%; font-size: 16px; }
 .sched-row {
   display: grid;
   grid-template-columns: 204px repeat(5, 1fr);
   align-items: start;
-  border-bottom: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--hairline);
 }
 .sched-row.sched-head {
   font-size: 13px;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text) 60%, transparent);
-  border-bottom: 1px solid var(--color-divider);
+  color: var(--label);
+  border-bottom: 1px solid var(--na);
 }
 .sched-row > div { padding: var(--space-2) 5px; min-height: 36px; }
 .sched-row > div:first-child { padding-left: 0; }
-.sched-row:hover:not(.sched-head):not(.row-blank) { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
-.today-col { background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
+.sched-row:hover:not(.sched-head):not(.row-blank) { background: var(--surface); }
+.today-col { background: var(--teal-8); }
 
 /* Alignment padding: a blank line where the other panel has a job. Kept as a
    bordered row so the grid lines run level across both panels. Below 900px the
@@ -217,10 +223,10 @@ main {
 
 .job-cell { display: flex; flex-direction: column; gap: 2px; padding-top: var(--space-3) !important; }
 .job-name {
-  font-weight: 500;
+  font-weight: 700;
   background: none;
   border: none;
-  color: var(--color-text);
+  color: var(--white);
   font-family: var(--font);
   font-size: 16px;
   text-align: left;
@@ -228,13 +234,15 @@ main {
   cursor: text;
   width: 100%;
 }
-.job-name:focus-visible { outline: 1px solid var(--color-accent); border-radius: 4px; }
+.job-name:focus-visible { outline: 1px solid var(--teal); border-radius: var(--r-control); }
 .job-actions { display: flex; gap: 2px; }
-.job-actions .btn-icon { width: 26px; height: 26px; font-size: 14px; }
-/* A job with saved notes shows its note icon in bright orange (mirrored as an
-   orange dot in the JPG export — see exportJpg). */
+.job-actions .btn-icon { width: 26px; height: 26px; }
+.job-actions .btn-icon .ph { font-size: 14px; }
+/* A job with saved notes shows its note icon in orange-tint (mirrored as an
+   orange-tint dot in the JPG export — see exportJpg). Flagged cells are orange
+   too; the two stay apart by shape (left bar versus note icon). */
 .job-actions .btn-icon.has-notes,
-.job-actions .btn-icon.has-notes:hover { color: #ff8c1a; }
+.job-actions .btn-icon.has-notes:hover { color: var(--orange-tint); }
 
 /* — drag to reorder — */
 .drag-grip { cursor: grab; }
@@ -242,11 +250,12 @@ main {
 /* The row keeps its place in the grid while a ghost of it follows the cursor;
    fading it is what tells you which row you picked up. */
 .sched-row.dragging { opacity: 0.4; }
-/* Drop position marker. inset box-shadow rather than a border so it can't
-   change row height mid-drag and shove the rows under the cursor around —
-   the pairing heights syncRowHeights measured would fight a border here. */
-.sched-row.drop-before { box-shadow: inset 0 3px 0 0 var(--color-accent); }
-.sched-row.drop-after { box-shadow: inset 0 -3px 0 0 var(--color-accent); }
+/* Drop position marker: a 3px teal bar on the top or bottom edge, drawn as a
+   background layer rather than a border so it can't change row height mid-drag
+   and shove the rows under the cursor around — the pairing heights
+   syncRowHeights measured would fight a border here. */
+.sched-row.drop-before { background: linear-gradient(var(--teal), var(--teal)) top / 100% 3px no-repeat; }
+.sched-row.drop-after { background: linear-gradient(var(--teal), var(--teal)) bottom / 100% 3px no-repeat; }
 
 .job-notes {
   grid-column: 1 / -1;
@@ -303,16 +312,16 @@ main {
   padding: 0 4px;
   margin: 0;
   background: inherit;
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
   opacity: 0;
 }
 .sched-chips.crowded .chip-worker:hover .chip-x,
 .sched-chips.crowded .chip-x:focus-visible { opacity: 1; }
 .cell-controls { display: flex; gap: 5px; margin-top: 2px; }
 .cell-add {
-  border: 1px dashed var(--color-divider);
-  border-radius: 7px;
-  color: var(--color-neutral-500);
+  border: 1px dashed var(--na);
+  border-radius: var(--r-control);
+  color: var(--label);
   background: none;
   font-size: 17px;
   line-height: 1;
@@ -320,31 +329,35 @@ main {
   height: 24px;
   cursor: pointer;
 }
-.cell-add:hover { color: var(--color-text); border-color: var(--color-accent); }
+.cell-add:hover { color: var(--teal-tint); border-color: var(--teal); }
 
 .cell-flag {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed var(--color-divider);
-  border-radius: 7px;
-  color: var(--color-neutral-500);
+  border: 1px dashed var(--na);
+  border-radius: var(--r-control);
+  color: var(--label);
   background: none;
   font-size: 15px;
   width: 26px;
   height: 24px;
   cursor: pointer;
 }
-.cell-flag:hover { color: var(--color-text); border-color: var(--color-accent); }
+.cell-flag:hover { color: var(--teal-tint); border-color: var(--teal); }
 .cell-flag.active {
   border-style: solid;
-  border-color: #e8b339;
-  color: #e8b339;
-  background: color-mix(in srgb, #e8b339 16%, transparent);
+  border-color: var(--orange);
+  color: var(--orange-tint);
+  background: var(--orange-16);
 }
+/* Locked in with client: an orange left bar plus a faint orange wash. The bar is
+   a 3px border; the cell's left padding gives up the same 3px (5px -> 2px) so
+   the chips and the cell's size don't move. */
 .sched-cell.flagged {
-  background: color-mix(in srgb, #e8b339 9%, transparent);
-  box-shadow: inset 3px 0 0 #e8b339;
+  background: var(--orange-8);
+  border-left: 3px solid var(--orange);
+  padding-left: 2px;
 }
 
 .add-row {
@@ -358,10 +371,9 @@ main {
 .popover {
   position: fixed;
   z-index: 20;
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
   padding: 7px;
   min-width: 192px;
   max-height: 312px;
@@ -374,20 +386,20 @@ main {
   gap: 10px;
   width: 100%;
   padding: 7px 10px;
-  border-radius: 7px;
+  border-radius: var(--r-control);
   border: none;
   background: none;
-  color: var(--color-text);
+  color: var(--body);
   font-family: var(--font);
   font-size: 16px;
   text-align: left;
   cursor: pointer;
 }
-.popover-item:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.popover-item:hover { background: var(--raised); color: var(--white); }
 .popover-swatch { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
-.popover-empty { padding: 12px 10px; font-size: 15px; color: var(--color-neutral-500); }
+.popover-empty { padding: 12px 10px; font-size: 15px; color: var(--label); }
 
-.empty-schedule { padding: 40px 0; text-align: center; color: var(--color-neutral-500); }
+.empty-schedule { padding: 40px 0; text-align: center; color: var(--label); }
 
 /* — layout: "To start" sidebar beside the weeks — */
 /* Sidebar is a fixed column on the left; the weeks take the rest. Below 900px
@@ -412,18 +424,18 @@ main {
 }
 .backlog {
   padding: var(--space-3);
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
 }
 /* A long waiting list scrolls inside its own box, so Workers stays reachable. */
 .backlog-list { max-height: 45vh; overflow-y: auto; }
 /* Row dragged onto the panel (see schedule.js). Inset offset: the column is a
    scroll box, so an outline drawn outside the panel would be clipped. */
 .backlog.drop-active {
-  outline: 2px dashed var(--color-accent);
+  outline: 2px dashed var(--teal);
   outline-offset: -4px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-card);
 }
 @media (max-width: 900px) {
   .board-side { position: static; max-height: none; overflow: visible; }
@@ -435,18 +447,19 @@ main {
   justify-content: space-between;
   margin-bottom: var(--space-3);
 }
-.backlog h3 { margin: 0; font-size: 16px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-accent); }
-.backlog-count { font-size: 15px; color: var(--color-neutral-500); }
+.backlog h3 { margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--teal-tint); }
+.backlog-count { font-size: 15px; color: var(--label); }
 .backlog-list { display: flex; flex-direction: column; }
-.backlog-empty { padding: var(--space-3) 0; font-size: 15px; color: var(--color-neutral-500); }
+.backlog-empty { padding: var(--space-3) 0; font-size: 15px; color: var(--label); }
 .backlog-item {
   display: flex;
   align-items: center;
   gap: 4px;
   min-height: 34px;
-  border-bottom: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--hairline);
 }
-.backlog-item .btn-icon { width: 26px; height: 26px; font-size: 14px; flex-shrink: 0; }
+.backlog-item .btn-icon { width: 26px; height: 26px; flex-shrink: 0; }
+.backlog-item .btn-icon .ph { font-size: 14px; }
 .backlog-item.dragging { opacity: 0.4; }
 .backlog-name {
   flex: 1;
@@ -455,7 +468,8 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 700;
+  color: var(--white);
 }
 .backlog .add-row { padding-top: var(--space-3); }
 .backlog .add-row .input { min-width: 0; font-size: 16px; }
@@ -477,22 +491,21 @@ main {
   width: min(920px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   padding: 0;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  color: var(--body);
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
   font-family: var(--font);
 }
-.finish-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.finish-dialog::backdrop { background: var(--backdrop); }
 .finish-body { padding: var(--space-6); }
-.finish-body h2 { margin: 0 0 var(--space-2); font-size: 24px; color: var(--color-accent); }
+.finish-body h2 { margin: 0 0 var(--space-2); font-size: 24px; font-weight: 700; color: var(--white); }
 .finish-help { margin: 0 0 var(--space-4); font-size: 17px; }
 
 .finish-list {
   max-height: 60vh;
   overflow-y: auto;
-  border-top: 1px solid var(--color-divider);
+  border-top: 1px solid var(--hairline);
 }
 .finish-item {
   display: flex;
@@ -501,10 +514,10 @@ main {
   justify-content: space-between;
   gap: var(--space-3) var(--space-6);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--hairline);
 }
 .finish-info { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; }
-.finish-name { font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.finish-name { font-size: 17px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
 .finish-where { font-size: 15px; }
 
 /* Joined segmented control. The real radio is visually hidden but stays in the
@@ -512,8 +525,8 @@ main {
 .finish-seg {
   display: inline-flex;
   flex-wrap: wrap;
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
   overflow: hidden;
 }
 .finish-opt {
@@ -522,15 +535,17 @@ main {
   align-items: center;
   min-height: 44px;
   padding: 8px 16px;
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--body);
   background: none;
   cursor: pointer;
   user-select: none;
 }
-.finish-opt + .finish-opt { border-left: 1px solid var(--color-divider); }
-.finish-opt:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.finish-opt + .finish-opt { border-left: 1px solid var(--na); }
+.finish-opt:hover { background: var(--raised); color: var(--white); }
 .finish-opt input {
   position: absolute;
   width: 1px;
@@ -539,15 +554,16 @@ main {
   opacity: 0;
   pointer-events: none;
 }
-.finish-opt:focus-within { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-/* Selected is carried by the solid accent fill plus the label text, so the
-   meaning never rests on colour alone. */
+/* Selected is a teal outline with a 16% teal fill (never a solid fill). The
+   outline sits inside the option so nothing changes size. */
 .finish-opt.selected,
 .finish-opt.selected:hover {
-  background: var(--color-accent);
-  color: #17131d;
-  font-weight: 600;
+  background: var(--teal-16);
+  color: var(--teal-tint);
+  outline: 1px solid var(--teal);
+  outline-offset: -1px;
 }
+.finish-opt:focus-within { outline: 2px solid var(--teal); outline-offset: -2px; }
 
 .finish-foot {
   display: flex;
@@ -560,11 +576,12 @@ main {
 /* Whole-grid highlight when a backlog item is dropped on a panel but not on a
    specific row (it then goes to the end of the list). */
 .sched-grid.drop-active {
-  outline: 2px dashed var(--color-accent);
+  outline: 2px dashed var(--teal);
   outline-offset: 4px;
-  border-radius: var(--radius-md);
+  border-radius: var(--r-control);
 }
 
+/* style-check: print-start */
 @media print {
   .nav, .add-row, .job-actions, .cell-add, .cell-flag, .chip-x { display: none !important; }
   /* The "To start" sidebar is for the shop floor, not the printed schedule:
@@ -583,6 +600,11 @@ main {
   .board { display: block; }
   body { background: #fff; color: #111; }
   .job-notes { color: #111; }
+  /* Paper stays black on white: the spectrum week band prints as a plain rule,
+     and the white screen headings print dark. */
+  .week-section { border-top: 4px solid #111; border-image: none; }
+  .page-head h1,
+  .finish-name { color: #111; }
   main { max-width: none; padding: 0 var(--space-4); }
   /* Dark-theme text colors don't inherit body's print override — without
      these, job names and headers print near-white on white. */
@@ -622,3 +644,4 @@ main {
      !important is load-bearing: it must beat those inline styles. */
   .sched-row { min-height: 0 !important; margin-bottom: 0 !important; }
 }
+/* style-check: print-end */

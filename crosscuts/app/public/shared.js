@@ -24,9 +24,9 @@ function toast(msg) {
   const el = document.createElement("div");
   el.textContent = msg;
   el.style.cssText =
-    "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--color-surface);" +
-    "color:var(--color-text);border:1px solid var(--color-divider);border-radius:8px;padding:8px 14px;" +
-    "font-size:13px;z-index:50;box-shadow:var(--shadow-md)";
+    "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);" +
+    "color:var(--body);border:1px solid var(--hairline);border-radius:var(--r-card);padding:8px 14px;" +
+    "font-family:var(--font);font-size:13px;z-index:50";
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 1800);
 }

@@ -57,7 +57,7 @@ New UI follows the company house style: the TH Cabinets Brand & Document Style G
 - **Two named exceptions, both approved by Todd on 2026-10-10. There are no others.**
   - **Worker colours:** each worker keeps their own colour (the `hue` per worker, computed in `lib/schedule.js` and `public/shared.js`), wherever workers appear.
   - **Board icons:** the board keeps its small Phosphor icon buttons (`schedule.html`, `schedule.js`). The menu bar and every other page use text labels.
-- **The style check:** `ci/style-check.sh` enforces this in CI. If it fails, fix the page, not the check.
+- **The style check:** `ci/style-check.js` enforces this in CI. If it fails, fix the page, not the check.
 
 ## Local development
 

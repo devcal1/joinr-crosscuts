@@ -167,21 +167,21 @@
     const common = { id: "f-" + f.key, name: f.key };
     switch (f.type) {
       case "textarea":
-        node = el("textarea", { ...common, class: "jobs-textarea" });
+        node = el("textarea", { ...common, class: "hs-input" });
         break;
       case "stage":
-        node = el("select", { ...common, class: "jobs-select" });
+        node = el("select", { ...common, class: "hs-input" });
         for (const [v, label] of STAGES) {
           const opt = el("option", { value: v, text: label + (DERIVED.has(v) ? " (automatic)" : "") });
           node.append(opt);
         }
         break;
       case "bool3":
-        node = el("select", { ...common, class: "jobs-select" });
+        node = el("select", { ...common, class: "hs-input" });
         node.append(el("option", { value: "", text: "Not set" }), el("option", { value: "1", text: "Yes" }), el("option", { value: "0", text: "No" }));
         break;
       case "benchtop":
-        node = el("select", { ...common, class: "jobs-select" });
+        node = el("select", { ...common, class: "hs-input" });
         node.append(
           el("option", { value: "", text: "Not set" }),
           el("option", { value: "laminate", text: "Laminate" }),
@@ -193,25 +193,25 @@
         node = el("input", { ...common, type: "checkbox" });
         break;
       case "date":
-        node = el("input", { ...common, class: "jobs-input", type: "date" });
+        node = el("input", { ...common, class: "hs-input", type: "date" });
         break;
       case "int":
-        node = el("input", { ...common, class: "jobs-input", type: "number", min: "0", step: "1", inputmode: "numeric" });
+        node = el("input", { ...common, class: "hs-input", type: "number", min: "0", step: "1", inputmode: "numeric" });
         break;
       case "money":
-        node = el("input", { ...common, class: "jobs-input", type: "text", inputmode: "decimal", placeholder: "0.00" });
+        node = el("input", { ...common, class: "hs-input", type: "text", inputmode: "decimal", placeholder: "0.00" });
         break;
       case "url":
-        node = el("input", { ...common, class: "jobs-input", type: "url", placeholder: "https://" });
+        node = el("input", { ...common, class: "hs-input", type: "url", placeholder: "https://" });
         break;
       case "tel":
-        node = el("input", { ...common, class: "jobs-input", type: "tel" });
+        node = el("input", { ...common, class: "hs-input", type: "tel" });
         break;
       case "email":
-        node = el("input", { ...common, class: "jobs-input", type: "email" });
+        node = el("input", { ...common, class: "hs-input", type: "email" });
         break;
       default:
-        node = el("input", { ...common, class: "jobs-input", type: "text" });
+        node = el("input", { ...common, class: "hs-input", type: "text" });
     }
     return node;
   }
@@ -233,7 +233,7 @@
         const field = el("div", { class: "field" + (f.wide ? " wide" : "") });
         if (f.type === "archived") {
           field.append(
-            el("label", { for: node.id, class: "jobs-check", style: "color:var(--color-text);font-size:15px" }, node, document.createTextNode(" " + f.label))
+            el("label", { for: node.id, class: "jobs-check" }, node, document.createTextNode(" " + f.label))
           );
         } else {
           field.append(el("label", { for: node.id, text: f.label + (f.required ? " *" : "") }), node);
@@ -252,13 +252,13 @@
         }
         grid.append(field);
       }
-      formEl.append(el("fieldset", {}, el("legend", { text: g.title }), grid));
+      formEl.append(el("fieldset", {}, el("legend", { class: "hs-sectionbar", text: g.title }), grid));
     }
 
     const actions = el("div", { class: "jobform-actions" });
     statusEl = el("div", { class: "status muted", role: "status" });
-    saveBtn = el("button", { type: "submit", class: "jobs-btn primary", text: isNew ? "Create job" : "Save changes" });
-    actions.append(statusEl, el("a", { class: "jobs-btn", href: "/jobs.html", text: "Cancel" }), saveBtn);
+    saveBtn = el("button", { type: "submit", class: "hs-btn hs-btn-primary", text: isNew ? "Create job" : "Save changes" });
+    actions.append(statusEl, el("a", { class: "hs-btn hs-btn-quiet", href: "/jobs.html", text: "Cancel" }), saveBtn);
     formEl.append(actions);
   }
 
@@ -288,7 +288,7 @@
     }
     if (saveBtn) saveBtn.hidden = !editable;
     bannerEl.replaceChildren(
-      ...(editable ? [] : [el("div", { class: "ro-banner", text: "You can view this job but not edit it." })])
+      ...(editable ? [] : [el("div", { class: "hs-callout ro-banner", text: "You can view this job but not edit it." })])
     );
   }
 
@@ -397,6 +397,7 @@
     formEl.addEventListener("submit", onSubmit);
     // The shell may finish loading permissions after first paint.
     window.addEventListener("load", applyAccess);
+    document.addEventListener("cc:ready", applyAccess);
   }
 
   init();

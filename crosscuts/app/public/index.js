@@ -85,13 +85,13 @@
     var shown = 0;
     DEPARTMENTS.forEach(function (d) {
       if (!d.any.some(function (k) { return cc.can(k); })) return;
-      var tile = el("article", "tile");
+      var tile = el("article", "tile hs-card");
       tile.appendChild(el("h3", "tile-title", d.title));
       tile.appendChild(el("p", "tile-text", d.text));
       var links = el("div", "tile-links");
       d.links.forEach(function (l) {
         if (!cc.can(l.key)) return;
-        var a = el("a", "tile-link" + (links.children.length === 0 ? " is-primary" : ""), l.label);
+        var a = el("a", "hs-btn" + (links.children.length === 0 ? " hs-btn-primary" : ""), l.label);
         a.href = l.href;
         links.appendChild(a);
       });

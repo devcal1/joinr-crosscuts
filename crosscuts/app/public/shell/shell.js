@@ -84,12 +84,9 @@
     });
     return el;
   }
-  function icon(name) {
-    return h("i", { class: "ph ph-" + name, "aria-hidden": "true" });
-  }
 
   function ensureStyles() {
-    var wanted = ["/shell/shell.css", "/tokens.css", "/vendor/phosphor/style.css"];
+    var wanted = ["/shell/shell.css", "/tokens.css"];
     wanted.forEach(function (href) {
       var present = Array.prototype.some.call(document.querySelectorAll('link[rel="stylesheet"]'), function (l) {
         var a = l.getAttribute("href") || "";
@@ -134,7 +131,7 @@
     var inputs = {};
     var fieldEls = opts.fields.map(function (f) {
       var input = h("input", {
-        class: "cc-input",
+        class: "hs-input",
         id: "cc-f-" + opts.id + "-" + f.name,
         name: f.name,
         type: f.type || "text",
@@ -151,12 +148,12 @@
         input,
       ]);
     });
-    var submitBtn = h("button", { class: "cc-btn cc-btn-primary", type: "submit", text: opts.submit });
-    var cancelBtn = h("button", { class: "cc-btn", type: "button", text: "Cancel" });
+    var submitBtn = h("button", { class: "hs-btn hs-btn-primary", type: "submit", text: opts.submit });
+    var cancelBtn = h("button", { class: "hs-btn", type: "button", text: "Cancel" });
     var actions = [];
     var extraBtn = null;
     if (opts.extra) {
-      extraBtn = h("button", { class: "cc-btn cc-btn-quiet", type: "button", text: opts.extra.label });
+      extraBtn = h("button", { class: "hs-btn hs-btn-quiet", type: "button", text: opts.extra.label });
       actions.push(extraBtn);
     }
     actions.push(cancelBtn, submitBtn);
@@ -324,11 +321,11 @@
     var menu = h("div", { class: "cc-menu", id: "cc-user-menu", role: "menu", "aria-label": "Account", hidden: true }, [
       h("div", { class: "cc-menu-head" }, [h("strong", { text: displayName }), "Signed in"]),
       h("hr", { class: "cc-menu-sep" }),
-      menuItem("Change password", "password", openPasswordDialog),
-      menuItem("Set PIN", "key", openPinDialog),
-      menuItem("Lock", "lock", doLock),
+      menuItem("Change password", openPasswordDialog),
+      menuItem("Set PIN", openPinDialog),
+      menuItem("Lock", doLock),
       h("hr", { class: "cc-menu-sep" }),
-      menuItem("Sign out", "sign-out", doSignOut),
+      menuItem("Sign out", doSignOut),
     ]);
     var btn = h(
       "button",
@@ -341,7 +338,7 @@
         "aria-expanded": "false",
         "aria-controls": "cc-user-menu",
       },
-      [icon("user-circle"), h("span", { class: "cc-user-name", text: displayName }), icon("caret-down")]
+      [h("span", { class: "cc-user-name", text: displayName })]
     );
     btn.setAttribute("aria-label", "Account menu for " + displayName);
 
@@ -378,9 +375,8 @@
     });
     return { btn: btn, menu: menu };
   }
-  function menuItem(label, iconName, onClick) {
+  function menuItem(label, onClick) {
     return h("button", { class: "cc-menu-item", type: "button", role: "menuitem", tabindex: "-1", onclick: onClick }, [
-      icon(iconName),
       label,
     ]);
   }
@@ -393,9 +389,16 @@
 
   function render(root, user) {
     root.textContent = "";
+    // The spectrum rule sits above the bar, so it sticks with it.
+    root.appendChild(h("div", { class: "hs-rule", "aria-hidden": "true" }));
     var bar = h("header", { class: "cc-bar" });
+    var lockup = h("span", { class: "hs-lockup" }, ["TH ", h("b", { text: "CABINETS" })]);
     bar.appendChild(
-      h("a", { class: "cc-brand", href: "/", "aria-current": path === "/" || path === "/index.html" ? "page" : false, text: "Crosscuts" })
+      h(
+        "a",
+        { class: "cc-brand", href: "/", "aria-label": "Crosscuts home", "aria-current": path === "/" || path === "/index.html" ? "page" : false },
+        [lockup, h("span", { class: "cc-brand-app", text: "Crosscuts" })]
+      )
     );
     if (!user) {
       root.appendChild(bar);
@@ -422,7 +425,7 @@
     var menuBtn = h(
       "button",
       { class: "cc-btn cc-menu-btn", type: "button", "data-cc-toggle": "", "aria-expanded": "false", "aria-controls": "cc-nav" },
-      [icon("list"), "Menu"]
+      ["Menu"]
     );
     menuBtn.addEventListener("click", function () {
       var open = menuBtn.getAttribute("aria-expanded") !== "true";
@@ -430,16 +433,11 @@
       setOpen(menuBtn, open);
     });
 
-    var bell = h("span", { title: "Notifications arrive in a later update" }, [
-      h(
-        "button",
-        { class: "cc-icon-btn", type: "button", disabled: true, "aria-label": "Notifications (arrive in a later update)" },
-        [icon("bell")]
-      ),
-    ]);
+    // The old bell was a disabled placeholder that opened nothing, so it is gone
+    // until notifications exist.
     var um = buildUserMenu(user.displayName || user.username || "dev");
 
-    var right = h("div", { class: "cc-right" }, [bell, um.btn, um.menu]);
+    var right = h("div", { class: "cc-right" }, [um.btn, um.menu]);
     bar.appendChild(menuBtn);
     bar.appendChild(nav);
     bar.appendChild(right);
@@ -468,6 +466,10 @@
       document.body.insertBefore(root, document.body.firstChild);
     }
     ensureStyles();
+    // Bottom spectrum rule: a plain block after the page content.
+    if (!document.getElementById("cc-foot-rule")) {
+      document.body.appendChild(h("div", { class: "hs-rule cc-foot-rule", id: "cc-foot-rule", "aria-hidden": "true" }));
+    }
     render(root, null); // brand only, so the bar doesn't jump while /me loads
 
     var finish = function (user, session) {

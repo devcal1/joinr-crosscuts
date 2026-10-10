@@ -1,53 +1,88 @@
-/* Shared design tokens for admin.css / search.css / schedule.css.
-   Only values that are genuinely identical across all three pages live here —
-   --color-bg, spacing, and radius scale are deliberately page-local (admin's
-   background and schedule's larger TV-display scale are intentional
-   differences, not drift), so they stay declared per-page. */
-/* Inter 5.3.0 (@fontsource/inter, latin subset), vendored for the offline LAN. */
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url('vendor/inter/inter-latin-400-normal.woff2') format('woff2');
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 500;
-  src: url('vendor/inter/inter-latin-500-normal.woff2') format('woff2');
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 600;
-  src: url('vendor/inter/inter-latin-600-normal.woff2') format('woff2');
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 700;
-  src: url('vendor/inter/inter-latin-700-normal.woff2') format('woff2');
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
-}
+/* Crosscuts house style: the TH Cabinets Brand & Document Style Guide v1.0 on screen.
+   The values match Offcuts (joinr-offcuts/src/styles.css). These tokens are the only
+   colours a page may use; ci/style-check.sh enforces that. The rules are in CLAUDE.md
+   under "Look and feel".
+
+   Ink ground, and teal as the one working accent. Orange means "attend to this". Red is
+   only for overdue and destructive actions. The spectrum appears only as thin rules.
+   Arial, bold and regular only. No shadows, and no icons except the board's. */
+@import url('components.css');
 
 :root {
-  --color-surface: #232532;
-  --color-text: #e9e9ed;
-  --color-accent: #9184d9;
-  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+  /* ground and surfaces */
+  --ink: #101019;
+  --surface: #191a24;
+  --raised: #262735;
+  --hairline: #24252f;
+  --na: #2e2f3c;
 
-  --color-neutral-500: #9397ab;
-  --color-neutral-800: #3f424d;
-  --color-neutral-900: #292b31;
+  /* text */
+  --white: #ffffff;
+  --body: #d3d4dc;
+  --label: #9a9ba8;
+  --muted: #6f7080;
 
-  --font: "Inter", system-ui, sans-serif;
+  /* colour roles */
+  --teal: #17c8a0;
+  --teal-tint: #6ee7c9;
+  --violet: #8b5cf6;
+  --violet-tint: #a855f7;
+  --fuchsia: #d946ef;
+  --orange: #f97316;
+  --orange-tint: #fb923c;
+  --go: #22c55e;
+  --go-tint: #4ade80;
+  --stop: #ef4444;
+  --stop-tint: #f87171;
+
+  /* 16% fills, for badges, hovers, selected rows and highlights */
+  --teal-16: rgba(23, 200, 160, 0.16);
+  --orange-16: rgba(249, 115, 22, 0.16);
+  --go-16: rgba(34, 197, 94, 0.16);
+  --stop-16: rgba(239, 68, 68, 0.16);
+  --violet-16: rgba(139, 92, 246, 0.16);
+  --teal-8: rgba(23, 200, 160, 0.08);
+  --orange-8: rgba(249, 115, 22, 0.08);
+  --backdrop: rgba(16, 16, 25, 0.8);
+
+  --spectrum: linear-gradient(90deg, #17c8a0 0%, #8b5cf6 30%, #d946ef 55%, #f97316 100%);
+  --step: linear-gradient(135deg, #8b5cf6, #d946ef);
+
+  /* type and shape */
+  --font: Arial, Helvetica, sans-serif;
+  --mono: Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --r-card: 6px;
+  --r-callout: 5px;
+  --r-control: 4px;
+  --r-badge: 3px;
+  --accent-border: 4px;
+  --rule-h: 5px;
+
+  /* Legacy names, kept as aliases while pages move to the names above.
+     New CSS uses the house names, not these. */
+  --color-surface: var(--surface);
+  --color-text: var(--body);
+  --color-accent: var(--teal);
+  --color-divider: var(--hairline);
+  --color-neutral-500: var(--label);
+  --color-neutral-800: var(--na);
+  --color-neutral-900: var(--raised);
 }
 
 * { box-sizing: border-box; }
+
+html { background: var(--ink); }
+
+/* The house components set display (hs-btn is inline-flex), which would otherwise beat
+   the hidden attribute. */
+[hidden] { display: none !important; }
+
+/* One focus ring, everywhere the keyboard can land. Teal, never a shadow. */
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--raised); border-radius: var(--r-badge); }
+::-webkit-scrollbar-track { background: transparent; }

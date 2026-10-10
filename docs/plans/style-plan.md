@@ -68,7 +68,7 @@ One milestone, **M1.2 House style**, released as **one** version (0.1.4). It als
 - Flagged cells and the notes marker would both be orange. They stay distinct by shape: the flag is a left bar, the note is a dot.
 
 **Stage 4. A guard so future builds keep the style**
-- A new `ci/style-check.sh`, run in CI before the image is built, fails the build if a page stylesheet or script:
+- A new `ci/style-check.js`, run in CI before the image is built, fails the build if a page stylesheet or script:
   - uses a colour that isn't a house token
   - adds a shadow
   - loads Inter or Phosphor

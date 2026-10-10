@@ -465,7 +465,7 @@
   function iconBtn(icon, title, onClick) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "btn btn-ghost btn-icon";
+    btn.className = "btn btn-ghost btn-icon" + (icon === "ph-trash" ? " btn-del" : "");
     btn.title = title;
     btn.innerHTML = `<i class="ph ${icon}"></i>`;
     btn.addEventListener("click", onClick);
@@ -1158,29 +1158,57 @@
     }
     totalH += margin;
 
+    // House tokens, read once. The canvas can't use CSS variables, so every
+    // colour it draws comes from here (no colour literals in this function).
+    const rootStyle = getComputedStyle(document.documentElement);
+    const tok = (name) => rootStyle.getPropertyValue(name).trim();
+    const C = {
+      ink: tok("--ink"),
+      white: tok("--white"),
+      body: tok("--body"),
+      label: tok("--label"),
+      na: tok("--na"),
+      hairline: tok("--hairline"),
+      teal: tok("--teal"),
+      tealTint: tok("--teal-tint"),
+      violet: tok("--violet"),
+      fuchsia: tok("--fuchsia"),
+      orange: tok("--orange"),
+      orangeTint: tok("--orange-tint"),
+      orange8: tok("--orange-8"),
+    };
+    const FONT = tok("--font") || "Arial, Helvetica, sans-serif";
+
     const canvas = document.createElement("canvas");
     const scale = 2;
     canvas.width = (margin * 2 + panelW * 2 + gap) * scale;
     canvas.height = totalH * scale;
     const ctx = canvas.getContext("2d");
     ctx.scale(scale, scale);
-    ctx.fillStyle = "#0a0607";
+    ctx.fillStyle = C.ink;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.textBaseline = "middle";
-    ctx.font = "600 12px Inter, system-ui, sans-serif";
+    ctx.font = `700 12px ${FONT}`;
 
     let y = margin;
     state.weeks.forEach((week, wi) => {
-      ctx.fillStyle = "#e9e9ed";
-      ctx.font = "700 16px Inter, system-ui, sans-serif";
+      ctx.fillStyle = C.white;
+      ctx.font = `700 16px ${FONT}`;
       ctx.fillText(weekRangeLabel(week), margin, y + 14);
-      // Mirrors the board's accent week banner — a hard rule marking where
-      // each week starts.
-      ctx.strokeStyle = "#9184d9";
+      // Mirrors the board's week band — the spectrum rule marking where each
+      // week starts. Same stops as --spectrum (0 / 30 / 55 / 100%), drawn as a
+      // horizontal gradient across the full width of the week.
+      const ruleX2 = margin + panelW * 2 + gap;
+      const rule = ctx.createLinearGradient(margin, 0, ruleX2, 0);
+      rule.addColorStop(0, C.teal);
+      rule.addColorStop(0.3, C.violet);
+      rule.addColorStop(0.55, C.fuchsia);
+      rule.addColorStop(1, C.orange);
+      ctx.strokeStyle = rule;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(margin, y + 26);
-      ctx.lineTo(margin + panelW * 2 + gap, y + 26);
+      ctx.lineTo(ruleX2, y + 26);
       ctx.stroke();
       ctx.lineWidth = 1;
       y += weekTitleH;
@@ -1190,14 +1218,14 @@
         { key: "installing", label: "INSTALLING", x: margin + panelW + gap },
       ].forEach(({ key, label, x }) => {
         let py = y;
-        ctx.fillStyle = "#9184d9";
-        ctx.font = "700 11px Inter, system-ui, sans-serif";
+        ctx.fillStyle = C.tealTint;
+        ctx.font = `700 11px ${FONT}`;
         ctx.fillText(label, x, py + 10);
         py += panelTitleH;
 
-        ctx.strokeStyle = "#3f424d";
-        ctx.fillStyle = "#9397ab";
-        ctx.font = "600 10px Inter, system-ui, sans-serif";
+        ctx.strokeStyle = C.na;
+        ctx.fillStyle = C.label;
+        ctx.font = `700 10px ${FONT}`;
         DAY_KEYS.forEach((day, i) => {
           ctx.fillText(`${DAY_LABELS[day].toUpperCase()} ${fmtAUShort(addDays(week.start, i))}`, x + jobW + i * dayW + 6, py + headerH / 2);
         });
@@ -1211,12 +1239,12 @@
           const h = weekLines[wi][li];
           if (row) {
             const hasNotes = !!(row.notes && row.notes.trim());
-            ctx.fillStyle = "#e9e9ed";
-            ctx.font = "500 12px Inter, system-ui, sans-serif";
+            ctx.fillStyle = C.white;
+            ctx.font = `700 12px ${FONT}`;
             ctx.fillText(row.jobName, x, py + h / 2, hasNotes ? jobW - 24 : jobW - 10);
             if (hasNotes) {
-              // Mirrors the board's orange notes icon.
-              ctx.fillStyle = "#ff8c1a";
+              // Mirrors the board's orange-tint notes icon.
+              ctx.fillStyle = C.orangeTint;
               ctx.beginPath();
               ctx.arc(x + jobW - 12, py + h / 2, 3.5, 0, Math.PI * 2);
               ctx.fill();
@@ -1225,9 +1253,10 @@
             DAY_KEYS.forEach((day, i) => {
               const cellX = x + jobW + i * dayW;
               if (key === "installing" && row.flags && row.flags[day]) {
-                ctx.fillStyle = "rgba(232, 179, 57, 0.12)";
+                // Mirrors .sched-cell.flagged: orange-8 wash plus a 3px orange left bar.
+                ctx.fillStyle = C.orange8;
                 ctx.fillRect(cellX, py, dayW, h);
-                ctx.fillStyle = "#e8b339";
+                ctx.fillStyle = C.orange;
                 ctx.fillRect(cellX, py, 3, h);
               }
               // Column-major, two deep — the same fill order as the board's
@@ -1241,10 +1270,10 @@
                 const cx = cellX + 4 + Math.floor(k / CHIP_ROWS) * colW;
                 const cy = py + rowPad + (k % CHIP_ROWS) * chipH;
                 const text = chip.name;
-                ctx.font = "500 11px Inter, system-ui, sans-serif";
+                ctx.font = `400 11px ${FONT}`;
                 const w = Math.min(colW - 4, ctx.measureText(text).width + 14);
                 ctx.fillStyle = chip.bg;
-                roundRect(ctx, cx, cy, w, chipH - 4, 5);
+                roundRect(ctx, cx, cy, w, chipH - 4, 4);
                 ctx.fill();
                 ctx.fillStyle = chip.fg;
                 ctx.fillText(text, cx + 7, cy + (chipH - 4) / 2, w - 12);
@@ -1252,7 +1281,7 @@
             });
           }
 
-          ctx.strokeStyle = "#232532";
+          ctx.strokeStyle = C.hairline;
           ctx.beginPath();
           ctx.moveTo(x, py + h);
           ctx.lineTo(x + panelW, py + h);

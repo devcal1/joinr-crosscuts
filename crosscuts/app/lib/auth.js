@@ -282,9 +282,11 @@ function canonicalPagePath(p) {
 const FORBIDDEN_PAGE =
   '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
   "<title>No access</title>" +
-  "<style>body{font-family:system-ui,sans-serif;background:#1b1d27;color:#e9e9ed;display:flex;min-height:100vh;" +
+  // Inline on purpose: this page cannot load tokens.css. The values are the house tokens
+  // (ink ground, body text, white heading, teal-tint link, Arial).
+  "<style>body{font-family:Arial,Helvetica,sans-serif;background:#101019;color:#d3d4dc;display:flex;min-height:100vh;" +
   "align-items:center;justify-content:center;margin:0}main{max-width:26rem;padding:1.5rem;text-align:center}" +
-  "a{color:#9184d9}</style></head><body><main><h1>No access</h1>" +
+  "h1{color:#fff;font-size:22px;font-weight:700}a{color:#6ee7c9}</style></head><body><main><h1>No access</h1>" +
   "<p>Your account doesn't have permission to open this page.</p>" +
   '<p><a href="/">Back to home</a></p></main></body></html>';
 

@@ -76,7 +76,7 @@ The whole app is re-themed to the house style (`docs/plans/style-plan.md`, appro
 | Step | What happens | Ends with |
 |---|---|---|
 | **M1.2 · 1.1** Plan | review of every page; `style-plan.md`; decisions on the board, worker colours and icons | Todd approves. **Todd** ✂ (done 2026-10-10) |
-| **M1.2 · 1.2** Build | foundations (tokens, shared components, menu bar, the "No access" page); every page; the board and `exportJpg()`; `ci/style-check.sh` in CI; before and after screenshots | committed ✂ |
+| **M1.2 · 1.2** Build | foundations (tokens, shared components, menu bar, the "No access" page); every page; the board and `exportJpg()`; `ci/style-check.js` in CI; before and after screenshots | committed ✂ |
 | **M1.2 · 1.3** Review | Todd looks at the before and after screenshots; changes made | **Todd** ✂ |
 | **M1.2 · 2.1** Release | version 0.1.4; push (Todd OK); CI green; Tenon store pinned and pushed (Todd OK) | **Todd** ✂ |
 | **M1.2 · 2.2** Verify | Todd updates; the pages, the TV board and a JPG export checked on the device | **Todd** ✂ |

@@ -89,6 +89,12 @@ jobs:
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "package.json version '$version' is not MAJOR.MINOR.PATCH" >&2; exit 1; }
           echo "Version: $version"
 
+      # The house style (CLAUDE.md "Look and feel"): no literal colours, shadows,
+      # stray font weights, Inter, or icons outside the board. Fails fast, before
+      # the build.
+      - name: Check the house style
+        run: node ci/style-check.js
+
       - name: Prepare
         run: |
           platform='${{ matrix.platform }}'

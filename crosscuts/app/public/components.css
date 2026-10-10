@@ -1,0 +1,250 @@
+/* House components, shared by every page (loaded through tokens.css). Ported from
+   Offcuts (joinr-offcuts/src/styles.css). The hs- prefix keeps them clear of the
+   board's global classes and the shell's cc- classes.
+
+   Use these instead of writing page-local buttons, badges or inputs:
+     .hs-rule                spectrum rule (5px), at the top and bottom of a page
+     .hs-lockup              "TH CABINETS" wordmark (wrap CABINETS in <b> for teal)
+     .hs-label               small uppercase letterspaced label
+     .hs-btn                 outlined uppercase button. Modifiers: -primary (teal),
+                             -go, -check (orange), -stop (destructive), -quiet (no border)
+     .hs-badge               16% fill + border, uppercase. Modifiers: -teal, -go,
+                             -check, -stop, -violet, -na
+     .hs-pill                outlined rounded tag. Modifiers: -na, -violet, -stop, -check
+     .hs-sectionbar          raised bar with a 4px teal left border; h2 inside.
+                             Modifiers: -orange, -violet
+     .hs-callout             surface panel with a 4px left border; h3 inside.
+                             Modifiers: -orange, -stop
+     .hs-card                surface, hairline border, 6px corners
+     .hs-kvt                 label/value table: alternating .k and .v children
+     .hs-input               text input, select or textarea
+     .hs-disc                numbered disc with the violet-fuchsia gradient
+     .hs-table               plain data table with uppercase label headers */
+
+.hs-rule {
+  display: block;
+  height: var(--rule-h);
+  background: var(--spectrum);
+}
+
+.hs-lockup {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--white);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.hs-lockup b { color: var(--teal); font-weight: 700; }
+
+.hs-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+/* ---------- buttons ---------- */
+
+.hs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.hs-btn:hover { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn-primary { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn-primary:hover { background: var(--teal-16); }
+.hs-btn-go:hover { border-color: var(--go); color: var(--go-tint); }
+.hs-btn-check { border-color: var(--orange); color: var(--orange-tint); }
+.hs-btn-check:hover { background: var(--orange-16); color: var(--orange-tint); border-color: var(--orange); }
+.hs-btn-stop { color: var(--stop-tint); }
+.hs-btn-stop:hover { border-color: var(--stop); color: var(--stop-tint); background: var(--stop-16); }
+.hs-btn-quiet { border-color: transparent; color: var(--label); }
+.hs-btn-quiet:hover { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn:disabled,
+.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+.hs-btn:disabled:hover,
+.hs-btn[aria-disabled="true"]:hover { border-color: var(--na); color: var(--body); background: none; }
+.hs-btn-primary:disabled:hover { border-color: var(--teal); color: var(--teal-tint); }
+
+/* ---------- badges and pills ---------- */
+
+.hs-badge {
+  display: inline-block;
+  border: 1px solid;
+  border-radius: var(--r-badge);
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 17px;
+  white-space: nowrap;
+}
+.hs-badge-teal { background: var(--teal-16); border-color: var(--teal); color: var(--teal-tint); }
+.hs-badge-go { background: var(--go-16); border-color: var(--go); color: var(--go-tint); }
+.hs-badge-check { background: var(--orange-16); border-color: var(--orange); color: var(--orange-tint); }
+.hs-badge-stop { background: var(--stop-16); border-color: var(--stop); color: var(--stop-tint); }
+.hs-badge-violet { background: var(--violet-16); border-color: var(--violet); color: var(--violet-tint); }
+.hs-badge-na { background: transparent; border-color: var(--na); color: var(--label); }
+
+.hs-pill {
+  display: inline-block;
+  border: 1px solid var(--teal);
+  color: var(--teal-tint);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.hs-pill-na { border-color: var(--na); color: var(--label); }
+.hs-pill-violet { border-color: var(--violet); color: var(--violet-tint); }
+.hs-pill-stop { border-color: var(--stop); color: var(--stop-tint); }
+.hs-pill-check { border-color: var(--orange); color: var(--orange-tint); }
+
+/* ---------- structure ---------- */
+
+.hs-sectionbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--raised);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  padding: 6px 12px;
+  min-height: 32px;
+}
+.hs-sectionbar-orange { border-left-color: var(--orange); }
+.hs-sectionbar-violet { border-left-color: var(--violet); }
+.hs-sectionbar h2,
+.hs-sectionbar .hs-sectionbar-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.hs-callout {
+  background: var(--surface);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  padding: 12px;
+}
+.hs-callout-orange { border-left-color: var(--orange); }
+.hs-callout-stop { border-left-color: var(--stop); }
+.hs-callout h3 {
+  margin: 0 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--teal-tint);
+}
+.hs-callout-orange h3 { color: var(--orange-tint); }
+.hs-callout-stop h3 { color: var(--stop-tint); }
+
+.hs-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 12px;
+}
+
+.hs-kvt {
+  display: grid;
+  grid-template-columns: 38% minmax(0, 1fr);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.hs-kvt > div {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline);
+  min-width: 0;
+}
+.hs-kvt > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.hs-kvt .k {
+  display: flex;
+  align-items: center;
+  background: var(--raised);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.hs-kvt .v { background: var(--surface); color: var(--body); }
+
+.hs-table { width: 100%; border-collapse: collapse; }
+.hs-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  white-space: nowrap;
+}
+.hs-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+}
+
+/* ---------- inputs ---------- */
+
+.hs-input {
+  width: 100%;
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.hs-input::placeholder { color: var(--muted); }
+.hs-input:hover { border-color: var(--label); }
+.hs-input:focus { outline: none; border-color: var(--teal); }
+.hs-input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+
+/* ---------- numbered disc ---------- */
+
+.hs-disc {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--step);
+  color: var(--white);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

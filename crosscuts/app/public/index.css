@@ -1,13 +1,12 @@
 @import url('tokens.css');
 
-:root {
-  --color-bg: #12131d;
-  --color-text-muted: color-mix(in srgb, var(--color-text) 62%, transparent);
-}
+/* Dashboard and the placeholder pages (accounts, design, scheduling). House style:
+   hs-sectionbar headings, hs-card tiles, hs-btn links and hs-badge badges come from
+   components.css; this file holds only the layout. */
 
-html, body { margin: 0; background: var(--color-bg); }
+html, body { margin: 0; background: var(--ink); }
 body {
-  color: var(--color-text);
+  color: var(--body);
   font-family: var(--font);
   font-size: 15px;
   line-height: 1.55;
@@ -20,35 +19,23 @@ body {
 }
 
 .dash-head { margin-bottom: 20px; }
-.dash-head h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
-.dash-date { margin: 2px 0 0; color: var(--color-text-muted); font-size: 14px; }
+.dash-head h1 { margin: 0; color: var(--white); font-size: 28px; font-weight: 700; }
+.dash-date { margin: 2px 0 0; color: var(--label); font-size: 14px; }
 
 .week-line {
   display: block;
   margin-bottom: 28px;
-  padding: 12px 16px;
-  color: var(--color-text);
+  color: var(--body);
   text-decoration: none;
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-  border-radius: 10px;
 }
 .week-line[hidden] { display: none; }
-.week-line:hover { border-color: var(--color-accent); }
-.week-line:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.week-line strong { font-weight: 600; }
-.week-line .week-go { float: right; color: var(--color-accent); font-size: 14px; }
+.week-line:hover .week-go { text-decoration: underline; }
+.week-line strong { color: var(--white); font-weight: 700; }
+.week-line .week-go { float: right; color: var(--teal-tint); font-size: 14px; }
 
 .dash-section { margin-bottom: 32px; }
-.dash-h2 {
-  margin: 0 0 12px;
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.dash-empty { color: var(--color-text-muted); }
+.dash-section > .hs-sectionbar { margin-bottom: 12px; }
+.dash-empty { color: var(--label); }
 
 .tiles {
   display: grid;
@@ -60,12 +47,9 @@ body {
   flex-direction: column;
   gap: 6px;
   padding: 18px 18px 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-  border-radius: 12px;
 }
-.tile-title { margin: 0; font-size: 17px; font-weight: 600; }
-.tile-text { margin: 0; color: var(--color-text-muted); font-size: 14px; }
+.tile-title { margin: 0; color: var(--white); font-size: 17px; font-weight: 700; }
+.tile-text { margin: 0; color: var(--label); font-size: 14px; }
 
 .tile-links {
   display: flex;
@@ -74,34 +58,11 @@ body {
   margin-top: auto;
   padding-top: 12px;
 }
-.tile-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 6px 12px;
-  color: var(--color-text);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  border: 1px solid var(--color-divider);
-  border-radius: 8px;
-}
-.tile-link:hover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
-.tile-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.tile-link.is-primary { color: var(--color-accent); border-color: var(--color-accent); }
 
-.tile-later { background: transparent; border-style: dashed; }
-.tile-later .tile-title { color: var(--color-text-muted); }
-.tile-badge {
-  align-self: flex-start;
-  margin: 8px 0 0;
-  padding: 3px 10px;
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  border: 1px solid var(--color-divider);
-  border-radius: 999px;
-}
+/* "Coming later" and "Planned" tiles: a muted card, no accent */
+.tile-later .tile-title,
+.tile-later .tile-text { color: var(--muted); }
+.tile-badge { align-self: flex-start; margin: 8px 0 0; }
 
 @media (max-width: 520px) {
   .dash { padding: 22px 16px 40px; }

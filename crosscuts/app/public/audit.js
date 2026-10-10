@@ -74,7 +74,7 @@
     const tr = el("tr", "row" + (hasDetail ? " has-detail" : ""));
 
     const chev = el("td", "col-chev");
-    if (hasDetail) chev.appendChild(el("span", "chev", "▸"));
+    if (hasDetail) chev.appendChild(el("span", "chev", "Show"));
     tr.appendChild(chev);
 
     tr.appendChild(el("td", "nowrap", fmtTime(row.at)));
@@ -104,6 +104,8 @@
       const toggle = () => {
         const open = tr.classList.toggle("open");
         tr.setAttribute("aria-expanded", String(open));
+        const mark = tr.querySelector(".chev");
+        if (mark) mark.textContent = open ? "Hide" : "Show";
         if (open) {
           tr._detail = renderDetail(row);
           tr.after(tr._detail);

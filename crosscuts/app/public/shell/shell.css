@@ -1,14 +1,8 @@
-/* Crosscuts shared shell: top bar, menus and dialogs.
-   Self-contained: every class is prefixed cc-, nothing styles bare elements,
-   and the bar sets its own colours so it doesn't depend on the page's --color-bg. */
+/* Crosscuts shared shell: top bar, menus and dialogs, in the house style.
+   Self-contained: every class is prefixed cc-, nothing styles bare elements.
+   Colours, type and shape come from tokens.css (shell.js loads it if the page didn't). */
 
 #cc-shell {
-  --cc-bar-bg: #1b1d2b;
-  --cc-bar-fg: #e9e9ed;
-  --cc-bar-muted: #a6a9bd;
-  --cc-bar-accent: #9184d9;
-  --cc-bar-line: rgba(233, 233, 237, 0.14);
-  --cc-bar-hover: rgba(233, 233, 237, 0.08);
   --cc-bar-h: 52px;
   display: block;
   position: sticky;
@@ -23,10 +17,10 @@
   gap: 8px;
   height: var(--cc-bar-h);
   padding: 0 16px;
-  background: var(--cc-bar-bg);
-  color: var(--cc-bar-fg);
-  border-bottom: 1px solid var(--cc-bar-line);
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--ink);
+  color: var(--body);
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--font);
   font-size: 14px;
   line-height: 1.2;
   text-align: left;
@@ -35,26 +29,22 @@
 .cc-bar *::before,
 .cc-bar *::after { box-sizing: border-box; }
 
+/* Brand: the house lockup, then the app name as a quiet label */
 .cc-brand {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: 10px;
   margin-right: 8px;
   padding: 6px 4px;
-  color: var(--cc-bar-fg);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
   text-decoration: none;
-  border-radius: 6px;
   white-space: nowrap;
 }
-.cc-brand::before {
-  content: "";
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  background: var(--cc-bar-accent);
+.cc-brand-app {
+  color: var(--label);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 /* Department links */
@@ -76,36 +66,38 @@
 .cc-group + .cc-group {
   margin-left: 8px;
   padding-left: 10px;
-  border-left: 1px solid var(--cc-bar-line);
+  border-left: 1px solid var(--hairline);
 }
 .cc-group-label {
   display: none;
   margin: 0;
   padding: 10px 12px 2px;
-  color: var(--cc-bar-muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 .cc-link {
   display: inline-flex;
   align-items: center;
-  padding: 7px 10px;
-  color: var(--cc-bar-muted);
-  font-weight: 500;
+  padding: 7px 9px 5px;
+  color: var(--label);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   text-decoration: none;
   white-space: nowrap;
-  border-radius: 6px;
+  border-bottom: 2px solid transparent;
 }
-.cc-link:hover { color: var(--cc-bar-fg); background: var(--cc-bar-hover); }
+.cc-link:hover { color: var(--body); }
 .cc-link[aria-current="page"] {
-  color: var(--cc-bar-fg);
-  box-shadow: inset 0 -2px 0 var(--cc-bar-accent);
-  border-radius: 6px 6px 0 0;
+  color: var(--white);
+  border-bottom-color: var(--teal);
 }
 
-/* Right-hand side: bell and user menu */
+/* Right-hand side: user menu */
 .cc-right {
   display: flex;
   align-items: center;
@@ -113,32 +105,28 @@
   margin-left: auto;
   position: relative;
 }
-.cc-btn,
-.cc-icon-btn {
+.cc-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 6px 10px;
-  font: inherit;
-  font-weight: 500;
-  color: var(--cc-bar-fg);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--body);
+  background: none;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
   cursor: pointer;
 }
-.cc-icon-btn { padding: 6px 8px; font-size: 18px; }
 .cc-btn:hover:not(:disabled),
-.cc-icon-btn:hover:not(:disabled) { background: var(--cc-bar-hover); }
-.cc-icon-btn:disabled { color: var(--cc-bar-muted); opacity: 0.55; cursor: not-allowed; }
-.cc-bar :focus-visible,
-.cc-dialog :focus-visible {
-  outline: 2px solid var(--cc-bar-accent);
-  outline-offset: 2px;
-}
-.cc-bar .ph, .cc-dialog .ph { line-height: 1; }
-.cc-user-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-btn[aria-expanded="true"] { border-color: var(--teal); color: var(--teal-tint); }
+.cc-user-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .cc-menu-btn { display: none; }
 
@@ -149,35 +137,35 @@
   right: 0;
   min-width: 200px;
   padding: 6px;
-  background: #232532;
-  border: 1px solid var(--cc-bar-line);
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
 }
 .cc-menu[hidden] { display: none; }
 .cc-menu-head {
   padding: 8px 10px 6px;
-  color: var(--cc-bar-muted);
-  font-size: 12px;
+  color: var(--label);
+  font-size: 11px;
 }
-.cc-menu-head strong { display: block; color: var(--cc-bar-fg); font-size: 14px; font-weight: 600; }
+.cc-menu-head strong { display: block; color: var(--white); font-size: 13px; font-weight: 700; }
 .cc-menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   padding: 8px 10px;
-  font: inherit;
-  color: var(--cc-bar-fg);
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--body);
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-control);
   text-align: left;
   cursor: pointer;
 }
 .cc-menu-item:hover,
-.cc-menu-item:focus-visible { background: var(--cc-bar-hover); }
-.cc-menu-sep { height: 1px; margin: 6px 4px; background: var(--cc-bar-line); border: 0; }
+.cc-menu-item:focus-visible { background: var(--raised); color: var(--white); }
+.cc-menu-sep { height: 1px; margin: 6px 4px; background: var(--hairline); border: 0; }
 
 /* Narrow screens: links collapse into a menu */
 @media (max-width: 1099px) {
@@ -193,59 +181,61 @@
     align-items: stretch;
     gap: 0;
     padding: 6px 12px 12px;
-    background: var(--cc-bar-bg);
-    border-bottom: 1px solid var(--cc-bar-line);
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
-    max-height: calc(100vh - var(--cc-bar-h));
+    background: var(--ink);
+    border-bottom: 1px solid var(--hairline);
+    max-height: calc(100vh - var(--cc-bar-h) - var(--rule-h));
     overflow-y: auto;
   }
   .cc-nav.cc-open { display: flex; }
   .cc-group { flex-direction: column; align-items: stretch; gap: 0; }
-  .cc-group + .cc-group { margin-left: 0; padding-left: 0; border-left: 0; border-top: 1px solid var(--cc-bar-line); margin-top: 6px; padding-top: 2px; }
+  .cc-group + .cc-group { margin-left: 0; padding-left: 0; border-left: 0; border-top: 1px solid var(--hairline); margin-top: 6px; padding-top: 2px; }
   .cc-group-label { display: block; }
-  .cc-link { padding: 10px 12px; }
-  .cc-link[aria-current="page"] { box-shadow: inset 3px 0 0 var(--cc-bar-accent); border-radius: 6px; }
+  .cc-link { padding: 10px 12px; border-bottom: 0; border-left: 2px solid transparent; }
+  .cc-link[aria-current="page"] { border-left-color: var(--teal); }
 }
 @media (max-width: 520px) {
-  .cc-user-name { display: none; }
+  .cc-brand-app { display: none; }
   .cc-bar { padding: 0 10px; }
+  .cc-user-name { max-width: 10ch; }
 }
 
 /* Dialogs (change password, set PIN) */
 .cc-dialog {
   width: min(92vw, 400px);
   padding: 0;
-  color: #e9e9ed;
-  background: #232532;
-  border: 1px solid rgba(233, 233, 237, 0.2);
-  border-radius: 12px;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--body);
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+  font-family: var(--font);
   font-size: 14px;
   line-height: 1.45;
 }
-.cc-dialog::backdrop { background: rgba(5, 5, 10, 0.65); }
+.cc-dialog::backdrop { background: var(--backdrop); }
 .cc-dialog *, .cc-dialog *::before, .cc-dialog *::after { box-sizing: border-box; }
 .cc-dialog-form { display: flex; flex-direction: column; gap: 12px; padding: 20px; margin: 0; }
-.cc-dialog-title { margin: 0; font-size: 17px; font-weight: 600; }
-.cc-dialog-note { margin: 0; color: #a6a9bd; font-size: 13px; }
+.cc-dialog-title { margin: 0; color: var(--white); font-size: 16px; font-weight: 700; }
+.cc-dialog-note { margin: 0; color: var(--label); font-size: 13px; }
 .cc-field { display: flex; flex-direction: column; gap: 4px; }
-.cc-field-label { font-size: 12px; color: #c4c6d4; }
-.cc-input {
-  width: 100%;
-  min-height: 38px;
-  padding: 6px 10px;
-  font: inherit;
-  color: #e9e9ed;
-  background: #1a1c28;
-  border: 1px solid rgba(233, 233, 237, 0.2);
-  border-radius: 8px;
+.cc-field-label {
+  color: var(--label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
-.cc-input:focus-visible { outline: none; border-color: #9184d9; box-shadow: 0 0 0 2px rgba(145, 132, 217, 0.35); }
-.cc-dialog-error { min-height: 18px; margin: 0; color: #e8909f; font-size: 13px; }
-.cc-dialog-ok { color: #7fd28f; }
+.cc-dialog-error { min-height: 18px; margin: 0; color: var(--stop-tint); font-size: 13px; }
+.cc-dialog-error.cc-dialog-ok { color: var(--go-tint); }
 .cc-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.cc-dialog-actions .cc-btn { border-color: rgba(233, 233, 237, 0.2); color: #e9e9ed; padding: 8px 14px; }
-.cc-dialog-actions .cc-btn-primary { color: #9184d9; border-color: #9184d9; }
-.cc-dialog-actions .cc-btn-primary:hover:not(:disabled) { background: rgba(145, 132, 217, 0.14); }
-.cc-dialog-actions .cc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.cc-dialog-actions .cc-btn-quiet { margin-right: auto; border-color: transparent; color: #a6a9bd; }
+.cc-dialog-actions .hs-btn-quiet { margin-right: auto; }
+
+/* The bottom spectrum rule sits on the window's bottom edge, as in Offcuts, on short pages
+   too. A matching gap after the content keeps the last line clear of it. */
+.cc-foot-rule {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 150;
+}
+body:has(> .cc-foot-rule) { padding-bottom: var(--rule-h); }

@@ -14,34 +14,34 @@
     <h1>Audit log</h1>
     <p class="text-muted">Read-only record of sign-ins, user changes and job changes. Times are Sydney local time. Entries can't be edited or deleted.</p>
 
-    <form class="card filters" id="filters" autocomplete="off">
+    <form class="hs-card filters" id="filters" autocomplete="off">
       <div class="field">
         <label for="f-actor">User (id or username)</label>
-        <input class="input" id="f-actor" type="text" placeholder="e.g. 3 or todd">
+        <input class="hs-input" id="f-actor" type="text" placeholder="e.g. 3 or todd">
       </div>
       <div class="field">
         <label for="f-action">Action</label>
-        <select class="input" id="f-action"><option value="">All actions</option></select>
+        <select class="hs-input" id="f-action"><option value="">All actions</option></select>
       </div>
       <div class="field">
         <label for="f-etype">Entity type</label>
-        <input class="input" id="f-etype" type="text" placeholder="e.g. user, job">
+        <input class="hs-input" id="f-etype" type="text" placeholder="e.g. user, job">
       </div>
       <div class="field">
         <label for="f-eid">Entity id</label>
-        <input class="input" id="f-eid" type="text">
+        <input class="hs-input" id="f-eid" type="text">
       </div>
       <div class="field">
         <label for="f-from">From</label>
-        <input class="input" id="f-from" type="date">
+        <input class="hs-input" id="f-from" type="date">
       </div>
       <div class="field">
         <label for="f-to">To</label>
-        <input class="input" id="f-to" type="date">
+        <input class="hs-input" id="f-to" type="date">
       </div>
       <div class="filter-buttons">
-        <button class="btn btn-primary" type="submit">Apply</button>
-        <button class="btn btn-secondary" type="button" id="f-reset">Reset</button>
+        <button class="hs-btn hs-btn-primary" type="submit">Apply</button>
+        <button class="hs-btn" type="button" id="f-reset">Reset</button>
       </div>
     </form>
 
@@ -49,16 +49,16 @@
       <span class="text-muted" id="count">Loading…</span>
       <span class="spacer"></span>
       <span class="pager">
-        <button class="btn btn-secondary" id="prev" type="button">Previous</button>
+        <button class="hs-btn" id="prev" type="button">Previous</button>
         <span class="text-muted" id="page-info"></span>
-        <button class="btn btn-secondary" id="next" type="button">Next</button>
+        <button class="hs-btn" id="next" type="button">Next</button>
       </span>
     </div>
 
     <div class="table-wrap">
-      <table class="audit-table">
+      <table class="audit-table hs-table">
         <thead>
-          <tr><th class="col-chev"></th><th>Time</th><th>Who</th><th>Action</th><th>Entity</th><th>IP</th></tr>
+          <tr><th class="col-chev"><span class="sr-only">Details</span></th><th>Time</th><th>Who</th><th>Action</th><th>Entity</th><th>IP</th></tr>
         </thead>
         <tbody id="rows"></tbody>
       </table>

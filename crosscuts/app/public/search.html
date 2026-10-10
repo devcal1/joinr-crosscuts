@@ -4,22 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TH Cabinets — Job Photo Search</title>
+<link rel="icon" href="logo.png">
 <link rel="stylesheet" href="search.css">
-<link rel="stylesheet" href="vendor/phosphor/style.css">
 </head>
 <body>
-
-  <div class="banner-bar">
-    <img src="assets/th-header-banner.png" alt="TH Cabinets">
-  </div>
+  <div class="hs-rule"></div>
 
   <div class="hero">
-    <div class="hero-logo">
-      <img src="logo.png" alt="TH Cabinets">
+    <div class="hero-lockup">
+      <span class="hs-lockup">TH <b>CABINETS</b></span>
+      <span class="hero-sub">Job photo search</span>
     </div>
     <div class="search-wrap">
-      <i class="ph ph-magnifying-glass"></i>
-      <input class="input" id="search-input" type="text" placeholder="Dream in oak, ask in words..." autocomplete="off">
+      <input class="hs-input" id="search-input" type="text" placeholder="Dream in oak, ask in words..." autocomplete="off">
     </div>
   </div>
 
@@ -29,7 +26,6 @@
     </div>
     <div class="grid" id="grid"></div>
     <div class="empty-state" id="empty-state" style="display:none">
-      <i class="ph ph-image-broken"></i>
       No photos match those filters.
     </div>
   </div>
@@ -37,11 +33,11 @@
   <div class="dialog-backdrop" id="lightbox">
     <div class="dialog">
       <img id="lightbox-img" src="" alt="">
-      <button class="btn btn-icon btn-secondary" id="lightbox-close" aria-label="Close">
-        <i class="ph ph-x"></i>
-      </button>
+      <button class="hs-btn" id="lightbox-close" type="button">Close</button>
     </div>
   </div>
+
+  <div class="hs-rule"></div>
 
   <script src="vendor/fuse.min.js"></script>
   <script src="search.js"></script>

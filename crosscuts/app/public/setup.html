@@ -4,33 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Set up - Crosscuts</title>
+  <link rel="icon" href="logo.png">
   <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/login.css">
 </head>
 <body>
-  <main class="card">
-    <h1 class="brand">Crosscuts</h1>
+  <div class="hs-rule"></div>
+  <div class="page">
+  <main class="card hs-card">
+    <h1 class="brand"><span class="hs-lockup">TH <b>CABINETS</b></span><span class="brand-app">Crosscuts</span></h1>
     <p id="loading" class="muted">Loading...</p>
 
     <form id="form-setup" class="stack" hidden autocomplete="off">
       <h2>Create the first administrator</h2>
       <p class="muted">This only works once. You can add other people from the user admin page afterwards.</p>
       <label>Username
-        <input id="setup-username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="2" maxlength="64" required>
+        <input class="hs-input" id="setup-username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="2" maxlength="64" required>
       </label>
       <label>Display name
-        <input id="setup-display" type="text" autocomplete="name" maxlength="100" required>
+        <input class="hs-input" id="setup-display" type="text" autocomplete="name" maxlength="100" required>
       </label>
       <label>Password (at least 8 characters)
-        <input id="setup-password" type="password" autocomplete="new-password" minlength="8" required>
+        <input class="hs-input" id="setup-password" type="password" autocomplete="new-password" minlength="8" required>
       </label>
       <label>Confirm password
-        <input id="setup-confirm" type="password" autocomplete="new-password" minlength="8" required>
+        <input class="hs-input" id="setup-confirm" type="password" autocomplete="new-password" minlength="8" required>
       </label>
-      <button type="submit" class="primary">Create administrator</button>
+      <button type="submit" class="hs-btn hs-btn-primary">Create administrator</button>
       <p class="error" role="alert" data-error></p>
     </form>
   </main>
+  </div>
+  <div class="hs-rule"></div>
   <script src="/setup.js"></script>
 </body>
 </html>

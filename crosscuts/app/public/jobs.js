@@ -14,6 +14,22 @@
   ];
   const STAGE_LABEL = Object.fromEntries(STAGES);
 
+  // Stage badge classes. Teal for work in hand, orange for "attend to this" (ready to cut),
+  // green for finished, neutral for the rest (dimmed once lost or archived).
+  const STAGE_BADGE = {
+    lead: "hs-badge-na",
+    quoted: "hs-badge-na",
+    won: "hs-badge-teal",
+    design_ordering: "hs-badge-teal",
+    ready_to_cut: "hs-badge-check",
+    on_board: "hs-badge-teal",
+    complete: "hs-badge-go",
+    invoiced: "hs-badge-go",
+    lost: "hs-badge-na stage-dim",
+    archived: "hs-badge-na stage-dim",
+  };
+  const stageClass = (s) => "hs-badge " + (STAGE_BADGE[s] || "hs-badge-na");
+
   // The shell (public/shell/shell.js) may expose window.cc.can(key). Without
   // it, assume allowed: the server is what actually enforces permissions.
   function can(key) {
@@ -53,6 +69,7 @@
   }
   refreshNewButton();
   window.addEventListener("load", refreshNewButton);
+  document.addEventListener("cc:ready", refreshNewButton);
 
   let seq = 0;
   async function load() {
@@ -96,7 +113,7 @@
         tr.append(
           nameCell,
           el("td", { text: j.clientName || "" }),
-          el("td", {}, el("span", { class: "stage stage-" + j.stage, text: STAGE_LABEL[j.stage] || "No stage" })),
+          el("td", {}, el("span", { class: stageClass(j.stage), text: STAGE_LABEL[j.stage] || "No stage" })),
           el("td", { text: fmtDate(j.promisedInstallDate) }),
           el("td", { class: "num", text: j.sheetCount == null ? "" : String(j.sheetCount) })
         );

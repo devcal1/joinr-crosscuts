@@ -138,7 +138,7 @@
   function makeTagChip(tag, onPick) {
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "tag-chip";
+    chip.className = "tag-chip hs-pill";
     chip.textContent = tag;
     chip.addEventListener("click", async () => {
       try {
@@ -202,7 +202,7 @@
 
     const tagsTd = document.createElement("td");
     const tagsField = document.createElement("input");
-    tagsField.className = "input tags-input";
+    tagsField.className = "hs-input tags-input";
     tagsField.value = photo.tags || "";
     tagsField.addEventListener("change", async () => {
       try {
@@ -216,11 +216,11 @@
     const addTagRow = document.createElement("div");
     addTagRow.className = "add-tag-row";
     const addTagInput = document.createElement("input");
-    addTagInput.className = "input";
+    addTagInput.className = "hs-input";
     addTagInput.placeholder = "add a tag…";
     const addTagBtn = document.createElement("button");
     addTagBtn.type = "button";
-    addTagBtn.className = "btn btn-secondary";
+    addTagBtn.className = "hs-btn";
     addTagBtn.textContent = "+";
     const appendTag = async () => {
       const newTags = splitTags(addTagInput.value);
@@ -250,7 +250,7 @@
 
     const rowSuggestBtn = document.createElement("button");
     rowSuggestBtn.type = "button";
-    rowSuggestBtn.className = "btn btn-secondary row-suggest-btn";
+    rowSuggestBtn.className = "hs-btn row-suggest-btn";
     rowSuggestBtn.textContent = "Suggest tags";
 
     const rowChips = document.createElement("div");
@@ -299,7 +299,7 @@
     actions.className = "row-actions";
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
-    deleteBtn.className = "btn btn-ghost";
+    deleteBtn.className = "hs-btn hs-btn-stop";
     deleteBtn.textContent = "Delete";
     deleteBtn.addEventListener("click", async () => {
       if (!confirm("Delete this photo? This can't be undone.")) return;
@@ -496,7 +496,7 @@
 
       const tagTd = document.createElement("td");
       const tagInput = document.createElement("input");
-      tagInput.className = "input tags-input";
+      tagInput.className = "hs-input tags-input";
       tagInput.value = folder.toLowerCase();
       tagTd.appendChild(tagInput);
       tr.appendChild(tagTd);

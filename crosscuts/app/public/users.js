@@ -106,14 +106,14 @@
         h(
           "td",
           { class: "roles" },
-          u.roles.length ? u.roles.map((r) => h("span", { class: "badge", text: roleLabel(r) })) : h("span", { class: "text-muted", text: "none" }),
-          u.overrides.length ? h("span", { class: "badge badge-warn", text: `${u.overrides.length} override${u.overrides.length === 1 ? "" : "s"}` }) : null
+          u.roles.length ? u.roles.map((r) => h("span", { class: "hs-pill hs-pill-na", text: roleLabel(r) })) : h("span", { class: "text-muted", text: "none" }),
+          u.overrides.length ? h("span", { class: "hs-pill hs-pill-check", text: `${u.overrides.length} override${u.overrides.length === 1 ? "" : "s"}` }) : null
         ),
         h(
           "td",
           {},
-          u.disabled ? h("span", { class: "badge badge-bad", text: "Disabled" }) : h("span", { class: "badge badge-ok", text: "Active" }),
-          u.mustChangePassword ? h("span", { class: "badge badge-warn", text: "Must change password" }) : null
+          u.disabled ? h("span", { class: "hs-badge hs-badge-stop", text: "Disabled" }) : h("span", { class: "hs-badge hs-badge-go", text: "Active" }),
+          u.mustChangePassword ? h("span", { class: "hs-badge hs-badge-check", text: "Must change password" }) : null
         ),
         h("td", { text: fmtDate(u.lastLoginAt) }),
         h("td", { class: "num", text: String(u.activeSessions) })
@@ -149,7 +149,7 @@
 
     const tog = $("toggleDisabled");
     tog.textContent = u.disabled ? "Enable account" : "Disable account";
-    tog.classList.toggle("btn-danger", !u.disabled);
+    tog.classList.toggle("hs-btn-stop", !u.disabled);
     tog.disabled = self && !u.disabled;
     tog.title = self && !u.disabled ? "You can't disable your own account" : "";
 
@@ -193,7 +193,7 @@
     const box = $("effectiveChips");
     box.innerHTML = "";
     if (!u.perms.length) box.append(h("span", { class: "text-muted", text: "No permissions." }));
-    for (const k of u.perms) box.append(h("span", { class: "chip" + (preset.has(k) ? "" : " granted"), text: k, title: preset.has(k) ? "From role" : "Granted by override" }));
+    for (const k of u.perms) box.append(h("span", { class: "chip hs-pill " + (preset.has(k) ? "hs-pill-na" : "granted"), text: k, title: preset.has(k) ? "From role" : "Granted by override" }));
   }
 
   // --- Actions ---

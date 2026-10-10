@@ -4,7 +4,7 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 ## Now (2026-10-10)
 
-- **Milestones:** **M1.1 Maintenance**: 0.1.3 (Node 24, sharp 0.35) is on the device and verified over Tailscale. 5.1 (Actions) is committed locally and ships with 0.1.4. The LAN check is due Monday 12 Oct. **M1.2 House style**: plan approved 2026-10-10 (`docs/plans/style-plan.md`). **Now: M1.2 · 1.2 build.** M1 is CLOSED.
+- **Milestones:** **M1.1 Maintenance**: 0.1.3 (Node 24, sharp 0.35) is on the device and verified over Tailscale. 5.1 (Actions) is committed locally and ships with 0.1.4. The LAN check is due Monday 12 Oct. **M1.2 House style**: plan approved 2026-10-10 (`docs/plans/style-plan.md`). **Now: M1.2 · 1.3 (Todd reviews the re-theme).** M1 is CLOSED.
 - **M1 · 6.1 results:** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), so Umbrel proxy login is not in front of the app.
 - **M1 · 6.2 results (Tailscale, `100.111.185.96:4933`), all PASS:**
   - logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login
@@ -23,8 +23,9 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **M1.1 · 4.3 PASSED over Tailscale (2026-10-10):** Todd updated to 0.1.3 (Node 24 + sharp 0.35) and uploaded a portrait phone photo; it displays vertical (EXIF orientation applied).
 - **M1.1 · 5.1 done (local, `77e9b3a`):** actions on Node-24 majors; release notes checked; no version bump (it rides with 0.1.4).
 - **M1.2 decisions (Todd 2026-10-10):** the board is re-themed (colours, type, buttons and shadows only; layout untouched; mirrored in `exportJpg()`); worker colours are kept; text labels on the menu bar and pages, but the board keeps its icon buttons. `CLAUDE.md` non-negotiable 7 and "Look and feel" are updated to match.
-- **Next action (M1.2 · 1.2, no Todd needed):** take before screenshots locally; build foundations, then pages and board in parallel, then `ci/style-check.sh`; take after screenshots for Todd (1.3).
-- **Waiting on Todd:** the LAN check above.
+- **M1.2 · 1.2 done (local):** new `tokens.css` (house tokens with the old names aliased) and `components.css` (`hs-` components ported from Offcuts). Every page, the shell, the server's "No access" page, the board and `exportJpg()` are re-themed. Inter is removed (the vendored font is deleted). Phosphor icons remain only on the board. The bell is removed, and the photo-search logo image is replaced by the text lockup. The job pages now also re-check edit rights on `cc:ready`; before, they could show read-only to editors. `ci/style-check.js` passes and runs in CI before the build. The Actions upgrade (`77e9b3a`) and this both ship in 0.1.4 (version not yet bumped).
+- **Next action (M1.2 · 1.3, needs Todd):** Todd reviews the before and after page (artifact) and the judgement calls listed on it. Then bump to 0.1.4, push (Todd OK), CI, pin the store (Todd OK), Update, and device checks including the TV and a JPG export.
+- **Waiting on Todd:** review of the M1.2 before and after page; the LAN check on Monday 12 Oct.
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
   - The shell's purple accent (`--cc-bar-accent: #9184d9`) is off the house style (teal `#17C8A0` is the only working accent; see CLAUDE.md "Look and feel", added 2026-10-10). Re-theme it the next time the shell is touched, likely M2.
@@ -76,3 +77,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: tenon-umbrel-store pushed (`81bfb3e`, Todd OK): 0.1.3 offered. Next: device checks (M1.1 · 4.3).
 - 2026-10-10: M1.1 · 4.3 passed on 0.1.3 (portrait photo upright). Next 5.1 (Actions).
 - 2026-10-10: M1.1 · 5.1 committed locally. House-style review done; M1.2 plan approved with decisions (board re-themed, worker colours kept, board icons kept).
+- 2026-10-10: M1.2 · 1.2 built locally (whole app re-themed, style check in CI, before and after screenshots). Next: Todd's review (1.3).
