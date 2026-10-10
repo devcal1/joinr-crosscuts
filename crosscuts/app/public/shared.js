@@ -6,6 +6,12 @@ async function api(path, options) {
     ...options,
     headers: { "Content-Type": "application/json", ...(options && options.headers) },
   });
+  if (res.status === 401 && !location.pathname.startsWith("/login.html")) {
+    const body = await res.json().catch(() => ({}));
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.href = (body.locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
+    return new Promise(() => {}); // never resolves: the page is navigating away, so callers must not toast
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed (${res.status})`);

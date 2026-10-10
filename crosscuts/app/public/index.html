@@ -3,124 +3,46 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TH Cabinets</title>
-<style>
-  :root {
-    color-scheme: dark;
-    --bg: #0a0607;
-    --fg: #f5f6f8;
-    --muted: #6b7280;
-    --accent: #9184d9;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    height: 100%;
-    margin: 0;
-  }
-  body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  .splash {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
-    padding: 32px;
-    text-align: center;
-    animation: fade-in 0.6s ease-out;
-  }
-  #logo {
-    max-width: min(70vw, 420px);
-    max-height: 35vh;
-    display: none;
-  }
-  #logo.loaded {
-    display: block;
-  }
-  #placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  #placeholder.hidden {
-    display: none;
-  }
-  .mark {
-    width: 96px;
-    height: 96px;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #2ecc71, #d6249f, #f79420);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    font-weight: 700;
-  }
-  .hint {
-    color: var(--muted);
-    font-size: 14px;
-    max-width: 320px;
-    line-height: 1.5;
-  }
-  .hint code {
-    color: var(--fg);
-    background: #1a1d24;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 13px;
-  }
-  .btn-row {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 8px;
-  }
-  .btn-photos {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    border: 1px solid var(--accent);
-    border-radius: 8px;
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    transition: background 0.15s;
-  }
-  .btn-photos:hover {
-    background: rgba(145, 132, 217, 0.12);
-  }
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-</style>
+<title>Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="index.css">
 </head>
 <body>
-  <div class="splash">
-    <img id="logo" src="logo.png" alt="TH Cabinets logo"
-         onload="this.classList.add('loaded'); document.getElementById('placeholder').classList.add('hidden');"
-         onerror="this.remove();">
-    <div id="placeholder">
-      <div class="mark">TH</div>
-      <div class="hint">
-        The logo couldn't load — check that <code>logo.png</code> is present in
-        <code>app/public/</code> in the deployed image.
+  <div id="cc-shell"></div>
+
+  <main class="dash">
+    <header class="dash-head">
+      <h1 id="greeting">Hello</h1>
+      <p class="dash-date" id="today"></p>
+    </header>
+
+    <a class="week-line" id="week-line" href="/schedule.html" hidden></a>
+
+    <section class="dash-section" aria-labelledby="depts-h">
+      <h2 class="dash-h2" id="depts-h">Your departments</h2>
+      <div class="tiles" id="tiles"></div>
+      <p class="dash-empty" id="tiles-empty" hidden>Nothing has been switched on for your account yet. Ask an administrator which sections you should see.</p>
+    </section>
+
+    <section class="dash-section" aria-labelledby="later-h">
+      <h2 class="dash-h2" id="later-h">Coming later</h2>
+      <div class="tiles">
+        <article class="tile tile-later">
+          <h3 class="tile-title">My tasks</h3>
+          <p class="tile-text">Tasks assigned to you will collect here.</p>
+          <p class="tile-badge">Coming in a later update</p>
+        </article>
+        <article class="tile tile-later">
+          <h3 class="tile-title">Notifications</h3>
+          <p class="tile-text">Messages and alerts will show here, and in the bell at the top.</p>
+          <p class="tile-badge">Coming in a later update</p>
+        </article>
       </div>
-    </div>
-    <div class="btn-row">
-      <a class="btn-photos" href="/search.html">View Job Photos</a>
-      <a class="btn-photos" href="/admin.html">Upload Photos</a>
-      <a class="btn-photos" href="/schedule.html">Schedule</a>
-    </div>
-  </div>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="shell/shell.js"></script>
+  <script src="index.js"></script>
 </body>
 </html>

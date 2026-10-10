@@ -1,4 +1,17 @@
 (function () {
+  // Logged out (or locked) mid-session: go to the login page instead of showing an error.
+  // The promise never resolves because the page is navigating away.
+  async function authFetch(url, options) {
+    const res = await fetch(url, options);
+    if (res.status === 401 && !location.pathname.startsWith("/login.html")) {
+      const body = await res.clone().json().catch(() => ({}));
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = (body.locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
+      return new Promise(() => {});
+    }
+    return res;
+  }
+
   const form = document.getElementById("upload-form");
   const filesInput = document.getElementById("files");
   const tagsInput = document.getElementById("tags");
@@ -65,7 +78,7 @@
   }
 
   async function saveTags(photoId, value) {
-    const res = await fetch(`/api/photos/${photoId}`, {
+    const res = await authFetch(`/api/photos/${photoId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tags: value }),
@@ -76,7 +89,7 @@
   async function suggestTagsForFile(file) {
     const formData = new FormData();
     formData.append("photo", file);
-    const res = await fetch("/api/suggest-tags", { method: "POST", body: formData });
+    const res = await authFetch("/api/suggest-tags", { method: "POST", body: formData });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = new Error(body.error || "Failed to get suggestions");
@@ -87,7 +100,7 @@
   }
 
   async function fetchPhotoAsFile(url) {
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (!res.ok) throw new Error("Couldn't load the photo");
     const blob = await res.blob();
     return new File([blob], "photo", { type: blob.type || "image/webp" });
@@ -162,7 +175,7 @@
         const formData = new FormData();
         for (const file of chunk) formData.append("photos", file);
         formData.append("tags", tags);
-        const res = await fetch("/api/photos", { method: "POST", body: formData });
+        const res = await authFetch("/api/photos", { method: "POST", body: formData });
         const body = await res.json().catch(() => ({}));
         if (!res.ok && !body.created) {
           throw new Error(body.error || "Upload failed");
@@ -291,7 +304,7 @@
     deleteBtn.addEventListener("click", async () => {
       if (!confirm("Delete this photo? This can't be undone.")) return;
       try {
-        const res = await fetch(`/api/photos/${photo.id}`, { method: "DELETE" });
+        const res = await authFetch(`/api/photos/${photo.id}`, { method: "DELETE" });
         if (!res.ok) throw new Error();
         tr.remove();
       } catch {
@@ -308,7 +321,7 @@
   async function loadPhotos() {
     tbody.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
     try {
-      const res = await fetch("/api/photos");
+      const res = await authFetch("/api/photos");
       const photos = await res.json();
       tbody.innerHTML = "";
       if (photos.length === 0) {
