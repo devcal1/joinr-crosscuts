@@ -36,7 +36,11 @@ function getAll(db) {
   return out;
 }
 
+// Upserts one setting. Unknown keys are a programming error, not user input.
 function set(db, key, value, req) {
+  if (!Object.prototype.hasOwnProperty.call(DEFAULTS, key)) {
+    throw new Error(`Unknown setting key: ${key}`);
+  }
   const before = get(db, key);
   const v = value == null ? null : String(value);
   db.prepare(

@@ -32,10 +32,13 @@ function usersWithKey(db, featureKey) {
     .map((u) => u.id);
 }
 
+// One row for each of those users; returns how many were notified.
 function toKey(db, featureKey, payload) {
-  const ids = usersWithKey(db, featureKey);
-  for (const id of ids) toUser(db, id, payload);
-  return ids.length;
+  return db.transaction(() => {
+    const ids = usersWithKey(db, featureKey);
+    for (const id of ids) toUser(db, id, payload);
+    return ids.length;
+  })();
 }
 
 module.exports = { toUser, toKey, usersWithKey };
