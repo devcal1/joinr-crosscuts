@@ -36,7 +36,7 @@ function nowIso() {
 // Set the stage if it actually changes. Writes stage_changed_at and updated_at
 // (plus any extra columns, e.g. completed_date) and audits job.stage.
 // Returns true when something changed. `extra` keys are trusted column names.
-function setStage(db, jobId, to, req, extra) {
+function setStage(db, jobId, to, req, extra, auditExtra) {
   const job = db.prepare("SELECT stage FROM jobs WHERE id = ?").get(jobId);
   if (!job || job.stage === to) return false;
   const now = nowIso();
@@ -52,7 +52,7 @@ function setStage(db, jobId, to, req, extra) {
     entityType: "job",
     entityId: jobId,
     before: { stage: job.stage },
-    after: { stage: to },
+    after: { stage: to, ...(auditExtra || {}) },
   });
   return true;
 }
@@ -103,11 +103,11 @@ function onSentToBacklog(db, jobId, req, referenceMonday) {
 // Finish week "complete": complete + completed_date, unless already complete/invoiced.
 // After a successful change the invoice hook runs (the final falls due).
 // `completedDate` (a validated Sydney date) is used instead of today when given.
-function onFinishedComplete(db, jobId, req, completedDate) {
+function onFinishedComplete(db, jobId, req, completedDate, auditExtra) {
   return safely("onFinishedComplete", () => {
     const job = db.prepare("SELECT stage FROM jobs WHERE id = ?").get(jobId);
     if (!job || job.stage === "complete" || job.stage === "invoiced") return false;
-    const changed = setStage(db, jobId, "complete", req, { completed_date: completedDate || sydneyToday() });
+    const changed = setStage(db, jobId, "complete", req, { completed_date: completedDate || sydneyToday() }, auditExtra);
     if (changed) invoices.onCompleted(db, jobId, req);
     return changed;
   });
@@ -197,9 +197,13 @@ function moveStage(db, jobId, { stage, from } = {}, req, { override = false } = 
   if (stage === current) return { changed: false, from: current, to: stage, toStart: null };
 
   if (!override) {
-    if (!allowedTargets(current).includes(stage)) {
-      throw conflict(current === "on_board" ? ON_BOARD_MSG : DONE_MSG);
-    }
+    // A job with current or future week rows is on the board, whatever its stage
+    // (e.g. a lost job that still has rows): it moves from the board. Complete and
+    // invoiced jobs are exempt: their rows are finished work (Finish week leaves the
+    // current week's row), and they can only go to archived anyway.
+    const finished = current === "complete" || current === "invoiced";
+    if (current === "on_board" || (!finished && hasCurrentOrFutureRows(db, jobId))) throw conflict(ON_BOARD_MSG);
+    if (!allowedTargets(current).includes(stage)) throw conflict(DONE_MSG);
   } else if (current === "on_board" && hasCurrentOrFutureRows(db, jobId)) {
     throw conflict(ON_BOARD_MSG);
   }
@@ -229,7 +233,9 @@ function moveStage(db, jobId, { stage, from } = {}, req, { override = false } = 
     let toStart = null;
     if (stage === "ready_to_cut") {
       if (addToBacklog(db, jobId)) toStart = "added";
-    } else if (current === "ready_to_cut") {
+    } else if (current === "ready_to_cut" || stage === "archived" || stage === "lost") {
+      // Leaving ready_to_cut, or going to archived or lost from anywhere, takes the
+      // job off To start (a no-op when it has no row, or has current or future rows).
       if (removeFromBacklog(db, jobId)) toStart = "removed";
     }
     if (toStart) after.toStart = toStart;

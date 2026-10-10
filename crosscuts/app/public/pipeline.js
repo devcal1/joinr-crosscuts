@@ -62,6 +62,25 @@
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
     return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + n)).toISOString().slice(0, 10);
   }
+  // This Sydney week's Monday (YYYY-MM-DD), to match lib/time.js sydneyMonday.
+  function sydneyMondayStr() {
+    const t = todayStr();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+    const dow = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay(); // 0 = Sunday
+    return addDays(t, -((dow + 6) % 7));
+  }
+  // The server refuses a hand move while the job has week rows this week or later,
+  // whatever its stage (m3 review fix 3). onBoardWeeks lists its week starts.
+  function boardLocked(j) {
+    if (j.stage === "on_board") return true;
+    // Complete and invoiced are exempt (finished rows; archived is their only target).
+    if (j.stage === "complete" || j.stage === "invoiced") return false;
+    const mon = sydneyMondayStr();
+    return Array.isArray(j.onBoardWeeks) && j.onBoardWeeks.some((w) => w >= mon);
+  }
+  function targetsFor(j) {
+    return boardLocked(j) ? [] : allowedTargets(j.stage);
+  }
   function fmtShort(s, thisYear) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
     if (!m) return "";
@@ -186,8 +205,20 @@
     return String(a.name).localeCompare(String(b.name), undefined, { sensitivity: "base" });
   }
 
+  // The date the 60-day cap counts from. Complete: the completed date, else the last
+  // board week, else none (treated as old: migration 003 sets stage_changed_at to the
+  // cutover time on every backfilled job). Invoiced: stage_changed_at, which only a real
+  // final-invoice issue sets.
+  function recencyDate(j) {
+    if (j.stage === "complete") {
+      if (j.completedDate) return j.completedDate;
+      const w = Array.isArray(j.onBoardWeeks) && j.onBoardWeeks.length ? j.onBoardWeeks[j.onBoardWeeks.length - 1] : null;
+      return w || null;
+    }
+    return j.stageChangedAt || null;
+  }
   function isRecent(j) {
-    const t = Date.parse(j.stageChangedAt || "");
+    const t = Date.parse(recencyDate(j) || "");
     return Number.isFinite(t) && Date.now() - t <= CAP_MS;
   }
 
@@ -283,7 +314,7 @@
     const foot = el("div", { class: "pl-foot-row" });
     foot.append(el("a", { class: "hs-btn hs-btn-quiet", href: "/job.html?id=" + j.id, text: "Open" }));
     if (ctx.editable) {
-      const targets = allowedTargets(j.stage);
+      const targets = targetsFor(j);
       const btn = el("button", {
         type: "button",
         class: "hs-btn hs-btn-quiet pl-moveto",
@@ -291,7 +322,7 @@
         "aria-haspopup": "menu",
         "aria-expanded": "false",
       });
-      if (j.stage === "on_board") {
+      if (boardLocked(j)) {
         btn.disabled = true;
         btn.title = "Moves from the board";
       } else if (!targets.length || busy.has(j.id)) {
@@ -318,7 +349,7 @@
     const j = jobs.get(id);
     if (!j || busy.has(id)) return;
     const from = j.stage;
-    if (to === from || !allowedTargets(from).includes(to)) return;
+    if (to === from || !targetsFor(j).includes(to)) return;
 
     // Optimistic: show the card in its new column now.
     busy.add(id);
@@ -386,7 +417,7 @@
     closeMenu(false);
     const j = jobs.get(id);
     if (!j) return;
-    const targets = allowedTargets(j.stage);
+    const targets = targetsFor(j);
     if (!targets.length) return;
     const node = el("div", { class: "pl-menu", role: "menu", "aria-label": `Move ${j.name} to` });
     for (const t of targets) {
@@ -464,7 +495,7 @@
       y: ev.clientY,
       active: false,
       ghost: null,
-      ok: new Set(allowedTargets(j.stage)),
+      ok: new Set(targetsFor(j)),
       over: null,
       raf: 0,
       offX: 0,

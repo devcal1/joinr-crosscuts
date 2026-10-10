@@ -22,6 +22,25 @@
     return MANUAL.filter((s) => s !== from);
   }
 
+  // This Sydney week's Monday (YYYY-MM-DD), to match lib/time.js sydneyMonday.
+  function sydneyMondayStr() {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" })
+      .format(new Date()).split("-").map(Number);
+    const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  }
+  // The server refuses a non-admin hand move while the job has week rows this week or
+  // later, whatever its stage. onBoardWeeks lists its week starts.
+  function boardLocked(j) {
+    if (!j) return false;
+    if (j.stage === "on_board") return true;
+    // Complete and invoiced are exempt (finished rows; archived is their only target).
+    if (j.stage === "complete" || j.stage === "invoiced") return false;
+    const mon = sydneyMondayStr();
+    return Array.isArray(j.onBoardWeeks) && j.onBoardWeeks.some((w) => w >= mon);
+  }
+
   // Permissions come from the shell (window.cc.can) when it is present. If it is
   // not, assume allowed: the server enforces everything regardless.
   function can(key) {
@@ -325,9 +344,10 @@
       } else {
         // The pipeline rules: only the stages allowedTargets() gives, plus where the job is now.
         const cur = job ? job.stage : null;
-        const ok = new Set(allowedTargets(cur));
+        const locked = boardLocked(job);
+        const ok = new Set(locked ? [] : allowedTargets(cur));
         for (const opt of inputs.stage.options) opt.disabled = opt.value !== cur && !ok.has(opt.value);
-        if (cur === "on_board") {
+        if (locked) {
           inputs.stage.disabled = true;
           inputs.stage.title = "Moves from the board";
         } else if (cur === "complete" || cur === "invoiced") {
@@ -457,7 +477,10 @@
     }
     // The chosen stage, when it differs from the saved one (existing jobs only).
     const newStage = isNew || !inputs.stage ? null : fromInput({ type: "stage" }, inputs.stage);
-    const stageChanged = !isNew && !!newStage && newStage !== job.stage;
+    // The stage as this page last saw it, taken before the field PATCH (which returns the
+    // current job): a concurrent move then shows up as a 409 instead of being overwritten.
+    const seenStage = isNew ? null : job.stage;
+    const stageChanged = !isNew && !!newStage && newStage !== seenStage;
     const hasFields = Object.keys(body).length > 0;
     if (!isNew && !hasFields && !stageChanged) {
       setStatus("No changes to save.", "muted");
@@ -476,12 +499,12 @@
       if (stageChanged) {
         try {
           const isAdmin = can("users.admin");
-          const viaStage = MANUAL.includes(newStage) && allowedTargets(job.stage).includes(newStage);
+          const viaStage = MANUAL.includes(newStage) && allowedTargets(seenStage).includes(newStage);
           if (viaStage || !isAdmin) {
             // The pipeline path. A non-admin's other moves also go here, so the server gives the reason.
             job = await api("/api/job-records/" + jobId + "/stage", {
               method: "POST",
-              body: JSON.stringify({ stage: newStage, from: job.stage }),
+              body: JSON.stringify({ stage: newStage, from: seenStage }),
             });
           } else {
             // The admin's override: a derived stage, or a move out of a locked stage.

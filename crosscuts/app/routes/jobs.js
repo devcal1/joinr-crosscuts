@@ -289,14 +289,17 @@ r.patch("/:id", "jobs.edit", handle((req, res) => {
         jobstage.moveStage(db, id, { stage: newStage }, req, { override: can(req, "users.admin") });
       } else {
         // A derived stage (users.admin only; parseStage refused everyone else):
-        // the admin's hand override, as in M2.
+        // the admin's hand override, as in M2. A ready_to_cut job leaves To start
+        // (unless it has current or future rows), in the same transaction.
+        const removed = existing.stage === "ready_to_cut" && jobstage.removeFromBacklog(db, id);
+        const auditExtra = removed ? { toStart: "removed" } : undefined;
         if (newStage === "complete" && existing.stage !== "invoiced") {
           // Same as Finish week -> Complete: completed_date, and the final invoice
           // falls due. A completedDate sent in the same PATCH is kept.
           // (invoiced -> complete is an admin override: plain setStage.)
-          jobstage.onFinishedComplete(db, id, req, values.completed_date || undefined);
+          jobstage.onFinishedComplete(db, id, req, values.completed_date || undefined, auditExtra);
         } else {
-          jobstage.setStage(db, id, newStage, req);
+          jobstage.setStage(db, id, newStage, req, undefined, auditExtra);
         }
         // Leaving the archived stage unticks archived (the stage and the checkbox are linked).
         if (existing.stage === "archived" && newStage !== "archived") {

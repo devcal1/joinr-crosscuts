@@ -220,18 +220,25 @@ function refreshMaterialsIn(db, jobId, req) {
         before: { materials_in_date: null },
         after: { materials_in_date: latest },
       });
-      notify.toKey(
-        db,
-        "scheduling.view",
-        {
-          kind: "materials.in",
-          title: `Materials in: ${job.name}`,
-          link: `/job.html?id=${jobId}#orders`,
-          entityType: "job",
-          entityId: jobId,
-        },
-        { exceptUserId: req && req.user ? req.user.id : null }
-      );
+      // One materials.in notification per job: toggling lines off and on again
+      // re-sets the date but does not tell scheduling a second time.
+      const already = db
+        .prepare("SELECT 1 AS x FROM notifications WHERE kind = ? AND entity_type = ? AND entity_id = ? LIMIT 1")
+        .get("materials.in", "job", String(jobId));
+      if (!already) {
+        notify.toKey(
+          db,
+          "scheduling.view",
+          {
+            kind: "materials.in",
+            title: `Materials in: ${job.name}`,
+            link: `/job.html?id=${jobId}#orders`,
+            entityType: "job",
+            entityId: jobId,
+          },
+          { exceptUserId: req && req.user ? req.user.id : null }
+        );
+      }
       return "set";
     }
     if (!allIn && job.materials_in_date) {
@@ -295,6 +302,9 @@ function updateLine(db, orderId, patch, req) {
   if (has("expectedDate")) text.expected_date = dateOrNull("expectedDate", patch.expectedDate);
   const orderedDateIn = has("orderedDate") ? dateOrNull("orderedDate", patch.orderedDate) : undefined;
   const receivedDateIn = has("receivedDate") ? dateOrNull("receivedDate", patch.receivedDate) : undefined;
+  const todayStr = sydneyToday();
+  if (orderedDateIn && orderedDateIn > todayStr) throw bad("orderedDate can't be in the future");
+  if (receivedDateIn && receivedDateIn > todayStr) throw bad("receivedDate can't be in the future");
 
   if (line.status === "cancelled") throw conflict("Cancelled lines can't be changed");
 

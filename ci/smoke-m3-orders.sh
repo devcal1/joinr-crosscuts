@@ -230,6 +230,9 @@ expect_jq '.order.receivedDate == null and .job.materialsInDate == null' "line 3
 req PATCH "/api/orders/$M3B_L3" "$DPM" '{"status":"received"}'
 expect_status 200 "dpm receives line 3 again"
 expect_jq ".job.materialsInDate == \"$M3B_TODAY\"" "materials in is set again"
+# The date is set again, but scheduling is told once per job (M3 review fix 5).
+m3b_notifs "$SCHED" materials.in "$M3B_J"
+expect_eq "$M3B_N" "1" "toggling lines does not re-send materials.in: sched still has one"
 
 echo "--- date edits without a status change ---"
 req PATCH "/api/orders/$M3B_L3" "$DPM" "{\"orderedDate\":\"$M3B_YESTERDAY\"}"
@@ -241,6 +244,23 @@ req PATCH "/api/orders/$M3B_L3" "$DPM" "{\"receivedDate\":\"$M3B_YESTERDAY\"}"
 expect_status 200 "dpm edits a received date"
 req PATCH "/api/orders/$M3B_L3" "$DPM" '{"receivedDate":"nope"}'
 expect_status 400 "a bad received date"
+# A date after Sydney today is refused (M3 review fix 6).
+req PATCH "/api/orders/$M3B_L3" "$ADMIN" "{\"orderedDate\":\"$M3B_PLUS3\"}"
+expect_status 400 "a future ordered date"
+expect_jq '.error == "orderedDate can'"'"'t be in the future"' "and says why"
+req PATCH "/api/orders/$M3B_L3" "$DPM" "{\"receivedDate\":\"$M3B_PLUS3\"}"
+expect_status 400 "a future received date"
+expect_jq '.error == "receivedDate can'"'"'t be in the future"' "and says why"
+req PATCH "/api/orders/$M3B_L3" "$DPM" "{\"status\":\"ordered\"}"
+expect_status 200 "dpm undoes line 3 receipt (future-date check)"
+req PATCH "/api/orders/$M3B_L3" "$DPM" "{\"status\":\"received\",\"receivedDate\":\"$M3B_PLUS3\"}"
+expect_status 400 "a future received date on the status change"
+req PATCH "/api/orders/$M3B_L3" "$DPM" "{\"status\":\"received\"}"
+expect_status 200 "dpm receives line 3 again (future-date check)"
+req PATCH "/api/orders/$M3B_L3" "$DPM" "{\"receivedDate\":\"$M3B_YESTERDAY\"}"
+expect_status 200 "dpm puts line 3 received date back"
+req GET "/api/job-records/$M3B_J/orders" "$ADMIN"
+expect_jq "[.[] | select(.id == $M3B_L3)][0].orderedDate == \"$M3B_YESTERDAY\"" "the refused dates changed nothing"
 
 echo "--- the audit trail ---"
 m3b_audit_min order.create "$M3B_L1" 1

@@ -196,3 +196,59 @@ expect_status 500 "ready_to_cut with the backlog insert blocked"
 m3a_db_exec "DROP TRIGGER m3_smoke_block"
 req GET "/api/job-records/$M3A_RB" "$ADMIN"
 expect_jq '.stage == "won" and .readyToCutDate == null and .inBacklog == false' "the failed move left the job as it was"
+
+echo "--- a job with current or future rows is locked, whatever its stage (M3 review fix 3) ---"
+# M3A_JOB is still placed on the 2034 week. Make it 'lost' directly (no route does it while
+# it has rows), as a stale lost job with rows would be.
+m3a_db_exec "UPDATE jobs SET stage = 'lost' WHERE id = $M3A_JOB"
+req GET "/api/job-records/$M3A_JOB" "$ADMIN"
+expect_jq '.stage == "lost" and (.onBoardWeeks | length) > 0' "the job is lost and still has board rows"
+m3a_move "$DPM" "$M3A_JOB" ready_to_cut '"lost"'
+expect_status 409 "dpm moves a lost job that has future rows to ready_to_cut"
+expect_jq '.error == "This job is on the board; it moves from the board"' "and says it moves from the board"
+m3a_move "$ADMIN" "$M3A_JOB" archived '"lost"'
+expect_status 409 "admin moves it through the stage route"
+req GET "/api/job-records/$M3A_JOB" "$ADMIN"
+expect_jq '.stage == "lost" and .inBacklog == false' "the job stayed lost and is not in To start"
+expect_eq "$(m3a_in_backlog "$M3A_JOB")" false "the board backlog does not list it"
+# The admin override keeps today's rule: only on_board with rows is refused.
+req PATCH "/api/job-records/$M3A_JOB" "$ADMIN" '{"stage":"won"}'
+expect_status 200 "admin PATCH lost -> won (override)"
+m3a_db_exec "UPDATE jobs SET stage = 'on_board' WHERE id = $M3A_JOB"
+
+echo "--- leaving To start (M3 review fix 4) ---"
+# Admin's derived override takes the job off To start, in the same request.
+req POST /api/job-records "$DPM" '{"name":"M3A Override Job","stage":"ready_to_cut"}'
+expect_status 201 "dpm creates a ready_to_cut job"
+M3A_OV=$(jqr '.id')
+expect_eq "$(m3a_in_backlog "$M3A_OV")" true "the new ready_to_cut job is in To start"
+req PATCH "/api/job-records/$M3A_OV" "$ADMIN" '{"stage":"complete"}'
+expect_status 200 "admin PATCH ready_to_cut -> complete"
+expect_jq '.stage == "complete" and .inBacklog == false' "the job is complete and off To start"
+expect_eq "$(m3a_in_backlog "$M3A_OV")" false "the board backlog no longer lists it"
+req GET "/api/audit?action=job.stage&entityType=job&entityId=$M3A_OV&limit=1" "$ADMIN"
+expect_status 200 "audit for the override"
+expect_jq '.rows[0].after.stage == "complete" and .rows[0].after.toStart == "removed"' "the job.stage audit records toStart removed"
+
+# A move to lost or archived takes the job off To start.
+for target in lost archived; do
+  req POST /api/job-records "$DPM" "{\"name\":\"M3A To $target Job\",\"stage\":\"ready_to_cut\"}"
+  expect_status 201 "dpm creates a ready_to_cut job for $target"
+  M3A_X=$(jqr '.id')
+  expect_eq "$(m3a_in_backlog "$M3A_X")" true "the job is in To start"
+  m3a_move "$DPM" "$M3A_X" "$target" '"ready_to_cut"'
+  expect_status 200 "ready_to_cut -> $target"
+  expect_eq "$(m3a_in_backlog "$M3A_X")" false "ready_to_cut -> $target takes the job off To start"
+  req GET "/api/audit?action=job.stage&entityType=job&entityId=$M3A_X&limit=1" "$ADMIN"
+  expect_jq ".rows[0].after.stage == \"$target\" and .rows[0].after.toStart == \"removed\"" "the audit records toStart removed ($target)"
+done
+
+# Any stage: a stray backlog row goes when the job is archived or lost.
+req POST /api/job-records "$DPM" '{"name":"M3A Stray Backlog Job","stage":"won"}'
+expect_status 201 "dpm creates a won job"
+M3A_STRAY=$(jqr '.id')
+m3a_db_exec "INSERT INTO backlog (job_id, sort_order) VALUES ($M3A_STRAY, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM backlog))"
+expect_eq "$(m3a_in_backlog "$M3A_STRAY")" true "the won job has a stray To start row"
+m3a_move "$DPM" "$M3A_STRAY" lost '"won"'
+expect_status 200 "won -> lost"
+expect_eq "$(m3a_in_backlog "$M3A_STRAY")" false "a move to lost removes the stray To start row"

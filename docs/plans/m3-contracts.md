@@ -591,3 +591,13 @@ All settled as below; the contract text above already reflects them. Items 4 and
     - `to_order → received` is refused;
     - the Design page's "Client inspections" tile links to Scheduling, because there is no inspections page;
     - pipeline data reuses `GET /api/job-records` instead of a new endpoint.
+
+## 12. Changes after the M3 · 4.2 review (integrator, 2026-10-11)
+
+These override the text above where they differ.
+- **Job page save:** the stage request's `from` is the stage the user saw (captured before the field PATCH), so a concurrent move gives 409.
+- **Pipeline cap:** a `complete` card's recency is `completedDate`, else its last `onBoardWeeks` week, else it counts as old; `invoiced` keeps `stageChangedAt`. (003 set `stage_changed_at` to the cutover time on every backfilled job.)
+- **`moveStage` without override:** a job with current or future week rows gives 409 `ON_BOARD_MSG` whatever its stage, **except** `complete` and `invoiced` (finished rows; Finish week leaves the current week's row; their only target is `archived`). The pipeline and job page lock the same cards for non-admins.
+- **To start:** `moveStage` removes the backlog row when leaving `ready_to_cut` and on any move to `archived` or `lost`. The admin's derived override on `PATCH` removes it when the job was `ready_to_cut`. The `job.stage` audit `after` carries `toStart:'removed'`; `setStage` and `onFinishedComplete` gained an optional trailing `auditExtra`.
+- **`materials.in`:** sent only if no `materials.in` notification exists for the job yet (one per job, per recipient).
+- **Order dates:** `orderedDate` and `receivedDate` after Sydney today → 400.
