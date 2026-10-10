@@ -4,7 +4,7 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 ## Now (2026-10-10)
 
-- **Milestone:** **M1.1 Maintenance**, in progress. 1.1, 2.1, 2.2 (0.1.1 in the Tenon store) 3.1 (0.1.2, Node 24) and 4.1 (0.1.3, sharp 0.35) are built and committed locally. **2.3 Tailscale half passed; the LAN half is on Monday 12 Oct. Next: push 0.1.3 (Node 24 + sharp combined, Todd's choice) on Todd's OK. He is keeping GitHub use to a minimum.** M1 is CLOSED (2026-10-10), with one LAN re-check carried (below).
+- **Milestones:** **M1.1 Maintenance**: 0.1.3 (Node 24, sharp 0.35) is on the device and verified over Tailscale. 5.1 (Actions) is committed locally and ships with 0.1.4. The LAN check is due Monday 12 Oct. **M1.2 House style**: plan approved 2026-10-10 (`docs/plans/style-plan.md`). **Now: M1.2 · 1.2 build.** M1 is CLOSED.
 - **M1 · 6.1 results:** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), so Umbrel proxy login is not in front of the app.
 - **M1 · 6.2 results (Tailscale, `100.111.185.96:4933`), all PASS:**
   - logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login
@@ -21,7 +21,9 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **Push plan, decided 2026-10-10:** Todd chose **combined**. One push of `main` publishes 0.1.3 (Node 24 + sharp 0.35); 0.1.2 is never published on its own. M1.1 · 3.2/3.3 merge into 4.2/4.3. If 0.1.3 misbehaves, roll back to 0.1.1 and split. The push itself still needs Todd's OK.
 - **0.1.3 published:** joinr-crosscuts pushed (`4b887f3`, Todd OK); CI run 38044147206 green on both architectures; `0.1.3@sha256:237de19c202059febb58087794c1f98112a307fa05a75f8520ac95653b34e246` (the 0.1.3, latest and sha tags agree; 0.1.2 was never published, by design). tenon-umbrel-store `81bfb3e` (pin 0.1.3) pushed (Todd OK).
 - **M1.1 · 4.3 PASSED over Tailscale (2026-10-10):** Todd updated to 0.1.3 (Node 24 + sharp 0.35) and uploaded a portrait phone photo; it displays vertical (EXIF orientation applied).
-- **Next action:** M1.1 · 5.1, the Actions upgrade, built locally (no Todd needed until the push).
+- **M1.1 · 5.1 done (local, `77e9b3a`):** actions on Node-24 majors; release notes checked; no version bump (it rides with 0.1.4).
+- **M1.2 decisions (Todd 2026-10-10):** the board is re-themed (colours, type, buttons and shadows only; layout untouched; mirrored in `exportJpg()`); worker colours are kept; text labels on the menu bar and pages, but the board keeps its icon buttons. `CLAUDE.md` non-negotiable 7 and "Look and feel" are updated to match.
+- **Next action (M1.2 · 1.2, no Todd needed):** take before screenshots locally; build foundations, then pages and board in parallel, then `ci/style-check.sh`; take after screenshots for Todd (1.3).
 - **Waiting on Todd:** the LAN check above.
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
@@ -73,3 +75,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: 0.1.3 pushed (Todd OK), CI green, image published; store pin committed locally.
 - 2026-10-10: tenon-umbrel-store pushed (`81bfb3e`, Todd OK): 0.1.3 offered. Next: device checks (M1.1 · 4.3).
 - 2026-10-10: M1.1 · 4.3 passed on 0.1.3 (portrait photo upright). Next 5.1 (Actions).
+- 2026-10-10: M1.1 · 5.1 committed locally. House-style review done; M1.2 plan approved with decisions (board re-themed, worker colours kept, board icons kept).

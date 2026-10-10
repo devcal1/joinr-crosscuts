@@ -69,6 +69,19 @@ M1.1 is four small upgrades, each its own release (decision on record), so it us
 | **M1.1 · 5.2** Actions: release | push (Todd OK); CI green on both architectures; not pinned in the store (same app code as 0.1.3) | **Todd** ✂ |
 | **M1.1 · 6.1** Close M1.1 | M1.1 marked closed; next action set to M2 · 1.1 | committed ✂ |
 
+### M1.2 House style steps
+
+The whole app is re-themed to the house style (`docs/plans/style-plan.md`, approved 2026-10-10). It ships as one release, 0.1.4, which also carries the M1.1 · 5.1 Actions upgrade, so M1.1 · 5.2 happens at M1.2 · 2.2.
+
+| Step | What happens | Ends with |
+|---|---|---|
+| **M1.2 · 1.1** Plan | review of every page; `style-plan.md`; decisions on the board, worker colours and icons | Todd approves. **Todd** ✂ (done 2026-10-10) |
+| **M1.2 · 1.2** Build | foundations (tokens, shared components, menu bar, the "No access" page); every page; the board and `exportJpg()`; `ci/style-check.sh` in CI; before and after screenshots | committed ✂ |
+| **M1.2 · 1.3** Review | Todd looks at the before and after screenshots; changes made | **Todd** ✂ |
+| **M1.2 · 2.1** Release | version 0.1.4; push (Todd OK); CI green; Tenon store pinned and pushed (Todd OK) | **Todd** ✂ |
+| **M1.2 · 2.2** Verify | Todd updates; the pages, the TV board and a JPG export checked on the device | **Todd** ✂ |
+| **M1.2 · 3.1** Close | M1.1 and M1.2 marked closed; next action set to M2 · 1.1 | committed ✂ |
+
 ### Later milestones
 
 M2 onwards use the standard steps above. The number of build waves (3.1, 3.2, ...) is fixed at step 2.1 and written into that milestone's contracts. The cutover runbook and the backup job get their own step lists in their plans.
@@ -99,6 +112,7 @@ This follows brief §9. The reasoning: money first, because it is the reason for
 |---|---|---|
 | **M1** Foundation | logins, roles, user admin, audit, job record, shell, existing features behind login | **Closed 2026-10-10** (0.1.0, verified over Tailscale; LAN re-check carried in STATUS) |
 | **M1.1** Maintenance | better-sqlite3 11 → 12.9, then Node 20 → 24 in the image; sharp 0.33 → 0.35 (security fixes; breaking, so test photo upload/thumbnails); GitHub Actions to Node-24-native versions | Small; its own step list above (one release per upgrade) |
+| **M1.2** House style | every page, the menu bar and the board re-themed to the house style (brand guide, Offcuts as reference); a CI style check keeps future pages on it | One release (0.1.4) with the M1.1 Actions upgrade |
 | **M2** Accounts | invoice table (deposit/progress/final/extras), invoice prompts from job events, Friday 12:00 Sydney round-up, ntfy push to Todd, overdue list | Decide ntfy self-hosted vs ntfy.sh in the plan |
 | **Cutover runbook** | `docs/cutover.md` per brief §9a, rehearsed on a fresh copy of the live DB | Written before any cutover date is proposed |
 | **M3** Design/PM | pipeline board (pointer-event drag), orders (with "materials ordered" → 50% prompt), client inspections, photos linked to jobs | Includes a new version of the photo tag filter (replacing the abandoned `/api/tags` WIP) |

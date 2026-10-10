@@ -33,7 +33,7 @@ Crosscuts runs alongside the old app until cutover. The old app is the schedule 
 4. **Data lives at `/data/db`, `/data/uploads` and `/data/config` inside the container.** Never mount anything at `/app/db`, because that is source code. The host layout (`data/db`, `data/uploads`, `data/config`) matches the old app, so cutover is a file copy.
 5. **Schema changes are new numbered migrations only** (`NNN_name.sql` or `.js`). Keep them additive unless Todd signs off. Never edit an applied migration: a checksum mismatch stops boot. Before pending migrations run on an existing database, the runner writes a `VACUUM INTO` backup to `data/db/backups/`.
 6. **Every `/api` route is declared through `defineRoutes` with an access value** (a feature key, an array of keys, `'login'` or `'public'`). The server refuses to boot if any `/api` route lacks one.
-7. **The board files are not redesigned.** Do not edit `schedule.html`, `schedule.css`, `schedule.js` or `workers.html`. Any new visual on the board must be mirrored in `exportJpg()`. `alignPanels()` is shared by `renderWeeks` and `exportJpg`, and stays shared. `.nav` and `--nav-h` are untouched.
+7. **The board layout is not redesigned.** In `schedule.html`, `schedule.css`, `schedule.js` and `workers.html`, only colours, type, buttons and shadows may change (house-style re-theme, approved by Todd 2026-10-10); structure, sizes, behaviour and layout stay as they are. Any visual change on the board must be mirrored in `exportJpg()`, and the print styles stay black on white. `alignPanels()` is shared by `renderWeeks` and `exportJpg`, and stays shared. `.nav` and `--nav-h` are untouched.
 8. **Shell CSS classes are prefixed `cc-`**, so they cannot collide with the board's global styles.
 9. **Never push anything (any repo, docs included) without Todd's express permission for that push.** Commit locally. A push to joinr-crosscuts starts CI and publishes; a push to tenon-umbrel-store changes what Todd's Umbrel offers.
 10. **The old app is frozen** (`thcabinets-umbrel-store` and `thcabinets-splash`) until cutover. Do not change its code, manifest, image or data, and do not uninstall it.
@@ -53,8 +53,11 @@ New UI follows the company house style: the TH Cabinets Brand & Document Style G
   - Violet `#8B5CF6` to fuchsia `#D946EF` is the gradient for numbered discs.
   - The four-colour spectrum (teal, violet, fuchsia, orange) appears only as thin rules.
 - **Type and components:** Arial or Helvetica, bold and regular only, with uppercase always letterspaced. No icons, emoji or shadows. Buttons are outlined uppercase text.
-- **Shell CSS:** defines these as `cc-` prefixed custom properties (non-negotiable 8). The current shell's purple accent (`--cc-bar-accent: #9184d9`) predates this rule and is re-themed the next time the shell is touched.
-- **The board files** (`schedule.*`, `workers.html`) are exempt: non-negotiable 7 still holds.
+- **Shell CSS:** uses these through `cc-` prefixed custom properties (non-negotiable 8). The re-theme of the whole app is M1.2 (`docs/plans/style-plan.md`).
+- **Two named exceptions, both approved by Todd on 2026-10-10. There are no others.**
+  - **Worker colours:** each worker keeps their own colour (the `hue` per worker, computed in `lib/schedule.js` and `public/shared.js`), wherever workers appear.
+  - **Board icons:** the board keeps its small Phosphor icon buttons (`schedule.html`, `schedule.js`). The menu bar and every other page use text labels.
+- **The style check:** `ci/style-check.sh` enforces this in CI. If it fails, fix the page, not the check.
 
 ## Local development
 
