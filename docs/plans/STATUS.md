@@ -23,6 +23,7 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **Waiting on Todd:** OK to push 0.1.3; the LAN check above.
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
+  - The shell's purple accent (`--cc-bar-accent: #9184d9`) is off the house style (teal `#17C8A0` is the only working accent; see CLAUDE.md "Look and feel", added 2026-10-10). Re-theme it the next time the shell is touched, likely M2.
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
   - The dev-only `.dev/` and `node_modules` folders are local and ignored.
 

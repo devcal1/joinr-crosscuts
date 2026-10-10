@@ -41,6 +41,21 @@ Crosscuts runs alongside the old app until cutover. The old app is the schedule 
 
 Pause and ask Todd before anything that touches stored data (migrations that delete rows, restores, cutover steps).
 
+## Look and feel
+
+New UI follows the company house style: the TH Cabinets Brand & Document Style Guide v1.0, the look of the joinr desktop wallpaper. When in doubt, the reference implementation is the Offcuts app (`C:\Users\todd\Desktop\Claude\code\joinr-offcuts`): its tokens are at the top of `src/styles.css`, and its rules are under "Look and feel — binding" in its `CLAUDE.md`.
+
+- **Ground and text:** ink `#101019` ground; surface `#191A24`; raised `#262735`; hairline `#24252F`. Text is white, body `#D3D4DC`, labels `#9A9BA8`, muted `#6F7080`.
+- **Colour roles:**
+  - Teal `#17C8A0` is the only working accent (tint `#6EE7C9` for small text).
+  - Orange `#F97316` means "attend to this".
+  - Red `#EF4444` is only for overdue and destructive actions.
+  - Violet `#8B5CF6` to fuchsia `#D946EF` is the gradient for numbered discs.
+  - The four-colour spectrum (teal, violet, fuchsia, orange) appears only as thin rules.
+- **Type and components:** Arial or Helvetica, bold and regular only, with uppercase always letterspaced. No icons, emoji or shadows. Buttons are outlined uppercase text.
+- **Shell CSS:** defines these as `cc-` prefixed custom properties (non-negotiable 8). The current shell's purple accent (`--cc-bar-accent: #9184d9`) predates this rule and is re-themed the next time the shell is touched.
+- **The board files** (`schedule.*`, `workers.html`) are exempt: non-negotiable 7 still holds.
+
 ## Local development
 
 `better-sqlite3` does not build on the Windows dev box, so local runs use `node:sqlite` through a shim. From the repo root, in Git Bash:
