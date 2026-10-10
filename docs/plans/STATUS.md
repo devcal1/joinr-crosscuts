@@ -11,8 +11,9 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
   - Todd's admin login works and he sees everything (the login POST passing proves the gateway passes `Host` through)
   - test user "Showroom" (showroom role) sees only photo search; the admin page and workers are blocked
 - **Carried LAN check (needs Todd on the workshop LAN, due before M1.1 · 2.2, the first M1.1 release):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
-- **Next action (M1.1 · 1.1, no Todd needed until approval):** research the three upgrades (Node 20 → 22 base image, sharp 0.33 → 0.35 breaking changes, GitHub Actions to Node-24-native versions, and how a CI-only change releases given the immutable-tag guard) and write a short `docs/plans/m1.1-plan.md` with the release order and per-release checks. Then put it to Todd for approval.
-- **Waiting on Todd:** the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
+- **M1.1 · 1.1 drafted:** `docs/plans/m1.1-plan.md`. Order Node 22 → sharp 0.35 → Actions, as 0.1.1 / 0.1.2 / 0.1.3. The sharp upload pipeline tested identical under 0.33.5 and 0.35.5. The CI-only release bumps the version but is not pinned in the store.
+- **Next action:** Todd approves (or amends) `m1.1-plan.md`; then M1.1 · 2.1 (Node 22 build), no Todd needed until 2.2.
+- **Waiting on Todd:** approval of `m1.1-plan.md`; the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
@@ -51,3 +52,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: M1 audit and plan approved; contracts written; Wave 0 plus T1–T7 built in parallel and merged; independent review (2 major, 6 minor) fixed; joinr-crosscuts pushed; CI green; 0.1.0 published; moved to the Tenon store and pushed. Now at M1 stage 6.
 - 2026-10-10: Roadmap now numbers every step (e.g. M1 · 6.1, M1.1 · 2.2) with ✂ clear points; M1.1 has its own step list, one release per upgrade. App not yet installed; next step M1 · 6.1.
 - 2026-10-10: M1 · 6.1 and 6.2 done on Tailscale (logged-out 401/302, admin login, showroom role limited to photo search). **M1 closed**; LAN re-check carried. Next step M1.1 · 1.1.
+- 2026-10-10: M1.1 · 1.1 plan drafted (`m1.1-plan.md`), awaiting Todd's approval.
