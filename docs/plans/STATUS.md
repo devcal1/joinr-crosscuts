@@ -2,35 +2,26 @@
 
 Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) and clear points are defined in `docs/plans/roadmap.md`.
 
-## Now (2026-10-10)
+## Now (2026-10-10, clear point)
 
-- **Milestones:** **M1.1 Maintenance**: 0.1.3 (Node 24, sharp 0.35) is on the device and verified over Tailscale. 5.1 (Actions) is committed locally and ships with 0.1.4. The LAN check is due Monday 12 Oct. **M1.2 House style**: plan approved 2026-10-10 (`docs/plans/style-plan.md`). **Now: M1.2 · 1.3 (Todd reviews the re-theme).** M1 is CLOSED.
-- **M1 · 6.1 results:** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), so Umbrel proxy login is not in front of the app.
-- **M1 · 6.2 results (Tailscale, `100.111.185.96:4933`), all PASS:**
-  - logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login
-  - Todd's admin login works and he sees everything (the login POST passing proves the gateway passes `Host` through)
-  - test user "Showroom" (showroom role) sees only photo search; the admin page and workers are blocked
-- **Carried LAN check (needs Todd on the workshop LAN, Monday 12 Oct, together with the LAN half of 2.3 or whichever version is installed by then):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
-- **M1.1 plan approved** (2026-10-10): `docs/plans/m1.1-plan.md`. Todd chose Node 24 (not 22). The order is better-sqlite3 12.9.0 (on Node 20) → Node 24 → sharp 0.35 → Actions, as 0.1.1 to 0.1.4.
-- **M1.1 · 2.1 done:** `better-sqlite3` pinned exactly to 12.9.0 (the last version with Node 20 and Node 24 Alpine binaries); version 0.1.1 in `package.json` and the lockfile. New smoke step 0 checks the Node major in the image against the Dockerfile and the better-sqlite3 version against the lockfile, and prints the SQLite version. Locally checked: the expressions return 12.9.0 / SQLite 3.53.0, the Dockerfile parses to 20, and `bash -n` passes. No Docker on the dev box, so CI is the first real run.
-- **M1.1 · 2.2 done:** joinr-crosscuts pushed (`d7e3872`, Todd OK), CI run 38036478402 green on both architectures, 0.1.1 published (the 0.1.1, latest and sha tags all resolve to the same digest). tenon-umbrel-store commit `c092f89` (pin 0.1.1, `version: '0.1.1'`, release notes) pushed (Todd OK).
-- **M1.1 · 3.1 done:** `FROM node:24-alpine`, version 0.1.2. Local run on Node 24 through the shim: healthz 200, migrations applied, logged-out `/api/workers` 401 and `/schedule.html` 302 to login. Smoke step 0 will prove Node 24 in the image.
-- **M1.1 · 2.3 Tailscale half PASSED (2026-10-10):** Todd updated to 0.1.1, added a job to the board and assigned two workers; the edits saved and appear in the audit log. Logged-out `/api/workers` over Tailscale is 401. The LAN half is due Monday 12 Oct.
-- **0.1.2 fix (found while preparing 4.1):** `node:24-alpine` ships npm 11.19, which skips dependency install scripts unless `package.json` lists them under `allowScripts`. better-sqlite3 fetches its binary that way, so the original 0.1.2 would have failed CI. `060048a` adds `"allowScripts": { "better-sqlite3@12.9.0": true }`; local `npm ci --omit=dev` under npm 11.19 now builds and loads the binary. **Any better-sqlite3 version bump must update that entry.**
-- **M1.1 · 4.1 done (local):** sharp ^0.35.5 (lockfile has the linuxmusl x64/arm64 0.35.5 binaries), version 0.1.3, one stale comment fixed. New smoke check: an EXIF-orientation-6 JPEG must store as 2x4 with an upright 2x4 WebP thumbnail. Local end-to-end (shim, Node 24, sharp 0.35.5): orientation-6 upload gives 2x4 and the PNG 1x1, both thumbnails correct.
-- **Push plan, decided 2026-10-10:** Todd chose **combined**. One push of `main` publishes 0.1.3 (Node 24 + sharp 0.35); 0.1.2 is never published on its own. M1.1 · 3.2/3.3 merge into 4.2/4.3. If 0.1.3 misbehaves, roll back to 0.1.1 and split. The push itself still needs Todd's OK.
-- **0.1.3 published:** joinr-crosscuts pushed (`4b887f3`, Todd OK); CI run 38044147206 green on both architectures; `0.1.3@sha256:237de19c202059febb58087794c1f98112a307fa05a75f8520ac95653b34e246` (the 0.1.3, latest and sha tags agree; 0.1.2 was never published, by design). tenon-umbrel-store `81bfb3e` (pin 0.1.3) pushed (Todd OK).
-- **M1.1 · 4.3 PASSED over Tailscale (2026-10-10):** Todd updated to 0.1.3 (Node 24 + sharp 0.35) and uploaded a portrait phone photo; it displays vertical (EXIF orientation applied).
-- **M1.1 · 5.1 done (local, `77e9b3a`):** actions on Node-24 majors; release notes checked; no version bump (it rides with 0.1.4).
-- **M1.2 decisions (Todd 2026-10-10):** the board is re-themed (colours, type, buttons and shadows only; layout untouched; mirrored in `exportJpg()`); worker colours are kept; text labels on the menu bar and pages, but the board keeps its icon buttons. `CLAUDE.md` non-negotiable 7 and "Look and feel" are updated to match.
-- **M1.2 · 1.2 done (local):** new `tokens.css` (house tokens with the old names aliased) and `components.css` (`hs-` components ported from Offcuts). Every page, the shell, the server's "No access" page, the board and `exportJpg()` are re-themed. Inter is removed (the vendored font is deleted). Phosphor icons remain only on the board. The bell is removed, and the photo-search logo image is replaced by the text lockup. The job pages now also re-check edit rights on `cc:ready`; before, they could show read-only to editors. `ci/style-check.js` passes and runs in CI before the build. The Actions upgrade (`77e9b3a`) and this both ship in 0.1.4 (version not yet bumped).
-- **Next action (M1.2 · 1.3, needs Todd):** Todd reviews the before and after page (artifact) and the judgement calls listed on it. Then bump to 0.1.4, push (Todd OK), CI, pin the store (Todd OK), Update, and device checks including the TV and a JPG export.
-- **Waiting on Todd:** review of the M1.2 before and after page; the LAN check on Monday 12 Oct.
-- **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
+- **On the device:** 0.1.3 (Node 24, better-sqlite3 12.9.0, sharp 0.35), the old purple look. Verified over Tailscale: board edits save and are audited, and portrait photos upload upright.
+- **Local `main`, not pushed (ahead of origin):** M1.1 · 5.1 (Actions on Node-24 majors, `77e9b3a`), and M1.2 House style, built and **approved by Todd 2026-10-10** (`feaabd7`; review page https://claude.ai/artifact/CKpBd4aTFcNNypMECg5W9z). The version in `package.json` is still 0.1.3.
+- **Release deferred (Todd, 2026-10-10):** development continues locally with no new version and no Umbrel update for now. Commits accumulate on `main`. When Todd decides to release, there is one version bump (above 0.1.3), one push (Todd OK), CI, the store pin and push (Todd OK), then Update. The release notes then cover everything since 0.1.3: Actions, the house style, the job-page edit-rights fix, and whatever follows. Open release steps: M1.1 · 5.2, M1.2 · 2.1 and 2.2 (device check of the pages, the TV board and a JPG export).
+- **Milestones:** M1 CLOSED. M1.1 done except its release step (5.2). M1.2 done except its release (2.1, 2.2) and close (3.1).
+- **Next action:** continue development. Per the roadmap order, that is **M2 · 1.1 (Accounts plan)**, unless Todd names something else. New pages follow CLAUDE.md "Look and feel" (`tokens.css` and `components.css` `hs-` classes), and `node ci/style-check.js` must pass.
+- **Carried LAN check (Todd, on the workshop LAN, Monday 12 Oct):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
+- **Waiting on Todd:** the LAN check; the go-ahead for M2 · 1.1 (or another next step).
+- **Open branches/worktrees:** none.
+- **Tools for UI work (local only):** `tools/screenshots/seed.js` (sample data, test admin) and `tools/screenshots/shoot.js` (full-page PNGs of every page through headless Edge). See the comments at the top of each.
 - **Deferred findings:**
-  - The shell's purple accent (`--cc-bar-accent: #9184d9`) is off the house style (teal `#17C8A0` is the only working accent; see CLAUDE.md "Look and feel", added 2026-10-10). Re-theme it the next time the shell is touched, likely M2.
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
-  - The dev-only `.dev/` and `node_modules` folders are local and ignored.
+  - Search tiles are not keyboard-focusable (plain divs); worth fixing when the photo pages are next touched (M3).
+  - The audit changed-value highlight was not seen in a screenshot (the sample data had no before/after entry).
+  - Print/PDF of the board was not checked after the re-theme (the print CSS was kept black on white).
+- **Gotchas learned in M1.1/M1.2:**
+  - npm 11.19 (Node 24 images) skips install scripts not listed in `package.json` `allowScripts`. The entry names `better-sqlite3@12.9.0` exactly, so **any better-sqlite3 bump must update it**.
+  - Some source files mix CRLF and LF: `sed -i` rewrites every line ending. Edit with exact string replacement.
+  - The image tag is immutable: a push that publishes needs a version bump, even CI-only changes.
 
 ## Facts a fresh session needs
 
@@ -78,3 +69,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: M1.1 · 4.3 passed on 0.1.3 (portrait photo upright). Next 5.1 (Actions).
 - 2026-10-10: M1.1 · 5.1 committed locally. House-style review done; M1.2 plan approved with decisions (board re-themed, worker colours kept, board icons kept).
 - 2026-10-10: M1.2 · 1.2 built locally (whole app re-themed, style check in CI, before and after screenshots). Next: Todd's review (1.3).
+- 2026-10-10: M1.2 approved by Todd. Release deferred: development continues locally (no version bump, no Umbrel update). Screenshot tools moved to tools/screenshots/. Clear point; next M2 · 1.1 unless Todd says otherwise.
