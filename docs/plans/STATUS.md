@@ -4,10 +4,11 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 ## Now (2026-10-10)
 
-- **Milestone:** M1 Foundation. Stages 1–5 done. **Next step: M1 · 6.1 (Install and set up).**
-- **Next action (M1 · 6.1, needs Todd):** Todd installs "Joinr Crosscuts" from the Tenon store, runs `/setup.html` on port 4933 to create his admin account (Todd types the password himself), and confirms "Require Umbrel login" is OFF. Then go straight on to **M1 · 6.2**, the on-device checks listed in the roadmap (LAN and Tailscale: 401/302 logged out, remember-device login, board loads, non-admin 403, no "Cross-origin request refused" on a browser POST). Then **M1 · 6.3** closes M1.
-  - Checked 2026-10-10: the Umbrel answers over Tailscale (`100.111.185.96`), but nothing listens on port 4933 yet, so the app is not installed. `umbrel.local` does not resolve from Git Bash on the dev box; use the browser for the LAN checks.
-- **Waiting on Todd:** the install and setup (M1 · 6.1).
+- **Milestone:** M1 Foundation. Stages 1–5 done. **M1 · 6.1 done; M1 · 6.2 (on-device checks) in progress.**
+- **M1 · 6.1 results (2026-10-10):** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), which shows Umbrel proxy login is not in front of the app.
+- **M1 · 6.2 so far:** over Tailscale (`100.111.185.96:4933`), logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login. PASS.
+- **Next action (M1 · 6.2, needs Todd):** in the browser, over BOTH `umbrel.local:4933` and `100.111.185.96:4933`: login with "remember this device" (the login POST passing also proves the gateway passes `Host` through); the board loads; create a non-admin test user and confirm it gets 403 / a hidden page where expected. LAN logged-out check too (`umbrel.local` does not resolve from Git Bash on the dev box). Then **M1 · 6.3** closes M1.
+- **Waiting on Todd:** the browser checks above.
 - **Open branches/worktrees:** none unmerged. Old agent worktrees under `.claude/worktrees/` are merged and can be cleaned up.
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
