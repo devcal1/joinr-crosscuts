@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline - Crosscuts</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="pipeline.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="pl-page">
+    <div class="pl-head">
+      <h1>Pipeline</h1>
+      <p id="plStatus" class="pl-status muted" role="status"></p>
+      <button id="plToggle" class="hs-btn" type="button" aria-pressed="false">Show lost and archived</button>
+      <a id="plNew" class="hs-btn hs-btn-primary" href="/job.html" hidden>New job</a>
+    </div>
+
+    <div id="plBoard" class="pl-board" role="group" aria-label="Pipeline columns"></div>
+    <p id="plHelp" class="pl-help muted" hidden></p>
+  </main>
+
+  <div id="plLive" class="pl-sr" role="status" aria-live="polite"></div>
+
+  <script src="shared.js"></script>
+  <script src="pipeline.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>

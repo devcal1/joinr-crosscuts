@@ -6,28 +6,16 @@ const { defineRoutes } = require("../lib/routes");
 const audit = require("../lib/audit");
 const jobstage = require("../lib/jobstage");
 const orders = require("../lib/orders");
+const { HttpError, bad, sendError, can } = require("../lib/httperror");
 const { DATE_RE, parseDateUTC, formatDateUTC, sydneyToday } = require("../lib/time");
 
 const r = defineRoutes("/api/job-records");
 
-const STAGES = [
-  "lead", "quoted", "won", "design_ordering", "ready_to_cut",
-  "on_board", "complete", "invoiced", "lost", "archived",
-];
-// Stages a user may move a job to by hand. on_board / complete / invoiced are
-// derived (board hooks, later accounts), so only users.admin may set them.
-const MANUAL_STAGES = new Set(["lead", "quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"]);
+// Stage lists and rules live in lib/jobstage.js. on_board / complete / invoiced
+// are derived (board hooks, accounts), so only users.admin may set them by PATCH.
+const { STAGES, STAGE_DATE } = jobstage;
+const MANUAL_STAGES = new Set(jobstage.MANUAL_STAGES);
 const BENCHTOPS = new Set(["laminate", "stone", "none"]);
-
-// Permission check. requirePerm has already guaranteed a logged-in user; a
-// missing user is treated as having nothing.
-function can(req, key) {
-  if (!req.user) return false;
-  const perms = req.user.perms;
-  if (perms instanceof Set) return perms.has(key);
-  if (Array.isArray(perms)) return perms.includes(key);
-  return false;
-}
 
 // --- field table: body key -> column, kind -------------------------------
 // kinds: text, date, int, bool, url, enum:<set>. All are nullable unless noted.
@@ -57,14 +45,6 @@ const FIELDS = {
   designFolderUrl: { col: "design_folder_url", kind: "url" },
   joinrQuoteUrl: { col: "joinr_quote_url", kind: "url" },
 };
-
-class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
-const bad = (msg) => new HttpError(400, msg);
 
 function validDate(s) {
   if (typeof s !== "string" || !DATE_RE.test(s)) return false;
@@ -190,12 +170,12 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      if (e instanceof HttpError) return res.status(e.status).json({ error: e.message });
       if (e && /UNIQUE constraint failed: jobs\.external_ref/.test(e.message)) {
         return res.status(409).json({ error: "externalRef is already used by another job" });
       }
-      console.error("[job-records]", e);
-      res.status(500).json({ error: "Server error" });
+      // 4xx errors (HttpError, or anything with a 4xx status) go to the client,
+      // including a 409's extra ({stage}); the rest is a logged 500.
+      sendError(res, e, "[job-records]");
     }
   };
 }
@@ -245,6 +225,15 @@ r.post("/", "jobs.edit", handle((req, res) => {
   if (!values.name) throw bad("name is required");
   const stage = body.stage === undefined || body.stage === null ? "lead" : parseStage(req, body.stage);
 
+  // Entry effects of a manual stage (the same as a hand move into it): the
+  // stage's key date if the body didn't send one, and archived for the
+  // archived stage. Derived stages (admin only) have no effects.
+  if (MANUAL_STAGES.has(stage)) {
+    const dateCol = STAGE_DATE[stage];
+    if (dateCol && !values[dateCol]) values[dateCol] = sydneyToday();
+    if (stage === "archived") values.archived = 1;
+  }
+
   const now = new Date().toISOString();
   const id = db.transaction(() => {
     const cols = Object.keys(values);
@@ -255,13 +244,10 @@ r.post("/", "jobs.edit", handle((req, res) => {
       )
       .run(...cols.map((c) => values[c]), stage, now, now);
     const newId = info.lastInsertRowid;
-    audit.log(req, {
-      action: "job.create",
-      entityType: "job",
-      entityId: newId,
-      after: { ...values, source: "manual", stage },
-    });
-    if (stage === "ready_to_cut") jobstage.onDesignReadyToCut(db, newId, req);
+    const after = { ...values, source: "manual", stage };
+    // Throws on error, so the whole create rolls back (no silent half-move).
+    if (stage === "ready_to_cut" && jobstage.addToBacklog(db, newId)) after.toStart = "added";
+    audit.log(req, { action: "job.create", entityType: "job", entityId: newId, after });
     return newId;
   })();
   res.status(201).json(loadOne(req, id));
@@ -295,19 +281,53 @@ r.patch("/:id", "jobs.edit", handle((req, res) => {
       audit.log(req, { action: "job.update", entityType: "job", entityId: id, before, after });
     }
     if (newStage !== undefined) {
-      if (newStage === "ready_to_cut") {
-        // Sets the stage (audited as job.stage) and puts the job on the backlog.
-        jobstage.onDesignReadyToCut(db, id, req);
-      } else if (newStage === "complete" && existing.stage !== "invoiced") {
-        // Same as Finish week -> Complete: completed_date, and the final invoice
-        // falls due. A completedDate sent in the same PATCH is kept.
-        // (invoiced -> complete is an admin override: plain setStage.)
-        jobstage.onFinishedComplete(db, id, req, values.completed_date || undefined);
+      if (MANUAL_STAGES.has(newStage)) {
+        // The pipeline rules, key dates, archived link and To start effects.
+        // No `from` check; users.admin may also leave on_board (when it has no
+        // current or future rows), complete and invoiced. A same-stage PATCH
+        // does nothing. Throws on a rule break, rolling back the field update.
+        jobstage.moveStage(db, id, { stage: newStage }, req, { override: can(req, "users.admin") });
       } else {
-        jobstage.setStage(db, id, newStage, req);
+        // A derived stage (users.admin only; parseStage refused everyone else):
+        // the admin's hand override, as in M2.
+        if (newStage === "complete" && existing.stage !== "invoiced") {
+          // Same as Finish week -> Complete: completed_date, and the final invoice
+          // falls due. A completedDate sent in the same PATCH is kept.
+          // (invoiced -> complete is an admin override: plain setStage.)
+          jobstage.onFinishedComplete(db, id, req, values.completed_date || undefined);
+        } else {
+          jobstage.setStage(db, id, newStage, req);
+        }
+        // Leaving the archived stage unticks archived (the stage and the checkbox are linked).
+        if (existing.stage === "archived" && newStage !== "archived") {
+          const now = db.prepare("SELECT archived FROM jobs WHERE id = ?").get(id);
+          if (now && Number(now.archived) === 1) {
+            db.prepare("UPDATE jobs SET archived = 0, updated_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+            audit.log(req, {
+              action: "job.update",
+              entityType: "job",
+              entityId: id,
+              before: { archived: 1 },
+              after: { archived: 0 },
+            });
+          }
+        }
       }
     }
   })();
+  res.json(loadOne(req, id));
+}));
+
+// A hand move of the stage (pipeline). The pipeline rules apply to everyone,
+// admin included (the admin's override is PATCH). `from` is the stage the page
+// last saw; a mismatch is a 409 with the real stage.
+r.post("/:id/stage", "jobs.edit", handle((req, res) => {
+  const id = parseId(req);
+  if (!id) return res.status(404).json({ error: "Not found" });
+  const b = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+  if (b.from === undefined) throw bad("from is required");
+  if (b.from !== null && typeof b.from !== "string") throw bad("from must be a stage name or null");
+  jobstage.moveStage(db, id, { stage: b.stage, from: b.from }, req);
   res.json(loadOne(req, id));
 }));
 
