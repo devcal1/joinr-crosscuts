@@ -2,6 +2,8 @@
 
 Read this before changing anything in this repo. The binding interface details are in `docs/plans/m1-contracts.md`, the reasoning is in `docs/plans/m1-plan.md`, and the product brief is `docs/crosscuts-brief.md`. Where this file and the brief disagree, the brief wins. If a contract looks wrong, report it instead of working around it.
 
+**Start every session by reading `docs/plans/STATUS.md`** (where things stand and the next action), and work in the stages and clear points of `docs/plans/roadmap.md`.
+
 ## What Crosscuts is
 
 Crosscuts (called Joinr Crosscuts in Umbrel) is the successor to the TH Cabinets Umbrel app. It runs on Todd's Umbrel home server, on the workshop LAN and over Tailscale. It serves the schedule board that runs on the workshop TV, the photo library, and (in later milestones) jobs, accounts, design and scheduling pages.
@@ -33,7 +35,7 @@ Crosscuts runs alongside the old app until cutover. The old app is the schedule 
 6. **Every `/api` route is declared through `defineRoutes` with an access value** (a feature key, an array of keys, `'login'` or `'public'`). The server refuses to boot if any `/api` route lacks one.
 7. **The board files are not redesigned.** Do not edit `schedule.html`, `schedule.css`, `schedule.js` or `workers.html`. Any new visual on the board must be mirrored in `exportJpg()`. `alignPanels()` is shared by `renderWeeks` and `exportJpg`, and stays shared. `.nav` and `--nav-h` are untouched.
 8. **Shell CSS classes are prefixed `cc-`**, so they cannot collide with the board's global styles.
-9. **Never push without Todd saying so.** Commit locally. A push starts CI and publishes.
+9. **Never push anything (any repo, docs included) without Todd's express permission for that push.** Commit locally. A push to joinr-crosscuts starts CI and publishes; a push to tenon-umbrel-store changes what Todd's Umbrel offers.
 10. **The old app is frozen** (`thcabinets-umbrel-store` and `thcabinets-splash`) until cutover. Do not change its code, manifest, image or data, and do not uninstall it.
 11. **Umbrel proxy login stays off.** `PROXY_AUTH_ADD: "false"` is set in the compose file in tenon-umbrel-store (with no whitelist), and umbrelOS's per-app "Require Umbrel login" toggle must stay off. Crosscuts does its own login.
 
