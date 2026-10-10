@@ -129,6 +129,24 @@ a.hs-btn:hover { text-decoration: none; }
 .jobform-actions .status.err { color: var(--stop-tint); }
 .jobform-actions .status.ok { color: var(--go-tint); }
 
+/* materials ordered: a read-only date with a button beside it */
+.matordered { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 36px; }
+.matordered-when { color: var(--white); }
+
+/* the job's invoices (job.html) */
+.jobinv { margin-top: 18px; }
+.jobinv .hs-sectionbar { margin-bottom: 10px; }
+.jobinv-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.jobinv-table { min-width: 560px; }
+.jobinv-table th.num, .jobinv-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.jobinv-table tr:last-child td { border-bottom: 0; }
+.jobinv .muted { margin: 0; }
+
 .metaline {
   display: flex;
   flex-wrap: wrap;

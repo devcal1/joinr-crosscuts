@@ -1,0 +1,140 @@
+/* Accounts (accounts.html): the invoice table, the overdue list and the invoice dialog.
+   Tokens come from tokens.css, hs- components from components.css, and the dialog frame
+   from the shell's cc-dialog. Page classes here are prefixed ac-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.ac-page { max-width: 1280px; margin: 0 auto; padding: 22px 16px 48px; }
+.ac-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.ac-head h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 700; color: var(--white); }
+.ac-views { display: flex; gap: 8px; margin-bottom: 14px; }
+
+.ac-muted { color: var(--label); }
+.ac-none { color: var(--muted); }
+
+/* toolbar */
+.ac-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ac-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.ac-search { flex: 1 1 220px; width: auto; min-width: 0; color-scheme: dark; min-height: 36px; }
+.ac-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--body); }
+.ac-check input { accent-color: var(--teal); width: 16px; height: 16px; flex: none; }
+.ac-totals { margin: 0 0 8px; color: var(--label); }
+.ac-totals b { color: var(--white); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ac-totals .ac-sep { color: var(--muted); padding: 0 6px; }
+.ac-totals .ac-over { color: var(--stop-tint); }
+
+/* the table */
+.ac-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.ac-table { min-width: 1000px; }
+.ac-table th { padding: 10px 12px; }
+.ac-table td { padding: 6px 8px; vertical-align: top; }
+.ac-table tbody tr:last-child td { border-bottom: 0; }
+.ac-table tbody tr:hover { background: var(--raised); }
+.ac-table:not(.ac-overdue) th:nth-child(n+4), .ac-table:not(.ac-overdue) td:nth-child(n+4) { width: 18%; min-width: 170px; }
+.ac-table td.ac-job,.ac-table td.ac-client, .ac-table td.num { padding: 12px; }
+.ac-table td.ac-job a { font-weight: 700; }
+.ac-table th.num, .ac-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ac-empty { padding: 28px 14px; text-align: center; color: var(--label); }
+
+/* a cell is a real button: status, amount, then a small line */
+.ac-cell {
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 5px 8px;
+  text-align: left;
+  font: inherit;
+  color: var(--body);
+  background: none;
+  border: 1px solid var(--hairline);
+  border-left-width: var(--accent-border);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+.ac-cell:last-child { margin-bottom: 0; }
+.ac-cell:hover { background: var(--raised); border-color: var(--teal); }
+.ac-cell-st {
+  display: block;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+.ac-cell-amt { display: block; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--white); }
+.ac-cell-sub { display: block; font-size: 12px; color: var(--muted); }
+.ac-cell-desc { display: block; font-size: 12px; color: var(--label); overflow-wrap: anywhere; }
+.ac-cell-myob {
+  display: inline-block; margin-top: 3px; padding: 0 5px;
+  border: 1px solid var(--na); border-radius: var(--r-badge);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 15px; color: var(--label);
+}
+.ac-cell.st-pending { border-left-color: var(--na); }
+.ac-cell.st-due { border-left-color: var(--orange); background: var(--orange-8); }
+.ac-cell.st-due .ac-cell-st { color: var(--orange-tint); }
+.ac-cell.st-issued { border-left-color: var(--label); }
+.ac-cell.st-overdue { border-left-color: var(--stop); background: var(--stop-16); }
+.ac-cell.st-overdue .ac-cell-st { color: var(--stop-tint); }
+.ac-cell.st-paid { border-left-color: var(--teal); }
+.ac-cell.st-paid .ac-cell-st { color: var(--teal-tint); }
+.ac-cell.st-waived, .ac-cell.st-void { border-left-color: var(--na); }
+.ac-cell.st-waived .ac-cell-amt, .ac-cell.st-void .ac-cell-amt { color: var(--label); font-weight: 400; text-decoration: line-through; }
+.ac-cell.st-due:hover, .ac-cell.st-overdue:hover { background: var(--raised); }
+
+/* overdue list */
+.ac-overdue { min-width: 1100px; }
+.ac-overdue td { padding: 10px 12px; vertical-align: top; }
+.ac-overdue .ac-notes { max-width: 280px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ac-overdue .ac-days { color: var(--stop-tint); font-weight: 700; }
+.ac-linkbtn {
+  background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--teal-tint); cursor: pointer;
+}
+.ac-linkbtn:hover { text-decoration: underline; }
+
+/* the dialog */
+.cc-dialog.ac-dialog { width: min(94vw, 680px); max-height: 92vh; overflow-y: auto; }
+.ac-dialog .cc-dialog-form { gap: 14px; }
+.ac-dhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ac-dhead .cc-dialog-title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.ac-dsub { margin: 0; color: var(--label); font-size: 13px; }
+.ac-dialog .hs-input { color-scheme: dark; min-height: 36px; }
+.ac-dialog textarea.hs-input { min-height: 72px; resize: vertical; }
+.ac-dialog .hs-input:disabled { opacity: 0.75; }
+.ac-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ac-two .ac-wide { grid-column: 1 / -1; }
+.ac-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.ac-group-title {
+  margin: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+
+.ac-lines { display: grid; gap: 8px; }
+.ac-line { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 8px; align-items: center; }
+.ac-line .ac-amt-in { text-align: right; font-variant-numeric: tabular-nums; }
+.ac-line-ro { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+.ac-line-ro span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ac-linesum { display: flex; justify-content: space-between; gap: 12px; font-weight: 700; color: var(--white); }
+.ac-linesum span:last-child { font-variant-numeric: tabular-nums; }
+.ac-gstnote { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
+
+.ac-panel { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 12px; display: grid; gap: 10px; background: var(--ink); }
+.ac-panel.warn { border-left: var(--accent-border) solid var(--orange); }
+.ac-panel.stop { border-left: var(--accent-border) solid var(--stop); }
+.ac-panel p { margin: 0; }
+.ac-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ac-row .grow { flex: 1 1 160px; min-width: 0; }
+.ac-row .hs-input { width: auto; }
+.ac-row .hs-input.grow { width: auto; }
+
+.ac-dialog .cc-dialog-actions { align-items: center; }
+
+@media (max-width: 640px) {
+  .ac-two { grid-template-columns: minmax(0, 1fr); }
+  .ac-line { grid-template-columns: minmax(0, 1fr) 100px auto; }
+  .ac-head h1 { font-size: 20px; }
+}

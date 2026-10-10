@@ -28,7 +28,8 @@
   }
 
   // --- field definitions: key (API name), label, input type, group ----------
-  // type: text | tel | email | textarea | int | bool3 | benchtop | date | url | money | stage | archived
+  // type: text | tel | email | textarea | int | bool3 | benchtop | date | url | money | stage | archived | materials
+  // (materials is read-only here: the Materials ordered button sets it, never the form)
   const GROUPS = [
     {
       title: "Job",
@@ -44,6 +45,7 @@
         { key: "clientName", label: "Client name", type: "text" },
         { key: "clientPhone", label: "Phone", type: "tel" },
         { key: "clientEmail", label: "Email", type: "email" },
+        { key: "clientAbn", label: "Client ABN", type: "text", hint: "Optional. Printed on invoices." },
         { key: "siteAddress", label: "Site address", type: "text", wide: true },
       ],
     },
@@ -67,7 +69,7 @@
         { key: "quotedDate", label: "Quoted", type: "date" },
         { key: "wonDate", label: "Won", type: "date" },
         { key: "designSignedOffDate", label: "Design signed off", type: "date" },
-        { key: "materialsOrderedDate", label: "Materials ordered", type: "date" },
+        { key: "materialsOrderedDate", label: "Materials ordered", type: "materials" },
         { key: "readyToCutDate", label: "Ready to cut", type: "date" },
         { key: "promisedInstallDate", label: "Promised install", type: "date" },
         { key: "completedDate", label: "Completed", type: "date" },
@@ -111,6 +113,17 @@
   const titleEl = document.getElementById("title");
   const metaEl = document.getElementById("meta");
   const bannerEl = document.getElementById("banner");
+  const invoicesEl = document.getElementById("invoices");
+  const invoicesBody = document.getElementById("invoicesBody");
+
+  const INVOICE_KINDS = { deposit: "Deposit", progress: "Progress", final: "Final", extra: "Extra" };
+  const INVOICE_BADGE = { pending: "hs-badge-na", due: "hs-badge-check", issued: "hs-badge-na", paid: "hs-badge-teal", waived: "hs-badge-na", void: "hs-badge-na" };
+  // $12,345.67 from integer cents (no float arithmetic).
+  function fmtMoneyCents(c) {
+    if (c == null) return "";
+    const a = Math.abs(c);
+    return (c < 0 ? "-" : "") + "$" + String(Math.floor(a / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + String(a % 100).padStart(2, "0");
+  }
 
   let job = null; // last server copy (null while creating)
   let inputs = {}; // key -> element
@@ -192,6 +205,17 @@
       case "archived":
         node = el("input", { ...common, type: "checkbox" });
         break;
+      case "materials": {
+        // Read-only: the date is set by the Materials ordered button, which also starts the progress invoice.
+        node = el("div", { id: common.id, class: "matordered" });
+        const when = el("span", { class: "matordered-when" });
+        const btn = el("button", { type: "button", class: "hs-btn", hidden: true, text: "Materials ordered" });
+        btn.addEventListener("click", onMaterialsOrdered);
+        node.append(when, btn);
+        node.__when = when;
+        node.__btn = btn;
+        break;
+      }
       case "date":
         node = el("input", { ...common, class: "hs-input", type: "date" });
         break;
@@ -268,7 +292,8 @@
         const node = inputs[f.key];
         if (!node) continue;
         const v = job ? job[f.key] : f.key === "stage" ? "lead" : null;
-        if (f.type === "archived") node.checked = !!v;
+        if (f.type === "materials") fillMaterials(node, v);
+        else if (f.type === "archived") node.checked = !!v;
         else node.value = toInput(f, v);
         if (node.__sync) node.__sync();
       }
@@ -279,7 +304,8 @@
   // Read-only for users without jobs.edit; derived stages locked for non-admins.
   function applyAccess() {
     const editable = can("jobs.edit");
-    for (const node of Object.values(inputs)) node.disabled = !editable;
+    for (const node of Object.values(inputs)) if (!node.__btn) node.disabled = !editable;
+    if (inputs.materialsOrderedDate) fillMaterials(inputs.materialsOrderedDate, job ? job.materialsOrderedDate : null);
     if (inputs.stage && editable) {
       const isAdmin = can("users.admin");
       for (const opt of inputs.stage.options) opt.disabled = DERIVED.has(opt.value) && !isAdmin;
@@ -290,6 +316,75 @@
     bannerEl.replaceChildren(
       ...(editable ? [] : [el("div", { class: "hs-callout ro-banner", text: "You can view this job but not edit it." })])
     );
+  }
+
+  // The materials-ordered date is read-only. The button shows only for someone who may mark
+  // materials ordered, on a saved job where the date is still empty.
+  function fillMaterials(node, v) {
+    node.__when.textContent = v ? fmtDate(v) : "Not yet";
+    node.__btn.hidden = !(!isNew && !v && can("orders.mark_ordered"));
+  }
+
+  async function onMaterialsOrdered() {
+    const btn = inputs.materialsOrderedDate && inputs.materialsOrderedDate.__btn;
+    if (btn) btn.disabled = true;
+    setStatus("Marking materials ordered...", "muted");
+    try {
+      job = await api("/api/job-records/" + jobId + "/materials-ordered", { method: "POST", body: "{}" });
+      fill();
+      renderMeta();
+      loadInvoices();
+      setStatus("Materials marked ordered.", "ok");
+    } catch (e) {
+      setStatus(e.message, "err");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  // The job's invoices, for anyone who can see accounts.
+  async function loadInvoices() {
+    if (!invoicesEl) return;
+    if (isNew || !can("accounts.view")) {
+      invoicesEl.hidden = true;
+      return;
+    }
+    let list;
+    try {
+      list = await api("/api/invoices/job/" + jobId);
+    } catch (e) {
+      invoicesEl.hidden = false;
+      invoicesBody.replaceChildren(el("p", { class: "muted", text: e.message }));
+      return;
+    }
+    invoicesEl.hidden = false;
+    if (!list.length) {
+      invoicesBody.replaceChildren(el("p", { class: "muted", text: "No invoices yet." }));
+      return;
+    }
+    const table = el("table", { class: "hs-table jobinv-table" });
+    table.append(
+      el("thead", {}, el("tr", {}, ...["Invoice", "Number", "Status", "Amount", "Issued", "Due", "Paid"].map((h, i) => el("th", { class: i === 3 ? "num" : "", text: h }))))
+    );
+    const tb = el("tbody");
+    for (const inv of list) {
+      const status = inv.overdue ? "Overdue" : inv.status.charAt(0).toUpperCase() + inv.status.slice(1);
+      tb.append(
+        el(
+          "tr",
+          {},
+          el("td", {}, el("a", { href: "/accounts.html?invoice=" + inv.id, text: INVOICE_KINDS[inv.kind] || inv.kind })),
+          el("td", { text: inv.number || "" }),
+          el("td", {}, el("span", { class: "hs-badge " + (inv.overdue ? "hs-badge-stop" : INVOICE_BADGE[inv.status] || "hs-badge-na"), text: status })),
+          el("td", { class: "num", text: fmtMoneyCents(inv.totalCents) }),
+          el("td", { text: fmtDate(inv.issueDate) }),
+          el("td", { text: fmtDate(inv.dueDate) }),
+          el("td", { text: fmtDate(inv.paidDate) })
+        )
+      );
+    }
+    table.append(tb);
+    invoicesBody.replaceChildren(el("div", { class: "jobinv-wrap" }, table));
   }
 
   function renderMeta() {
@@ -316,6 +411,8 @@
       for (const f of g.fields) {
         const node = inputs[f.key];
         if (!node) continue;
+        // Read-only: the server answers 400 if materialsOrderedDate is sent on create or edit.
+        if (f.type === "materials") continue;
         const v = fromInput(f, node);
         if (isNew) {
           if (f.key === "name") {
@@ -393,11 +490,15 @@
       buildForm();
       fill();
       renderMeta();
+      loadInvoices();
     }
     formEl.addEventListener("submit", onSubmit);
     // The shell may finish loading permissions after first paint.
     window.addEventListener("load", applyAccess);
-    document.addEventListener("cc:ready", applyAccess);
+    document.addEventListener("cc:ready", () => {
+      applyAccess();
+      loadInvoices();
+    });
   }
 
   init();
