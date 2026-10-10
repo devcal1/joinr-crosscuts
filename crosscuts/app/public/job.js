@@ -214,14 +214,12 @@
         node = el("input", { ...common, type: "checkbox" });
         break;
       case "materials": {
-        // Read-only: the date is set by the Materials ordered button, which also starts the progress invoice.
+        // Read-only: the date is set by the Materials ordered button in the Orders section,
+        // which also starts the progress invoice.
         node = el("div", { id: common.id, class: "matordered" });
         const when = el("span", { class: "matordered-when" });
-        const btn = el("button", { type: "button", class: "hs-btn", hidden: true, text: "Materials ordered" });
-        btn.addEventListener("click", onMaterialsOrdered);
-        node.append(when, btn);
+        node.append(when);
         node.__when = when;
-        node.__btn = btn;
         break;
       }
       case "date":
@@ -312,7 +310,7 @@
   // Read-only for users without jobs.edit; derived stages locked for non-admins.
   function applyAccess() {
     const editable = can("jobs.edit");
-    for (const node of Object.values(inputs)) if (!node.__btn) node.disabled = !editable;
+    for (const node of Object.values(inputs)) if (!node.__when) node.disabled = !editable;
     if (inputs.materialsOrderedDate) fillMaterials(inputs.materialsOrderedDate, job ? job.materialsOrderedDate : null);
     if (inputs.stage && editable) {
       const isAdmin = can("users.admin");
@@ -345,28 +343,10 @@
     );
   }
 
-  // The materials-ordered date is read-only. The button shows only for someone who may mark
-  // materials ordered, on a saved job where the date is still empty.
+  // The materials-ordered date is read-only here. The Materials ordered button lives in the
+  // Orders section (renderOrdersSummary).
   function fillMaterials(node, v) {
     node.__when.textContent = v ? fmtDate(v) : "Not yet";
-    node.__btn.hidden = !(!isNew && !v && can("orders.mark_ordered"));
-  }
-
-  async function onMaterialsOrdered() {
-    const btn = inputs.materialsOrderedDate && inputs.materialsOrderedDate.__btn;
-    if (btn) btn.disabled = true;
-    setStatus("Marking materials ordered...", "muted");
-    try {
-      job = await api("/api/job-records/" + jobId + "/materials-ordered", { method: "POST", body: "{}" });
-      fill();
-      renderMeta();
-      loadInvoices();
-      setStatus("Materials marked ordered.", "ok");
-    } catch (e) {
-      setStatus(e.message, "err");
-    } finally {
-      if (btn) btn.disabled = false;
-    }
   }
 
   // The job's invoices, for anyone who can see accounts.
@@ -517,6 +497,7 @@
       document.title = job.name + " - Crosscuts";
       fill();
       renderMeta();
+      renderInspection(); // two-pac may have changed
       if (stageError) {
         setStatus((hasFields ? "Saved, but the stage was not changed: " : "The stage was not changed: ") + stageError, "err");
       } else {
@@ -527,6 +508,559 @@
     } finally {
       saveBtn.disabled = false;
     }
+  }
+
+  // =====================================================================================
+  // Orders, Inspection and Photos sections (docs/plans/m3-contracts.md section 6).
+  // Each is a section.jo-sec with an hs-sectionbar heading; the ids are the bell-link targets.
+  // =====================================================================================
+  const $ = (id) => document.getElementById(id);
+  const ordersEl = $("orders");
+  const inspectionEl = $("inspection");
+  const photosEl = $("photos");
+  let sectionsReady = false;
+
+  // A fetch that keeps api()'s 401 -> login redirect, for the multipart upload (api() forces a JSON
+  // content type). The promise never resolves when the page is navigating away.
+  async function authFetch(url, options) {
+    const res = await fetch(url, options);
+    if (res.status === 401 && !location.pathname.startsWith("/login.html")) {
+      const body = await res.clone().json().catch(() => ({}));
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = (body.locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
+      return new Promise(() => {});
+    }
+    return res;
+  }
+
+  function setLine(node, msg, kind) {
+    node.textContent = msg || "";
+    node.className = "jo-status " + (kind || "muted");
+  }
+
+  // A modal on the shell's cc-dialog frame. `build(dlg)` fills it.
+  function openDialog(label, build) {
+    const dlg = el("dialog", { class: "cc-dialog jo-dialog", "aria-label": label });
+    document.body.append(dlg);
+    dlg.addEventListener("close", () => dlg.remove());
+    dlg.addEventListener("mousedown", (e) => {
+      if (e.target === dlg) dlg.close();
+    });
+    build(dlg);
+    dlg.showModal();
+    return dlg;
+  }
+
+  // Resolves true only when the confirm button is pressed. Red is for this destructive confirm.
+  function confirmDialog(title, note, confirmLabel, keepLabel) {
+    return new Promise((resolve) => {
+      let answer = false;
+      const dlg = openDialog(title, (d) => {
+        const keep = el("button", { type: "button", class: "hs-btn", text: keepLabel });
+        const yes = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: confirmLabel });
+        keep.addEventListener("click", () => d.close());
+        yes.addEventListener("click", () => {
+          answer = true;
+          d.close();
+        });
+        d.append(
+          el(
+            "div",
+            { class: "cc-dialog-form" },
+            el("h2", { class: "cc-dialog-title", text: title }),
+            el("p", { class: "cc-dialog-note", text: note }),
+            el("div", { class: "cc-dialog-actions" }, keep, yes)
+          )
+        );
+      });
+      dlg.addEventListener("close", () => resolve(answer));
+    });
+  }
+
+  function tableWrap(table) {
+    return el("div", { class: "jo-wrap" }, table);
+  }
+  function headRow(labels) {
+    return el("thead", {}, el("tr", {}, ...labels.map((h) => el("th", { text: h }))));
+  }
+
+  // Keeps the job copy and the form's Materials ordered field in step with a mutation's response,
+  // without touching anything the user has typed in the form. A progress invoice may now be due.
+  function applyJobState(s) {
+    if (!s || !job) return;
+    job.materialsOrderedDate = s.materialsOrderedDate;
+    job.materialsInDate = s.materialsInDate;
+    if (inputs.materialsOrderedDate) fillMaterials(inputs.materialsOrderedDate, job.materialsOrderedDate);
+    renderOrdersSummary();
+    loadInvoices();
+  }
+
+  // ---- Orders --------------------------------------------------------------------------
+  const ORDER_STATUS = {
+    to_order: ["To order", "hs-badge-check"],
+    ordered: ["Ordered", "hs-badge-teal"],
+    received: ["Received", "hs-badge-go"],
+    cancelled: ["Cancelled", "hs-badge-na"],
+  };
+  let orders = [];
+  let showCancelled = false;
+
+  // Which buttons a line gets: the permission table in m3-contracts.md section 2. The server checks too.
+  function lineActions(o) {
+    const acts = [];
+    if (o.status === "to_order" && can("orders.mark_ordered")) {
+      acts.push({ label: "Mark ordered", patch: { status: "ordered" }, done: "Marked ordered", primary: true });
+    }
+    if (o.status === "ordered") {
+      if (can("orders.edit")) acts.push({ label: "Received", patch: { status: "received" }, done: "Marked received", primary: true });
+      if (can("orders.mark_ordered")) acts.push({ label: "Undo", patch: { status: "to_order" }, done: "Moved back to To order" });
+    }
+    if (o.status === "received" && can("orders.edit")) {
+      acts.push({ label: "Undo", patch: { status: "ordered" }, done: "Moved back to Ordered" });
+    }
+    if (o.status !== "cancelled" && can("orders.edit")) acts.push({ label: "Cancel", cancel: true, done: "Line cancelled" });
+    return acts;
+  }
+
+  function renderOrdersSummary() {
+    const box = $("ordersSummary");
+    if (!box || !job) return;
+    const ordered = el(
+      "div",
+      { class: "jo-sumitem" },
+      el("span", { class: "jo-sumlabel", text: "Materials ordered" }),
+      el("span", { class: "jo-sumval", text: job.materialsOrderedDate ? fmtDate(job.materialsOrderedDate) : "Not yet" })
+    );
+    if (!job.materialsOrderedDate && can("orders.mark_ordered")) {
+      const btn = el("button", { type: "button", class: "hs-btn", text: "Materials ordered" });
+      btn.addEventListener("click", onMaterialsOrdered);
+      ordered.append(btn);
+    }
+    const inn = el(
+      "div",
+      { class: "jo-sumitem" },
+      el("span", { class: "jo-sumlabel", text: "Materials in" }),
+      el("span", { class: "jo-sumval", text: job.materialsInDate ? fmtDate(job.materialsInDate) : "Not yet" })
+    );
+    box.replaceChildren(ordered, inn);
+  }
+
+  async function onMaterialsOrdered(ev) {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    const status = $("ordersStatus");
+    setLine(status, "Marking materials ordered...", "muted");
+    try {
+      const j = await api("/api/job-records/" + jobId + "/materials-ordered", { method: "POST", body: "{}" });
+      applyJobState(j);
+      setLine(status, "Materials marked ordered.", "ok");
+    } catch (e) {
+      setLine(status, e.message, "err");
+      btn.disabled = false;
+    }
+  }
+
+  function renderOrders() {
+    const body = $("ordersBody");
+    if (!orders.length) {
+      body.replaceChildren(el("p", { class: "muted jo-empty", text: showCancelled ? "No order lines." : "No order lines yet." }));
+      return;
+    }
+    const table = el("table", { class: "hs-table jo-table jo-orders" });
+    table.append(headRow(["Supplier", "Description", "Status", "Expected", "Dates", "Actions"]));
+    const tb = el("tbody");
+    for (const o of orders) {
+      const [label, badge] = ORDER_STATUS[o.status] || [o.status, "hs-badge-na"];
+      const expected = el("td", { class: o.overdue ? "jo-overdue" : "" });
+      if (o.expectedDate) expected.append(document.createTextNode(fmtDate(o.expectedDate)));
+      if (o.overdue) expected.append(el("span", { class: "jo-overdue-tag", text: "Overdue" }));
+      const actions = el("td", { class: "jo-acts" });
+      for (const a of lineActions(o)) {
+        const btn = el("button", { type: "button", class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""), text: a.label });
+        btn.addEventListener("click", () => runLineAction(o, a));
+        actions.append(btn);
+      }
+      tb.append(
+        el(
+          "tr",
+          { class: o.status === "cancelled" ? "jo-cancelled" : "" },
+          el("td", { class: "jo-strong", text: o.supplier }),
+          el("td", { class: "jo-text" }, document.createTextNode(o.description), o.notes ? el("span", { class: "jo-note", text: o.notes }) : null),
+          el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
+          expected,
+          el(
+            "td",
+            { class: "jo-dates" },
+            o.orderedDate ? el("span", { text: "Ordered " + fmtDate(o.orderedDate) }) : null,
+            o.receivedDate ? el("span", { text: "Received " + fmtDate(o.receivedDate) }) : null
+          ),
+          actions
+        )
+      );
+    }
+    table.append(tb);
+    body.replaceChildren(tableWrap(table));
+  }
+
+  async function loadOrders() {
+    try {
+      orders = await api("/api/job-records/" + jobId + "/orders?all=" + (showCancelled ? "1" : "0"));
+    } catch (e) {
+      setLine($("ordersStatus"), e.message, "err");
+      return;
+    }
+    renderOrders();
+  }
+
+  async function loadSuppliers() {
+    try {
+      const list = await api("/api/orders/suppliers");
+      $("oSuppliers").replaceChildren(...list.map((s) => el("option", { value: s })));
+    } catch (e) {
+      /* the datalist is a convenience */
+    }
+  }
+
+  async function runLineAction(o, a) {
+    const status = $("ordersStatus");
+    if (a.cancel) {
+      const what = o.supplier + (o.description ? " - " + o.description : "");
+      const ok = await confirmDialog("Cancel this order line?", what + ". The line stays on the job, marked cancelled.", "Cancel line", "Keep line");
+      if (!ok) return;
+    }
+    for (const b of $("ordersBody").querySelectorAll("button")) b.disabled = true;
+    setLine(status, "Saving...", "muted");
+    try {
+      const r = a.cancel
+        ? await api("/api/orders/" + o.id + "/cancel", { method: "POST", body: "{}" })
+        : await api("/api/orders/" + o.id, { method: "PATCH", body: JSON.stringify(a.patch) });
+      applyJobState(r.job);
+      setLine(status, a.done + ".", "ok");
+    } catch (e) {
+      setLine(status, e.message, "err");
+    }
+    await loadOrders();
+  }
+
+  async function onAddLine(ev) {
+    ev.preventDefault();
+    const status = $("ordersStatus");
+    const supplier = $("oSupplier").value.trim();
+    if (!supplier) {
+      setLine(status, "Supplier is required.", "err");
+      $("oSupplier").focus();
+      return;
+    }
+    const btn = $("oAdd");
+    btn.disabled = true;
+    setLine(status, "Adding...", "muted");
+    try {
+      const r = await api("/api/job-records/" + jobId + "/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          supplier,
+          description: $("oDesc").value.trim(),
+          expectedDate: $("oExpected").value || null,
+          notes: $("oNotes").value.trim(),
+        }),
+      });
+      for (const id of ["oSupplier", "oDesc", "oExpected", "oNotes"]) $(id).value = "";
+      applyJobState(r.job);
+      setLine(status, "Line added.", "ok");
+      loadSuppliers();
+      await loadOrders();
+    } catch (e) {
+      setLine(status, e.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ---- Inspection ------------------------------------------------------------------------
+  const INSPECTION_STATUS = {
+    booked: ["Booked", "hs-badge-teal"],
+    done: ["Done", "hs-badge-go"],
+    cancelled: ["Cancelled", "hs-badge-na"],
+  };
+  let inspections = [];
+  let inspectionsAllowed = true;
+
+  // Shown for two-pac jobs, or for any job that has an inspection.
+  function renderInspection() {
+    if (!sectionsReady || isNew || !job) return;
+    const show = inspectionsAllowed && (job.isTwoPac === true || inspections.length > 0);
+    inspectionEl.hidden = !show;
+    if (!show) return;
+    const canEdit = can("inspections.edit");
+    $("inspectionForm").hidden = !canEdit;
+    const body = $("inspectionBody");
+    if (!inspections.length) {
+      body.replaceChildren(el("p", { class: "muted jo-empty", text: "No inspection booked." }));
+      return;
+    }
+    const table = el("table", { class: "hs-table jo-table jo-insp" });
+    table.append(headRow(["Date", "Time", "Host", "Notes", "Status", "Actions"]));
+    const tb = el("tbody");
+    for (const i of inspections) {
+      const [label, badge] = INSPECTION_STATUS[i.status] || [i.status, "hs-badge-na"];
+      const actions = el("td", { class: "jo-acts" });
+      if (canEdit && i.status !== "cancelled") {
+        const edit = el("button", { type: "button", class: "hs-btn", text: "Edit" });
+        edit.addEventListener("click", () => editInspection(i));
+        actions.append(edit);
+        if (i.status === "booked") {
+          const done = el("button", { type: "button", class: "hs-btn hs-btn-primary", text: "Done" });
+          done.addEventListener("click", () => inspectionAction(i, "done"));
+          const cancel = el("button", { type: "button", class: "hs-btn", text: "Cancel" });
+          cancel.addEventListener("click", () => inspectionAction(i, "cancel"));
+          actions.append(done, cancel);
+        }
+      }
+      tb.append(
+        el(
+          "tr",
+          { class: i.status === "cancelled" ? "jo-cancelled" : "" },
+          el("td", { class: "jo-strong", text: fmtDate(i.date) }),
+          el("td", { text: i.time || "" }),
+          el("td", { text: i.host }),
+          el("td", { class: "jo-text", text: i.notes }),
+          el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
+          actions
+        )
+      );
+    }
+    table.append(tb);
+    body.replaceChildren(tableWrap(table));
+  }
+
+  async function loadInspections() {
+    try {
+      inspections = await api("/api/job-records/" + jobId + "/inspections");
+      inspectionsAllowed = true;
+    } catch (e) {
+      inspections = [];
+      inspectionsAllowed = false; // no access to inspections: the section stays out of the way
+    }
+    renderInspection();
+  }
+
+  async function inspectionAction(i, what) {
+    const status = $("inspectionStatus");
+    if (what === "cancel") {
+      const ok = await confirmDialog(
+        "Cancel this inspection?",
+        fmtDate(i.date) + (i.time ? " at " + i.time : "") + (i.host ? ", host " + i.host : "") + ". Scheduling is told it was cancelled.",
+        "Cancel inspection",
+        "Keep inspection"
+      );
+      if (!ok) return;
+    }
+    for (const b of $("inspectionBody").querySelectorAll("button")) b.disabled = true;
+    setLine(status, "Saving...", "muted");
+    try {
+      if (what === "done") await api("/api/inspections/" + i.id, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+      else await api("/api/inspections/" + i.id + "/cancel", { method: "POST", body: "{}" });
+      setLine(status, what === "done" ? "Marked done." : "Inspection cancelled.", "ok");
+    } catch (e) {
+      setLine(status, e.message, "err");
+    }
+    await loadInspections();
+  }
+
+  function dlgField(id, label, input) {
+    input.id = id;
+    return el("div", { class: "cc-field" }, el("label", { class: "cc-field-label", for: id, text: label }), input);
+  }
+
+  function editInspection(i) {
+    openDialog("Edit inspection", (d) => {
+      const date = el("input", { class: "hs-input", type: "date", required: true });
+      const time = el("input", { class: "hs-input", type: "time" });
+      const host = el("input", { class: "hs-input", type: "text", maxlength: "200", autocomplete: "off" });
+      const notes = el("textarea", { class: "hs-input", rows: "3" });
+      date.value = i.date || "";
+      time.value = i.time || "";
+      host.value = i.host || "";
+      notes.value = i.notes || "";
+      const err = el("p", { class: "cc-dialog-error", role: "alert" });
+      const cancel = el("button", { type: "button", class: "hs-btn", text: "Close" });
+      const save = el("button", { type: "submit", class: "hs-btn hs-btn-primary", text: "Save" });
+      cancel.addEventListener("click", () => d.close());
+      const form = el(
+        "form",
+        { class: "cc-dialog-form", novalidate: true },
+        el("h2", { class: "cc-dialog-title", text: "Edit inspection" }),
+        dlgField("ie-date", "Date", date),
+        dlgField("ie-time", "Time", time),
+        dlgField("ie-host", "Host", host),
+        dlgField("ie-notes", "Notes", notes),
+        err,
+        el("div", { class: "cc-dialog-actions" }, cancel, save)
+      );
+      form.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        if (!date.value) {
+          err.textContent = "Date is required.";
+          return;
+        }
+        save.disabled = true;
+        err.textContent = "";
+        try {
+          await api("/api/inspections/" + i.id, {
+            method: "PATCH",
+            body: JSON.stringify({ date: date.value, time: time.value || null, host: host.value.trim(), notes: notes.value.trim() }),
+          });
+          d.close();
+          setLine($("inspectionStatus"), "Inspection saved.", "ok");
+          await loadInspections();
+        } catch (e) {
+          err.textContent = e.message;
+          save.disabled = false;
+        }
+      });
+      d.append(form);
+    });
+  }
+
+  async function onBook(ev) {
+    ev.preventDefault();
+    const status = $("inspectionStatus");
+    const date = $("iDate").value;
+    if (!date) {
+      setLine(status, "Date is required.", "err");
+      $("iDate").focus();
+      return;
+    }
+    const btn = $("iBook");
+    btn.disabled = true;
+    setLine(status, "Booking...", "muted");
+    try {
+      await api("/api/job-records/" + jobId + "/inspections", {
+        method: "POST",
+        body: JSON.stringify({ date, time: $("iTime").value || null, host: $("iHost").value.trim(), notes: $("iNotes").value.trim() }),
+      });
+      for (const id of ["iDate", "iTime", "iNotes"]) $(id).value = "";
+      setLine(status, "Inspection booked.", "ok");
+      await loadInspections();
+    } catch (e) {
+      setLine(status, e.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ---- Photos ----------------------------------------------------------------------------
+  let photos = [];
+
+  function renderPhotos() {
+    const body = $("photosBody");
+    if (!photos.length) {
+      body.replaceChildren(el("p", { class: "muted jo-empty", text: "No photos linked to this job yet." }));
+      return;
+    }
+    const grid = el("div", { class: "jo-photos" });
+    for (const p of photos) {
+      const img = el("img", { src: p.thumbUrl, alt: p.tags ? p.tags : "Job photo", loading: "lazy" });
+      if (p.width && p.height) {
+        img.setAttribute("width", String(p.width));
+        img.setAttribute("height", String(p.height));
+      }
+      const a = el("a", { class: "jo-thumb", href: p.url, target: "_blank", rel: "noopener", title: p.tags || "Open the full photo" }, img);
+      grid.append(el("figure", { class: "jo-photo" }, a, p.tags ? el("figcaption", { text: p.tags }) : null));
+    }
+    body.replaceChildren(grid);
+  }
+
+  async function loadPhotos() {
+    try {
+      photos = await api("/api/photos?jobId=" + jobId);
+    } catch (e) {
+      setLine($("photosStatus"), e.message, "err");
+      return;
+    }
+    renderPhotos();
+  }
+
+  async function onUpload(ev) {
+    ev.preventDefault();
+    const status = $("photosStatus");
+    const files = $("pFiles").files;
+    if (!files || !files.length) {
+      setLine(status, "Choose at least one photo.", "err");
+      return;
+    }
+    const btn = $("pUpload");
+    btn.disabled = true;
+    setLine(status, "Uploading " + files.length + (files.length === 1 ? " photo..." : " photos..."), "muted");
+    try {
+      const fd = new FormData();
+      fd.append("jobId", String(jobId));
+      fd.append("tags", $("pTags").value);
+      for (const f of files) fd.append("photos", f);
+      const res = await authFetch("/api/photos", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload failed (" + res.status + ")");
+      const made = (data.created || []).length;
+      const failed = (data.failed || []).length;
+      setLine(status, "Uploaded " + made + (made === 1 ? " photo" : " photos") + (failed ? ", " + failed + " failed." : "."), failed ? "err" : "ok");
+      $("pFiles").value = "";
+      $("pTags").value = "";
+      await loadPhotos();
+    } catch (e) {
+      setLine(status, e.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ---- start-up --------------------------------------------------------------------------
+  // Permissions come from the shell, so wait for it before deciding what to show.
+  async function pageReady() {
+    if (document.readyState !== "complete") await new Promise((r) => window.addEventListener("load", r, { once: true }));
+    if (window.cc && window.cc.ready) await window.cc.ready;
+  }
+
+  function jumpToHash() {
+    if (location.hash.length < 2) return;
+    let id = location.hash.slice(1);
+    try { id = decodeURIComponent(id); } catch (e) { /* use as is */ }
+    const target = document.getElementById(id);
+    if (target && !target.hidden) target.scrollIntoView();
+  }
+
+  async function startSections() {
+    await pageReady();
+    sectionsReady = true;
+    const tasks = [];
+    if (can("jobs.view")) {
+      ordersEl.hidden = false;
+      renderOrdersSummary();
+      $("orderForm").hidden = !can("orders.edit");
+      $("orderForm").addEventListener("submit", onAddLine);
+      $("showCancelled").addEventListener("click", (ev) => {
+        showCancelled = !showCancelled;
+        ev.currentTarget.setAttribute("aria-pressed", showCancelled ? "true" : "false");
+        ev.currentTarget.classList.toggle("hs-btn-quiet", !showCancelled);
+        ev.currentTarget.classList.toggle("hs-btn-primary", showCancelled);
+        loadOrders();
+      });
+      tasks.push(loadOrders());
+      if (can("orders.edit")) tasks.push(loadSuppliers());
+    }
+    if (can("jobs.view") || can("scheduling.view")) {
+      $("inspectionForm").addEventListener("submit", onBook);
+      const me = window.cc && window.cc.me;
+      if (me && me.displayName && !$("iHost").value) $("iHost").value = me.displayName;
+      tasks.push(loadInspections());
+    }
+    if (can("photos.search") || can("photos.admin")) {
+      photosEl.hidden = false;
+      $("photoForm").hidden = !can("photos.admin");
+      $("photoForm").addEventListener("submit", onUpload);
+      tasks.push(loadPhotos());
+    }
+    await Promise.allSettled(tasks);
+    jumpToHash();
   }
 
   async function init() {
@@ -549,6 +1083,7 @@
       fill();
       renderMeta();
       loadInvoices();
+      startSections();
     }
     formEl.addEventListener("submit", onSubmit);
     // The shell may finish loading permissions after first paint.

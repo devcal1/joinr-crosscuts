@@ -6,6 +6,7 @@
 <title>Scheduling - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="scheduling.css">
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -13,7 +14,7 @@
   <main class="dash">
     <header class="dash-head">
       <h1>Scheduling</h1>
-      <p class="dash-date">This section is not built yet. Here is what it will become.</p>
+      <p class="dash-date" id="range" hidden></p>
     </header>
 
     <section class="dash-section" aria-labelledby="now-h">
@@ -30,6 +31,20 @@
           <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/workers.html">Open Workers</a></div>
         </article>
       </div>
+    </section>
+
+    <section class="dash-section" aria-labelledby="upcoming-h">
+      <div class="hs-sectionbar"><h2 class="dash-h2" id="upcoming-h">Upcoming, next 14 days</h2></div>
+      <p id="scMessage" class="sc-message" role="status"></p>
+
+      <h3 class="sc-h3" id="insp-h">Inspections</h3>
+      <div id="scInspections" aria-labelledby="insp-h"><p class="sc-empty">Loading...</p></div>
+
+      <h3 class="sc-h3" id="mat-h">Materials expected</h3>
+      <div id="scMaterials" aria-labelledby="mat-h"><p class="sc-empty">Loading...</p></div>
+
+      <h3 class="sc-h3" id="matin-h">Materials in</h3>
+      <div id="scMaterialsIn" aria-labelledby="matin-h"><p class="sc-empty">Loading...</p></div>
     </section>
 
     <section class="dash-section" aria-labelledby="planned-h">
@@ -51,6 +66,8 @@
     <p class="dash-empty"><a class="hs-btn" href="/">Back to the dashboard</a></p>
   </main>
 
+  <script src="shared.js"></script>
+  <script src="scheduling.js"></script>
   <script src="shell/shell.js"></script>
 </body>
 </html>

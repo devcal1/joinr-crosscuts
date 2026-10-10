@@ -147,6 +147,58 @@ a.hs-btn:hover { text-decoration: none; }
 .jobinv-table tr:last-child td { border-bottom: 0; }
 .jobinv .muted { margin: 0; }
 
+/* job page sections: Orders, Inspection, Photos (jo-) */
+.jo-sec { margin-top: 18px; scroll-margin-top: calc(var(--nav-h, 56px) + 8px); }
+.jo-sec .hs-sectionbar { margin-bottom: 10px; }
+.jo-summary { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-bottom: 10px; }
+.jo-sumitem { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 34px; }
+.jo-sumlabel { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.jo-sumval { color: var(--white); }
+.jo-status { min-height: 20px; margin: 0 0 8px; font-size: 14px; }
+.jo-status.err { color: var(--stop-tint); }
+.jo-status.ok { color: var(--go-tint); }
+.jo-empty { margin: 0 0 10px; }
+.jo-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.jo-table { min-width: 720px; }
+.jo-orders { min-width: 640px; }
+.jo-note { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.jo-dates span { display: block; font-size: 13px; white-space: nowrap; }
+.jo-table td { vertical-align: middle; }
+.jo-table tr:last-child td { border-bottom: 0; }
+.jo-table td.jo-strong { color: var(--white); font-weight: 700; }
+.jo-table td.jo-text { overflow-wrap: anywhere; min-width: 120px; }
+.jo-table tr.jo-cancelled td { opacity: 0.55; }
+.jo-table td.jo-overdue { color: var(--orange-tint); }
+.jo-overdue-tag { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange-tint); }
+.jo-acts { min-width: 150px; }
+.jo-acts .hs-btn { margin: 0 6px 6px 0; padding: 6px 10px; }
+
+.jo-form { margin-top: 14px; padding: 12px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
+.jo-formh { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.jo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.jo-grid .jo-wide { grid-column: 1 / -1; }
+.jo-field label {
+  display: block; margin-bottom: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+.jo-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
+
+.jo-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.jo-photo { margin: 0; min-width: 0; }
+.jo-thumb { display: block; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
+.jo-thumb:hover { border-color: var(--teal); }
+.jo-thumb img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; }
+.jo-photo figcaption { margin-top: 3px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+.cc-dialog.jo-dialog { width: min(94vw, 460px); }
+.jo-dialog textarea.hs-input { min-height: 72px; resize: vertical; color-scheme: dark; }
+.jo-dialog .hs-input { color-scheme: dark; }
+
 .metaline {
   display: flex;
   flex-wrap: wrap;
@@ -161,4 +213,5 @@ a.hs-btn:hover { text-decoration: none; }
   .grid { grid-template-columns: minmax(0, 1fr); }
   .jobs-head h1 { font-size: 22px; }
   .jobs-tools select.hs-input { width: 100%; }
+  .jo-grid { grid-template-columns: minmax(0, 1fr); }
 }

@@ -19,6 +19,91 @@
     <div id="meta" class="metaline muted"></div>
     <form id="form" class="jobform" novalidate></form>
 
+    <section id="orders" class="jo-sec" aria-labelledby="orders-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="orders-h">Orders</h2>
+        <button id="showCancelled" class="hs-btn hs-btn-quiet" type="button" aria-pressed="false">Show cancelled</button>
+      </div>
+      <div id="ordersSummary" class="jo-summary"></div>
+      <p id="ordersStatus" class="jo-status muted" role="status"></p>
+      <div id="ordersBody"></div>
+      <form id="orderForm" class="jo-form" novalidate hidden>
+        <h3 class="jo-formh">Add a line</h3>
+        <div class="jo-grid">
+          <div class="jo-field">
+            <label for="oSupplier">Supplier *</label>
+            <input id="oSupplier" class="hs-input" type="text" list="oSuppliers" maxlength="200" autocomplete="off">
+            <datalist id="oSuppliers"></datalist>
+          </div>
+          <div class="jo-field">
+            <label for="oExpected">Expected</label>
+            <input id="oExpected" class="hs-input" type="date">
+          </div>
+          <div class="jo-field jo-wide">
+            <label for="oDesc">Description</label>
+            <input id="oDesc" class="hs-input" type="text" maxlength="500" autocomplete="off">
+          </div>
+          <div class="jo-field jo-wide">
+            <label for="oNotes">Notes</label>
+            <input id="oNotes" class="hs-input" type="text" autocomplete="off">
+          </div>
+        </div>
+        <div class="jo-actions"><button id="oAdd" class="hs-btn hs-btn-primary" type="submit">Add line</button></div>
+      </form>
+    </section>
+
+    <section id="inspection" class="jo-sec" aria-labelledby="inspection-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="inspection-h">Inspection</h2>
+      </div>
+      <p id="inspectionStatus" class="jo-status muted" role="status"></p>
+      <div id="inspectionBody"></div>
+      <form id="inspectionForm" class="jo-form" novalidate hidden>
+        <h3 class="jo-formh">Book an inspection</h3>
+        <div class="jo-grid">
+          <div class="jo-field">
+            <label for="iDate">Date *</label>
+            <input id="iDate" class="hs-input" type="date">
+          </div>
+          <div class="jo-field">
+            <label for="iTime">Time</label>
+            <input id="iTime" class="hs-input" type="time">
+          </div>
+          <div class="jo-field">
+            <label for="iHost">Host</label>
+            <input id="iHost" class="hs-input" type="text" maxlength="200" autocomplete="off">
+          </div>
+          <div class="jo-field">
+            <label for="iNotes">Notes</label>
+            <input id="iNotes" class="hs-input" type="text" autocomplete="off">
+          </div>
+        </div>
+        <div class="jo-actions"><button id="iBook" class="hs-btn hs-btn-primary" type="submit">Book inspection</button></div>
+      </form>
+    </section>
+
+    <section id="photos" class="jo-sec" aria-labelledby="photos-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="photos-h">Photos</h2>
+      </div>
+      <p id="photosStatus" class="jo-status muted" role="status"></p>
+      <div id="photosBody"></div>
+      <form id="photoForm" class="jo-form" novalidate hidden>
+        <h3 class="jo-formh">Upload photos</h3>
+        <div class="jo-grid">
+          <div class="jo-field jo-wide">
+            <label for="pFiles">Photos</label>
+            <input id="pFiles" class="hs-input" type="file" accept="image/*" multiple>
+          </div>
+          <div class="jo-field jo-wide">
+            <label for="pTags">Tags</label>
+            <input id="pTags" class="hs-input" type="text" placeholder="kitchen, white oak" autocomplete="off">
+          </div>
+        </div>
+        <div class="jo-actions"><button id="pUpload" class="hs-btn hs-btn-primary" type="submit">Upload photos</button></div>
+      </form>
+    </section>
+
     <section id="invoices" class="jobinv" aria-labelledby="invoices-h" hidden>
       <div class="hs-sectionbar">
         <h2 id="invoices-h">Invoices</h2>

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orders.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="or-page">
+    <div class="or-head">
+      <h1>Orders</h1>
+      <a class="hs-btn" href="/jobs.html">All jobs</a>
+    </div>
+
+    <div class="or-tools">
+      <div class="or-filter">
+        <label for="status">Status</label>
+        <select id="status" class="hs-input">
+          <option value="open">Open</option>
+          <option value="to_order">To order</option>
+          <option value="ordered">Ordered</option>
+          <option value="received">Received</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+      <div class="or-filter">
+        <label for="supplier">Supplier</label>
+        <select id="supplier" class="hs-input">
+          <option value="">All suppliers</option>
+        </select>
+      </div>
+    </div>
+
+    <p id="count" class="or-count" role="status" aria-live="polite">Loading...</p>
+    <p id="message" class="or-message" role="status"></p>
+
+    <div class="or-wrap">
+      <table class="hs-table or-table">
+        <thead>
+          <tr>
+            <th>Job</th><th>Supplier</th><th>Description</th><th>Status</th>
+            <th>Expected</th><th>Ordered</th><th>Notes</th><th id="actionsHead">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="or-empty" hidden></div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="orders.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
