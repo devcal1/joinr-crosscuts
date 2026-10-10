@@ -116,3 +116,56 @@ input[type="checkbox"] { accent-color: var(--teal); }
   font-family: var(--font);
 }
 .tag-chip:hover { background: var(--teal-16); }
+
+/* — job picker, filters and tag chips (tg-) — */
+[hidden] { display: none !important; }
+
+select.hs-input { min-width: 160px; }
+.job-link { margin-bottom: 6px; font-size: 14px; }
+.job-link a { color: var(--teal-tint); }
+.job-select { max-width: 220px; padding: 5px 8px; font-size: 13px; }
+
+.tg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+.tg-filter-tags { flex: 1; min-width: 260px; }
+.tg-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  color: var(--label);
+}
+.tg-summary { margin: 0; flex-basis: 100%; font-size: 13px; }
+
+.tg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.tg-chips .tg-chip {
+  cursor: pointer;
+  background: none;
+  font-family: var(--font);
+  border-color: var(--na);
+  color: var(--label);
+}
+.tg-chips .tg-chip:hover { border-color: var(--teal); color: var(--teal-tint); }
+.tg-chips .tg-chip[aria-pressed="true"] {
+  border-color: var(--teal);
+  background: var(--teal-16);
+  color: var(--white);
+  font-weight: 700;
+}
+.tg-chips .tg-chip:focus-visible,
+.tg-chips .hs-btn:focus-visible { outline: 2px solid var(--teal-tint); outline-offset: 2px; }
+.tg-count { margin-left: 5px; color: var(--muted); font-weight: 400; }
+.tg-chips .tg-chip[aria-pressed="true"] .tg-count { color: var(--teal-tint); }
+.tg-chips .hs-btn { padding: 4px 10px; }

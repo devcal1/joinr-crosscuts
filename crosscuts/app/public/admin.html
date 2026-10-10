@@ -25,6 +25,12 @@
           <input class="hs-input" type="text" id="tags" name="tags" placeholder="kitchen, farmhouse, oak, matte black hardware">
           <div class="tag-chips" id="suggest-chips"></div>
         </div>
+        <div class="field" id="job-field" hidden>
+          <label for="job-id">Job</label>
+          <select class="hs-input" id="job-id" name="jobId">
+            <option value="">No job</option>
+          </select>
+        </div>
         <button class="hs-btn hs-btn-primary" type="submit" id="upload-btn">Upload</button>
       </div>
       <div class="status" id="upload-status"></div>
@@ -62,12 +68,28 @@
       </div>
     </div>
 
+    <div class="tg-filters" id="photo-filters">
+      <div class="field" id="job-filter-field" hidden>
+        <label for="job-filter">Show photos for</label>
+        <select class="hs-input" id="job-filter">
+          <option value="all">All jobs</option>
+          <option value="none">Unlinked</option>
+        </select>
+      </div>
+      <div class="field tg-filter-tags">
+        <span class="tg-label" id="tg-label">Tags</span>
+        <div class="tg-chips" id="tg-chips" role="group" aria-label="Filter by tag"></div>
+      </div>
+      <p class="text-muted tg-summary" id="filter-summary" role="status"></p>
+    </div>
+
     <div class="table-wrap">
       <table class="table hs-table" id="photo-table">
         <thead>
           <tr>
             <th>Photo</th>
             <th>Tags</th>
+            <th id="job-th" hidden>Job</th>
             <th>Uploaded</th>
             <th></th>
           </tr>
