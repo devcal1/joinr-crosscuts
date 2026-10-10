@@ -82,13 +82,15 @@ function suggestedCents(valueCents, kind) {
   return null;
 }
 
-// "Deposit (10%): Smith kitchen, 12 Rose St". `job` is a jobs row.
+// "Deposit (10%) of quote JRQ22961: Smith kitchen, 12 Rose St" (the quote part
+// only when the job has a quote number). `job` is a jobs row.
 function standardLine(job, kind) {
   const label = { deposit: "Deposit (10%)", progress: "Progress payment (50%)", final: "Final payment (40%)" }[kind];
   if (!label) return "";
   const name = (job && job.name) || "";
   const site = job && (job.site_address || job.siteAddress);
-  return `${label}: ${name}${site ? `, ${site}` : ""}`;
+  const quote = job && (job.quote_number || job.quoteNumber);
+  return `${label}${quote ? ` of quote ${String(quote).trim()}` : ""}: ${name}${site ? `, ${site}` : ""}`;
 }
 
 // Lines of an invoice. While it is not yet issued and lines_custom = 0, this is

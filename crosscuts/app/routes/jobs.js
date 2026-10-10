@@ -45,6 +45,7 @@ const FIELDS = {
   isTwoPac: { col: "is_two_pac", kind: "bool" },
   benchtop: { col: "benchtop", kind: "enum", set: BENCHTOPS },
   jobType: { col: "job_type", kind: "text" },
+  quoteNumber: { col: "quote_number", kind: "text" },
   valueCents: { col: "value_cents", kind: "int", perm: "jobs.value" },
   enquiryDate: { col: "enquiry_date", kind: "date" },
   quotedDate: { col: "quoted_date", kind: "date" },

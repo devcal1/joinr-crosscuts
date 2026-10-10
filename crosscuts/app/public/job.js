@@ -37,6 +37,7 @@
         { key: "name", label: "Job name", type: "text", wide: true, required: true },
         { key: "stage", label: "Stage", type: "stage" },
         { key: "jobType", label: "Job type", type: "text", hint: "e.g. kitchen, vanity, wardrobe" },
+        { key: "quoteNumber", label: "Quote number", type: "text", hint: "e.g. JRQ22961; printed on the invoices" },
       ],
     },
     {
