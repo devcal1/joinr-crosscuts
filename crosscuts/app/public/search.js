@@ -1,4 +1,17 @@
 (function () {
+  // Logged out (or locked) mid-session: go to the login page instead of showing an error.
+  // The promise never resolves because the page is navigating away.
+  async function authFetch(url, options) {
+    const res = await fetch(url, options);
+    if (res.status === 401 && !location.pathname.startsWith("/login.html")) {
+      const body = await res.clone().json().catch(() => ({}));
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = (body.locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
+      return new Promise(() => {});
+    }
+    return res;
+  }
+
   const input = document.getElementById("search-input");
   const grid = document.getElementById("grid");
   const resultCount = document.getElementById("result-count");
@@ -77,7 +90,7 @@
 
   input.addEventListener("input", applyFilter);
 
-  fetch("/api/photos")
+  authFetch("/api/photos")
     .then((res) => res.json())
     .then((photos) => {
       allPhotos = photos;
