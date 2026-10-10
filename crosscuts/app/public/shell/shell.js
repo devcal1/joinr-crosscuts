@@ -415,7 +415,7 @@
   }
   // Links are site-relative; anything else is ignored.
   function safeLink(link) {
-    return typeof link === "string" && /^\/(?!\/)/.test(link) ? link : "";
+    return typeof link === "string" && /^\/(?![\/\\])/.test(link) ? link : "";
   }
   function alertsOpen() {
     return !!alerts.btn && alerts.btn.getAttribute("aria-expanded") === "true";

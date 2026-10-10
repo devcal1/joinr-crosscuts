@@ -225,15 +225,15 @@ function insertDue(db, jobId, kind, reason) {
 }
 
 // A row was placed on the board. The first placement of a job that has no
-// deposit in any status and no earlier week rows makes the deposit due.
+// deposit in any status makes the deposit due, but only if that row is the
+// job's only week row: the caller has already inserted it, so the count must be
+// exactly 1 (a legacy job given a second row, in any week, gets no deposit).
 function onScheduled(db, jobId, weekStart, req) {
   return hook(db, "onScheduled", () => {
     if (typeof weekStart !== "string" || !DATE_RE.test(weekStart)) return false;
     if (!getJob(db, jobId)) return false;
     if (db.prepare("SELECT 1 AS x FROM invoices WHERE job_id = ? AND kind = 'deposit' LIMIT 1").get(jobId)) return false;
-    if (db.prepare("SELECT 1 AS x FROM week_rows WHERE job_id = ? AND week_start < ? LIMIT 1").get(jobId, weekStart)) {
-      return false;
-    }
+    if (db.prepare("SELECT COUNT(*) AS n FROM week_rows WHERE job_id = ?").get(jobId).n !== 1) return false;
     announceDue(db, insertDue(db, jobId, "deposit", "scheduled"), req);
     return true;
   });
@@ -283,9 +283,22 @@ function onCompleted(db, jobId, req) {
 
 // --- issuing and the state changes -----------------------------------------
 
-// Issue a due invoice: number, frozen lines/total/GST, bill-to snapshot, dates.
-// Issuing a final moves the job to the invoiced stage. Returns the new row.
-function issue(db, id, req) {
+// The sum of the job's deposit, progress and final invoices that are issued or
+// paid, leaving out invoice `exceptId` (extras and voids never count).
+function invoicedBeforeCents(db, jobId, exceptId) {
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(total_cents), 0) AS s FROM invoices
+       WHERE job_id = ? AND id <> ? AND kind IN ('deposit','progress','final') AND status IN ('issued','paid')`
+    )
+    .get(jobId, exceptId).s;
+}
+
+// Issue a due invoice: number, frozen lines/total/GST, bill-to snapshot, dates,
+// and the contract summary (job value and amount invoiced before this one).
+// `opts.expectedTotalCents`, when given, must equal the live total. Issuing a
+// final moves the job to the invoiced stage. Returns the new row.
+function issue(db, id, req, opts) {
   return db.transaction(() => {
     const inv = getInvoice(db, id);
     if (inv.status !== "due") throw conflict(`Only a due invoice can be issued (this one is ${inv.status})`);
@@ -296,6 +309,12 @@ function issue(db, id, req) {
     const lines = linesOf(db, inv, job);
     const total = sumLines(lines);
     if (!(total > 0)) throw conflict("The invoice total must be more than zero");
+    const expected = opts && opts.expectedTotalCents;
+    if (expected !== undefined && expected !== null && expected !== total) {
+      throw conflict("The amount changed; check and issue again");
+    }
+    const billName = inv.bill_to_name || (job && job.client_name) || null;
+    if (!billName) throw conflict("Bill-to name required");
     const gst = Math.round(total / 11);
 
     // Take the next number (the series is locked once issuing starts).
@@ -322,15 +341,22 @@ function issue(db, id, req) {
     const today = sydneyToday();
     const days = parseInt(settings.get(db, "invoice.default_days"), 10);
     const dueDate = inv.due_date || addDays(today, Number.isFinite(days) ? days : 10);
-    const billName = inv.bill_to_name || (job && job.client_name) || null;
     const billAddress = inv.bill_to_address || (job && job.site_address) || null;
     const billAbn = inv.bill_to_abn || (job && job.client_abn) || null;
     const siteAddress = inv.site_address || (job && job.site_address) || null;
+    // Frozen now, before this one is marked issued, so a reprint never changes.
+    const contractValue = job ? job.value_cents : null;
+    const invoicedBefore = invoicedBeforeCents(db, inv.job_id, id);
     db.prepare(
       `UPDATE invoices SET status = 'issued', number = ?, total_cents = ?, gst_cents = ?,
          bill_to_name = ?, bill_to_address = ?, bill_to_abn = ?, site_address = ?,
+         contract_value_cents = ?, invoiced_before_cents = ?,
          issue_date = ?, due_date = ?, updated_at = ? WHERE id = ?`
-    ).run(number, total, gst, billName, billAddress, billAbn, siteAddress, today, dueDate, nowIso(), id);
+    ).run(
+      number, total, gst, billName, billAddress, billAbn, siteAddress,
+      contractValue, invoicedBefore,
+      today, dueDate, nowIso(), id
+    );
 
     audit.log(req, {
       action: "invoice.issue",
@@ -414,6 +440,34 @@ function waive(db, id, reason, req) {
   })();
 }
 
+// Take a waived invoice back to due (the waive was a mistake).
+function unwaive(db, id, req) {
+  return db.transaction(() => {
+    const inv = getInvoice(db, id);
+    if (inv.status !== "waived") throw conflict(`Only a waived invoice can be un-waived (this one is ${inv.status})`);
+    db.prepare("UPDATE invoices SET status = 'due', waive_reason = NULL, updated_at = ? WHERE id = ?").run(nowIso(), id);
+    audit.log(req, {
+      action: "invoice.waive",
+      entityType: "invoice",
+      entityId: id,
+      before: { status: "waived" },
+      after: { status: "due" },
+    });
+    return getInvoice(db, id);
+  })();
+}
+
+// The contract summary printed on an invoice. Issued, paid and void invoices
+// use the figures frozen at issue (live only if those are null); drafts are live.
+function contractOf(db, inv) {
+  const frozen = inv.status === "issued" || inv.status === "paid" || inv.status === "void";
+  if (frozen && inv.contract_value_cents != null && inv.invoiced_before_cents != null) {
+    return { valueCents: inv.contract_value_cents, invoicedToDateCents: inv.invoiced_before_cents };
+  }
+  const job = getJob(db, inv.job_id);
+  return { valueCents: job ? job.value_cents : null, invoicedToDateCents: invoicedBeforeCents(db, inv.job_id, inv.id) };
+}
+
 function markPaid(db, id, paidDate, req) {
   if (paidDate != null && !validDate(paidDate)) throw bad("paidDate must be a valid YYYY-MM-DD date");
   return db.transaction(() => {
@@ -483,6 +537,7 @@ module.exports = {
   issue,
   voidInvoice,
   waive,
+  unwaive,
   markPaid,
   unmarkPaid,
   setMyob,
@@ -495,6 +550,7 @@ module.exports = {
   getInvoice,
   getJob,
   linesOf,
+  contractOf,
   sumLines,
   present,
   presentJob,

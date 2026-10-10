@@ -84,11 +84,12 @@ function onSentToBacklog(db, jobId, req, referenceMonday) {
 
 // Finish week "complete": complete + completed_date, unless already complete/invoiced.
 // After a successful change the invoice hook runs (the final falls due).
-function onFinishedComplete(db, jobId, req) {
+// `completedDate` (a validated Sydney date) is used instead of today when given.
+function onFinishedComplete(db, jobId, req, completedDate) {
   return safely("onFinishedComplete", () => {
     const job = db.prepare("SELECT stage FROM jobs WHERE id = ?").get(jobId);
     if (!job || job.stage === "complete" || job.stage === "invoiced") return false;
-    const changed = setStage(db, jobId, "complete", req, { completed_date: sydneyToday() });
+    const changed = setStage(db, jobId, "complete", req, { completed_date: completedDate || sydneyToday() });
     if (changed) invoices.onCompleted(db, jobId, req);
     return changed;
   });

@@ -50,7 +50,7 @@ m2a_audit_min() { # ACTION INVOICE_ID MIN
 
 # Issue as accounts and check the number is the next one in the series.
 m2a_issue() { # INVOICE_ID
-  req POST "/api/invoices/$1/issue" "$ACCT"
+  req POST "/api/invoices/$1/issue" "$ACCT" "${2:-}"
   expect_status 200 "issue invoice $1"
   expect_jq '.status == "issued"' "invoice $1 is issued"
   M2A_NUM=$(jqr '.number')
@@ -66,7 +66,7 @@ for jar in "$SCHED" "$DPM" "$SHOW"; do
   done
   req POST /api/invoices "$jar" '{"jobId":1,"kind":"deposit"}'
   expect_status 403 "non-accounts POST /api/invoices"
-  for action in issue paid unpaid myob void waive; do
+  for action in issue paid unpaid myob void waive unwaive; do
     req POST "/api/invoices/1/$action" "$jar" '{}'
     expect_status 403 "non-accounts POST /api/invoices/1/$action"
   done
@@ -129,7 +129,7 @@ m2a_job_invoices "$JQA"
 expect_jq 'length == 1 and .[0].kind == "deposit" and .[0].status == "due"' "quick-add job: deposit due, amount from no value"
 expect_jq '.[0].lines[0].amountCents == 0 and .[0].suggestedCents == null' "no value: an empty line to fill in"
 
-echo "--- a job with an earlier week row gets no deposit, and no final ---"
+echo "--- a job with another week row gets no deposit, and no final ---"
 req POST /api/job-records "$ADMIN" '{"name":"M2 Legacy"}'
 expect_status 201 "create the legacy job"
 J2=$(jqr '.id')
@@ -138,10 +138,15 @@ J2=$(jqr '.id')
 req POST /api/rows/finish-week "$ADMIN" \
   "{\"weekStart\":\"$M2A_WEEK_PRE\",\"results\":[{\"jobId\":$J2,\"outcome\":\"manufacturing\"}]}"
 expect_status 200 "carry the legacy job to $M2A_WEEK"
+# A second row in the SAME week (the old rule only looked at earlier weeks).
+req POST /api/rows "$ADMIN" "{\"weekStart\":\"$M2A_WEEK\",\"panel\":\"installing\",\"jobId\":$J2}"
+expect_status 201 "give the legacy job a second row in the same week"
+m2a_job_invoices "$J2"
+expect_jq 'length == 0' "no deposit for a legacy job given a second row in the same week"
 req POST /api/rows "$ADMIN" "{\"weekStart\":\"$M2A_WEEK_NEXT\",\"panel\":\"installing\",\"jobId\":$J2}"
 expect_status 201 "place the legacy job a week later"
 m2a_job_invoices "$J2"
-expect_jq 'length == 0' "no deposit for a job that already had an earlier week row"
+expect_jq 'length == 0' "no deposit for a job that already had other week rows"
 req POST /api/rows/finish-week "$ADMIN" \
   "{\"weekStart\":\"$M2A_WEEK_NEXT\",\"results\":[{\"jobId\":$J2,\"outcome\":\"complete\"}]}"
 expect_status 200 "complete the legacy job"
@@ -226,6 +231,18 @@ expect_status 200 "admin hand-sets complete"
 expect_jq ".stage == \"complete\" and .completedDate == \"$M2A_TODAY\"" "completed_date is set"
 m2a_find "$J3" final
 [ -n "$M2A_INV" ] || fail "no final invoice after a hand-set complete"
+ok
+
+# A completedDate sent in the same PATCH is kept, not overwritten with today.
+m2a_backlog_job "M2 Hand Complete Dated" 120000
+J4=$M2A_JOB
+req POST /api/invoices "$ACCT" "{\"jobId\":$J4,\"kind\":\"deposit\"}"
+expect_status 201 "a manual deposit for the dated job"
+req PATCH "/api/job-records/$J4" "$ADMIN" '{"stage":"complete","completedDate":"2033-01-04"}'
+expect_status 200 "admin hand-sets complete with a completedDate"
+expect_jq '.stage == "complete" and .completedDate == "2033-01-04"' "the given completedDate is kept"
+m2a_find "$J4" final
+[ -n "$M2A_INV" ] || fail "no final invoice after a dated hand-set complete"
 ok
 
 echo "--- issuing needs the business details ---"
@@ -331,8 +348,34 @@ m2a_issue "$DEP2"
 [ "$M2A_NUM" != "$DEP_NUM" ] || fail "the voided number $DEP_NUM was reused"
 ok
 
+echo "--- a draft's contract summary is live ---"
+req GET "/api/invoices/$FIN" "$ACCT"
+expect_jq '.invoice.status == "due" and .contract.valueCents == 1000001 and .contract.invoicedToDateCents == 600001' "a draft's contract summary is live: deposit and progress issued, excluding itself"
+
+echo "--- issue guards: the amount shown, and a bill-to name ---"
+req POST "/api/invoices/$FIN/issue" "$ACCT" '{"expectedTotalCents":123}'
+expect_status 409 "issue with a wrong expectedTotalCents"
+expect_jq '.error == "The amount changed; check and issue again"' "the 409 says the amount changed"
+req GET "/api/invoices/$FIN" "$ACCT"
+expect_jq '.invoice.status == "due" and .invoice.number == null' "the refused issue left it due and unnumbered"
+req POST "/api/invoices/$FIN/issue" "$ACCT" '{"expectedTotalCents":"400000"}'
+expect_status 400 "issue with a non-integer expectedTotalCents"
+
+m2a_backlog_job "M2 No Client" 100000
+J5=$M2A_JOB
+req POST /api/invoices "$ACCT" "{\"jobId\":$J5,\"kind\":\"deposit\"}"
+expect_status 201 "a manual deposit for a job with no client name"
+NOCLI=$(jqr '.id')
+req POST "/api/invoices/$NOCLI/issue" "$ACCT" '{}'
+expect_status 409 "issue with no bill-to name and no client name"
+expect_jq '.error == "Bill-to name required"' "the 409 asks for a bill-to name"
+req PATCH "/api/invoices/$NOCLI" "$ACCT" '{"billToName":"M2 Bill To Only"}'
+expect_status 200 "type a bill-to name"
+m2a_issue "$NOCLI" '{"expectedTotalCents":10000}'
+expect_jq '.billToName == "M2 Bill To Only"' "issued with the typed bill-to name"
+
 echo "--- issuing the final moves the job to invoiced ---"
-m2a_issue "$FIN"
+m2a_issue "$FIN" '{"expectedTotalCents":400000}'
 expect_jq '.totalCents == 400000 and .gstCents == 36364' "final: value less deposit and progress"
 req GET "/api/job-records/$J1" "$ADMIN"
 expect_jq '.stage == "invoiced"' "the job is invoiced"
@@ -341,8 +384,28 @@ expect_jq '.total >= 3' "stage changes are audited (on_board, complete, invoiced
 req GET "/api/invoices/$FIN" "$ACCT"
 expect_status 200 "GET the final invoice"
 expect_jq '.contract.valueCents == 1000001 and .contract.invoicedToDateCents == 600001' "contract summary: issued and paid, excluding this one"
-expect_jq '.business.abn == "51824753556" and .business.tradingName == "Crosscuts CI Joinery" and .business.bsb == "062000"' "the business details are embedded"
+expect_jq '.business.abn == "51 824 753 556" and .business.tradingName == "Crosscuts CI Joinery" and .business.bsb == "062-000"' "the business details are embedded (ABN and BSB as stored, formatted)"
 expect_jq '(.invoice.totalCents / 11 | round) == .invoice.gstCents' "GST is total/11 rounded"
+
+echo "--- an issued invoice's contract summary never changes ---"
+# DEP (void) was issued first, so only 0 had been invoiced; PROG was issued with the
+# first deposit counted; DEP2 had the progress counted. Live sums would now differ.
+req GET "/api/invoices/$DEP" "$ACCT"
+expect_jq '.invoice.status == "void" and .contract.valueCents == 1000001 and .contract.invoicedToDateCents == 0' "the voided deposit keeps its frozen summary after a later progress and final"
+req GET "/api/invoices/$PROG" "$ACCT"
+expect_jq '.contract.valueCents == 1000001 and .contract.invoicedToDateCents == 100000' "the progress summary is as at its issue"
+req GET "/api/invoices/$DEP2" "$ACCT"
+expect_jq '.contract.valueCents == 1000001 and .contract.invoicedToDateCents == 500001' "the replacement deposit summary is as at its issue"
+req PATCH "/api/job-records/$J1" "$ADMIN" '{"valueCents":2000000}'
+expect_status 200 "change the job value after the invoices were issued"
+for inv_id in "$DEP2" "$PROG" "$FIN"; do
+  req GET "/api/invoices/$inv_id" "$ACCT"
+  expect_jq '.contract.valueCents == 1000001' "invoice $inv_id still shows the value at issue"
+done
+req GET "/api/invoices/$DEP2" "$ACCT"
+expect_jq '.contract.invoicedToDateCents == 500001' "the deposit's invoiced-to-date is unchanged by the value change"
+req PATCH "/api/job-records/$J1" "$ADMIN" '{"valueCents":1000001}'
+expect_status 200 "restore the job value"
 
 echo "--- extras: issue one, waive another ---"
 m2a_issue "$EX1"
@@ -365,6 +428,18 @@ req POST "/api/invoices/$DEP2/waive" "$ACCT" '{"reason":"Too late"}'
 expect_status 409 "waive an issued invoice"
 req PATCH "/api/invoices/$EX2" "$ACCT" '{"siteAddress":"Elsewhere"}'
 expect_status 409 "a draft field on a waived invoice"
+
+echo "--- un-waive: back to due, then waive it again ---"
+req POST "/api/invoices/$DEP2/unwaive" "$ACCT" '{}'
+expect_status 409 "un-waive an invoice that is not waived"
+req POST "/api/invoices/$EX2/unwaive" "$ACCT" '{}'
+expect_status 200 "un-waive the extra"
+expect_jq '.status == "due" and .waiveReason == null' "back to due with the reason cleared"
+m2a_audit_min invoice.waive "$EX2" 2
+req POST "/api/invoices/$EX2/unwaive" "$ACCT" '{}'
+expect_status 409 "un-waive twice"
+req POST "/api/invoices/$EX2/waive" "$ACCT" '{"reason":"Warranty visit, no charge"}'
+expect_status 200 "waive the extra again"
 
 echo "--- paid, unpaid, Entered in MYOB ---"
 req POST "/api/invoices/$FIN/paid" "$ACCT" '{"paidDate":"2033-02-31"}'
