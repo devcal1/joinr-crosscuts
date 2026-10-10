@@ -51,20 +51,23 @@ Stages 1–5 are done (0.1.0 released, Tenon store pushed).
 
 ### M1.1 Maintenance steps
 
-M1.1 is three small upgrades, each its own release (decision on record), so it uses its own stage list instead of the standard six. Stage 1 is the plan; stages 2, 3 and 4 are one upgrade each. The plan in 1.1 may change the order of the upgrades, but not the numbering scheme.
+M1.1 is four small upgrades, each its own release (decision on record), so it uses its own stage list instead of the standard six. Stage 1 is the plan; stages 2 to 5 are one upgrade each, in the order set by `m1.1-plan.md`. Todd chose Node 24 over 22 (2026-10-10), which needs the database library upgraded first as its own release.
 
 | Step | What happens | Ends with |
 |---|---|---|
 | **M1.1 · 1.1** Plan | short `m1.1-plan.md`: what each upgrade changes, the breaking changes (sharp especially), how a CI-only change releases, the checks per release | Todd approves. **Todd** ✂ |
-| **M1.1 · 2.1** Node 22: build | base image to Node 22, version bumped, local run | committed ✂ |
-| **M1.1 · 2.2** Node 22: release | push (Todd OK), CI green, Tenon store pinned and pushed (Todd OK) | **Todd** ✂ |
-| **M1.1 · 2.3** Node 22: verify | Todd updates; login, board and photo pages checked over LAN and Tailscale | **Todd** ✂ |
-| **M1.1 · 3.1** sharp 0.35: build | sharp upgraded, breaking changes handled, photo upload and thumbnails tested locally | committed ✂ |
-| **M1.1 · 3.2** sharp 0.35: release | as 2.2 | **Todd** ✂ |
-| **M1.1 · 3.3** sharp 0.35: verify | Todd updates; uploads a photo and checks its thumbnail on the device | **Todd** ✂ |
-| **M1.1 · 4.1** Actions: build | GitHub Actions moved to Node-24-native versions | committed ✂ |
-| **M1.1 · 4.2** Actions: release | push (Todd OK); CI green on both architectures; store pinned only if a new image was published | **Todd** ✂ |
-| **M1.1 · 5.1** Close M1.1 | M1.1 marked closed; next action set to M2 · 1.1 | committed ✂ |
+| **M1.1 · 2.1** better-sqlite3 12.9.0: build | better-sqlite3 pinned to 12.9.0 on Node 20, version bumped (0.1.1), smoke check added | committed ✂ |
+| **M1.1 · 2.2** better-sqlite3: release | push (Todd OK), CI green, Tenon store pinned and pushed (Todd OK) | **Todd** ✂ |
+| **M1.1 · 2.3** better-sqlite3: verify | Todd updates; login, board, one board edit and its audit entry checked over LAN and Tailscale (plus the carried M1 LAN check) | **Todd** ✂ |
+| **M1.1 · 3.1** Node 24: build | base image to Node 24, version bumped (0.1.2), smoke check added, local run | committed ✂ |
+| **M1.1 · 3.2** Node 24: release | as 2.2 | **Todd** ✂ |
+| **M1.1 · 3.3** Node 24: verify | Todd updates; login, board and photo pages checked over LAN and Tailscale | **Todd** ✂ |
+| **M1.1 · 4.1** sharp 0.35: build | sharp upgraded (0.1.3), breaking changes handled, rotated-photo smoke test added, photo upload and thumbnails tested locally | committed ✂ |
+| **M1.1 · 4.2** sharp 0.35: release | as 2.2 | **Todd** ✂ |
+| **M1.1 · 4.3** sharp 0.35: verify | Todd updates; uploads a portrait phone photo and checks its thumbnail on the device | **Todd** ✂ |
+| **M1.1 · 5.1** Actions: build | GitHub Actions moved to Node-24-native versions, version bumped (0.1.4) | committed ✂ |
+| **M1.1 · 5.2** Actions: release | push (Todd OK); CI green on both architectures; not pinned in the store (same app code as 0.1.3) | **Todd** ✂ |
+| **M1.1 · 6.1** Close M1.1 | M1.1 marked closed; next action set to M2 · 1.1 | committed ✂ |
 
 ### Later milestones
 
@@ -95,7 +98,7 @@ This follows brief §9. The reasoning: money first, because it is the reason for
 | Milestone | Scope | Notes |
 |---|---|---|
 | **M1** Foundation | logins, roles, user admin, audit, job record, shell, existing features behind login | **Closed 2026-10-10** (0.1.0, verified over Tailscale; LAN re-check carried in STATUS) |
-| **M1.1** Maintenance | Node 20 → 22 in the image; sharp 0.33 → 0.35 (security fixes; breaking, so test photo upload/thumbnails); GitHub Actions to Node-24-native versions | Small; its own step list above (one release per upgrade) |
+| **M1.1** Maintenance | better-sqlite3 11 → 12.9, then Node 20 → 24 in the image; sharp 0.33 → 0.35 (security fixes; breaking, so test photo upload/thumbnails); GitHub Actions to Node-24-native versions | Small; its own step list above (one release per upgrade) |
 | **M2** Accounts | invoice table (deposit/progress/final/extras), invoice prompts from job events, Friday 12:00 Sydney round-up, ntfy push to Todd, overdue list | Decide ntfy self-hosted vs ntfy.sh in the plan |
 | **Cutover runbook** | `docs/cutover.md` per brief §9a, rehearsed on a fresh copy of the live DB | Written before any cutover date is proposed |
 | **M3** Design/PM | pipeline board (pointer-event drag), orders (with "materials ordered" → 50% prompt), client inspections, photos linked to jobs | Includes a new version of the photo tag filter (replacing the abandoned `/api/tags` WIP) |

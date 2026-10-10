@@ -11,8 +11,8 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
   - Todd's admin login works and he sees everything (the login POST passing proves the gateway passes `Host` through)
   - test user "Showroom" (showroom role) sees only photo search; the admin page and workers are blocked
 - **Carried LAN check (needs Todd on the workshop LAN, due before M1.1 · 2.2, the first M1.1 release):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
-- **M1.1 · 1.1 drafted:** `docs/plans/m1.1-plan.md`. Order Node 22 → sharp 0.35 → Actions, as 0.1.1 / 0.1.2 / 0.1.3. The sharp upload pipeline tested identical under 0.33.5 and 0.35.5. The CI-only release bumps the version but is not pinned in the store.
-- **Next action:** Todd approves (or amends) `m1.1-plan.md`; then M1.1 · 2.1 (Node 22 build), no Todd needed until 2.2.
+- **M1.1 · 1.1 drafted:** `docs/plans/m1.1-plan.md`. Todd chose Node 24 (not 22) on 2026-10-10, so the order is better-sqlite3 12.9.0 (on Node 20) → Node 24 → sharp 0.35 → Actions, as 0.1.1 to 0.1.4. The sharp upload pipeline tested identical under 0.33.5 and 0.35.5. The CI-only release bumps the version but is not pinned in the store.
+- **Next action:** Todd approves (or amends) `m1.1-plan.md`; then M1.1 · 2.1 (better-sqlite3 12.9.0 build), no Todd needed until 2.2.
 - **Waiting on Todd:** approval of `m1.1-plan.md`; the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
@@ -45,7 +45,7 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
   - Finish-week "not started" sends the job back to `ready_to_cut`.
   - A completed job placed back on the board becomes `on_board`.
   - Deleting a row doesn't change the stage.
-- Follow-ups agreed in principle, each as its own release with Todd's OK: Node 22, sharp 0.35, and Actions versions. That is M1.1 (steps in the roadmap).
+- Follow-ups agreed in principle, each as its own release with Todd's OK: Node 24 (chosen over 22 on 2026-10-10, with better-sqlite3 12.9.0 released first), sharp 0.35, and Actions versions. That is M1.1 (steps in the roadmap).
 
 ## History
 
