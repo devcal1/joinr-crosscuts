@@ -90,7 +90,9 @@ body {
   align-items: start;
 }
 .inv-brand { display: flex; gap: 5mm; align-items: flex-start; }
-.inv-logo { width: 16mm; height: auto; display: block; flex: none; }
+
+/* the letterhead banner, full bleed across the top of the sheet */
+.inv-letterhead { display: block; width: calc(100% + 28mm); height: auto; margin: -14mm -14mm 8mm; }
 .inv-biz-name { font-size: 12pt; font-weight: 700; letter-spacing: 0.02em; }
 .inv-biz-line { font-size: 9pt; }
 
@@ -180,7 +182,13 @@ body {
   font-weight: 700;
 }
 .inv-total-k { font-size: 8pt; letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
-.inv-gst { text-align: right; margin-top: 1.5mm; }
+.inv-subs {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 0.8mm;
+  margin-bottom: 2mm;
+}
+.inv-subs .inv-v { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* contract summary and payment details, side by side when both are present */
 .inv-foot {
@@ -211,6 +219,20 @@ body {
 .inv-contract .inv-sum > :nth-last-child(-n + 2) { padding-top: 1mm; margin-top: 0.8mm; border-top: 0.2mm solid var(--ink); }
 .inv-terms { margin-top: 2.5mm; }
 
+/* the tear-off payment advice slip */
+.inv-advice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2mm 8mm;
+  margin-top: 12mm;
+  padding-top: 4mm;
+  border-top: 0.4mm dashed var(--ink);
+  break-inside: avoid;
+}
+.inv-advice-title { grid-column: 1 / -1; }
+.inv-advice-bank { margin-top: 2.5mm; }
+.inv-advice-due { align-content: start; }
+
 @media (max-width: 600px) {
   .inv-page { padding: 12px 8px 32px; }
 }
@@ -235,13 +257,14 @@ body {
     font-size: 9.5pt;
   }
   .inv-body { padding: 0; }
+  .inv-letterhead { width: 100%; margin: 0 0 6mm; }
   .inv-sheet *, .inv-link { color: #000; }
   .inv-k, .inv-label, .inv-lines th { color: #000; }
   .inv-banner, .inv-paid { border-color: #000; }
   .inv-rule, .inv-total-row { border-color: #000; }
   .inv-lines th { border-bottom-color: #000; }
   .inv-lines td { border-bottom-color: #000; }
-  .inv-contract, .inv-pay { border-top-color: #000; }
+  .inv-contract, .inv-pay, .inv-advice { border-top-color: #000; }
   .inv-contract .inv-sum > :nth-last-child(-n + 2) { border-top-color: #000; }
   /* repeat the mark on every printed page, light so the text stays readable */
   .inv-mark { position: fixed; top: 50%; color: #000; opacity: 0.1; }

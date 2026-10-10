@@ -90,13 +90,8 @@
     var draft = isDraft(inv);
     var head = el("header", "inv-head");
 
-    // Left: logo and the business.
+    // Left: the business (the logo is in the letterhead above).
     var brand = el("div", "inv-brand");
-    var logo = el("img", "inv-logo");
-    logo.src = "logo.png";
-    logo.alt = "TH Cabinets";
-    brand.appendChild(logo);
-
     var b = el("div", "inv-biz");
     var trading = has(biz.tradingName) ? biz.tradingName.trim() : "";
     var legal = has(biz.legalName) ? biz.legalName.trim() : "";
@@ -132,6 +127,24 @@
     return head;
   }
 
+  // The letterhead banner across the top of the sheet. A placeholder taken from
+  // the current invoices until Todd supplies the final artwork: replacing
+  // assets/invoice-letterhead.png updates every invoice.
+  function buildLetterhead() {
+    var img = el("img", "inv-letterhead");
+    img.src = "/assets/invoice-letterhead.png";
+    img.alt = "TH Cabinets";
+    return img;
+  }
+
+  // Who the invoice is addressed to: the snapshot, or the job while never issued.
+  function liveJob(inv) {
+    return isDraft(inv) || inv.status === "waived" ? inv.job || {} : {};
+  }
+  function billToName(inv) {
+    return has(inv.billToName) ? inv.billToName : liveJob(inv).clientName;
+  }
+
   function party(label, lines) {
     var p = el("div", "inv-party");
     p.appendChild(el("p", "inv-label", label));
@@ -145,10 +158,10 @@
     // The job's live details stand in only while the invoice was never issued
     // (a draft, or waived); an issued, paid or void invoice prints just its
     // snapshot, so a reprint never changes.
-    var job = isDraft(inv) || inv.status === "waived" ? inv.job || {} : {};
+    var job = liveJob(inv);
     var wrap = el("section", "inv-parties");
 
-    var billName = has(inv.billToName) ? inv.billToName : job.clientName;
+    var billName = billToName(inv);
     var billAddr = has(inv.billToAddress) ? inv.billToAddress : "";
     var billAbn = has(inv.billToAbn) ? inv.billToAbn : job.clientAbn;
     var bill = [];
@@ -159,9 +172,10 @@
 
     var site = has(inv.siteAddress) ? inv.siteAddress : job.siteAddress;
     var jobBits = [];
-    if (has(job.name)) jobBits.push({ text: job.name.trim(), cls: "inv-party-name" });
+    var ref = has(inv.reference) ? inv.reference : job.name;
+    if (has(ref)) jobBits.push({ text: ref.trim(), cls: "inv-party-name" });
     if (has(site)) jobBits.push({ text: site.trim() });
-    if (jobBits.length) wrap.appendChild(party("Job and site", jobBits));
+    if (jobBits.length) wrap.appendChild(party("Job reference and site", jobBits));
     return wrap.children.length ? wrap : null;
   }
 
@@ -185,10 +199,14 @@
 
   function buildTotals(inv) {
     var box = el("div", "inv-totals");
+    // Amounts are GST-inclusive, so the subtotal is the total.
+    var dl = el("dl", "inv-subs");
+    kv(dl, "Subtotal", money(inv.totalCents));
+    kv(dl, "Includes GST", money(inv.gstCents));
+    box.appendChild(dl);
     var row = el("div", "inv-total-row");
-    add(row, el("span", "inv-total-k", "Total (including GST)"), el("span", "inv-total-v", money(inv.totalCents)));
+    add(row, el("span", "inv-total-k", "Total AUD"), el("span", "inv-total-v", money(inv.totalCents)));
     box.appendChild(row);
-    box.appendChild(el("p", "inv-gst", "Total includes GST of " + money(inv.gstCents)));
     return box;
   }
 
@@ -208,19 +226,53 @@
     return sec;
   }
 
-  function buildPayment(inv, biz) {
+  // Bank details show here only when there is no payment advice slip to carry them.
+  function buildPayment(inv, biz, withBank) {
     var sec = el("section", "inv-pay");
     sec.appendChild(el("p", "inv-label", "Payment details"));
-    var dl = el("dl", "inv-sum");
-    if (has(biz.bankAccountName)) kv(dl, "Account name", biz.bankAccountName.trim());
-    if (has(biz.bsb)) kv(dl, "BSB", fmtBsb(biz.bsb));
-    if (has(biz.accountNumber)) kv(dl, "Account number", biz.accountNumber.trim());
-    if (dl.children.length) sec.appendChild(dl);
+    var dl = withBank ? bankDetails(biz) : null;
+    if (dl) sec.appendChild(dl);
     if (has(biz.termsText)) sec.appendChild(el("p", "inv-terms inv-pre", biz.termsText.trim()));
     var ref = has(inv.number) && !isDraft(inv)
       ? "Please use invoice number " + inv.number + " as the reference."
       : "Please use the invoice number as the reference.";
     sec.appendChild(el("p", "inv-terms", ref));
+    return sec;
+  }
+
+  function bankDetails(biz) {
+    var dl = el("dl", "inv-sum");
+    if (has(biz.bankAccountName)) kv(dl, "Account name", biz.bankAccountName.trim());
+    if (has(biz.bsb)) kv(dl, "BSB", fmtBsb(biz.bsb));
+    if (has(biz.accountNumber)) kv(dl, "Account number", biz.accountNumber.trim());
+    return dl.children.length ? dl : null;
+  }
+
+  // The tear-off slip at the foot, as on the current invoices. Only while money
+  // is still owed (or on a draft preview).
+  function buildAdvice(inv, biz) {
+    if (!(isDraft(inv) || inv.status === "issued")) return null;
+    var sec = el("section", "inv-advice");
+    sec.appendChild(el("p", "inv-label inv-advice-title", "Payment advice"));
+
+    var from = el("div", "inv-advice-from");
+    var name = has(biz.tradingName) ? biz.tradingName.trim() : has(biz.legalName) ? biz.legalName.trim() : "";
+    if (name) from.appendChild(el("p", "inv-biz-name", name));
+    if (has(biz.address)) from.appendChild(el("p", "inv-biz-line inv-pre", biz.address.trim()));
+    if (has(biz.abn)) from.appendChild(el("p", "inv-biz-line", "ABN " + fmtAbn(biz.abn)));
+    var bank = bankDetails(biz);
+    if (bank) {
+      bank.classList.add("inv-advice-bank");
+      from.appendChild(bank);
+    }
+
+    var dl = el("dl", "inv-sum inv-advice-due");
+    if (has(billToName(inv))) kv(dl, "Customer", billToName(inv).trim());
+    kv(dl, "Invoice number", has(inv.number) && !isDraft(inv) ? inv.number : "Assigned on issue");
+    kv(dl, "Amount due", money(inv.totalCents));
+    kv(dl, "Due date", has(inv.dueDate) ? fmtDate(inv.dueDate) : "On issue");
+
+    add(sec, from, dl);
     return sec;
   }
 
@@ -258,6 +310,7 @@
     if (s.mark) sheet.appendChild(mark(s.mark));
 
     var body = el("div", "inv-body");
+    body.appendChild(buildLetterhead());
     if (s.banner) body.appendChild(s.banner);
     body.appendChild(buildHead(inv, biz));
     body.appendChild(el("hr", "inv-rule"));
@@ -265,9 +318,11 @@
     if (parties) body.appendChild(parties);
     body.appendChild(buildLines(inv));
     body.appendChild(buildTotals(inv));
+    var advice = buildAdvice(inv, biz);
     var foot = el("div", "inv-foot");
-    add(foot, buildContract(inv, data.contract), buildPayment(inv, biz));
+    add(foot, buildContract(inv, data.contract), buildPayment(inv, biz, !advice));
     body.appendChild(foot);
+    if (advice) body.appendChild(advice);
     sheet.appendChild(body);
 
     // The page title is the default PDF filename, so Ctrl+P is right too.

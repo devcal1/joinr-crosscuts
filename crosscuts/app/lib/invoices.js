@@ -344,16 +344,17 @@ function issue(db, id, req, opts) {
     const billAddress = inv.bill_to_address || (job && job.site_address) || null;
     const billAbn = inv.bill_to_abn || (job && job.client_abn) || null;
     const siteAddress = inv.site_address || (job && job.site_address) || null;
+    const reference = inv.reference || (job && job.name) || null;
     // Frozen now, before this one is marked issued, so a reprint never changes.
     const contractValue = job ? job.value_cents : null;
     const invoicedBefore = invoicedBeforeCents(db, inv.job_id, id);
     db.prepare(
       `UPDATE invoices SET status = 'issued', number = ?, total_cents = ?, gst_cents = ?,
-         bill_to_name = ?, bill_to_address = ?, bill_to_abn = ?, site_address = ?,
+         bill_to_name = ?, bill_to_address = ?, bill_to_abn = ?, site_address = ?, reference = ?,
          contract_value_cents = ?, invoiced_before_cents = ?,
          issue_date = ?, due_date = ?, updated_at = ? WHERE id = ?`
     ).run(
-      number, total, gst, billName, billAddress, billAbn, siteAddress,
+      number, total, gst, billName, billAddress, billAbn, siteAddress, reference,
       contractValue, invoicedBefore,
       today, dueDate, nowIso(), id
     );

@@ -285,3 +285,11 @@ These override the sections above where they differ.
 4. **Un-waive:** a new `POST /:id/unwaive` (`invoices.edit`) takes `waived` back to `due`. It is audited as `invoice.waive` with after `{status:'due'}`.
 5. **A hand-set `complete` keeps a `completedDate` sent in the same PATCH.** `jobstage.onFinishedComplete(db, jobId, req, completedDate?)` gains the optional date.
 6. **Invoice page colours:** paid is teal (`hs-badge-teal`) and void is neutral, not green or red.
+
+## 11. Invoice layout after Todd's sample (2026-10-11)
+
+Todd supplied a sample of the current invoice (JRI2607086). The document now follows it:
+- **Letterhead banner** across the top: `public/assets/invoice-letterhead.png`, taken from the sample. It is a **placeholder**: Todd will supply the final artwork, and replacing that one file updates every invoice.
+- **Totals** read Subtotal / Includes GST / Total AUD.
+- **A tear-off payment advice slip** carries the business, the bank details, the customer, the invoice number, the amount due and the due date. It shows on drafts and issued invoices only. Bank details move out of "Payment details" whenever the slip is shown.
+- **The job reference** (the job name) shows on the invoice. Migration `008_invoice_reference.sql` (additive) adds `invoices.reference TEXT`, frozen at issue from the job name like the other snapshot fields. Drafts show the live job name.
