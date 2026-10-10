@@ -1,6 +1,6 @@
 # Cutover runbook: moving the live board from the old app to Crosscuts
 
-Status: **draft, 2026-10-11. Not yet rehearsed. No date set.** This follows brief §9a. Nothing in this runbook runs until Todd sets a date, and every step that touches data waits for Todd's go-ahead on the day.
+Status: **approach agreed with Todd 2026-10-11 (decisions at the end). Not yet rehearsed. No date set.** This follows brief §9a. Nothing in this runbook runs until Todd sets a date, and every step that touches data waits for Todd's go-ahead on the day.
 
 **In one paragraph.**
 1. Edits on the old board stop.
@@ -183,8 +183,10 @@ The old app was never changed, so falling back means using it again: TV and book
 4. Retire its store entry: `thcabinets-umbrel-store` is changed only now, and only with Todd's permission to push.
 5. Release Crosscuts as `1.0.0`.
 
-## Questions for Todd before a date is set
-1. **Users and settings after the load:** A, re-create by hand (recommended), or B, a carry-over tool (new code; it needs your sign-off and the rehearsal)?
-2. **Freeze time:** Friday after Finish week?
-3. **Fallback window:** two weeks?
-4. **The Umbrel terminal:** who runs the commands on the day? Claude can't reach the Umbrel's terminal.
+## Decisions from Todd (2026-10-11)
+1. **Users and settings: re-created by hand (option A).** No carry-over tool. Ignore the option B notes above.
+2. **Freeze: the Friday after Finish week.** Monday starts on Crosscuts, and the weekend is the buffer.
+3. **Fallback window: two weeks.**
+4. **Todd runs the Umbrel terminal**, with Claude guiding step by step and reading back the output.
+
+Still to do before a date: a released version installed on the Umbrel, the LAN check, the paths confirmed, and a passing rehearsal.
