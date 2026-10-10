@@ -114,6 +114,89 @@
         <div class="chips" id="effectiveChips"></div>
       </div>
     </section>
+
+    <form class="card hs-card" id="settingsForm" autocomplete="off" novalidate>
+      <div class="hs-sectionbar"><h2>Business details and invoicing</h2></div>
+      <p class="text-muted small">These print on every invoice. Invoices can't be issued until the trading name (or legal name), ABN and address are set.</p>
+
+      <div class="hs-sectionbar settings-sub"><h3 class="hs-sectionbar-title">Business</h3></div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="setTradingName">Trading name</label>
+          <input class="hs-input" id="setTradingName" type="text" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="setLegalName">Legal name</label>
+          <input class="hs-input" id="setLegalName" type="text" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="setAbn">ABN</label>
+          <input class="hs-input" id="setAbn" type="text" inputmode="numeric" placeholder="11 digits">
+        </div>
+        <div class="field">
+          <label for="setPhone">Phone</label>
+          <input class="hs-input" id="setPhone" type="text" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="setEmail">Email</label>
+          <input class="hs-input" id="setEmail" type="text" inputmode="email" maxlength="200">
+        </div>
+      </div>
+      <div class="field">
+        <label for="setAddress">Address</label>
+        <textarea class="hs-input" id="setAddress" rows="3" maxlength="500"></textarea>
+      </div>
+
+      <div class="hs-sectionbar settings-sub"><h3 class="hs-sectionbar-title">Bank details</h3></div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="setBankAccountName">Account name</label>
+          <input class="hs-input" id="setBankAccountName" type="text" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="setBsb">BSB</label>
+          <input class="hs-input" id="setBsb" type="text" inputmode="numeric" placeholder="6 digits">
+        </div>
+        <div class="field">
+          <label for="setAccountNumber">Account number</label>
+          <input class="hs-input" id="setAccountNumber" type="text" inputmode="numeric" maxlength="200">
+        </div>
+      </div>
+
+      <div class="hs-sectionbar settings-sub"><h3 class="hs-sectionbar-title">Invoices</h3></div>
+      <div class="field">
+        <label for="setTermsText">Payment terms</label>
+        <textarea class="hs-input" id="setTermsText" rows="3" maxlength="5000"></textarea>
+        <div class="hint">Printed at the foot of every invoice.</div>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="setPrefix">Invoice prefix</label>
+          <input class="hs-input" id="setPrefix" type="text" maxlength="10" data-numbering>
+        </div>
+        <div class="field">
+          <label for="setNextNumber">Next number</label>
+          <input class="hs-input" id="setNextNumber" type="number" min="1" max="999999999" step="1" data-numbering>
+        </div>
+        <div class="field">
+          <label for="setPad">Number padding</label>
+          <input class="hs-input" id="setPad" type="number" min="1" max="10" step="1" data-numbering>
+          <div class="hint">Digits in the number, e.g. 4 gives CC-0001.</div>
+        </div>
+        <div class="field">
+          <label for="setDefaultDays">Default days to pay</label>
+          <input class="hs-input" id="setDefaultDays" type="number" min="0" max="365" step="1">
+        </div>
+      </div>
+      <p class="hint settings-lock" id="setLockNote" hidden>Locked: invoices have been issued</p>
+
+      <p class="form-error" id="settingsError" role="alert" hidden></p>
+      <div class="actions">
+        <button class="hs-btn hs-btn-primary" type="submit" id="settingsSave">Save details</button>
+        <button class="hs-btn" type="button" id="roundupBtn">Run round-up now</button>
+      </div>
+      <p class="hint">The round-up is also sent automatically on Friday at noon, to everyone who can edit invoices.</p>
+    </form>
   </main>
 
   <script src="/shell/shell.js"></script>

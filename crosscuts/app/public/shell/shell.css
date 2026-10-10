@@ -127,8 +127,94 @@
 .cc-btn:hover:not(:disabled),
 .cc-btn[aria-expanded="true"] { border-color: var(--teal); color: var(--teal-tint); }
 .cc-user-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-btn:disabled { opacity: 0.4; cursor: default; }
+.cc-btn-quiet { border-color: transparent; color: var(--label); }
+.cc-btn-quiet:hover:not(:disabled) { border-color: var(--teal); color: var(--teal-tint); }
+.cc-btn-sm { min-height: 26px; padding: 4px 8px; font-size: 10px; }
 
 .cc-menu-btn { display: none; }
+
+/* Alerts: the bell is a text button with an unread count; its panel lists the latest 30. */
+.cc-bell-badge {
+  min-width: 18px;
+  padding: 2px 5px;
+  color: var(--teal-tint);
+  background: var(--teal-16);
+  border: 1px solid var(--teal);
+  border-radius: var(--r-badge);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  text-align: center;
+}
+.cc-bell-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(380px, calc(100vw - 20px));
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+}
+.cc-bell-menu.cc-open { display: flex; flex-direction: column; }
+.cc-bell-menu:focus { outline: none; }
+.cc-bell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+.cc-bell-heading {
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cc-bell-list {
+  max-height: min(60vh, 440px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.cc-bell-li + .cc-bell-li { border-top: 1px solid var(--hairline); }
+.cc-bell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px 10px 12px;
+  color: var(--label);
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cc-bell-item:hover,
+.cc-bell-item:focus-visible { background: var(--raised); }
+.cc-bell-item:focus-visible { outline-offset: -2px; }
+.cc-bell-item.cc-unread { border-left-color: var(--teal); }
+.cc-bell-title { color: var(--body); font-size: 13px; line-height: 1.3; }
+.cc-unread .cc-bell-title { color: var(--white); font-weight: 700; }
+.cc-bell-body { color: var(--label); font-size: 12px; line-height: 1.35; }
+.cc-bell-time { color: var(--muted); font-size: 11px; }
+.cc-bell-empty { padding: 18px 14px; color: var(--label); font-size: 13px; }
+.cc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 
 /* Popup menu (user menu) */
 .cc-menu {
@@ -195,8 +281,10 @@
 }
 @media (max-width: 520px) {
   .cc-brand-app { display: none; }
-  .cc-bar { padding: 0 10px; }
-  .cc-user-name { max-width: 10ch; }
+  .cc-bar { padding: 0 10px; gap: 4px; }
+  .cc-btn { padding: 6px 8px; letter-spacing: 0.04em; }
+  .cc-right { gap: 2px; min-width: 0; }
+  .cc-user-name { max-width: 8ch; }
 }
 
 /* Dialogs (change password, set PIN) */

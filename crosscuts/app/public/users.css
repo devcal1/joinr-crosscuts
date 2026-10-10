@@ -52,6 +52,13 @@ h1 { font-size: 25px; font-weight: 700; color: var(--white); margin: 0 0 4px; }
 }
 .role-checks input { accent-color: var(--teal); width: 16px; height: 16px; }
 
+/* Business details and invoicing */
+.settings-sub { margin-top: var(--space-4); }
+textarea.hs-input { min-height: 72px; resize: vertical; line-height: 1.4; }
+.hs-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.form-error { margin: 0; color: var(--stop-tint); font-size: 13px; }
+.settings-lock { margin: 0; }
+
 /* User table */
 .table-wrap { margin-top: var(--space-6); overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
 .user-table { font-size: 14px; }
