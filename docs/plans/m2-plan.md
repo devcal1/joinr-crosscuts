@@ -1,4 +1,6 @@
-# Crosscuts — Milestone 2 plan: Accounts (draft for approval, 2026-10-10)
+# Crosscuts — Milestone 2 plan: Accounts (2026-10-10)
+
+Status: **decisions recorded 2026-10-10 (§10); awaiting Todd's approval of the plan as amended.**
 
 Source of truth: `crosscuts-brief.md` §5.1, §6.1, D9–D12. Nothing is built until Todd approves. Steps: M2 · 1.1 (audit, §1) and M2 · 1.2 (plan, §2–§8, questions in §9).
 
@@ -53,7 +55,7 @@ Money is in integer cents. Business dates are Sydney `YYYY-MM-DD`; timestamps ar
 - `status`: `pending` (extras only, before completion) / `due` / `invoiced` / `paid` / `waived`. For deposit, progress and final, "not due" means there is no row yet.
 - `amount_cents`: null until set. While it is null, the table shows the suggested amount from the job value (§4).
 - `due_date`: the day it became due. `due_reason`: `scheduled` / `materials_ordered` / `completed` / `manual`.
-- `invoice_ref`, `invoiced_date`, `payment_due_date` (from the terms, Q4, and editable), `paid_date`.
+- `invoice_ref`, `invoiced_date`, `payment_due_date` (default: invoice date + 10 days, decision 4; editable per invoice), `paid_date`.
 - `external_id`: the MYOB slot (D12). Stored, never called.
 - `notes`, `last_contacted_date`, `follow_up_notes`: for Jill's overdue work.
 - `created_at`, `updated_at`, `archived` (soft delete, brief §8.5).
@@ -101,10 +103,12 @@ Marks are audited as `invoice.invoiced`, `invoice.paid`, `invoice.waived`, `invo
 **ntfy push to Todd** (Q1, Q2):
 - Todd's notifications (anything addressed to a user flagged "push to my phone"; only Todd for now) are also queued in `push_outbox`.
 - A background sender wakes every 30 s and POSTs each one to the ntfy topic, with a 10 s timeout. On failure it retries with growing gaps (1, 5, 15, 60 min, then hourly), for up to 24 h.
-- The topic, server and optional access token live in `/data/config/ntfy.json`, set from an admin **Push settings** panel (on the users page, `users.admin`) with a **Send test** button.
+- **Self-hosted ntfy on the Umbrel** (decision 1). Crosscuts posts to the ntfy Umbrel app over the Umbrel's local network, so the push never leaves the house. The phone's ntfy app subscribes to the Umbrel's Tailscale address. That means the phone only receives while Tailscale is connected, and on an iPhone ntfy relays a content-free wake-up through ntfy.sh.
+- A short how-to doc covers installing the ntfy Umbrel app, picking a topic, and subscribing the phone.
+- The ntfy server URL, topic and optional access token live in `/data/config/ntfy.json`, set from an admin **Push settings** panel (on the users page, `users.admin`) with a **Send test** button.
 - No file means push is off. Nothing breaks, and the panel says "Push not set up".
 - Unsent or failed pushes show in that panel. An orange notice also appears in Todd's bell list when a push has failed for over an hour.
-- Push text: see Q2. Every push links to `http://<Tailscale address>:4933/accounts.html`, so it opens over Tailscale from the phone. The address is set in the same panel.
+- Push text is full detail (decision 2), for example "Deposit due: Smith kitchen, $4,500.00". Every push links to `http://<Tailscale address>:4933/accounts.html`, so it opens over Tailscale from the phone. The address is set in the same panel.
 
 **Friday round-up:**
 - An in-process timer checks once a minute. The first time it finds it is Friday at or after 12:00 Sydney and `roundup.last_run` isn't this Friday, it runs.
@@ -161,3 +165,17 @@ Marks are audited as `invoice.invoiced`, `invoice.paid`, `invoice.waived`, `invo
 4. **Payment terms** (when an invoice becomes overdue): 7 days, 14 days, or 30 days after the invoice date? It stays editable per invoice.
 5. **Jobs that predate tracking** (now, and at cutover). *Recommended: no automatic invoices for jobs already on the board or complete when M2 goes live.* Accounts adds those by hand, so nothing floods them with stale "due" prompts. The alternative is to create due deposits (and finals for complete jobs) for all of them.
 6. **Report library** (brief §5.1.6, monthly uploads): *recommended for M4*, with the task queue and attachments, which share the file-upload work. Or add it to M2.
+
+## 10. Decisions from Todd (2026-10-10)
+
+1. **ntfy: self-hosted on the Umbrel** (not ntfy.sh). Crosscuts posts to the ntfy Umbrel app locally; the phone subscribes over Tailscale (§6).
+2. **Push text: full detail**, amounts included (e.g. "Deposit due: Smith kitchen, $4,500.00"). This is acceptable because the push stays on Todd's own server.
+3. **Materials ordered: Todd's own button now** on the job page (`orders.mark_ordered`). It sets `materials_ordered_date` and makes the progress invoice due. M3 Orders later drives the same function.
+4. **Payment terms: 10 days.** Todd: "due date is set in the Joinr quoting app."
+   - M2 has no Joinr link, so the default due date is the invoice date + 10 days, editable per invoice.
+   - When Joinr intake arrives (M6), the quote's due date or terms should be carried into the job and used in place of the default. **Add this to the Joinr contract document.**
+5. **Jobs that predate tracking: no automatic invoices.** Accounts add those by hand ("Add" on the invoice table). Only jobs first placed on the board after go-live get prompts.
+   - Mechanism: the migration creates no invoice rows. The deposit hook fires only for jobs with no deposit row **and** no week rows before the current one.
+   - So a legacy job already on the board doesn't trigger a deposit when it is next placed or duplicated. The same guard applies at cutover.
+   - The final hook likewise fires only for jobs that have a deposit or progress row, or any invoice row at all. A legacy job finishing gets no prompt.
+6. **Report library: M4**, with the task queue and file attachments.

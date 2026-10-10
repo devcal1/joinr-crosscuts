@@ -113,10 +113,10 @@ This follows brief §9. The reasoning: money first, because it is the reason for
 | **M1** Foundation | logins, roles, user admin, audit, job record, shell, existing features behind login | **Closed 2026-10-10** (0.1.0, verified over Tailscale; LAN re-check carried in STATUS) |
 | **M1.1** Maintenance | better-sqlite3 11 → 12.9, then Node 20 → 24 in the image; sharp 0.33 → 0.35 (security fixes; breaking, so test photo upload/thumbnails); GitHub Actions to Node-24-native versions | Small; its own step list above (one release per upgrade) |
 | **M1.2** House style | every page, the menu bar and the board re-themed to the house style (brand guide, Offcuts as reference); a CI style check keeps future pages on it | One release (0.1.4) with the M1.1 Actions upgrade |
-| **M2** Accounts | invoice table (deposit/progress/final/extras), invoice prompts from job events, Friday 12:00 Sydney round-up, ntfy push to Todd, overdue list | Decide ntfy self-hosted vs ntfy.sh in the plan |
+| **M2** Accounts | invoice table (deposit/progress/final/extras), invoice prompts from job events, Friday 12:00 Sydney round-up, ntfy push to Todd, overdue list, notification bell | ntfy self-hosted on the Umbrel (Todd, 2026-10-10); plan in `m2-plan.md` |
 | **Cutover runbook** | `docs/cutover.md` per brief §9a, rehearsed on a fresh copy of the live DB | Written before any cutover date is proposed |
 | **M3** Design/PM | pipeline board (pointer-event drag), orders (with "materials ordered" → 50% prompt), client inspections, photos linked to jobs | Includes a new version of the photo tag filter (replacing the abandoned `/api/tags` WIP) |
-| **M4** Collaboration | tasks, comments, messaging/channels, notification bell (replaces the dashboard placeholders) | |
+| **M4** Collaboration | tasks (incl. the accounts task queue), comments, messaging/channels, the report library (Todd, 2026-10-10), widening the notification bell (M2 builds it for invoice prompts) | |
 | **M5** Scheduling extras | leave and availability, lookahead, production stage capture at Finish week, board indicators (mirrored in `exportJpg`) | Board-touching: extra care and the exportJpg mirror rule |
 | **M6** Joinr intake | pull sync of accepted quotes, contract document shared with tenon-quotr, intake inbox vs auto-create | |
 | **Backup** | weekly copy to the offsite NAS over Tailscale, with a tested restore runbook | As soon as Todd supplies the NAS details; can slot in anywhere |
