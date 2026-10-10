@@ -385,6 +385,7 @@
     const linesBox = el("div", { class: "ac-lines" });
     const sumEl = el("span", { text: "" });
     const gstEl = el("span", { text: "" });
+    let shownTotalCents = null; // the total on screen, sent with Issue as expectedTotalCents
     function updateSum() {
       let total = 0;
       let ok = true;
@@ -397,6 +398,7 @@
           ok = false;
         }
       }
+      shownTotalCents = ok ? total : null;
       sumEl.textContent = ok ? fmtMoney(total) : "check amounts";
       gstEl.textContent = ok ? fmtMoney(Math.round(total / 11)) : "-";
     }
@@ -457,7 +459,7 @@
         field("Address", billAddr, "bill-addr", true),
         field("Site address", siteAddr, "site-addr", true),
         field("Payment due date", dueDate, "due-date"),
-        el("p", { class: "ac-hint" }, document.createTextNode("Blank means the issue date plus 10 days.")),
+        el("p", { class: "ac-hint" }, document.createTextNode("Blank = issue date + standard terms.")),
         field("Notes", notes, "inv-notes", true)
       )
     );
@@ -571,7 +573,19 @@
     issueGo.addEventListener("click", () =>
       busy(root, err, async () => {
         await save();
-        const out = await api("/api/invoices/" + inv.id + "/issue", { method: "POST", body: "{}" });
+        const issueBody = shownTotalCents == null ? {} : { expectedTotalCents: shownTotalCents };
+        let out;
+        try {
+          out = await api("/api/invoices/" + inv.id + "/issue", { method: "POST", body: JSON.stringify(issueBody) });
+        } catch (e) {
+          if (/amount changed/i.test(e.message)) {
+            // Show the new amount, and say why nothing was issued.
+            toast(e.message);
+            await refreshOpen(inv.id);
+            return;
+          }
+          throw e;
+        }
         toast("Issued " + (out.number || ""));
         await refreshOpen(inv.id);
       })
@@ -776,6 +790,17 @@
       } else {
         root.append(el("p", { class: "ac-hint", text: "A paid invoice can't be voided. Mark it unpaid first." }));
       }
+    }
+    if (inv.status === "waived" && edit) {
+      const unwaive = el("button", { type: "button", class: "hs-btn", text: "Un-waive" });
+      unwaive.addEventListener("click", () =>
+        busy(root, err, async () => {
+          await api("/api/invoices/" + inv.id + "/unwaive", { method: "POST", body: "{}" });
+          toast("Back to due");
+          await refreshOpen(inv.id);
+        })
+      );
+      actions.append(unwaive);
     }
     if (live || inv.status === "void") {
       actions.append(el("a", { class: "hs-btn hs-btn-primary", href: "/invoice.html?id=" + inv.id, target: "_blank", rel: "noopener", text: "View / Save as PDF" }));

@@ -299,8 +299,9 @@ r.patch("/:id", "jobs.edit", handle((req, res) => {
         jobstage.onDesignReadyToCut(db, id, req);
       } else if (newStage === "complete" && existing.stage !== "invoiced") {
         // Same as Finish week -> Complete: completed_date, and the final invoice
-        // falls due. (invoiced -> complete is an admin override: plain setStage.)
-        jobstage.onFinishedComplete(db, id, req);
+        // falls due. A completedDate sent in the same PATCH is kept.
+        // (invoiced -> complete is an admin override: plain setStage.)
+        jobstage.onFinishedComplete(db, id, req, values.completed_date || undefined);
       } else {
         jobstage.setStage(db, id, newStage, req);
       }

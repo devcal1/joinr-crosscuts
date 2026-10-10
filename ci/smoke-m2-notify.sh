@@ -46,9 +46,9 @@ req POST /api/jobs/backlog "$ADMIN" '{"name":"CI Notify Job"}'
 expect_status 201 "add the notify job to the backlog"
 N_BACKLOG_ID=$(jqr '.id')
 N_JOB_ID=$(jqr '.jobId')
-req PATCH "/api/job-records/$N_JOB_ID" "$ADMIN" '{"valueCents":1000000}'
-expect_status 200 "set the notify job's value"
-# A week no other test uses, with no earlier week row for this job: the first
+req PATCH "/api/job-records/$N_JOB_ID" "$ADMIN" '{"valueCents":1000000,"clientName":"CI Notify Client"}'
+expect_status 200 "set the notify job's value and client name (an invoice needs a bill-to name to issue)"
+# A week no other test uses, with no other week row for this job: the first
 # placement makes the deposit due, and invoices.edit holders are notified.
 req POST "/api/jobs/backlog/$N_BACKLOG_ID/place" "$ADMIN" \
   '{"weekStart":"2034-05-01","panel":"manufacturing"}'

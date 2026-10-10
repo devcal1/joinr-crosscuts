@@ -169,16 +169,10 @@ r.get("/job/:jobId", "accounts.view", handle((req, res) => {
 
 r.get("/:id", "accounts.view", handle((req, res) => {
   const inv = load(req);
-  const job = invoices.getJob(db, inv.job_id);
-  const invoiced = db
-    .prepare(
-      "SELECT COALESCE(SUM(total_cents), 0) AS s FROM invoices WHERE job_id = ? AND id <> ? AND status IN ('issued','paid')"
-    )
-    .get(inv.job_id, inv.id).s;
   res.json({
     invoice: invoices.present(db, inv),
     business: settings.business(db),
-    contract: { valueCents: job ? job.value_cents : null, invoicedToDateCents: invoiced },
+    contract: invoices.contractOf(db, inv),
   });
 }));
 
@@ -355,7 +349,12 @@ r.patch("/:id", "invoices.edit", handle((req, res) => {
 
 r.post("/:id/issue", "invoices.edit", handle((req, res) => {
   const inv = load(req);
-  const out = db.transaction(() => invoices.issue(db, inv.id, req))();
+  const b = body(req);
+  const expected = b.expectedTotalCents;
+  if (expected !== undefined && expected !== null && !Number.isInteger(expected)) {
+    throw bad("expectedTotalCents must be a whole number of cents");
+  }
+  const out = db.transaction(() => invoices.issue(db, inv.id, req, { expectedTotalCents: expected }))();
   res.json(invoices.present(db, out));
 }));
 
@@ -390,6 +389,12 @@ r.post("/:id/void", "invoices.edit", handle((req, res) => {
 r.post("/:id/waive", "invoices.edit", handle((req, res) => {
   const inv = load(req);
   const out = db.transaction(() => invoices.waive(db, inv.id, body(req).reason, req))();
+  res.json(invoices.present(db, out));
+}));
+
+r.post("/:id/unwaive", "invoices.edit", handle((req, res) => {
+  const inv = load(req);
+  const out = db.transaction(() => invoices.unwaive(db, inv.id, req))();
   res.json(invoices.present(db, out));
 }));
 

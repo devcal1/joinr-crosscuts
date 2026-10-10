@@ -142,7 +142,9 @@
   }
 
   function buildParties(inv) {
-    var job = inv.job || {};
+    // The job's live details stand in only while the invoice is a draft; an
+    // issued, paid or void invoice prints just its snapshot, so a reprint never changes.
+    var job = isDraft(inv) ? inv.job || {} : {};
     var wrap = el("section", "inv-parties");
 
     var billName = has(inv.billToName) ? inv.billToName : job.clientName;
@@ -277,8 +279,9 @@
 
     var labels = { pending: "Draft", due: "Draft", issued: "Issued", paid: "Paid", waived: "Waived", void: "Void" };
     stateEl.className = "hs-badge " + (
-      inv.status === "paid" ? "hs-badge-go" :
-      inv.status === "void" || inv.overdue ? "hs-badge-stop" :
+      inv.status === "paid" ? "hs-badge-teal" :
+      inv.status === "void" ? "hs-badge-na" :
+      inv.overdue ? "hs-badge-stop" :
       isDraft(inv) ? "hs-badge-check" :
       inv.status === "issued" ? "hs-badge-teal" : "hs-badge-na"
     );
