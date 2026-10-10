@@ -12,8 +12,8 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
   - test user "Showroom" (showroom role) sees only photo search; the admin page and workers are blocked
 - **Carried LAN check (needs Todd on the workshop LAN, due before M1.1 · 2.2, the first M1.1 release):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
 - **Next action (M1.1 · 1.1, no Todd needed until approval):** research the three upgrades (Node 20 → 22 base image, sharp 0.33 → 0.35 breaking changes, GitHub Actions to Node-24-native versions, and how a CI-only change releases given the immutable-tag guard) and write a short `docs/plans/m1.1-plan.md` with the release order and per-release checks. Then put it to Todd for approval.
-- **Waiting on Todd:** the LAN check above; an OK to remove the old worktrees (below).
-- **Open branches/worktrees:** none unmerged. Nine old agent worktrees under `.claude/worktrees/` (branches `worktree-agent-*`) are all merged into `main` with no uncommitted changes; removing them was blocked by the permission check, so it waits for Todd's OK (or Todd removes them himself).
+- **Waiting on Todd:** the LAN check above; disable the "Showroom" test user on the Users page (the app has no delete, only "Disable account"; Claude cannot sign in to the live app).
+- **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
   - The dev-only `.dev/` and `node_modules` folders are local and ignored.
