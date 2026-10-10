@@ -30,7 +30,7 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 
 A role is a preset: a set of feature keys. A user's effective permissions are the union of their roles' keys, then each override is applied. A **grant** adds a key; a **revoke** removes it. Unknown keys in overrides are refused (400).
 
-Keys marked † only gate a shell page in M1.
+Keys marked † only gate a shell page so far. `accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`.
 
 | Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom |
 |---|:-:|:-:|:-:|:-:|:-:|
@@ -42,12 +42,12 @@ Keys marked † only gate a shell page in M1.
 | `jobs.value` | Yes | Yes | Yes | | |
 | `photos.search` | Yes | Yes | Yes | Yes | Yes |
 | `photos.admin` | Yes | | Yes | | |
-| `accounts.view` † | Yes | Yes | | | |
-| `invoices.edit` † | Yes | Yes | | | |
+| `accounts.view` | Yes | Yes | | | |
+| `invoices.edit` | Yes | Yes | | | |
 | `reports.upload` † | Yes | Yes | | | |
 | `design.view` † | Yes | | Yes | | |
 | `orders.edit` † | Yes | | Yes | | |
-| `orders.mark_ordered` † | Yes | | | | |
+| `orders.mark_ordered` | Yes | | | | |
 | `inspections.edit` † | Yes | | Yes | | |
 | `scheduling.view` | Yes | | Yes | Yes | |
 | `leave.edit` † | Yes | | | Yes | |

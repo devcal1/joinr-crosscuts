@@ -51,8 +51,37 @@ function weekLabel(startStr) {
   return `${startPart}–${endPart}`;
 }
 
+const SYDNEY_CLOCK_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Australia/Sydney",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+// Sydney wall-clock parts for `now`: {date, weekday (Mon=1..Sun=7), hour, minute}.
+function sydneyParts(now = new Date()) {
+  const p = {};
+  for (const { type, value } of SYDNEY_CLOCK_FMT.formatToParts(now)) p[type] = value;
+  const date = `${p.year}-${p.month}-${p.day}`;
+  const dow = parseDateUTC(date).getUTCDay(); // 0 = Sunday
+  return { date, weekday: dow === 0 ? 7 : dow, hour: Number(p.hour), minute: Number(p.minute) };
+}
+
+// The most recent Friday whose 12:00 Sydney is at or before `now`, YYYY-MM-DD.
+function latestFridayNoon(now = new Date()) {
+  const { date, weekday, hour } = sydneyParts(now);
+  let back = (weekday - 5 + 7) % 7; // days since the last Friday (0 on a Friday)
+  if (back === 0 && hour < 12) back = 7;
+  return addDays(date, -back);
+}
+
 module.exports = {
   DATE_RE,
+  sydneyParts,
+  latestFridayNoon,
   sydneyToday,
   sydneyMonday,
   parseDateUTC,

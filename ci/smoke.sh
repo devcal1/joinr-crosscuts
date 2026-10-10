@@ -1092,6 +1092,9 @@ req GET /api/schedule "$ADMIN"
 expect_status 200 "GET /api/schedule with no week"
 expect_eq "$(jqr '.weeks[0].start')" "$expected_monday" "weeks[0].start is this week's Sydney Monday"
 
+# M2 suites (ci/smoke-m2-*.sh) share this shell: helpers, jars, $CONTAINER.
+for f in "$(dirname "$0")"/smoke-m2-*.sh; do [ -f "$f" ] && source "$f"; done
+
 # ============================================================================
 step "k. cutover rehearsal: old public image, then this image on the same volume"
 # ============================================================================

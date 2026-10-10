@@ -42,6 +42,9 @@ const routers = [
   require("./routes/audit"),
   require("./routes/dashboard"),
   require("./routes/meta"),
+  require("./routes/invoices"),
+  require("./routes/notifications"),
+  require("./routes/settings"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -56,4 +59,6 @@ try {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Crosscuts web listening on port ${PORT}`);
+  // The Friday invoice round-up timer (ROUNDUP_DISABLED=1 turns it off).
+  require("./lib/roundup").start(require("./db"));
 });
