@@ -1,2 +1,0 @@
-id: "crosscuts" # Unique prefix for every app in this store. Only lowercase letters and dashes.
-name: "Crosscuts" # Shown in the umbrelOS UI as "<name> App Store".

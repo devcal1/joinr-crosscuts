@@ -1,11 +1,11 @@
 # Runtime volumes — persistent app data on the Umbrel, never source.
-# photos.db here holds the ENTIRE live schedule (workers / jobs / week_rows /
+# photos.db holds the ENTIRE live schedule (workers / jobs / week_rows /
 # assignments / day_flags), so on any machine that has actually run the app a
 # stray `git add -A` would publish real business data to a public repo.
-# The .gitkeep files stay tracked so the volume mount points survive a clone.
-crosscuts/data/**
-!crosscuts/data/**/
-!crosscuts/data/**/.gitkeep
+# The data/ skeleton (the .gitkeep files) now lives in tenon-umbrel-store, in
+# tenon-joinr-crosscuts/data/. This rule stays as a guard in case a local copy
+# of the Umbrel layout is ever put back here.
+crosscuts/data/
 
 # Default runtime dirs when DB_DIR / UPLOADS_DIR / CONFIG_DIR are not set
 # (local runs only; the container always sets them).

@@ -32,7 +32,7 @@ Adding a key changes code, so it ships in a release. Follow [CLAUDE.md](../CLAUD
 
 7. **Check locally, then rely on CI.** Boot with the shim command in CLAUDE.md. A local run is not the real test.
 
-8. **Bump `version:`** in `crosscuts/umbrel-app.yml`. CI fails a push that changes `crosscuts/app/` without it.
+8. **Bump `version`** in `crosscuts/app/package.json` (and the root version in `crosscuts/app/package-lock.json`). It is the image tag. CI fails a push that changes `crosscuts/app/` without a bump. After CI publishes, the release finishes in `tenon-umbrel-store` (see the release flow in [CLAUDE.md](../CLAUDE.md)).
 
 ## Cautions
 
