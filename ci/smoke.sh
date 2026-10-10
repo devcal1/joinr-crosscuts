@@ -324,6 +324,27 @@ echo "Confirming it's gone..."
 body=$(ccurl -sf "$BASE"/api/photos)
 [ "$body" = "[]" ] || { echo "Expected [] after delete, got: $body" >&2; exit 1; }
 
+# A phone photo taken upright is often stored landscape with EXIF orientation 6.
+# This 4x2 JPEG carries that tag, so it displays 2x4: the stored size and the
+# thumbnail must both come out portrait, or sharp has stopped auto-orienting.
+echo "Uploading a JPEG tagged EXIF orientation 6 (stored 4x2, displays 2x4)..."
+printf '%s' "/9j/4QC8RXhpZgAASUkqAAgAAAAGABIBAwABAAAABgAAABoBBQABAAAAVgAAABsBBQABAAAAXgAAACgBAwABAAAAAgAAABMCAwABAAAAAQAAAGmHBAABAAAAZgAAAAAAAAA4YwAA6AMAADhjAADoAwAABgAAkAcABAAAADAyMTABkQcABAAAAAECAwAAoAcABAAAADAxMDABoAMAAQAAAP//AAACoAQAAQAAAAQAAAADoAQAAQAAAAIAAAAAAAAA/+IB8ElDQ19QUk9GSUxFAAEBAAAB4GxjbXMEIAAAbW50clJHQiBYWVogB+IAAwAUAAkADgAdYWNzcE1TRlQAAAAAc2F3c2N0cmwAAAAAAAAAAAAAAAAAAPbWAAEAAAAA0y1oYW5keem/Vlo+AbaDI4VVRvdPqgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKZGVzYwAAAPwAAAAkY3BydAAAASAAAAAid3RwdAAAAUQAAAAUY2hhZAAAAVgAAAAsclhZWgAAAYQAAAAUZ1hZWgAAAZgAAAAUYlhZWgAAAawAAAAUclRSQwAAAcAAAAAgZ1RSQwAAAcAAAAAgYlRSQwAAAcAAAAAgbWx1YwAAAAAAAAABAAAADGVuVVMAAAAIAAAAHABzAFIARwBCbWx1YwAAAAAAAAABAAAADGVuVVMAAAAGAAAAHABDAEMAMAAAWFlaIAAAAAAAAPbWAAEAAAAA0y1zZjMyAAAAAAABDD8AAAXd///zJgAAB5AAAP2S///7of///aIAAAPcAADAcVhZWiAAAAAAAABvoAAAOPIAAAOPWFlaIAAAAAAAAGKWAAC3iQAAGNpYWVogAAAAAAAAJKAAAA+FAAC2xHBhcmEAAAAAAAMAAAACZmkAAPKnAAANWQAAE9AAAApb/9sAQwAQCwwODAoQDg0OEhEQExgoGhgWFhgxIyUdKDozPTw5Mzg3QEhcTkBEV0U3OFBtUVdfYmdoZz5NcXlwZHhcZWdj/9sAQwEREhIYFRgvGhovY0I4QmNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2Nj/8AAEQgAAgAEAwEiAAIRAQMRAf/EABUAAQEAAAAAAAAAAAAAAAAAAAAD/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCgAP/Z" | base64 -d > "$WORK/orient6.jpg"
+upload_response=$(ccurl -sf -F "photos=@$WORK/orient6.jpg;type=image/jpeg" -F "tags=ci-orient" "$BASE"/api/photos)
+echo "$upload_response"
+[ "$(echo "$upload_response" | jq -r '.failed | length')" = "0" ] || { echo "Orientation-6 upload failed: $upload_response" >&2; exit 1; }
+photo_id=$(echo "$upload_response" | jq -r '.created[0].id')
+dims=$(echo "$upload_response" | jq -r '.created[0] | "\(.width)x\(.height)"')
+[ "$dims" = "2x4" ] || { echo "Expected stored size 2x4 (portrait) for orientation 6, got $dims" >&2; exit 1; }
+thumb_file=$(echo "$upload_response" | jq -r '.created[0].thumbUrl' | sed 's#^/photos/##')
+thumb_dims=$(docker exec "$CONTAINER" node -e \
+  'require("sharp")(process.argv[1]).metadata().then(m => console.log(m.width + "x" + m.height + " " + m.format + " o" + (m.orientation || 1)))' \
+  "/data/uploads/$thumb_file")
+[ "$thumb_dims" = "2x4 webp o1" ] || { echo "Expected an upright 2x4 WebP thumbnail, got: $thumb_dims" >&2; exit 1; }
+status=$(ccurl -s -o /dev/null -w "%{http_code}" -X DELETE "$BASE/api/photos/$photo_id")
+[ "$status" = "204" ] || { echo "Expected 204 deleting the orientation-6 photo, got $status" >&2; exit 1; }
+body=$(ccurl -sf "$BASE"/api/photos)
+[ "$body" = "[]" ] || { echo "Expected [] after deleting the orientation-6 photo, got: $body" >&2; exit 1; }
+
 echo "Photo API smoke test passed."
 
 echo "--- Schedule API ---"

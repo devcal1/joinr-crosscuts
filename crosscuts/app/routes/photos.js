@@ -95,7 +95,7 @@ r.post("/photos", "photos.admin", (req, res) => {
       try {
         const image = sharp(file.path);
         const metadata = await image.metadata();
-        // sharp 0.33 doesn't auto-apply EXIF orientation: .rotate() bakes it
+        // sharp doesn't auto-apply EXIF orientation: .rotate() bakes it
         // into the thumb, and orientations 5-8 are transposed, so the stored
         // dimensions must swap to describe the photo as it displays.
         const transposed = (metadata.orientation || 1) >= 5;

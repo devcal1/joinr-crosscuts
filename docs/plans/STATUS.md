@@ -4,7 +4,7 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 
 ## Now (2026-10-10)
 
-- **Milestone:** **M1.1 Maintenance**, in progress. 1.1, 2.1, 2.2 (0.1.1 in the Tenon store) and 3.1 (0.1.2 Node 24 build, committed locally) are done. **2.3 Tailscale half passed; the LAN half is on Monday 12 Oct. Next: M1.1 · 3.2 (push 0.1.2).** M1 is CLOSED (2026-10-10), with one LAN re-check carried (below).
+- **Milestone:** **M1.1 Maintenance**, in progress. 1.1, 2.1, 2.2 (0.1.1 in the Tenon store) 3.1 (0.1.2, Node 24) and 4.1 (0.1.3, sharp 0.35) are built and committed locally. **2.3 Tailscale half passed; the LAN half is on Monday 12 Oct. Next: M1.1 · 3.2 (push 0.1.2), when Todd chooses. He is keeping GitHub use to a minimum.** M1 is CLOSED (2026-10-10), with one LAN re-check carried (below).
 - **M1 · 6.1 results:** installed; `/api/auth/status` reports `setupNeeded:false`, so Todd's admin account exists. Logged-out requests get the app's own 401/302 (not an Umbrel login redirect), so Umbrel proxy login is not in front of the app.
 - **M1 · 6.2 results (Tailscale, `100.111.185.96:4933`), all PASS:**
   - logged out: `/api/workers` 401, `/schedule.html` 302 to `/login.html?next=/schedule.html`, `/` 302 to login
@@ -16,8 +16,11 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **M1.1 · 2.2 done:** joinr-crosscuts pushed (`d7e3872`, Todd OK), CI run 38036478402 green on both architectures, 0.1.1 published (the 0.1.1, latest and sha tags all resolve to the same digest). tenon-umbrel-store commit `c092f89` (pin 0.1.1, `version: '0.1.1'`, release notes) pushed (Todd OK).
 - **M1.1 · 3.1 done:** `FROM node:24-alpine`, version 0.1.2. Local run on Node 24 through the shim: healthz 200, migrations applied, logged-out `/api/workers` 401 and `/schedule.html` 302 to login. Smoke step 0 will prove Node 24 in the image.
 - **M1.1 · 2.3 Tailscale half PASSED (2026-10-10):** Todd updated to 0.1.1, added a job to the board and assigned two workers; the edits saved and appear in the audit log. Logged-out `/api/workers` over Tailscale is 401. The LAN half is due Monday 12 Oct.
-- **Next action (needs Todd):** M1.1 · 3.2: push 0.1.2 (Node 24) once Todd confirms the push.
-- **Waiting on Todd:** a clear OK to push 0.1.2; the LAN check above.
+- **0.1.2 fix (found while preparing 4.1):** `node:24-alpine` ships npm 11.19, which skips dependency install scripts unless `package.json` lists them under `allowScripts`. better-sqlite3 fetches its binary that way, so the original 0.1.2 would have failed CI. `060048a` adds `"allowScripts": { "better-sqlite3@12.9.0": true }`; local `npm ci --omit=dev` under npm 11.19 now builds and loads the binary. **Any better-sqlite3 version bump must update that entry.**
+- **M1.1 · 4.1 done (local):** sharp ^0.35.5 (lockfile has the linuxmusl x64/arm64 0.35.5 binaries), version 0.1.3, one stale comment fixed. New smoke check: an EXIF-orientation-6 JPEG must store as 2x4 with an upright 2x4 WebP thumbnail. Local end-to-end (shim, Node 24, sharp 0.35.5): orientation-6 upload gives 2x4 and the PNG 1x1, both thumbnails correct.
+- **Push plan (each push needs Todd's OK):** releasing one upgrade per release means pushing `060048a` to main first (0.1.2), waiting for CI, pinning the store, then pushing the rest (0.1.3). Batching both into one push publishes only 0.1.3, so the device gets Node 24 and sharp 0.35 together: one CI run, one store push and one Update, but two changes in one release. Todd to choose.
+- **Next action (needs Todd):** Todd chooses the push plan and gives the OK.
+- **Waiting on Todd:** push plan (separate 0.1.2 and 0.1.3, or batched) and the OK; the LAN check above.
 - **Open branches/worktrees:** none. The nine merged agent worktrees and their branches were removed 2026-10-10.
 - **Deferred findings:**
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
@@ -62,3 +65,4 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - 2026-10-10: tenon-umbrel-store pushed (`c092f89`, Todd OK): 0.1.1 offered. M1.1 · 2.2 done; next 2.3 on the device.
 - 2026-10-10: M1.1 · 3.1 done (0.1.2, Node 24, local only). 2.3 split: Tailscale now, LAN on Monday 12 Oct.
 - 2026-10-10: M1.1 · 2.3 Tailscale half passed (board edit + audit on 0.1.1). Showroom test user disabled by Todd.
+- 2026-10-10: 0.1.2 fixed for npm 11.19 (allowScripts). M1.1 · 4.1 done locally (0.1.3, sharp 0.35.5, orientation smoke test). Nothing pushed (Todd minimising GitHub use).
