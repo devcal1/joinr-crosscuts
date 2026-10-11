@@ -65,6 +65,7 @@ const routers = [
   require("./routes/availability"),
   require("./routes/joinr"),
   require("./routes/backup"),
+  require("./routes/planner"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -94,6 +95,13 @@ app.listen(PORT, () => {
     );
   } catch (e) {
     console.error(`[backup] start failed (${safeCode(e)})`);
+  }
+  // The planner reminder sweep, every 60 s (PLANNER_REMINDER_DISABLED=1 turns it off). Wrapped so a
+  // fault at start can never stop the board (docs/plans/m7-contracts.md section 10).
+  try {
+    require("./lib/planner/reminders").startReminders(require("./db"));
+  } catch (e) {
+    console.error(`[planner] reminder sweep failed to start: ${e && e.message ? e.message : safeCode(e)}`);
   }
 });
 

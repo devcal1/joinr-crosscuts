@@ -8,6 +8,7 @@
     design_pm: "Design / PM",
     scheduling: "Scheduling",
     showroom: "Showroom",
+    workshop: "Workshop",
   };
 
   let meta = { roles: [], keys: [], presets: {} };

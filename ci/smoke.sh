@@ -936,6 +936,13 @@ expect_status 403 "show GET /api/schedule"
 req GET /schedule.html "$SHOW"
 expect_status 403 "show GET /schedule.html"
 
+# M7 (docs/plans/m7-contracts.md section 15.1): the workshop role and the two planner keys.
+req GET /api/users/meta "$ADMIN"
+expect_status 200 "admin GET /api/users/meta"
+expect_jq '.roles | index("workshop") != null' "the roles include workshop"
+expect_jq '.keys | length == 23' "23 feature keys"
+expect_jq '.presets.workshop == ["board.view","planner.view"]' "the workshop preset is board.view and planner.view"
+
 echo "per-user override (revoke board.edit from sched)..."
 req PUT "/api/users/$SCHED_ID/overrides/board.edit" "$ADMIN" '{"effect":"revoke"}'
 expect_status 200 "admin revokes board.edit from sched"
@@ -1182,6 +1189,28 @@ for f in "$(dirname "$0")"/smoke-m4-*.sh; do [ -f "$f" ] && source "$f"; done
 for f in "$(dirname "$0")"/smoke-m5-*.sh; do [ -f "$f" ] && source "$f"; done
 # M6 suites (ci/smoke-m6-*.sh): same rules; they must not assume a pristine DB.
 for f in "$(dirname "$0")"/smoke-m6-*.sh; do [ -f "$f" ] && source "$f"; done
+# M7 (docs/plans/m7-contracts.md section 15.1): three more users, then the M7 suites.
+# $WORK is the temp directory, so the workshop jar is $WSHOP.
+create_user wshop "CI Workshop" "Tmp-Wshop-Passw0rd-1" workshop
+WSHOP_ID=$CREATED_ID
+create_user acct2 "CI Accounts Two" "Tmp-Acct2-Passw0rd-1" accounts
+ACCT2_ID=$CREATED_ID
+create_user multi "CI Accounts and Design" "Tmp-Multi-Passw0rd-1" accounts
+MULTI_ID=$CREATED_ID
+req PATCH "/api/users/$MULTI_ID" "$ADMIN" '{"roles":["accounts","design_pm"]}'
+expect_status 200 "multi gets two roles"
+WSHOP="$WORK/jar-wshop"; ACCT2="$WORK/jar-acct2"; MULTI="$WORK/jar-multi"
+for j in "$WSHOP" "$ACCT2" "$MULTI"; do new_jar "$j"; done
+login "$WSHOP" wshop "Tmp-Wshop-Passw0rd-1"; expect_status 200 "login wshop"
+own_password "$WSHOP" "Tmp-Wshop-Passw0rd-1" "Wshop-Passw0rd-1"
+login "$ACCT2" acct2 "Tmp-Acct2-Passw0rd-1"; expect_status 200 "login acct2"
+own_password "$ACCT2" "Tmp-Acct2-Passw0rd-1" "Acct2-Passw0rd-1"
+login "$MULTI" multi "Tmp-Multi-Passw0rd-1"; expect_status 200 "login multi"
+own_password "$MULTI" "Tmp-Multi-Passw0rd-1" "Multi-Passw0rd-1"
+req GET /api/auth/me "$WSHOP"
+expect_status 200 "me as wshop"
+expect_jq '.user.roles == ["workshop"]' "wshop holds the workshop role (migration 017 allows it)"
+for f in "$(dirname "$0")"/smoke-m7-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

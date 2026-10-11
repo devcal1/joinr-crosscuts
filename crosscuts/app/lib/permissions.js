@@ -21,28 +21,34 @@ const KEYS = [
   "leave.edit",
   "tasks.use",
   "messages.use",
+  "planner.view",
+  "planner.edit",
   "users.admin",
   "audit.view",
 ];
 
-const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom"];
+const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop"];
 
 const PRESETS = {
   admin: [...KEYS],
   accounts: [
     "board.view", "jobs.view", "jobs.value", "photos.search", "accounts.view",
     "invoices.edit", "reports.upload", "tasks.use", "messages.use",
+    "planner.view", "planner.edit",
   ],
   design_pm: [
     "board.view", "jobs.view", "jobs.edit", "jobs.value", "photos.search",
     "photos.admin", "design.view", "orders.edit", "inspections.edit",
-    "scheduling.view", "tasks.use", "messages.use",
+    "scheduling.view", "tasks.use", "messages.use", "planner.view", "planner.edit",
   ],
   scheduling: [
     "board.view", "board.edit", "workers.edit", "jobs.view", "photos.search",
     "scheduling.view", "leave.edit", "tasks.use", "messages.use",
+    "planner.view", "planner.edit",
   ],
   showroom: ["photos.search"],
+  // M7: the workshop TV and workshop logins (docs/plans/m7-contracts.md section 4).
+  workshop: ["board.view", "planner.view"],
 };
 
 const KEY_SET = new Set(KEYS);

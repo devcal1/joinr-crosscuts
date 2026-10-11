@@ -17,6 +17,7 @@ const PAGES = [
   ["tasks", "/tasks.html", 1440, true], ["messages", "/messages.html", 1440, true], ["reports", "/reports.html", 1440, true],
   ["availability", "/availability.html", 1440, true], ["lookahead", "/lookahead.html", 1440, true], ["phone-lookahead", "/lookahead.html", 375, true], ["phone-availability", "/availability.html", 375, true],
   ["phone-tasks", "/tasks.html", 375, true], ["phone-messages", "/messages.html", 375, true], ["phone-reports", "/reports.html", 375, true],
+  ["planner", "/planner.html", 1440, true], ["planner-1100", "/planner.html", 1100, true], ["phone-planner", "/planner.html", 375, true],
 ];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function sid() {

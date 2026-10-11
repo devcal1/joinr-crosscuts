@@ -10,10 +10,12 @@
 //   - a font weight other than 400 or 700
 //   - the Inter font, or Phosphor icons outside the board
 //
-// Exceptions, all named in CLAUDE.md and approved by Todd on 2026-10-10:
+// Exceptions, all named in CLAUDE.md and approved by Todd on 2026-10-10 and 2026-10-11:
 //   - tokens.css defines the colours
 //   - worker colours: oklch() in shared.js (each worker's own hue)
 //   - board icons: Phosphor in schedule.html and schedule.js
+//   - planner layer markers: the --layer-* tokens, only in planner.html, planner.css and
+//     planner.js (approved by Todd on 2026-10-11)
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"
 // If this check fails, fix the page, not the check.
@@ -25,6 +27,7 @@ const ROOT = path.join(__dirname, "..", "crosscuts", "app", "public");
 const TOKENS = "tokens.css";
 const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js"]);
 const OKLCH_OK = new Set(["shared.js"]);
+const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.js"]);
 
 const HEX = "(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})";
 const NAMED = "white|black|red|green|blue|orange|purple|violet|gray|grey|yellow|pink|teal|navy|maroon|silver|gold|cyan|magenta|lime|olive|brown";
@@ -62,9 +65,12 @@ for (const file of walk(ROOT)) {
     if (raw.includes("style-check: print-start")) inPrint = true;
     if (raw.includes("style-check: print-end")) { inPrint = false; return; }
     // Comments may mention colours and fonts; check code only.
-    const line = raw.replace(/\/\*.*?\*\//g, "").replace(/^\s*(\/\/|\*|\/\*).*$/, "").replace(/<!--.*?-->/g, "")
-      // Token references (var(--orange)) are how colours should be used.
-      .replace(/var\(--[\w-]+\)/g, "var()");
+    const code = raw.replace(/\/\*.*?\*\//g, "").replace(/^\s*(\/\/|\*|\/\*).*$/, "").replace(/<!--.*?-->/g, "");
+    if (/--layer-/.test(code) && !LAYER_OK.has(rel)) {
+      problems.push(`${rel}:${i + 1}: planner layer token outside the planner: ${raw.trim().slice(0, 140)}`);
+    }
+    // Token references (var(--orange)) are how colours should be used.
+    const line = code.replace(/var\(--[\w-]+\)/g, "var()");
     for (const [label, re, applies] of RULES) {
       if (!applies(rel)) continue;
       if (inPrint && /colour|named/.test(label)) continue;

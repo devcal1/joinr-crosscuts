@@ -35,6 +35,16 @@
   --stop: #ef4444;
   --stop-tint: #f87171;
 
+  /* Planner layer markers: the named exception in CLAUDE.md "Look and feel" (Todd, 2026-10-11).
+     Used only by planner.html, planner.css and planner.js; ci/style-check.js enforces that. */
+  --layer-company: var(--teal);
+  --layer-install: var(--orange);
+  --layer-accounts: var(--label);
+  --layer-design: var(--violet);
+  --layer-scheduling: var(--fuchsia);
+  --layer-workshop: var(--muted);
+  --layer-personal: var(--body);   /* drawn as a hollow outline, never a fill */
+
   /* 16% fills, for badges, hovers, selected rows and highlights */
   --teal-16: rgba(23, 200, 160, 0.16);
   --orange-16: rgba(249, 115, 22, 0.16);

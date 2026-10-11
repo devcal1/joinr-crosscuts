@@ -30,31 +30,49 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 
 A role is a preset: a set of feature keys. A user's effective permissions are the union of their roles' keys, then each override is applied. A **grant** adds a key; a **revoke** removes it. Unknown keys in overrides are refused (400).
 
-Keys marked † only gate a shell page so far. `accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`.
+Keys marked † only gate a shell page so far. `accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`. M7 (Staff planner) adds `planner.view` and `planner.edit` and the **workshop** role (`board.view` and `planner.view` only). Which planner layers a person sees and posts to is decided by their **roles**, not their keys (`lib/planner/layers.js`): see `docs/plans/m7-contracts.md` section 5.
 
-| Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom |
-|---|:-:|:-:|:-:|:-:|:-:|
-| `board.view` | Yes | Yes | Yes | Yes | |
-| `board.edit` | Yes | | | Yes | |
-| `workers.edit` | Yes | | | Yes | |
-| `jobs.view` | Yes | Yes | Yes | Yes | |
-| `jobs.edit` | Yes | | Yes | | |
-| `jobs.value` | Yes | Yes | Yes | | |
-| `photos.search` | Yes | Yes | Yes | Yes | Yes |
-| `photos.admin` | Yes | | Yes | | |
-| `accounts.view` | Yes | Yes | | | |
-| `invoices.edit` | Yes | Yes | | | |
-| `reports.upload` | Yes | Yes | | | |
-| `design.view` | Yes | | Yes | | |
-| `orders.edit` | Yes | | Yes | | |
-| `orders.mark_ordered` | Yes | | | | |
-| `inspections.edit` | Yes | | Yes | | |
-| `scheduling.view` | Yes | | Yes | Yes | |
-| `leave.edit` | Yes | | | Yes | |
-| `tasks.use` | Yes | Yes | Yes | Yes | |
-| `messages.use` | Yes | Yes | Yes | Yes | |
-| `users.admin` | Yes | | | | |
-| `audit.view` | Yes | | | | |
+| Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom | Workshop |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| `board.view` | Yes | Yes | Yes | Yes | | Yes |
+| `board.edit` | Yes | | | Yes | | |
+| `workers.edit` | Yes | | | Yes | | |
+| `jobs.view` | Yes | Yes | Yes | Yes | | |
+| `jobs.edit` | Yes | | Yes | | | |
+| `jobs.value` | Yes | Yes | Yes | | | |
+| `photos.search` | Yes | Yes | Yes | Yes | Yes | |
+| `photos.admin` | Yes | | Yes | | | |
+| `accounts.view` | Yes | Yes | | | | |
+| `invoices.edit` | Yes | Yes | | | | |
+| `reports.upload` | Yes | Yes | | | | |
+| `design.view` | Yes | | Yes | | | |
+| `orders.edit` | Yes | | Yes | | | |
+| `orders.mark_ordered` | Yes | | | | | |
+| `inspections.edit` | Yes | | Yes | | | |
+| `scheduling.view` | Yes | | Yes | Yes | | |
+| `leave.edit` | Yes | | | Yes | | |
+| `tasks.use` | Yes | Yes | Yes | Yes | | |
+| `messages.use` | Yes | Yes | Yes | Yes | | |
+| `planner.view` | Yes | Yes | Yes | Yes | | Yes |
+| `planner.edit` | Yes | Yes | Yes | Yes | | |
+| `users.admin` | Yes | | | | | |
+| `audit.view` | Yes | | | | | |
+
+### Planner layers
+
+The Planner (M7) has seven layers. `planner.view` is needed to see any of them and `planner.edit` to add, change or delete anything; beyond that, the layers follow a person's **roles**, and a key override never adds a department layer. "Admin" here means the admin role. Someone with several roles gets every layer any of their roles gives.
+
+| Layer | Who sees it | Who adds to it | Who changes or deletes an event |
+|---|---|---|---|
+| Company-wide | everyone | everyone | the person who added it, and admin |
+| Install & hardware | everyone | Design/PM, Scheduling, admin | Design/PM, Scheduling, admin |
+| Accounts | Accounts, admin | Accounts, admin | Accounts, admin |
+| Design/PM | Design/PM, admin | Design/PM, admin | Design/PM, admin |
+| Scheduling/Production | Scheduling, admin | Scheduling, admin | Scheduling, admin |
+| Workshop | Scheduling, Workshop, admin | Scheduling, admin | Scheduling, admin |
+| Personal | only its owner (not even admin), and only with `planner.edit` | anyone with `planner.edit`, for themselves | only its owner |
+
+So a **workshop** login (the workshop TV, workshop staff) sees Company-wide, Install & hardware and Workshop, read-only, and has no Personal layer. **Showroom** has no planner. Someone given `planner.view` by an override with no planner role sees Company-wide and Install & hardware only; with `planner.edit` as well, they can also add to Company-wide and have a Personal layer. On a department layer, edit rights follow the role a person holds now: someone who leaves the department can no longer change its events.
 
 Known M1 limit: the board does not hide edit controls from view-only users. The server refuses their edits with a 403.
 

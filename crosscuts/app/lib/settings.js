@@ -27,6 +27,9 @@ const DEFAULTS = {
   "backup.copy_seed_slot": null,
   "backup.overdue_alerted_snapshot": null,
   "backup.overdue_alerted_copy": null,
+  // The planner reminder sweep's mark (docs/plans/m7-contracts.md section 10), written with
+  // {audit: false}.
+  "planner.reminder_swept_to": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 
