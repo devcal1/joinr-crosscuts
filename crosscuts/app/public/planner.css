@@ -1,0 +1,365 @@
+/* Planner (planner.html): the month grid beside this week and next, layer buttons, dialogs,
+   the phone layout and print (docs/plans/m7-contracts.md section 12). Page layout, hs- components
+   and tokens come from index.css; the dialog frame is the shell's cc-dialog. Classes here are pl-.
+
+   The layer markers are the planner's named exception in CLAUDE.md "Look and feel" (Todd,
+   2026-10-11): a 3 px left edge on chips and bars, a 6 px dot in compact cells, and a hollow
+   outline for Personal, from the --layer-* tokens, on this page only. Text stays white or body. */
+
+.dash.pl-page { max-width: 1680px; }
+
+/* ---------- layer marker colours (the only place they are set) ---------- */
+.pl-l-company { --pl-mark: var(--layer-company); }
+.pl-l-install { --pl-mark: var(--layer-install); }
+.pl-l-accounts { --pl-mark: var(--layer-accounts); }
+.pl-l-design_pm { --pl-mark: var(--layer-design); }
+.pl-l-scheduling { --pl-mark: var(--layer-scheduling); }
+.pl-l-workshop { --pl-mark: var(--layer-workshop); }
+.pl-l-personal { --pl-mark: var(--layer-personal); }
+
+.pl-mark {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pl-mark);
+}
+.pl-mark.pl-l-personal,
+.pl-l-personal .pl-mark { background: transparent; border: 1px solid var(--layer-personal); }
+
+/* ---------- head, tools and layer buttons ---------- */
+.pl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.pl-head h1 { margin: 0; color: var(--white); font-size: 28px; font-weight: 700; }
+.pl-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.hs-btn.pl-layers-toggle { display: none; }
+
+.pl-layers { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.hs-btn.pl-layer { gap: 8px; }
+.pl-layer[aria-pressed="true"] { border-color: var(--teal); color: var(--white); }
+.pl-layer[aria-pressed="false"] { color: var(--muted); }
+.pl-layer[aria-pressed="false"] .pl-mark { opacity: 0.35; }
+
+.pl-status { margin: 0 0 12px; color: var(--label); font-size: 14px; }
+.pl-status:empty { display: none; }
+.pl-status-err { color: var(--stop-tint); }
+.pl-empty { margin: 0; padding: 12px 14px; color: var(--label); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.pl-none { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* ---------- columns ---------- */
+.pl-cols { display: flex; flex-direction: column; gap: 28px; }
+.pl-month, .pl-weeks { min-width: 0; }
+@media (min-width: 1100px) {
+  .pl-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+}
+
+.pl-monthbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 10px; }
+.pl-month-title { margin: 0; color: var(--white); font-size: 20px; font-weight: 700; }
+.pl-nav { display: flex; gap: 6px; }
+
+/* ---------- item chips ---------- */
+.pl-chip {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 8px 4px 7px;
+  overflow: hidden;
+  color: var(--white);
+  background: var(--surface);
+  border: 0;
+  border-left: 3px solid var(--pl-mark);
+  border-radius: var(--r-badge);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.pl-chip:hover { background: var(--raised); }
+.pl-chip.pl-l-personal { border: 1px solid var(--layer-personal); padding-left: 9px; }
+.pl-chip-static { cursor: default; color: var(--body); }
+a.pl-chip-static { cursor: pointer; }
+.pl-time { color: var(--body); font-weight: 700; }
+.pl-title { color: inherit; }
+.pl-src {
+  color: var(--label);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pl-flag {
+  color: var(--stop-tint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.pl-overdue, .pl-overdue .pl-title { color: var(--stop-tint); }
+.pl-pre { display: none; }
+.pl-printonly { display: none; }
+
+/* In the month grid: one line each, cut with an ellipsis. */
+.pl-chip-sm {
+  padding: 2px 6px 2px 5px;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pl-chip-sm.pl-l-personal { padding-left: 7px; }
+.pl-chip-sm .pl-time { font-weight: 400; color: var(--label); }
+.pl-chip-sm .pl-src { font-size: 8px; }
+.pl-bar { font-weight: 700; }
+.pl-bar.pl-cont-l { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.pl-bar.pl-cont-r { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+.pl-list { display: flex; flex-direction: column; gap: 4px; }
+
+/* ---------- the board band ---------- */
+.pl-band { min-width: 0; padding: 4px 6px 2px; }
+.pl-band-line {
+  margin: 0;
+  overflow: hidden;
+  color: var(--body);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pl-band-k { color: var(--label); font-weight: 700; }
+.pl-band a { color: var(--teal-tint); text-decoration: none; }
+.pl-band a:hover { text-decoration: underline; }
+.pl-band-wk { padding: 0 0 8px; }
+.pl-band-wk .pl-band-line { white-space: normal; font-size: 12px; }
+
+/* ---------- the month grid ---------- */
+.pl-grid { border: 1px solid var(--hairline); border-radius: var(--r-card); overflow: hidden; }
+.pl-dow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+}
+.pl-dow span {
+  padding: 6px 8px;
+  color: var(--label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+/* Rows: 1 band, 2 day numbers, 3-5 items, 6 "+N more", 7-9 the extra printed items, 10 filler. */
+.pl-wk {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto auto auto auto auto auto auto auto auto 1fr;
+  min-height: 116px;
+  border-bottom: 1px solid var(--hairline);
+}
+.pl-wk:last-child { border-bottom: 0; }
+.pl-wk > .pl-chip { width: auto; margin: 0 3px 3px; }
+.pl-cell { min-width: 0; border-left: 1px solid var(--hairline); }
+.pl-cell.pl-first { border-left: 0; }
+.pl-cell-add { cursor: pointer; }
+.pl-cell-add:hover { background: var(--teal-8); }
+.pl-cell.pl-out { background: var(--surface); }
+.pl-cell.pl-today { outline: 2px solid var(--teal); outline-offset: -2px; }
+.pl-num {
+  justify-self: start;
+  margin: 3px 3px 2px;
+  padding: 2px 6px;
+  color: var(--white);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-badge);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.pl-num:hover { border-color: var(--teal); color: var(--teal-tint); }
+.pl-num.pl-out { color: var(--muted); font-weight: 400; }
+.pl-num.pl-num-today { color: var(--teal-tint); }
+.pl-more {
+  justify-self: start;
+  margin: 0 3px 4px;
+  padding: 1px 6px;
+  color: var(--teal-tint);
+  background: none;
+  border: 0;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pl-more:hover { text-decoration: underline; }
+
+/* ---------- the compact month and its day list (phone) ---------- */
+.pl-compact, .pl-daylist { display: none; }
+.pl-cdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.pl-cday {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 5px 2px;
+  color: var(--white);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--font);
+  cursor: pointer;
+}
+.pl-cday.pl-out { color: var(--muted); }
+.pl-cday.pl-today .pl-cnum { outline: 2px solid var(--teal); outline-offset: 1px; border-radius: 50%; }
+.pl-cday[aria-pressed="true"] { background: var(--teal-16); }
+.pl-cnum { min-width: 22px; font-size: 13px; font-weight: 700; line-height: 22px; text-align: center; }
+.pl-dots { display: flex; gap: 3px; min-height: 6px; }
+.pl-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pl-mark); }
+.pl-dot.pl-l-personal { background: transparent; border: 1px solid var(--layer-personal); }
+.pl-count { color: var(--label); font-size: 10px; line-height: 1; }
+.pl-daylist { margin-top: 12px; }
+.pl-daylist-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.pl-h3 { margin: 0; color: var(--white); font-size: 15px; font-weight: 700; }
+
+/* ---------- this week and next ---------- */
+.pl-weeks > .hs-sectionbar { margin-bottom: 12px; }
+.pl-wk2 { margin-bottom: 22px; }
+.pl-wk2-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 8px; }
+.pl-wk2-title { margin: 0; color: var(--white); font-size: 16px; font-weight: 700; }
+.pl-wk2-range { color: var(--label); font-size: 13px; }
+.pl-day { padding: 8px 0 10px; border-top: 1px solid var(--hairline); }
+.pl-day-h {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  color: var(--label);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.pl-day-today .pl-day-h { color: var(--teal-tint); }
+.pl-tag { color: var(--teal-tint); font-size: 10px; }
+
+/* ---------- dialogs ---------- */
+.cc-dialog.pl-dialog { width: min(94vw, 460px); max-height: 92vh; overflow-y: auto; }
+.cc-dialog.pl-formdlg { width: min(94vw, 600px); }
+.pl-detail-head { display: flex; align-items: center; gap: 10px; }
+.pl-detail-head .cc-dialog-title { overflow-wrap: anywhere; }
+.pl-src-detail { margin: -4px 0 0; font-size: 10px; }
+.hs-kvt.pl-kvt { grid-template-columns: 30% minmax(0, 1fr); }
+.pl-kvt .v { overflow-wrap: anywhere; }
+.pl-kvt a { color: var(--teal-tint); }
+.pl-notes { white-space: pre-wrap; }
+.pl-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 14px; }
+.pl-wide { grid-column: 1 / -1; }
+.pl-formdlg .hs-input { color-scheme: dark; }
+.pl-formdlg .hs-input:disabled { opacity: 0.5; }
+.pl-notes-in { resize: vertical; min-height: 80px; font-family: var(--font); }
+.pl-checkrow { display: flex; align-items: center; gap: 8px; color: var(--body); font-size: 14px; cursor: pointer; }
+.pl-checkrow-field { align-self: end; min-height: 36px; }
+.pl-check { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
+.pl-onenote { margin: 0; }
+.pl-warn { margin: 0; color: var(--orange-tint); font-size: 13px; }
+.pl-warn[hidden] { display: none; }
+
+/* ---------- phone ---------- */
+@media (max-width: 640px) {
+  .dash.pl-page { padding-left: 16px; padding-right: 16px; }
+  .pl-head h1 { font-size: 24px; }
+  .hs-btn.pl-layers-toggle { display: inline-flex; }
+  .pl-layers { display: none; }
+  .pl-layers.pl-layers-open { display: flex; }
+  .pl-weeks { order: -1; }
+  .pl-grid { display: none; }
+  .pl-compact, .pl-daylist { display: block; }
+  .pl-compact { border-bottom: 1px solid var(--hairline); }
+  .pl-fields { grid-template-columns: minmax(0, 1fr); }
+  .pl-checkrow-field { min-height: 0; }
+}
+
+.pl-print-foot { display: none; }
+
+/* ---------- print: black on white, layer names in words, no markers ---------- */
+/* style-check: print-start */
+@media print {
+  html, body { background: #fff; color: #000; }
+  body, body:has(> .cc-foot-rule) { padding-bottom: 0; font-size: 9pt; }
+  #cc-shell, .cc-foot-rule, .cc-dialog, .pl-tools, .pl-layers, .pl-status, .pl-monthbar .pl-nav,
+  .pl-compact, .pl-daylist, .pl-screenonly { display: none !important; }
+  .dash.pl-page { max-width: none; padding: 0; margin: 0; }
+  .pl-head { margin: 0 0 4mm; }
+  .pl-head h1 { color: #000; font-size: 14pt; }
+  .pl-cols { display: block; }
+  .pl-weeks { margin-top: 6mm; }
+  body.pl-print-month .pl-weeks, body.pl-print-weeks .pl-month { display: none; }
+  .pl-month-title, .pl-wk2-title, .pl-h3 { color: #000; }
+  .pl-month-title { font-size: 13pt; }
+  .pl-weeks > .hs-sectionbar { background: #fff; border: 0; padding: 0; min-height: 0; margin-bottom: 2mm; }
+  .pl-weeks > .hs-sectionbar h2 { color: #000; font-size: 12pt; }
+
+  .pl-chip, .pl-chip.pl-l-personal, .pl-chip-sm.pl-l-personal {
+    color: #000;
+    background: #fff;
+    border: 0;
+    border-radius: 0;
+    padding: 0 1mm;
+    font-size: 8pt;
+    line-height: 1.25;
+  }
+  .pl-chip-sm { white-space: normal; text-overflow: clip; }
+  .pl-bar { border-top: 0.3mm solid #000; border-bottom: 0.3mm solid #000; }
+  .pl-time, .pl-chip-sm .pl-time, .pl-src, .pl-flag, .pl-overdue, .pl-overdue .pl-title, .pl-title { color: #000; }
+  .pl-flag { font-weight: 700; }
+  .pl-pre { display: inline; font-weight: 700; }
+  .pl-printonly { display: block; }
+  .pl-mark, .pl-dot { display: none; }
+
+  /* The month fits one A4 landscape page: no page heading, no source labels, small type. */
+  body.pl-print-month .pl-head { display: none; }
+  body.pl-print-month .pl-monthbar { margin-bottom: 2mm; }
+  .pl-grid .pl-src { display: none; }
+  .pl-grid .pl-chip { font-size: 7pt; line-height: 1.15; }
+  .pl-wk > .pl-chip { margin: 0 0.8mm 0.6mm; }
+  .pl-grid { display: block; border: 0.3mm solid #000; border-radius: 0; overflow: visible; }
+  .pl-dow { background: #fff; border-bottom: 0.3mm solid #000; }
+  .pl-dow span { color: #000; padding: 1mm; font-size: 7pt; }
+  .pl-wk { min-height: 16mm; border-bottom: 0.3mm solid #000; break-inside: avoid; }
+  .pl-cell { border-left: 0.3mm solid #000; }
+  .pl-cell.pl-out { background: #fff; }
+  .pl-cell.pl-today { outline: 0; }
+  .pl-cell-add:hover { background: #fff; }
+  .pl-num, .pl-num.pl-num-today { color: #000; font-size: 8pt; padding: 0 1mm; margin: 0.5mm; border: 0; }
+  .pl-num.pl-out { color: #000; opacity: 0.45; }
+  .pl-more { color: #000; font-size: 7pt; padding: 0 1mm; }
+  .pl-band-line, .pl-band-k, .pl-band a { color: #000; font-size: 7pt; white-space: normal; }
+
+  .pl-wk2 { break-inside: auto; margin-bottom: 4mm; }
+  .pl-wk2-range { color: #000; }
+  .pl-day { border-top: 0.3mm solid #000; padding: 1.5mm 0; break-inside: avoid; }
+  .pl-day-h, .pl-day-today .pl-day-h, .pl-tag { color: #000; font-size: 8pt; }
+  .pl-none { color: #000; opacity: 0.6; font-size: 8pt; }
+  .pl-list { gap: 0.5mm; }
+  .pl-band-wk .pl-band-line { font-size: 8pt; }
+
+  .pl-print-foot { display: block; margin: 2mm 0 0; color: #000; font-size: 8pt; }
+  a { color: #000; text-decoration: none; }
+}
+/* style-check: print-end */

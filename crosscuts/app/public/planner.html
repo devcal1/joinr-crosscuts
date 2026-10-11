@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planner - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="planner.css">
+<style id="plPageSize"></style>
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="dash pl-page">
+    <header class="pl-head">
+      <h1>Planner</h1>
+      <div class="pl-tools" role="group" aria-label="Planner actions">
+        <button type="button" id="plNew" class="hs-btn hs-btn-primary" hidden>New event</button>
+        <button type="button" id="plPrint" class="hs-btn">Print</button>
+        <button type="button" id="plLayersToggle" class="hs-btn pl-layers-toggle" aria-expanded="false" aria-controls="plLayers">Layers</button>
+      </div>
+    </header>
+
+    <div id="plLayers" class="pl-layers" role="group" aria-label="Layers to show"></div>
+
+    <p id="plStatus" class="pl-status" role="status" aria-live="polite"></p>
+
+    <div class="pl-cols">
+      <section class="pl-month" id="plMonthView" aria-labelledby="plMonthTitle">
+        <div class="pl-monthbar">
+          <h2 class="pl-month-title" id="plMonthTitle">Loading...</h2>
+          <div class="pl-nav" role="group" aria-label="Move the month">
+            <button type="button" id="plPrev" class="hs-btn" aria-label="Previous month">Prev</button>
+            <button type="button" id="plToday" class="hs-btn">Today</button>
+            <button type="button" id="plNext" class="hs-btn" aria-label="Next month">Next</button>
+          </div>
+        </div>
+        <div class="pl-grid" id="plGrid"></div>
+        <div class="pl-compact" id="plCompact"></div>
+        <div class="pl-daylist" id="plDayList" aria-live="polite"></div>
+      </section>
+
+      <section class="pl-weeks" id="plWeeksView" aria-labelledby="plWeeksTitle">
+        <div class="hs-sectionbar"><h2 id="plWeeksTitle">This week and next</h2></div>
+        <div id="plWeeks"><p class="pl-empty">Loading...</p></div>
+      </section>
+    </div>
+
+    <p class="pl-print-foot" id="plPrintFoot"></p>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="planner.js"></script>
+  <script src="shell/shell.js"></script>
+</body>
+</html>
