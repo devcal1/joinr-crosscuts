@@ -976,6 +976,69 @@
     }
   }
 
+  // ---- Planner (docs/plans/m7-contracts.md section 14.3) ------------------------------------
+  // The job's hand-made planner events in the next 90 days (at most 20) that this viewer may see:
+  // the server applies the planner's layer rules, so no one sees another person's Personal events
+  // or another department's. The layer is named in words; the markers belong to the Planner page.
+  const plannerEl = $("planner");
+
+  // "09:00" -> "9:00"
+  function fmtTime(t) {
+    const m = /^(\d{2}):(\d{2})$/.exec(t || "");
+    return m ? Number(m[1]) + ":" + m[2] : t || "";
+  }
+
+  function renderPlanner(rows, more, labels) {
+    const body = $("plannerBody");
+    if (!rows.length) {
+      body.replaceChildren(el("p", { class: "muted jo-empty", text: "Nothing on the planner for this job." }));
+      return;
+    }
+    const table = el("table", { class: "hs-table jo-table jo-planner" });
+    table.append(headRow(["Date", "Event", "Layer", ""]));
+    const tb = el("tbody");
+    for (const it of rows) {
+      const date = el("td", { class: "jo-strong jo-dates" });
+      date.append(el("span", { text: fmtDate(it.start) + (it.end && it.end !== it.start ? " – " + fmtDate(it.end) : "") }));
+      const time = it.allDay || !it.startTime ? "All day" : fmtTime(it.startTime) + (it.endTime ? "–" + fmtTime(it.endTime) : "");
+      date.append(el("span", { class: "jo-note", text: time }));
+      const open = el("a", {
+        class: "hs-btn",
+        href: "/planner.html?date=" + encodeURIComponent(it.start) + "&event=" + encodeURIComponent(it.id),
+        text: "Open",
+      });
+      open.setAttribute("aria-label", "Open " + it.title + " in the planner");
+      tb.append(
+        el(
+          "tr",
+          {},
+          date,
+          el("td", { class: "jo-text", text: it.title }),
+          el("td", { text: labels[it.layer] || it.layer }),
+          el("td", { class: "jo-open" }, open)
+        )
+      );
+    }
+    table.append(tb);
+    const parts = [tableWrap(table)];
+    if (more) parts.push(el("p", { class: "muted jo-more", text: "And more on the planner" }));
+    body.replaceChildren(...parts);
+  }
+
+  async function loadPlanner() {
+    let data, meta;
+    try {
+      [data, meta] = await Promise.all([api("/api/planner/job/" + jobId), api("/api/planner/layers")]);
+    } catch (e) {
+      setLine($("plannerStatus"), "The planner could not be loaded.", "err");
+      return;
+    }
+    setLine($("plannerStatus"), "", "muted");
+    const labels = {};
+    for (const l of (meta && meta.layers) || []) labels[l.id] = l.label;
+    renderPlanner((data && data.rows) || [], !!(data && data.more), labels);
+  }
+
   // ---- Photos ----------------------------------------------------------------------------
   let photos = [];
 
@@ -1287,6 +1350,10 @@
       const me = window.cc && window.cc.me;
       if (me && me.displayName && !$("iHost").value) $("iHost").value = me.displayName;
       tasks.push(loadInspections());
+    }
+    if (can("planner.view")) {
+      plannerEl.hidden = false;
+      tasks.push(loadPlanner());
     }
     if (can("photos.search") || can("photos.admin")) {
       photosEl.hidden = false;

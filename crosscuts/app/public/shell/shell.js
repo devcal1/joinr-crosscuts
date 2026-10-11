@@ -11,6 +11,11 @@
   if (window.cc && window.cc.__shell) return;
 
   var LINK_GROUPS = [
+    // M7: the Planner is its own one-item group, first (docs/plans/m7-contracts.md section 14.1).
+    {
+      label: "Planner",
+      items: [{ label: "Planner", href: "/planner.html", key: "planner.view" }],
+    },
     {
       label: "Production",
       items: [

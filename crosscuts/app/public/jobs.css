@@ -244,3 +244,10 @@ a.hs-btn:hover { text-decoration: none; }
 .jo-joinr-diff li { overflow-wrap: anywhere; }
 .jo-joinr-diff b { color: var(--white); font-weight: 700; }
 .jo-joinr-acts { margin-top: 10px; display: flex; justify-content: flex-end; }
+
+/* job page: Planner (M7, jo-planner). The layer is named in words; no markers here. */
+.jo-planner { min-width: 520px; }
+.jo-planner td.jo-dates .jo-note { font-size: 12px; font-weight: 400; }
+.jo-planner td.jo-open { width: 1%; white-space: nowrap; text-align: right; }
+.jo-planner td.jo-open .hs-btn { padding: 6px 10px; }
+.jo-more { margin: 8px 0 0; font-size: 14px; }

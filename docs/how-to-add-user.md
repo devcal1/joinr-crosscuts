@@ -19,6 +19,9 @@ The steps below describe the screen as it is planned. Button and menu names may 
 - **Design/PM:** jobs, design, orders, inspections, photo admin, scheduling view.
 - **Scheduling:** the board (moving jobs, workers, leave).
 - **Showroom:** photo search only. Used for the shared showroom account.
+- **Workshop:** the board and the Planner (Company-wide, Install & hardware and Workshop, read-only). For the workshop TV and workshop logins. It can't edit the board: if the TV account must, give it a **Grant** override for `board.edit`.
+
+The office roles (Admin, Accounts, Design/PM, Scheduling) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
 
 ## Overrides
 
@@ -68,3 +71,5 @@ This is the plan from the brief (section 3.1).
 **Tip for Sam's Chromebook:** at login, tick **Remember this device**. The login then lasts 30 days and keeps sliding, so the TV device does not log out during daily use. Sam can also set a PIN, so that after pressing **Lock** he can unlock with the PIN instead of the password.
 
 Use the same tick on the showroom device, so it stays logged in.
+
+**The workshop TV and the Workshop role (M7).** Once the Planner is installed, switch the account the TV signs in with to the **Workshop** role (on the Users page, tick Workshop and untick its other roles). The TV still shows only the board: the board has no menu bar, so no Planner link appears on it. Workshop has no `board.edit`, so if anyone moves rows on the board from the TV, add a **Grant** override for `board.edit` to that account. Workshop logins for the floor crew work the same way: they see the board and the Planner, and change nothing.

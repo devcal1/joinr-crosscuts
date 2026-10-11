@@ -269,15 +269,22 @@
   .cc-group + .cc-group { margin-left: 4px; padding-left: 6px; }
 }
 /* M4: Tasks and Messages joined Alerts on the right, so below 1680 px the right-hand
-   buttons tighten and the wordmark goes (measured with the full admin link set). */
-@media (max-width: 1679px) {
+   buttons tighten and the wordmark goes (measured with the full admin link set).
+   M7: the Planner link moved that point to 1760 px. */
+@media (max-width: 1759px) {
   .cc-brand-app { display: none; }
   .cc-right { gap: 2px; }
   .cc-right .cc-btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.04em; }
   .cc-user-name { max-width: 10ch; }
 }
+/* M7: with the Planner link, 1366 to 1439 px needs the links a little tighter again
+   before they collapse into the Menu (measured with the full admin link set). */
 @media (max-width: 1439px) {
   .cc-brand-app { display: none; }
+}
+@media (min-width: 1366px) and (max-width: 1439px) {
+  .cc-link { padding-left: 4px; padding-right: 4px; letter-spacing: 0.06em; }
+  .cc-group + .cc-group { margin-left: 3px; padding-left: 4px; }
 }
 
 /* Narrow screens: links collapse into a menu (below 1366 px since M4) */

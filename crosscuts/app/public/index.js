@@ -213,6 +213,64 @@
       });
   }
 
+  // Planner (M7, docs/plans/m7-contracts.md section 14.2): the first six items on today and
+  // tomorrow, each a deep link into the planner. "Today" comes from the server, never the
+  // browser's clock; the layer is named in words (the markers belong to the Planner page only).
+  function nextDay(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+    if (!m) return "";
+    var d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1));
+    return d.toISOString().slice(0, 10);
+  }
+  // "09:00" -> "9:00"
+  function fmtTime(t) {
+    var m = /^(\d{2}):(\d{2})$/.exec(t || "");
+    return m ? Number(m[1]) + ":" + m[2] : t || "";
+  }
+  function plannerWhen(item, today) {
+    var day = item.start <= today ? "Today" : "Tomorrow";
+    if (item.allDay || !item.startTime) return day + " · All day";
+    return day + " · " + fmtTime(item.startTime) + (item.endTime ? "–" + fmtTime(item.endTime) : "");
+  }
+  function renderPlanner(cc) {
+    if (!cc.can("planner.view")) return;
+    var tile = document.getElementById("ix-planner");
+    var list = document.getElementById("ix-planner-list");
+    var empty = document.getElementById("ix-planner-empty");
+    document.getElementById("work-section").hidden = false;
+    tile.hidden = false;
+    api("/api/planner/layers")
+      .then(function (meta) {
+        if (!meta) return null;
+        var labels = {};
+        (meta.layers || []).forEach(function (l) { labels[l.id] = l.label; });
+        var today = meta.today;
+        var url = "/api/planner/events?from=" + encodeURIComponent(today) + "&to=" + encodeURIComponent(nextDay(today));
+        return api(url).then(function (data) {
+          if (!data) return;
+          var rows = (data.events || []).slice(0, 6);
+          empty.hidden = rows.length > 0;
+          rows.forEach(function (it) {
+            var a = el("a", "ix-item");
+            a.href = "/planner.html?date=" + encodeURIComponent(it.start) + "&event=" + encodeURIComponent(it.id);
+            a.appendChild(el("span", "ix-main", it.title));
+            var sub = [labels[it.layer] || it.layer];
+            if (it.sourceLabel && it.sourceLabel !== sub[0]) sub.push(it.sourceLabel);
+            a.appendChild(el("span", "ix-sub", sub.join(" · ")));
+            a.appendChild(el("span", "ix-side" + (it.overdue ? " ix-overdue" : ""), it.overdue ? "Overdue" : plannerWhen(it, data.today || today)));
+            var li = el("li", "ix-li");
+            li.appendChild(a);
+            list.appendChild(li);
+          });
+        });
+      })
+      .catch(function () {
+        list.textContent = "";
+        empty.textContent = "The planner could not be loaded.";
+        empty.hidden = false;
+      });
+  }
+
   // Messages: each channel I can see, with how many messages I have not read.
   function renderMessages(cc) {
     if (!cc.can("messages.use")) return;
@@ -248,6 +306,7 @@
     renderTiles(cc);
     renderWeek(cc);
     renderAlerts(cc);
+    renderPlanner(cc);
     renderMyTasks(cc);
     renderMessages(cc);
   }
