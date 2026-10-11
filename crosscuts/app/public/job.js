@@ -1036,6 +1036,88 @@
     }
   }
 
+  // ---- Tasks and Comments (docs/plans/m4-contracts.md section 6) -----------------------------
+  // The widgets are shared: ccTasks (taskui.js) is the task dialog, ccComments (comments.js) the thread.
+  const tasksEl = $("tasks");
+  const commentsEl = $("comments");
+  let tasksSeq = 0;
+
+  function dueText(t) {
+    return t.dueDate ? fmtDate(t.dueDate) : "No date";
+  }
+
+  function renderTasks(rows) {
+    const body = $("tasksBody");
+    if (!rows.length) {
+      body.replaceChildren(el("p", { class: "muted jo-empty", text: "No tasks on this job yet." }));
+      return;
+    }
+    const table = el("table", { class: "hs-table jo-table jo-tasks" });
+    table.append(headRow(["Task", "For", "Due", "Status"]));
+    const tb = el("tbody");
+    for (const t of rows) {
+      const open = t.status === "open";
+      const openIt = () => openTaskDialog(t.id);
+      const title = el("button", { type: "button", class: "jo-linkbtn", text: t.title });
+      title.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openIt();
+      });
+      const due = el("td", { class: t.overdue ? "jo-overdue-red" : "" });
+      due.append(document.createTextNode(dueText(t)));
+      if (t.overdue) due.append(el("span", { class: "jo-overdue-tag jo-overdue-red", text: "Overdue" }));
+      const [label, badge] = open ? ["Open", "hs-badge-teal"] : t.status === "done" ? ["Done", "hs-badge-go"] : ["Cancelled", "hs-badge-na"];
+      const tr = el(
+        "tr",
+        { class: "jo-taskrow" + (open ? "" : " jo-cancelled") },
+        el("td", { class: "jo-strong jo-text" }, title),
+        el("td", { text: t.assignee ? t.assignee.name : "" }),
+        due,
+        el("td", {}, el("span", { class: "hs-badge " + badge, text: label }))
+      );
+      tr.addEventListener("click", openIt);
+      tb.append(tr);
+    }
+    table.append(tb);
+    $("tasksBody").replaceChildren(tableWrap(table));
+  }
+
+  async function loadTasks() {
+    const mine = ++tasksSeq;
+    let data;
+    try {
+      data = await api("/api/tasks?view=job&jobId=" + jobId);
+    } catch (e) {
+      if (mine === tasksSeq) setLine($("tasksStatus"), e.message, "err");
+      return;
+    }
+    if (mine !== tasksSeq) return;
+    setLine($("tasksStatus"), "", "muted");
+    renderTasks(data.rows || []);
+  }
+
+  function openTaskDialog(id) {
+    if (window.ccTasks) window.ccTasks.openTask(id, { onChange: loadTasks });
+  }
+
+  function onNewTask() {
+    if (window.ccTasks) window.ccTasks.newTask({ jobId: jobId, jobName: job ? job.name : "", onChange: loadTasks });
+  }
+
+  function startTasksAndComments(list) {
+    if (can("tasks.use")) {
+      tasksEl.hidden = false;
+      $("newTask").addEventListener("click", onNewTask);
+      list.push(loadTasks());
+    }
+    if (can("jobs.view")) {
+      commentsEl.hidden = false;
+      if (window.ccComments) {
+        window.ccComments.mount($("commentsBody"), "job", jobId, { canWrite: can("messages.use") });
+      }
+    }
+  }
+
   // ---- start-up --------------------------------------------------------------------------
   // Permissions come from the shell, so wait for it before deciding what to show.
   async function pageReady() {
@@ -1082,6 +1164,8 @@
       $("photoForm").addEventListener("submit", onUpload);
       tasks.push(loadPhotos());
     }
+    startTasksAndComments(tasks);
+    tasks.push(loadInvoices()); // the Invoices section sits below Comments; settle its height before the jump
     await Promise.allSettled(tasks);
     jumpToHash();
   }

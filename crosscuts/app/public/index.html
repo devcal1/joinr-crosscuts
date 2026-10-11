@@ -35,13 +35,20 @@
       </div>
     </section>
 
-    <section class="dash-section" aria-labelledby="later-h">
-      <div class="hs-sectionbar"><h2 class="dash-h2" id="later-h">Coming later</h2></div>
+    <section class="dash-section" id="work-section" aria-labelledby="work-h" hidden>
+      <div class="hs-sectionbar"><h2 class="dash-h2" id="work-h">Your work</h2></div>
       <div class="tiles">
-        <article class="tile tile-later hs-card">
-          <h3 class="tile-title">My tasks</h3>
-          <p class="tile-text">Tasks assigned to you will collect here.</p>
-          <p class="tile-badge hs-badge hs-badge-na">Coming in a later update</p>
+        <article class="tile hs-card ix-tile" id="ix-tasks" aria-labelledby="ix-tasks-h" hidden>
+          <h3 class="tile-title" id="ix-tasks-h">My tasks</h3>
+          <ul class="ix-list" id="ix-tasks-list"></ul>
+          <p class="ix-empty" id="ix-tasks-empty" hidden>Nothing assigned to you.</p>
+          <div class="tile-links"><a class="hs-btn" href="/tasks.html">All my tasks</a></div>
+        </article>
+        <article class="tile hs-card ix-tile" id="ix-messages" aria-labelledby="ix-messages-h" hidden>
+          <h3 class="tile-title" id="ix-messages-h">Messages</h3>
+          <ul class="ix-list" id="ix-messages-list"></ul>
+          <p class="ix-empty" id="ix-messages-empty" hidden>No channels to show.</p>
+          <div class="tile-links"><a class="hs-btn" href="/messages.html">Open messages</a></div>
         </article>
       </div>
     </section>

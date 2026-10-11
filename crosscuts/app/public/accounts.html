@@ -14,6 +14,8 @@
   <main class="ac-page">
     <div class="ac-head">
       <h1>Accounts</h1>
+      <a id="tasksLink" class="hs-btn" href="/tasks.html" hidden>Tasks</a>
+      <a id="reportsLink" class="hs-btn" href="/reports.html">Report library</a>
       <button id="newInvoice" class="hs-btn hs-btn-primary" type="button" hidden>New invoice</button>
       <button id="addExtra" class="hs-btn" type="button" hidden>Add extra</button>
     </div>
@@ -66,5 +68,16 @@
   <script src="shared.js"></script>
   <script src="accounts.js"></script>
   <script src="/shell/shell.js"></script>
+  <script>
+    // The Tasks link needs tasks.use; wait for the shell to know the signed-in user.
+    (function () {
+      function show() {
+        var link = document.getElementById("tasksLink");
+        if (link && window.cc && typeof window.cc.can === "function") link.hidden = !window.cc.can("tasks.use");
+      }
+      if (window.cc && window.cc.loaded) show();
+      document.addEventListener("cc:ready", show);
+    })();
+  </script>
 </body>
 </html>
