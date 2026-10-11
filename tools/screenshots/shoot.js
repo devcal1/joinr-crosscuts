@@ -15,7 +15,7 @@ const PAGES = [
   ["board-tv", "/schedule.html", 1920, true], ["workers", "/workers.html", 1440, true], ["phone-dashboard", "/", 390, true],
   ["setup", "/setup.html", 1440, false], ["design", "/design.html", 1440, true], ["scheduling", "/scheduling.html", 1440, true], ["board-laptop", "/schedule.html", 1440, true], ["phone-board", "/schedule.html", 390, true],
   ["tasks", "/tasks.html", 1440, true], ["messages", "/messages.html", 1440, true], ["reports", "/reports.html", 1440, true],
-  ["availability", "/availability.html", 1440, true], ["lookahead", "/lookahead.html", 1440, true],
+  ["availability", "/availability.html", 1440, true], ["lookahead", "/lookahead.html", 1440, true], ["phone-lookahead", "/lookahead.html", 375, true], ["phone-availability", "/availability.html", 375, true],
   ["phone-tasks", "/tasks.html", 375, true], ["phone-messages", "/messages.html", 375, true], ["phone-reports", "/reports.html", 375, true],
 ];
 const sleep = ms => new Promise(r => setTimeout(r, ms));

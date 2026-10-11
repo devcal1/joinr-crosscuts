@@ -50,5 +50,18 @@ async function api(method, path, body) {
     const r = await fetch(B + "/api/reports", { method: "POST", headers: { Origin: B, Cookie: cookie }, body: fd });
     if (!r.ok) throw new Error(`POST /api/reports ${r.status}`);
   }
+
+  // M5: a two-pac stone job with materials ordered, a sick day this week and a part-timer.
+  if (job) {
+    await api("PATCH", `/api/job-records/${job.id}`, { isTwoPac: true, benchtop: "stone" });
+    const jr = await fetch(B + `/api/job-records/${job.id}/materials-ordered`, { method: "POST", headers: { Origin: B, Cookie: cookie, "Content-Type": "application/json" }, body: "{}" });
+    if (!jr.ok && jr.status !== 409) throw new Error(`materials-ordered ${jr.status}`);
+  }
+  const av = await api("GET", "/api/availability");
+  if (!av.leave.length) {
+    const tue = new Date(Date.parse(wk + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
+    await api("POST", "/api/availability/leave", { workerId: id(1), from: tue, to: tue, kind: "sick" });
+    await api("PATCH", `/api/availability/workers/${id(0)}`, { daysPerWeek: 3 });
+  }
   console.log("seeded; week", wk, "workers", workers.length);
 })().catch(e => { console.error(e.message); process.exit(1); });
