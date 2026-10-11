@@ -231,6 +231,39 @@
       </div>
       <p class="hint">Use this once, to bring in every quote that is already won in Joinr. After that new wins arrive on their own.</p>
     </section>
+
+    <section class="card hs-card" id="backups" aria-labelledby="backupTitle">
+      <div class="hs-sectionbar"><h2 id="backupTitle">Backups</h2></div>
+      <p class="text-muted small">Every night at 1:30 am an encrypted copy of the database is kept on this server. Every Saturday at 1:30 am everything the NAS doesn't have yet is copied to it. The passphrase and the NAS password are placed with the backup helper and are never shown here.</p>
+      <p class="bk-banner" id="bkBanner" hidden></p>
+
+      <div class="hs-sectionbar settings-sub"><h3 class="hs-sectionbar-title">Snapshots</h3></div>
+      <div class="hs-kvt bk-facts" id="bkSnapshot"><div class="k">State</div><div class="v">Loading</div></div>
+
+      <div class="hs-sectionbar settings-sub"><h3 class="hs-sectionbar-title">Copy to the NAS</h3></div>
+      <div class="hs-kvt bk-facts" id="bkCopy"><div class="k">State</div><div class="v">Loading</div></div>
+
+      <div class="hs-sectionbar settings-sub"><h3 class="hs-sectionbar-title">Archives on this server</h3></div>
+      <div class="bk-table-wrap">
+        <table class="hs-table bk-table">
+          <thead>
+            <tr>
+              <th>Made</th>
+              <th>Kind</th>
+              <th class="num">Size</th>
+            </tr>
+          </thead>
+          <tbody id="bkArchiveRows"></tbody>
+        </table>
+      </div>
+      <p class="text-muted small" id="bkTotals"></p>
+
+      <div class="actions">
+        <button class="hs-btn hs-btn-primary" type="button" id="backupRun">Back up now</button>
+      </div>
+      <p class="bk-result" id="bkResult" role="status" hidden></p>
+      <p class="hint">Back up now takes a snapshot and, when the NAS is set up, copies to it. It can't run again within 10 minutes of a good snapshot.</p>
+    </section>
   </main>
 
   <script src="/shell/shell.js"></script>

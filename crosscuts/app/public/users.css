@@ -114,3 +114,26 @@ textarea.hs-input { min-height: 72px; resize: vertical; line-height: 1.4; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-3); }
 .chip { font-family: var(--mono); font-size: 12px; }
 .chip.granted { border-color: var(--go); color: var(--go-tint); }
+
+/* Backups (docs/plans/backup-contracts.md section 10). Teal for good; orange for failed, locked,
+   overdue and not set up. No red: nothing here is destructive. */
+.bk-banner { margin: 0; font-size: 13px; color: var(--orange-tint); }
+.bk-facts { font-size: 13px; }
+.bk-facts .v { overflow-wrap: anywhere; }
+.bk-facts .v > span { display: block; }
+.bk-facts .v .bk-sub { margin-top: 2px; font-size: 12px; color: var(--muted); }
+.bk-good > span:first-child { color: var(--teal-tint); }
+.bk-attend > span:first-child { color: var(--orange-tint); }
+.bk-table-wrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.bk-table { font-size: 13px; }
+.bk-table td, .bk-table th { white-space: nowrap; }
+.bk-table tbody tr:last-child td { border-bottom: 0; }
+.bk-result { margin: 0; font-size: 13px; color: var(--body); }
+.bk-result.bk-good { color: var(--teal-tint); }
+.bk-result.bk-attend { color: var(--orange-tint); }
+@media (max-width: 520px) {
+  .bk-facts { grid-template-columns: 30% minmax(0, 1fr); }
+  .bk-facts > div { padding: 8px; }
+  .bk-table td, .bk-table th { padding: 8px 6px; white-space: normal; }
+  .bk-table td.num, .bk-table th.num { white-space: nowrap; }
+}
