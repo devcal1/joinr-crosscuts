@@ -380,6 +380,138 @@
 
   guarded(loadSettings)();
 
+  // --- Joinr connection ---
+
+  const JOINR_DEFAULT_URL = "https://app.joinr.com.au";
+  let joinrKeyFromEnv = false;
+
+  function showJoinrError(msg) {
+    $("joinrError").textContent = msg || "";
+    $("joinrError").hidden = !msg;
+  }
+
+  function showJoinrResult(msg, ok) {
+    const el = $("joinrTestResult");
+    el.textContent = msg || "";
+    el.className = "joinr-result" + (msg ? (ok ? " ok" : " bad") : "");
+    el.hidden = !msg;
+  }
+
+  function renderJoinrStatus(s) {
+    const el = $("joinrStatus");
+    el.textContent = "";
+    if (!s || !s.configured) {
+      el.textContent = "Not connected: no API key is set.";
+      return;
+    }
+    let line = s.lastRunAt ? `Last checked ${fmtDate(s.lastRunAt)}` : "Not checked yet";
+    if (s.lastOkAt) line += `. Last successful check ${fmtDate(s.lastOkAt)}`;
+    el.append(line + ".");
+    if (s.lastError) {
+      el.append(h("span", { class: "joinr-err", text: `Last error${s.lastErrorAt ? ` (${fmtDate(s.lastErrorAt)})` : ""}: ${s.lastError}` }));
+    }
+  }
+
+  function fillJoinr(s) {
+    // The standard address shows as the placeholder, not as a value to edit.
+    $("joinrUrl").value = s.baseUrl && s.baseUrl !== JOINR_DEFAULT_URL ? s.baseUrl : "";
+    $("joinrKey").value = "";
+    joinrKeyFromEnv = !!(s.key && s.key.fromEnv);
+    const configured = !!(s.key && s.key.configured);
+    $("joinrKeyHint").textContent = configured
+      ? `Set, ending ••••${s.key.last4 || ""}${joinrKeyFromEnv ? " (set by the server's environment)" : ""}`
+      : "Not set";
+    $("joinrKey").placeholder = configured ? "Enter a new key to replace it" : "Paste the key from Joinr";
+    $("joinrKey").disabled = joinrKeyFromEnv;
+    $("joinrRemove").hidden = !configured || joinrKeyFromEnv;
+    $("joinrTest").disabled = !configured;
+    $("joinrImport").disabled = !configured;
+    renderJoinrStatus(s.sync);
+  }
+
+  async function loadJoinr() {
+    fillJoinr(await api("/api/joinr/settings"));
+  }
+
+  $("joinrSave").addEventListener("click", async () => {
+    showJoinrError("");
+    showJoinrResult("");
+    const btn = $("joinrSave");
+    btn.disabled = true;
+    try {
+      const body = { baseUrl: $("joinrUrl").value.trim() };
+      const key = $("joinrKey").value.trim();
+      if (key) body.apiKey = key;
+      fillJoinr(await api("/api/joinr/settings", { method: "PUT", body: JSON.stringify(body) }));
+      toast("Saved");
+    } catch (err) {
+      showJoinrError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $("joinrTest").addEventListener(
+    "click",
+    guarded(async () => {
+      showJoinrError("");
+      if ($("joinrKey").value.trim()) {
+        showJoinrResult("Save the new key first; the test uses what is saved.", false);
+        return;
+      }
+      showJoinrResult("Testing...", true);
+      const btn = $("joinrTest");
+      btn.disabled = true;
+      try {
+        const r = await api("/api/joinr/test", { method: "POST" });
+        showJoinrResult(r.ok ? `Connection OK. Joinr is at position ${r.cursor}.` : `Failed: ${r.error}`, r.ok);
+      } catch (err) {
+        showJoinrResult("");
+        throw err;
+      } finally {
+        btn.disabled = false;
+      }
+    })
+  );
+
+  $("joinrRemove").addEventListener(
+    "click",
+    guarded(async () => {
+      if (!confirm("Remove the Joinr API key? New won quotes will stop arriving until a key is set again.")) return;
+      showJoinrError("");
+      showJoinrResult("");
+      fillJoinr(await api("/api/joinr/settings/key", { method: "DELETE" }));
+      toast("Key removed");
+    })
+  );
+
+  $("joinrImport").addEventListener(
+    "click",
+    guarded(async () => {
+      if (!confirm("Import every quote that is currently won in Joinr into the New from Joinr page? Quotes already there are not duplicated.")) return;
+      showJoinrError("");
+      showJoinrResult("Importing...", true);
+      const btn = $("joinrImport");
+      btn.disabled = true;
+      try {
+        const r = await api("/api/joinr/import", { method: "POST" });
+        if (r && r.ok) {
+          showJoinrResult(`Import finished: ${r.items} ${r.items === 1 ? "item" : "items"}.`, true);
+        } else {
+          showJoinrResult(`Import failed: ${(r && r.error) || "unknown error"}`, false);
+        }
+        await loadJoinr();
+      } catch (err) {
+        // The server's own message (for example "Not built") is the useful part.
+        showJoinrResult(`Import failed: ${err.message}`, false);
+      } finally {
+        btn.disabled = false;
+      }
+    })
+  );
+
+  guarded(loadJoinr)();
+
   // --- Boot ---
 
   guarded(async () => {

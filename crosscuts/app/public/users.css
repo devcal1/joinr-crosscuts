@@ -59,6 +59,12 @@ textarea.hs-input { min-height: 72px; resize: vertical; line-height: 1.4; }
 .form-error { margin: 0; color: var(--stop-tint); font-size: 13px; }
 .settings-lock { margin: 0; }
 
+/* Joinr connection */
+.joinr-result, .joinr-status { margin: 0; font-size: 13px; color: var(--body); }
+.joinr-result.ok { color: var(--teal-tint); }
+.joinr-result.bad { color: var(--orange-tint); }
+.joinr-status .joinr-err { display: block; margin-top: 2px; color: var(--orange-tint); }
+
 /* User table */
 .table-wrap { margin-top: var(--space-6); overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
 .user-table { font-size: 14px; }
