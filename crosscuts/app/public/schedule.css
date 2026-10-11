@@ -661,6 +661,9 @@ main {
   /* Finish-week button and popup are page chrome, not schedule content. */
   .finish-week-bar, .finish-dialog { display: none !important; }
   .board { display: block; }
+  /* html too: its screen ink paints the whole canvas, so with "Background graphics"
+     ticked the page below the weeks would print dark. */
+  html { background: #fff; }
   body { background: #fff; color: #111; }
   .job-notes { color: #111; }
   /* Paper stays black on white: the spectrum week band prints as a plain rule,
