@@ -452,7 +452,7 @@ A slot `S` is **settled** when any of these holds:
 
 ### 7.3 Due, the tick and the triggers
 
-A kind is **due** at `now` when the schedule is on (§7.8), its job can run (snapshot: `toolsStatus().sevenZip` and `passphraseStatus().state === 'set'`; copy: `nasStatus().state === 'ready'`, rsync and 7-Zip present, and the refusal lock clear), its current slot is not settled, the retry gate has passed, and the catch-up gate has passed (no timer run before process start + 5 minutes).
+A kind is **due** at `now` when the schedule is on (§7.8), its job can run (snapshot: `toolsStatus().sevenZip` and `passphraseStatus().state === 'set'`; copy: `nasStatus().state === 'ready'`, `passphraseStatus().state === 'set'` (private files are encrypted with it; integrator, after Wave 1 B), rsync and 7-Zip present, and the refusal lock clear), its current slot is not settled, the retry gate has passed, and the catch-up gate has passed (no timer run before process start + 5 minutes).
 
 **The tick** (every `CHECK_MS`, `setInterval`, `unref()`): if a flight is running, return. Otherwise, if the snapshot is due, run it; then re-check the copy and, if due, run it **in the same flight**; else if only the copy is due, run it. On Saturday at 01:30 this gives snapshot then copy. Then the overdue check (§11.1). Every promise is caught (an unhandled rejection would stop the board); a tick that throws logs `[backup] tick failed (<safe code>)` and the next tick carries on.
 
@@ -778,6 +778,8 @@ Optional, informational only (never a failure): print whether this image's 7-Zip
 7. Last-run times come from `backup_runs`; `app_settings` holds only the seeding and the once-a-day overdue marks.
 8. Pre-migration wraps also carry `config/` (decision 10 says "each database archive").
 9. `ci/backup-guard.js` is in the scaffold (as the plan's 2.2 says), so it guards Wave 1 from the start; E owns only the smoke.
+
+10. (After Wave 1.) The copy is due only when the passphrase is set (§7.3); B's `copyToNas` still records `encrypt_failed` with `detail.passphraseState` if it is called without one. `listArchives()` returns `{archives: [{name, kind, bytes, made, migration}], archiveBytes, unverified}` (A); the copy outcome `detail` is `{attempted, folders: {db?, files?, photos?}, sent, alreadyThere, missingAfter, bytes, durationMs}` plus optional `files`, `total`, `passphraseState` (B): D keeps these keys.
 
 **To check** (couldn't verify from here):
 1. **Alpine's 7-Zip package.** `apk add 7zip` (community repo) and which names it installs (`7zz`, `7z`, or both). The runtime resolution and the Dockerfile's `7zz || 7z` cover either; the first CI build proves the package exists for both architectures.
