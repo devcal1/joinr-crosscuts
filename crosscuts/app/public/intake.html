@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New from Joinr - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="intake.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="in-page">
+    <div class="in-head">
+      <h1>New from Joinr</h1>
+      <a class="hs-btn" href="/design.html">Design/PM</a>
+    </div>
+
+    <div class="in-sync">
+      <p id="syncLine" class="in-sync-line" role="status" aria-live="polite">Checking...</p>
+      <button id="syncBtn" class="hs-btn" type="button" hidden>Sync now</button>
+    </div>
+
+    <div id="tabs" class="in-tabs" role="group" aria-label="Show"></div>
+
+    <p id="message" class="in-message" role="status" aria-live="polite"></p>
+
+    <div id="list" class="in-list"></div>
+    <div id="empty" class="in-empty" hidden></div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="intake.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
