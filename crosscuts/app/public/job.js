@@ -1118,6 +1118,131 @@
     }
   }
 
+  // ---- From Joinr (docs/plans/m6-contracts.md section 6) ---------------------------------
+  // Shown only when GET /api/joinr/job/:id returns the intake record linked to this job.
+  // All Joinr text goes in through textContent; the link is only http(s).
+  const joinrEl = $("joinr");
+  let joinrSeq = 0;
+
+  function fmtInstant(iso) {
+    const d = new Date(iso);
+    if (!iso || Number.isNaN(d.getTime())) return "";
+    const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    return fmtDate(p);
+  }
+  function agoText(iso) {
+    const t = Date.parse(iso || "");
+    if (Number.isNaN(t)) return "";
+    const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 60) return "just now";
+    const m = Math.round(s / 60);
+    if (m < 60) return m + (m === 1 ? " minute ago" : " minutes ago");
+    const h = Math.round(m / 60);
+    if (h < 48) return h + (h === 1 ? " hour ago" : " hours ago");
+    return Math.round(h / 24) + " days ago";
+  }
+  function joinrEventText(it) {
+    switch (it.lastEvent) {
+      case "unwon": return "Joinr says this quote is no longer won (now " + it.joinrStatus + ").";
+      case "deleted": return "This quote was deleted in Joinr.";
+      case "won": return "Joinr marked a quote won again (a new revision, or won once more).";
+      default: return "This quote was edited in Joinr.";
+    }
+  }
+  function sumItem(label, ...kids) {
+    return el("div", { class: "jo-sumitem" }, el("span", { class: "jo-sumlabel", text: label }), ...kids);
+  }
+
+  function renderJoinr(it) {
+    joinrEl.hidden = false;
+    const url = typeof (it.quote && it.quote.url) === "string" && /^https?:\/\/\S+$/i.test(it.quote.url) ? it.quote.url : null;
+    const status = String(it.joinrStatus || "");
+    const items = [sumItem("Quote number", el("span", { class: "jo-sumval", text: it.quoteNumber || "None" }))];
+    if (url) {
+      items.push(sumItem("Quote", el("a", { class: "jo-sumval", href: url, target: "_blank", rel: "noopener noreferrer", text: "Open in Joinr" })));
+    }
+    items.push(
+      sumItem("Status in Joinr", el("span", { class: "jo-sumval", text: status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown" })),
+      sumItem("Last seen", el("span", { class: "jo-sumval", text: [fmtInstant(it.lastSeenAt), agoText(it.lastSeenAt)].filter(Boolean).join(", ") || "Unknown" }))
+    );
+    if (it.state === "accepted" || it.state === "linked") {
+      const who = it.decidedBy && it.decidedBy.name ? " by " + it.decidedBy.name : "";
+      const on = it.decidedAt ? " on " + fmtInstant(it.decidedAt) : "";
+      items.push(sumItem("Decision", el("span", { class: "jo-sumval", text: (it.state === "linked" ? "Linked" : "Accepted") + who + on })));
+    }
+    const nodes = [el("div", { class: "jo-summary jo-joinr" }, ...items)];
+
+    if (it.changed) {
+      const note = el(
+        "div",
+        { class: "hs-callout hs-callout-orange jo-joinr-changed" },
+        el("h3", { text: "Changed in Joinr" }),
+        el("p", { class: "jo-joinr-p", text: joinrEventText(it) }),
+        el("p", { class: "jo-joinr-p muted", text: "This job has not been changed." })
+      );
+      if (it.differences && it.differences.length) {
+        const ul = el("ul", { class: "jo-joinr-diff" });
+        for (const d of it.differences) {
+          ul.append(el("li", {}, el("b", { text: d.label + ": " }), document.createTextNode("job " + d.job + ", Joinr " + d.joinr)));
+        }
+        note.append(el("p", { class: "jo-joinr-p muted", text: "Where this job and Joinr now differ:" }), ul);
+      }
+      if (can("jobs.edit")) {
+        const btn = el("button", { type: "button", class: "hs-btn hs-btn-check", text: "Acknowledge" });
+        btn.addEventListener("click", () => ackJoinr(it, btn));
+        note.append(el("div", { class: "jo-joinr-acts" }, btn));
+      }
+      nodes.push(note);
+    }
+    $("joinrBody").replaceChildren(...nodes);
+  }
+
+  async function loadJoinr(keepMsg) {
+    const mine = ++joinrSeq;
+    let res;
+    try {
+      res = await authFetch("/api/joinr/job/" + jobId, { headers: { Accept: "application/json" } });
+    } catch (e) {
+      if (mine === joinrSeq) joinrEl.hidden = true;
+      return;
+    }
+    if (mine !== joinrSeq) return;
+    if (!res.ok) {
+      // 404: not from Joinr. 403 and anything else: nothing to show.
+      joinrEl.hidden = true;
+      return;
+    }
+    let it;
+    try {
+      it = await res.json();
+    } catch (e) {
+      joinrEl.hidden = true;
+      return;
+    }
+    if (mine !== joinrSeq) return;
+    if (!it || typeof it !== "object" || !it.id) {
+      joinrEl.hidden = true;
+      return;
+    }
+    if (!keepMsg) setLine($("joinrStatus"), "", "muted");
+    renderJoinr(it);
+  }
+
+  async function ackJoinr(it, btn) {
+    const status = $("joinrStatus");
+    btn.disabled = true;
+    setLine(status, "Saving...", "muted");
+    try {
+      await api("/api/joinr/intake/" + it.id + "/acknowledge", { method: "POST", body: "{}" });
+      setLine(status, "Acknowledged.", "ok");
+    } catch (e) {
+      setLine(status, e.message, "err");
+      btn.disabled = false;
+      return;
+    }
+    await loadJoinr(true);
+  }
+
   // ---- start-up --------------------------------------------------------------------------
   // Permissions come from the shell, so wait for it before deciding what to show.
   async function pageReady() {
@@ -1137,6 +1262,7 @@
     await pageReady();
     sectionsReady = true;
     const tasks = [];
+    if (can("jobs.view")) tasks.push(loadJoinr());
     if (can("jobs.view")) {
       ordersEl.hidden = false;
       renderOrdersSummary();

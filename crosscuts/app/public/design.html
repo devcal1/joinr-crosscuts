@@ -18,6 +18,12 @@
     <section class="dash-section" aria-labelledby="now-h">
       <div class="hs-sectionbar"><h2 class="dash-h2" id="now-h">Available now</h2></div>
       <div class="tiles">
+        <article class="tile hs-card" id="joinrTile">
+          <h3 class="tile-title">New from Joinr</h3>
+          <p class="tile-text">Quotes won in Joinr, waiting to become jobs.</p>
+          <p class="tile-stat" id="joinrStat" hidden></p>
+          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/intake.html">Open New from Joinr</a></div>
+        </article>
         <article class="tile hs-card">
           <h3 class="tile-title">Jobs</h3>
           <p class="tile-text">Job records and where each one is up to.</p>
@@ -45,5 +51,29 @@
   </main>
 
   <script src="shell/shell.js"></script>
+  <script>
+    // The New from Joinr tile: how many quotes are new, and how many changed after a decision.
+    // If the call fails the tile is just the link.
+    (function () {
+      var stat = document.getElementById("joinrStat");
+      fetch("/api/joinr/intake?state=new", { headers: { Accept: "application/json" } })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (data) {
+          var c = data && data.counts;
+          if (!c || typeof c.new !== "number") return;
+          var n = document.createElement("strong");
+          n.textContent = String(c.new);
+          stat.replaceChildren(n, document.createTextNode(" new"));
+          if (typeof c.changed === "number" && c.changed > 0) {
+            var b = document.createElement("span");
+            b.className = "hs-badge hs-badge-check";
+            b.textContent = c.changed + " changed";
+            stat.append(document.createTextNode(" "), b);
+          }
+          stat.hidden = false;
+        })
+        .catch(function () { /* just the link */ });
+    })();
+  </script>
 </body>
 </html>
