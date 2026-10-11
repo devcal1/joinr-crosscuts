@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tasks - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="tasks.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="tk-page">
+    <div class="tk-pagehead">
+      <h1>Tasks</h1>
+      <button type="button" id="newTask" class="hs-btn hs-btn-primary">New task</button>
+    </div>
+
+    <div class="tk-views" id="views" role="group" aria-label="Task views"></div>
+
+    <p id="count" class="tk-count" role="status" aria-live="polite">Loading...</p>
+    <p id="message" class="tk-pagemsg" role="status"></p>
+
+    <div class="tk-wrap">
+      <table class="hs-table tk-table">
+        <thead>
+          <tr>
+            <th>Task</th><th>Assignee</th><th>Due</th><th>Job</th><th>Raised by</th><th id="statusHead" hidden>Status</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="tk-empty" hidden></div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="comments.js"></script>
+  <script src="taskui.js"></script>
+  <script src="tasks.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+/* Tasks (tasks.html), the task dialog (taskui.js) and comment threads (comments.js).
+   Tokens come from tokens.css, hs- components from components.css, and the dialog frame from
+   the shell's cc-dialog. Page and dialog classes here are prefixed tk-, comment classes cm-.
+   taskui.js and comments.js link this file themselves on pages that do not (the job page). */
+
+.tk-page { max-width: 1280px; margin: 0 auto; padding: 22px 16px 48px; color: var(--body); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+.tk-pagehead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.tk-pagehead h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 700; color: var(--white); }
+body:has(.tk-page) { margin: 0; background: var(--ink); }
+
+.tk-views { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tk-views .hs-btn[aria-pressed="true"] { border-color: var(--teal); color: var(--teal-tint); background: var(--teal-16); }
+
+.tk-count { margin: 0 0 4px; color: var(--label); }
+.tk-pagemsg { min-height: 20px; margin: 0 0 8px; }
+.tk-pagemsg.err { color: var(--stop-tint); }
+.tk-pagemsg.ok { color: var(--go-tint); }
+
+.tk-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.tk-table { min-width: 760px; }
+.tk-table th { padding: 10px 12px; }
+.tk-table td { padding: 10px 12px; vertical-align: middle; }
+.tk-table tbody tr { cursor: pointer; }
+.tk-table tbody tr:last-child td { border-bottom: 0; }
+.tk-table tbody tr:hover { background: var(--raised); }
+.tk-table tr.tk-cancelled td { opacity: 0.55; }
+.tk-table td.tk-title { min-width: 220px; overflow-wrap: anywhere; }
+.tk-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--label); }
+.tk-table td a { color: var(--teal-tint); text-decoration: none; }
+.tk-table td a:hover { text-decoration: underline; }
+.tk-table td a.tk-title-link { color: var(--white); font-weight: 700; }
+.tk-table td a.tk-title-link:hover { color: var(--teal-tint); }
+.tk-table td.tk-due { white-space: nowrap; }
+.tk-empty { padding: 28px 14px; text-align: center; color: var(--label); }
+.tk-overdue { color: var(--stop-tint); font-weight: 700; }
+
+/* ---------- the task dialog ---------- */
+
+.cc-dialog.tk-dialog { width: min(94vw, 680px); max-height: 92vh; overflow-y: auto; }
+.tk-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; }
+.tk-heading { min-width: 0; flex: 1 1 260px; overflow-wrap: anywhere; font-size: 18px; }
+.tk-badges { display: inline-flex; gap: 6px; flex: 0 0 auto; }
+.tk-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tk-fields .tk-wide { grid-column: 1 / -1; }
+.tk-fields .cc-field { min-width: 0; }
+.tk-dialog .hs-input { color-scheme: dark; }
+.tk-dialog .tk-notes { resize: vertical; min-height: 84px; font-family: var(--font); }
+.tk-notes-read { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--body); }
+.tk-meta { margin: 0; font-size: 12px; color: var(--label); }
+.tk-message { margin: 0; }
+
+.tk-files { display: flex; flex-direction: column; gap: 6px; }
+.tk-filelist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.tk-file { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 10px; border-bottom: 1px solid var(--hairline); }
+.tk-file:last-child { border-bottom: 0; }
+.tk-file-name { min-width: 0; flex: 1 1 180px; overflow-wrap: anywhere; color: var(--teal-tint); text-decoration: none; }
+a.tk-file-name:hover { text-decoration: underline; }
+span.tk-file-name { color: var(--body); }
+.tk-file-meta, .tk-hint, .tk-none { font-size: 12px; color: var(--label); }
+.tk-none { margin: 0; }
+.tk-attach { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.tk-pick { min-width: 0; max-width: 100%; color: var(--label); font-family: var(--font); font-size: 12px; }
+.tk-pick::file-selector-button {
+  margin-right: 10px; padding: 7px 12px; cursor: pointer;
+  background: none; border: 1px solid var(--na); border-radius: var(--r-control);
+  color: var(--body); font-family: var(--font); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.tk-pick::file-selector-button:hover { border-color: var(--teal); color: var(--teal-tint); }
+
+.tk-actions { border-top: 1px solid var(--hairline); padding-top: 12px; }
+.tk-actions .tk-cancel { margin-right: auto; }
+.tk-comments { border-top: 1px solid var(--hairline); padding-top: 12px; }
+
+/* ---------- comment threads ---------- */
+
+.cm-box { display: flex; flex-direction: column; gap: 10px; font-family: var(--font); font-size: 14px; color: var(--body); }
+.cm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cm-title { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal-tint); }
+.cm-list { display: flex; flex-direction: column; gap: 8px; }
+.cm-empty, .cm-note { margin: 0; color: var(--label); }
+.cm-item { padding: 8px 12px; background: var(--surface); border: 1px solid var(--hairline); border-left: var(--accent-border) solid var(--na); border-radius: var(--r-callout); }
+.cm-item.cm-gone { opacity: 0.6; }
+.cm-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-bottom: 2px; }
+.cm-author { font-weight: 700; color: var(--white); }
+.cm-time { font-size: 12px; color: var(--label); }
+.cm-remove { margin-left: auto; padding: 4px 8px; }
+.cm-body { overflow-wrap: anywhere; white-space: normal; }
+.cm-body a { color: var(--teal-tint); }
+.cm-gone .cm-body { color: var(--label); }
+.cm-compose { display: flex; flex-direction: column; gap: 6px; }
+.cm-input { resize: vertical; min-height: 64px; font-family: var(--font); color-scheme: dark; }
+.cm-compose-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cm-hint { font-size: 12px; color: var(--muted); }
+.cm-msg { min-height: 0; margin: 0; font-size: 13px; color: var(--label); }
+.cm-msg:empty { display: none; }
+.cm-msg.cm-err { color: var(--stop-tint); }
+
+@media (max-width: 640px) {
+  .tk-pagehead h1 { font-size: 20px; }
+  /* Task, assignee, due (and status) stay; job and raised-by are in the dialog. */
+  .tk-table { min-width: 0; }
+  .tk-table th, .tk-table td { padding: 8px 8px; }
+  .tk-table th:nth-child(4), .tk-table td:nth-child(4),
+  .tk-table th:nth-child(5), .tk-table td:nth-child(5) { display: none; }
+  .tk-table td.tk-title { min-width: 0; }
+  .tk-fields { grid-template-columns: minmax(0, 1fr); }
+  .cc-dialog.tk-dialog { width: 96vw; }
+  .cm-hint { display: none; }
+}
