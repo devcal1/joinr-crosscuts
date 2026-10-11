@@ -16,6 +16,8 @@
 //   - board icons: Phosphor in schedule.html and schedule.js
 //   - planner layer markers: the --layer-* tokens, only in planner.html, planner.css and
 //     planner.js (approved by Todd on 2026-10-11)
+//   - menu department rules: --layer-scheduling, --layer-design and --layer-accounts, only in
+//     shell/shell.css (approved by Todd on 2026-10-12)
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"
 // If this check fails, fix the page, not the check.
@@ -28,6 +30,8 @@ const TOKENS = "tokens.css";
 const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js"]);
 const OKLCH_OK = new Set(["shared.js"]);
 const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.js"]);
+const DEPT_FILE = "shell/shell.css";
+const DEPT_LAYERS = new Set(["--layer-scheduling", "--layer-design", "--layer-accounts"]);
 
 const HEX = "(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})";
 const NAMED = "white|black|red|green|blue|orange|purple|violet|gray|grey|yellow|pink|teal|navy|maroon|silver|gold|cyan|magenta|lime|olive|brown";
@@ -66,7 +70,9 @@ for (const file of walk(ROOT)) {
     if (raw.includes("style-check: print-end")) { inPrint = false; return; }
     // Comments may mention colours and fonts; check code only.
     const code = raw.replace(/\/\*.*?\*\//g, "").replace(/^\s*(\/\/|\*|\/\*).*$/, "").replace(/<!--.*?-->/g, "");
-    if (/--layer-/.test(code) && !LAYER_OK.has(rel)) {
+    const layerOk = LAYER_OK.has(rel) ||
+      (rel === DEPT_FILE && (code.match(/--layer-[\w-]+/g) || []).every(t => DEPT_LAYERS.has(t)));
+    if (/--layer-/.test(code) && !layerOk) {
       problems.push(`${rel}:${i + 1}: planner layer token outside the planner: ${raw.trim().slice(0, 140)}`);
     }
     // Token references (var(--orange)) are how colours should be used.

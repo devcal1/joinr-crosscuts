@@ -50,6 +50,15 @@ Ships as 0.1.10. The board's own bar (`.nav`, `--nav-h`, rule 7) is not touched;
 5. Redundancy: remove the dashboard's department cards and the in-page repeat links (recommended), or keep the dashboard cards.
 6. Photos page: add the shell bar (recommended) or only a Dashboard link on its own header.
 
+## 3a. Decisions (Todd, 2026-10-12): all six recommended answers. Plan approved.
+
+1. Common features in one fixed cluster on the right: Planner, Tasks, Messages, Alerts, then the user's name.
+2. Department menus (each one button opening its list of pages).
+3. Jobs, Pipeline and Orders under Design/PM.
+4. Planner colours as a thin 2 px rule (fourth named exception, written into CLAUDE.md and `ci/style-check.js`: only `--layer-scheduling`, `--layer-design`, `--layer-accounts`, only in `shell/shell.css`).
+5. Remove the repeats: the dashboard loses its department cards (keeps its working tiles); the in-page links that only repeat the menu go.
+6. Photos page (`search.html`) stays free of the menu bar for customers (M1 decision) and gets one quiet outlined DASHBOARD button in its own header. This replaces the proposal's "Photos page gets the shell bar".
+
 ## 4. Build outline (after the answers)
 
 - Scaffold: bump 0.1.10; the colour exception in CLAUDE.md and `style-check.js` if approved.

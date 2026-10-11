@@ -54,10 +54,11 @@ New UI follows the company house style: the TH Cabinets Brand & Document Style G
   - The four-colour spectrum (teal, violet, fuchsia, orange) appears only as thin rules.
 - **Type and components:** Arial or Helvetica, bold and regular only, with uppercase always letterspaced. No icons, emoji or shadows. Buttons are outlined uppercase text.
 - **Shell CSS:** uses these through `cc-` prefixed custom properties (non-negotiable 8). The re-theme of the whole app is M1.2 (`docs/plans/style-plan.md`).
-- **Three named exceptions, approved by Todd (the first two on 2026-10-10, the third on 2026-10-11). There are no others.**
+- **Four named exceptions, approved by Todd (the first two on 2026-10-10, the third on 2026-10-11, the fourth on 2026-10-12). There are no others.**
   - **Worker colours:** each worker keeps their own colour (the `hue` per worker, computed in `lib/schedule.js` and `public/shared.js`), wherever workers appear.
   - **Board icons:** the board keeps its small Phosphor icon buttons (`schedule.html`, `schedule.js`). The menu bar and every other page use text labels.
   - **Planner layer markers (approved by Todd 2026-10-11):** on the Planner page only (`planner.html`, `planner.css`, `planner.js`), each layer's events carry a small marker (a 3 px left edge on chips and bars, a 6 px dot in compact cells) in its layer colour: teal, violet, fuchsia, orange, two greys, and a hollow outline for Personal, from the `--layer-*` tokens. Event text stays white or body on the surface. Print shows the layer name in words, black on white.
+  - **Menu department rules (approved by Todd 2026-10-12):** in the shell menu bar only (`public/shell/shell.css`), the Scheduling, Design/PM and Accounts department menus carry a thin 2 px rule in their Planner layer colour (`--layer-scheduling` fuchsia, `--layer-design` violet, `--layer-accounts` light grey) under the department name and down the edge of its open menu. Photos and Admin stay plain. Text stays white or grey; nothing else in the bar uses these colours (`docs/plans/menu-plan.md`).
 - **The style check:** `ci/style-check.js` enforces this in CI. If it fails, fix the page, not the check.
 
 ## Local development
