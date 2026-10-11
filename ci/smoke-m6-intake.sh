@@ -241,7 +241,7 @@ expect_jq '.ok == true and .error == null and (.truncated | not)' "the import is
 m6_fake POST /_control/pagesize '{"max":null}'
 m6_fake GET /_control/requests
 m6_expect_out '[.requests[] | select(.query.backfill == "won")] | length >= 3' "the import asked with backfill=won, page by page"
-m6_expect_out '[.requests[] | select(.query.backfill == "won") | .query.after // empty] | length >= 2 and all(test("^b\\.[0-9]+\\.[0-9a-f-]{36}$"))' "the import sent the opaque cursors back as-is"
+m6_expect_out '[.requests[] | select(.query.backfill == "won") | .query.after // empty] | length >= 2 and all(test("^b\\.[0-9]+\\.[^ ]+$"))' "the import sent the opaque cursors back as-is"
 expect_eq "$(m6_intake_count "$M6_Q0")" "1" "the quote won before the first sync is imported"
 expect_eq "$(m6_intake_field "$M6_Q0" state)" "new" "the imported quote is new"
 expect_eq "$(m6_intake_count "$M6_Q1")" "1" "the import does not duplicate quote 1"

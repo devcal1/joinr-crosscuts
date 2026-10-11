@@ -201,7 +201,8 @@ function wonQuotes(req, res, url) {
   let after = null;
   if (q.has("after")) {
     const a = q.get("after");
-    const opaque = /^b\.(\d+)\.[0-9a-f-]{36}$/i.exec(a);
+    // Any b.<n>.<id>: the smoke also feeds deliberately invalid items whose ids are not uuids.
+    const opaque = /^b\.(\d+)\.\S+$/.exec(a);
     if (/^\d+$/.test(a)) after = Number(a);
     else if (backfill && opaque) after = Number(opaque[1]);
     else return send(res, 400, { error: "bad after" });
