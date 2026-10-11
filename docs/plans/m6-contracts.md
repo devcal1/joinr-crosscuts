@@ -128,7 +128,7 @@ Keyed on `rootQuoteId`:
 ## 5. Accept and Link (Wave 1 B)
 
 - **Accept** creates a job in one transaction: `name` = siteAddress, else label, else clientName, else quoteNumber (≤ 200); `stage 'won'`, `won_date` = the Sydney date of `wonAt` (else today), `quoted_date` = `quoteDate`; `source 'joinr'`; `external_ref` = `rootQuoteId`; `quote_number`; `client_name/phone/email`; `site_address`; `sheet_count`, `is_two_pac`, `benchtop`, `job_type` from `spec` (null stays null); `value_cents` = `valueIncGstCents`; `joinr_quote_url` = `url`; `notes` = "From Joinr <quote number>: Doors/panels: …; Benchtop: …; Job type: …; Estimated hours: office x, factory y, site z, travel w." (only parts that exist). Then `state accepted`, `job_id`, `decided_*`. Audit `job.create` (as `routes/jobs.js` does) and `joinr.accept`.
-- **Link** sets the job's `external_ref` and, only where empty, `joinr_quote_url`, `quote_number`, client phone/email, `site_address`, spec fields and `value_cents`. Audit `job.update` (changed fields) and `joinr.link`.
+- **Link** sets the job's `external_ref` and, only where empty, `joinr_quote_url`, `quote_number`, client name/phone/email, `site_address`, spec fields and `value_cents`. Audit `job.update` (changed fields) and `joinr.link`.
 - **Ignore** / **acknowledge**: audit `joinr.ignore` / `joinr.acknowledge`.
 
 ## 6. Pages

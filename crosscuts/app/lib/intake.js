@@ -353,6 +353,8 @@ function linkFills(q, row) {
   return [
     ["joinr_quote_url", q.url],
     ["quote_number", str(row.quote_number, 100)],
+    // Integrator (M6 · 4.1): the contract's list left out the client name; an empty one is filled too.
+    ["client_name", q.clientName],
     ["client_phone", q.clientPhone],
     ["client_email", q.clientEmail],
     ["site_address", q.siteAddress],
