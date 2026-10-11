@@ -235,3 +235,12 @@ a.hs-btn:hover { text-decoration: none; }
 .jo-linkbtn:hover { color: var(--teal-tint); text-decoration: underline; }
 .jo-linkbtn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .jo-table td.jo-overdue-red, .jo-overdue-red { color: var(--stop-tint); }
+
+/* job page: From Joinr (jo-joinr) */
+.jo-joinr { margin-bottom: 12px; }
+.jo-joinr-changed { margin-top: 4px; }
+.jo-joinr-p { margin: 0 0 6px; font-size: 14px; }
+.jo-joinr-diff { margin: 0 0 6px; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 14px; }
+.jo-joinr-diff li { overflow-wrap: anywhere; }
+.jo-joinr-diff b { color: var(--white); font-weight: 700; }
+.jo-joinr-acts { margin-top: 10px; display: flex; justify-content: flex-end; }
