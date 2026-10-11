@@ -1121,6 +1121,8 @@ expect_status 200 "sched GET /api/notifications/unread-count"
 [ "$(jqr '[.unread, .tasks, .tasksOverdue, .messages] | map(type == "number") | all')" = "true" ]   || fail "unread-count must have four number fields: ${BODY:0:300}"
 # M4 suites (ci/smoke-m4-*.sh): same rules; they must not assume a pristine DB.
 for f in "$(dirname "$0")"/smoke-m4-*.sh; do [ -f "$f" ] && source "$f"; done
+# M5 suites (ci/smoke-m5-*.sh): same rules; they must not assume a pristine DB.
+for f in "$(dirname "$0")"/smoke-m5-*.sh; do [ -f "$f" ] && source "$f"; done
 
 # ============================================================================
 step "k. cutover rehearsal: old public image, then this image on the same volume"

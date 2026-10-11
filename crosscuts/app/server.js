@@ -62,6 +62,7 @@ const routers = [
   require("./routes/comments"),
   require("./routes/messages"),
   require("./routes/reports"),
+  require("./routes/availability"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

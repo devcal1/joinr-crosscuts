@@ -30,7 +30,7 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 
 A role is a preset: a set of feature keys. A user's effective permissions are the union of their roles' keys, then each override is applied. A **grant** adds a key; a **revoke** removes it. Unknown keys in overrides are refused (400).
 
-Keys marked † only gate a shell page so far. `accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`.
+Keys marked † only gate a shell page so far. `accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`.
 
 | Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom |
 |---|:-:|:-:|:-:|:-:|:-:|
@@ -50,7 +50,7 @@ Keys marked † only gate a shell page so far. `accounts.view`, `invoices.edit` 
 | `orders.mark_ordered` | Yes | | | | |
 | `inspections.edit` | Yes | | Yes | | |
 | `scheduling.view` | Yes | | Yes | Yes | |
-| `leave.edit` † | Yes | | | Yes | |
+| `leave.edit` | Yes | | | Yes | |
 | `tasks.use` | Yes | Yes | Yes | Yes | |
 | `messages.use` | Yes | Yes | Yes | Yes | |
 | `users.admin` | Yes | | | | |

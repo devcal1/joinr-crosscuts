@@ -23,6 +23,8 @@ const PAGE_ACCESS = {
   "/tasks.html": "tasks.use",
   "/messages.html": "messages.use",
   "/reports.html": "accounts.view",
+  "/availability.html": "scheduling.view",
+  "/lookahead.html": "scheduling.view",
 };
 
 // Any .html page not listed above.

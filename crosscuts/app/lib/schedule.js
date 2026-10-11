@@ -2,6 +2,8 @@
 // server.js; date helpers now live in lib/time.js).
 const db = require("../db");
 const { weekLabel } = require("./time");
+const production = require("./production");
+const availability = require("./availability");
 
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
 
@@ -24,6 +26,9 @@ function rowToWorker(row) {
     fg,
     archived: !!row.archived,
     sortOrder: row.sort_order,
+    // M5: part-time pattern (m5-contracts.md section 2).
+    daysPerWeek: row.days_per_week == null ? null : Number(row.days_per_week),
+    regularDaysOff: availability.parseDaysOff(row.regular_days_off),
   };
 }
 function rowToJob(row) {
@@ -33,8 +38,10 @@ function rowToJob(row) {
 // Prepared once at module load — better-sqlite3 statements are reusable, and
 // these run on every board fetch (which the frontend does after each edit).
 const selectWeekRow = db.prepare("SELECT * FROM week_rows WHERE id = ?");
+// M5 adds the job fields the row indicators need (materials, stage options) and the week.
+const ROW_JOB_FIELDS = "wr.week_start, j.materials_in_date, j.materials_ordered_date, j.is_two_pac, j.benchtop";
 const selectRowWithJob = db.prepare(
-  `SELECT wr.id, wr.job_id, wr.sort_order, j.name AS job_name, j.notes
+  `SELECT wr.id, wr.job_id, wr.sort_order, j.name AS job_name, j.notes, ${ROW_JOB_FIELDS}
    FROM week_rows wr JOIN jobs j ON j.id = wr.job_id WHERE wr.id = ?`
 );
 const selectRowAssignments = db.prepare(
@@ -44,7 +51,7 @@ const selectRowAssignments = db.prepare(
 );
 const selectRowFlags = db.prepare("SELECT day FROM day_flags WHERE week_row_id = ?");
 const selectPanelRows = db.prepare(
-  `SELECT wr.id, wr.job_id, wr.sort_order, j.name AS job_name, j.notes
+  `SELECT wr.id, wr.job_id, wr.sort_order, j.name AS job_name, j.notes, ${ROW_JOB_FIELDS}
    FROM week_rows wr JOIN jobs j ON j.id = wr.job_id
    WHERE wr.week_start = ? AND wr.panel = ?
    ORDER BY wr.sort_order ASC, wr.id ASC`
@@ -63,14 +70,39 @@ const selectPanelFlags = db.prepare(
    WHERE wr.week_start = ? AND wr.panel = ?`
 );
 
-// assignments/flagRows are optional pre-fetched groups (see buildWeekPanel);
+// M5: the week-level facts every row and chip of a week needs (one query each).
+function weekContext(weekStart, jobIds) {
+  return {
+    away: availability.awayForWeek(db, weekStart),
+    over: availability.overDaysForWeek(db, weekStart),
+    stages: production.currentStages(db, jobIds),
+  };
+}
+
+function materialsOf(weekRow) {
+  if (weekRow.materials_in_date) return "in";
+  if (weekRow.materials_ordered_date) return "ordered";
+  return null;
+}
+
+// assignments/flagRows/ctx are optional pre-fetched groups (see buildWeekPanel);
 // single-row callers omit them and this falls back to per-row lookups.
-function buildScheduleRow(weekRow, assignments, flagRows) {
+function buildScheduleRow(weekRow, assignments, flagRows, ctx) {
+  const c = ctx || weekContext(weekRow.week_start, [weekRow.job_id]);
   const cells = {};
   for (const key of DAY_KEYS) cells[key] = [];
   for (const a of assignments ?? selectRowAssignments.all(weekRow.id)) {
     const { bg, fg } = hueColors(a.hue);
-    cells[a.day].push({ assignmentId: a.assignment_id, workerId: a.worker_id, name: a.name, bg, fg });
+    const awayDays = c.away.get(Number(a.worker_id));
+    cells[a.day].push({
+      assignmentId: a.assignment_id,
+      workerId: a.worker_id,
+      name: a.name,
+      bg,
+      fg,
+      away: awayDays ? awayDays[a.day] : null,
+      overDays: c.over.has(Number(a.worker_id)),
+    });
   }
   const flags = {};
   for (const key of DAY_KEYS) flags[key] = false;
@@ -82,10 +114,13 @@ function buildScheduleRow(weekRow, assignments, flagRows) {
     notes: weekRow.notes,
     cells,
     flags,
+    materials: materialsOf(weekRow),
+    productionStage: c.stages.get(Number(weekRow.job_id)) || null,
+    stageOptions: production.stagesFor(weekRow),
   };
 }
 
-function buildWeekPanel(weekStart, panel) {
+function buildWeekPanel(weekStart, panel, ctx) {
   const weekRows = selectPanelRows.all(weekStart, panel);
   // One query per panel for assignments and one for flags (instead of two per
   // row), grouped by row id here. ORDER BY a.id ASC is preserved per group.
@@ -100,16 +135,24 @@ function buildWeekPanel(weekStart, panel) {
     flagsByRow.get(f.week_row_id).push(f);
   }
   return weekRows.map((wr) =>
-    buildScheduleRow(wr, assignmentsByRow.get(wr.id) || [], flagsByRow.get(wr.id) || [])
+    buildScheduleRow(wr, assignmentsByRow.get(wr.id) || [], flagsByRow.get(wr.id) || [], ctx)
   );
 }
 
+const selectWeekJobIds = db.prepare("SELECT DISTINCT job_id FROM week_rows WHERE week_start = ?");
+
 function buildWeek(weekStart) {
+  const ctx = weekContext(weekStart, selectWeekJobIds.all(weekStart).map((r) => r.job_id));
+  const away = {};
+  for (const [workerId, days] of ctx.away) away[String(workerId)] = days;
   return {
     start: weekStart,
     label: weekLabel(weekStart),
-    manufacturing: buildWeekPanel(weekStart, "manufacturing"),
-    installing: buildWeekPanel(weekStart, "installing"),
+    manufacturing: buildWeekPanel(weekStart, "manufacturing", ctx),
+    installing: buildWeekPanel(weekStart, "installing", ctx),
+    // M5: who is away which day, and who is over their days this week (m5-contracts.md section 2).
+    away,
+    overDays: [...ctx.over].sort((a, b) => a - b),
   };
 }
 
