@@ -18,7 +18,8 @@
 #
 # On any failure the container logs are printed and the script exits non-zero.
 # Containers and temp dirs are always cleaned up.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'on_err "$LINENO" "$BASH_COMMAND"' ERR
 
 IMAGE=${1:?usage: ci/smoke.sh <image>}
 OLD_IMAGE=${OLD_IMAGE:-ghcr.io/devcal1/thcabinets-web:latest}
@@ -57,6 +58,8 @@ cleanup() {
       if docker inspect "$c" >/dev/null 2>&1; then
         echo "=== docker logs $c ===" >&2
         docker logs "$c" >&2 2>&1
+        gh_error "docker logs $c (last 40 lines):
+$(docker logs --tail 40 "$c" 2>&1)"
       fi
     done
   fi
@@ -69,9 +72,27 @@ trap cleanup EXIT
 
 # ---------------------------------------------------------------- helpers ---
 
+# GitHub Actions turns "::error::" lines into annotations, which (unlike the job log) can be
+# read without signing in to GitHub. Newlines and % must be escaped; long text is cut.
+gh_error() {
+  [ -n "${GITHUB_ACTIONS:-}" ] || return 0
+  local msg=${1:0:3500}
+  msg=${msg//'%'/'%25'}
+  msg=${msg//$'\r'/'%0D'}
+  msg=${msg//$'\n'/'%0A'}
+  echo "::error title=smoke::${msg}"
+}
+
 fail() {
   echo "FAIL: $*" >&2
+  gh_error "[${CURRENT_STEP:-?}] FAIL: $*"
   exit 1
+}
+
+# A command that fails under set -e (not through fail) also leaves an annotation: the step,
+# the file and line, and the command.
+on_err() {
+  gh_error "[${CURRENT_STEP:-?}] ${BASH_SOURCE[1]:-?}:${1}: command failed: ${2}"
 }
 
 ok() {
@@ -79,6 +100,7 @@ ok() {
 }
 
 step() {
+  CURRENT_STEP="$*"
   echo
   echo "=== $* ==="
 }
