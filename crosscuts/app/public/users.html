@@ -197,6 +197,40 @@
       </div>
       <p class="hint">The round-up is also sent automatically on Friday at noon, to everyone who can edit invoices.</p>
     </form>
+
+    <section class="card hs-card" id="joinrCard" aria-labelledby="joinrTitle">
+      <div class="hs-sectionbar"><h2 id="joinrTitle">Joinr</h2></div>
+      <p class="text-muted small">Won quotes are pulled from Joinr every few minutes and appear on the New from Joinr page. The key is kept on this server and is never shown again.</p>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="joinrUrl">Joinr address</label>
+          <input class="hs-input" id="joinrUrl" type="url" maxlength="200" autocomplete="off" autocapitalize="none" spellcheck="false"
+                 placeholder="https://app.joinr.com.au">
+          <div class="hint">Leave empty to use the standard address.</div>
+        </div>
+        <div class="field">
+          <label for="joinrKey">API key</label>
+          <input class="hs-input" id="joinrKey" type="password" maxlength="200" autocomplete="new-password" spellcheck="false">
+          <div class="hint" id="joinrKeyHint">Not set</div>
+        </div>
+      </div>
+
+      <p class="form-error" id="joinrError" role="alert" hidden></p>
+      <div class="actions">
+        <button class="hs-btn hs-btn-primary" type="button" id="joinrSave">Save</button>
+        <button class="hs-btn" type="button" id="joinrTest">Test connection</button>
+        <button class="hs-btn hs-btn-stop" type="button" id="joinrRemove" hidden>Remove key</button>
+      </div>
+      <p class="joinr-result" id="joinrTestResult" role="status" hidden></p>
+
+      <div class="hs-sectionbar settings-sub"><h3 class="hs-sectionbar-title">Sync</h3></div>
+      <p class="joinr-status" id="joinrStatus">Loading</p>
+      <div class="actions">
+        <button class="hs-btn" type="button" id="joinrImport">Import currently won quotes</button>
+      </div>
+      <p class="hint">Use this once, to bring in every quote that is already won in Joinr. After that new wins arrive on their own.</p>
+    </section>
   </main>
 
   <script src="/shell/shell.js"></script>

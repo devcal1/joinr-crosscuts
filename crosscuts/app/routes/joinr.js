@@ -24,10 +24,142 @@ r.get("/job/:jobId", "jobs.view", stub);
 // ---- end block B -----------------------------------------------------------------------
 
 // ---- Block C: connection settings (Wave 1 C) -------------------------------------------
-r.get("/settings", "users.admin", stub);
-r.put("/settings", "users.admin", stub);
-r.delete("/settings/key", "users.admin", stub);
-r.post("/test", "users.admin", stub);
+const configDb = require("../db");
+const configLib = require("../lib/joinr-config");
+const configSync = require("../lib/joinr-sync");
+const configAudit = require("../lib/audit");
+const { HttpError: ConfigHttpError, sendError: configSendError } = require("../lib/httperror");
+
+// The key never leaves joinr-config: responses carry keyStatus() (last four only), the audit
+// rows carry the word 'set' or 'cleared', and no error message below includes it.
+const KEY_OK = /^[\x21-\x7e]{8,200}$/;
+const TEST_TIMEOUT_MS = 10000;
+const TEST_MAX_BYTES = 1024 * 1024;
+
+function settingsPayload() {
+  return { baseUrl: configLib.getBaseUrl(), key: configLib.keyStatus(), sync: configSync.status(configDb) };
+}
+
+// Reads at most TEST_MAX_BYTES of the body as text.
+async function readCapped(res) {
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > TEST_MAX_BYTES) {
+      reader.cancel().catch(() => {});
+      throw new Error("Joinr's reply was too large");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+// One request for the current position: no `after`, no `backfill`, so a healthy Joinr answers
+// {cursor, items: [], more: false}. Returns {ok:true, cursor} or {ok:false, error}.
+async function testConnection() {
+  const key = configLib.getKey();
+  if (!key) return { ok: false, error: "No API key is set" };
+  const url = `${configLib.getBaseUrl()}/api/integrations/crosscuts/won-quotes`;
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+    });
+    if (res.status === 401) return { ok: false, error: "Joinr rejected the API key (401)" };
+    if (res.status >= 300 && res.status < 400) return { ok: false, error: `Joinr redirected the request (HTTP ${res.status}); check the address` };
+    if (!res.ok) return { ok: false, error: `Joinr answered HTTP ${res.status}` };
+    let body;
+    try {
+      body = JSON.parse(await readCapped(res));
+    } catch (e) {
+      return { ok: false, error: e.message === "Joinr's reply was too large" ? e.message : "Joinr's reply wasn't valid JSON" };
+    }
+    if (!body || typeof body !== "object" || !Array.isArray(body.items) || body.cursor === undefined || body.cursor === null) {
+      return { ok: false, error: "Joinr's reply didn't look like the won-quotes feed; check the address" };
+    }
+    return { ok: true, cursor: String(body.cursor) };
+  } catch (e) {
+    if (e && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      return { ok: false, error: `Joinr didn't answer within ${TEST_TIMEOUT_MS / 1000} seconds` };
+    }
+    const code = e && e.cause && e.cause.code;
+    if (code === "ENOTFOUND" || code === "EAI_AGAIN") return { ok: false, error: "Couldn't find that address (DNS lookup failed)" };
+    if (code === "ECONNREFUSED") return { ok: false, error: "Joinr refused the connection" };
+    if (code === "ECONNRESET") return { ok: false, error: "The connection to Joinr was reset" };
+    if (code && /CERT|SSL|TLS/i.test(String(code))) return { ok: false, error: "The secure connection to Joinr failed (certificate problem)" };
+    return { ok: false, error: "Couldn't reach Joinr" };
+  }
+}
+
+r.get("/settings", "users.admin", (req, res) => {
+  try {
+    res.json(settingsPayload());
+  } catch (e) {
+    configSendError(res, e, "[joinr settings]");
+  }
+});
+
+r.put("/settings", "users.admin", (req, res) => {
+  try {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const hasUrl = body.baseUrl !== undefined && body.baseUrl !== null;
+    const hasKey = typeof body.apiKey === "string" && body.apiKey.trim() !== "";
+    if (body.baseUrl !== undefined && body.baseUrl !== null && typeof body.baseUrl !== "string") {
+      throw new ConfigHttpError(400, "The Joinr address must be text");
+    }
+    if (body.apiKey !== undefined && body.apiKey !== null && typeof body.apiKey !== "string") {
+      throw new ConfigHttpError(400, "The API key must be text");
+    }
+    if (hasKey) {
+      if (configLib.keyStatus().fromEnv) {
+        throw new ConfigHttpError(409, "The API key is set by the server's environment and can't be changed here");
+      }
+      // Checked up front so a bad key doesn't leave a half-saved address behind.
+      if (!KEY_OK.test(body.apiKey.trim())) throw new ConfigHttpError(400, "The API key must be 8 to 200 characters with no spaces");
+    }
+    const detail = {};
+    if (hasUrl) {
+      const before = configLib.getBaseUrl();
+      configLib.setBaseUrl(body.baseUrl);
+      const after = configLib.getBaseUrl();
+      if (after !== before) detail.baseUrl = after;
+    }
+    if (hasKey) {
+      configLib.setKey(body.apiKey);
+      detail.key = "set";
+    }
+    if (Object.keys(detail).length) {
+      configAudit.log(req, { action: "joinr.settings", entityType: "joinr", entityId: "settings", after: detail });
+    }
+    res.json(settingsPayload());
+  } catch (e) {
+    configSendError(res, e, "[joinr settings]");
+  }
+});
+
+r.delete("/settings/key", "users.admin", (req, res) => {
+  try {
+    configLib.clearKey();
+    configAudit.log(req, { action: "joinr.settings", entityType: "joinr", entityId: "settings", after: { key: "cleared" } });
+    res.json(settingsPayload());
+  } catch (e) {
+    configSendError(res, e, "[joinr settings]");
+  }
+});
+
+r.post("/test", "users.admin", async (req, res) => {
+  try {
+    res.json(await testConnection());
+  } catch (e) {
+    configSendError(res, e, "[joinr test]");
+  }
+});
 // ---- end block C -----------------------------------------------------------------------
 
 module.exports = r.router;
