@@ -1,6 +1,6 @@
 # Crosscuts — Milestone 6 plan: Joinr intake (2026-10-11)
 
-Status: **draft, awaiting Todd's answers** (M6 · 1.1 audit and 1.2 plan done; questions in §10). Steps: M6 · 1.1 (audit, §1), M6 · 1.2 (plan and questions), M6 · 1.3 (decisions).
+Status: **approved by Todd 2026-10-11** (M6 · 1.3): every recommended answer in §10. Steps: M6 · 1.1 (audit, §1), M6 · 1.2 (plan and questions), M6 · 1.3 (decisions).
 
 Source of truth: `crosscuts-brief.md` §6.4 and D3; the Workshop Scheduler note 07 and `joinr.md` on Todd's Drive; the `tenon-quotr` repo (read-only survey at `54d001d`); roadmap M6 row.
 
@@ -92,10 +92,15 @@ In `tenon-quotr`, on its own branch, following its CLAUDE.md and PROJECT_PLAN ru
 - **Tests:** a `smoke-m6-*.sh` runs a stand-in Joinr inside the container (`docker exec … node -e`), points Crosscuts at it through the config folder, and checks: no key = no calls; new won quote → inbox + alert; Accept → job at Won with the fields; same quote again → nothing new; a revision → same item; un-won → "Changed in Joinr", job untouched; bad payload → skipped and reported; Joinr down → status error, app fine; the key never appears in any API response or the audit log.
 - **Release:** Crosscuts 0.1.6 (with M5) or later, as Todd decides; the Joinr side has its own release.
 
-## 10. Questions for Todd (M6 · 1.2)
+## 10. Questions for Todd (M6 · 1.2) and decisions (M6 · 1.3, 2026-10-11)
 
 1. **Intake:** (a) *Recommended:* a "New from Joinr" inbox where Design/PM accepts, links or ignores each won quote (safe with reversals, variations and jobs you already typed in). (b) Create the job automatically at Won as soon as Joinr says won.
+   - **Decision: (a)**, the inbox.
 2. **Who builds the Joinr endpoint:** (a) *Recommended:* I write the contract and build the Joinr side too, on a branch in `tenon-quotr` under its rules, nothing merged or deployed without your go. (b) Contract only for now; the Joinr side waits.
+   - **Decision: (a)**, both sides; the Joinr side on a `tenon-quotr` branch under its rules, nothing merged or deployed (and no production migration) without Todd's go.
 3. **Jobs you already typed in:** (a) *Recommended:* when a won quote's number matches an existing job, offer **Link** (no duplicate). (b) Always create a new job.
+   - **Decision: (a)**, offer Link.
 4. **Value:** (a) *Recommended:* fill the job value from Joinr's total inc GST (options left out). (b) Leave the value for Design/PM to enter.
+   - **Decision: (a)**, total inc GST, options left out.
 5. **First sync:** (a) *Recommended:* start from now; an admin can import the currently won quotes once with a button. (b) Import every won quote automatically on the first sync.
+   - **Decision: (a)**, from now, plus the one-off import button.
