@@ -1,6 +1,6 @@
 # Crosscuts — Milestone 5 plan: Scheduling extras (2026-10-11)
 
-Status: **draft, awaiting Todd's answers** (M5 · 1.1 audit and 1.2 plan done; questions in §11). Steps: M5 · 1.1 (audit, §1), M5 · 1.2 (plan and questions), M5 · 1.3 (decisions).
+Status: **approved by Todd 2026-10-11** (M5 · 1.3): every recommended answer in §11. Steps: M5 · 1.1 (audit, §1), M5 · 1.2 (plan and questions), M5 · 1.3 (decisions).
 
 Source of truth: `crosscuts-brief.md` §5.3 (items 2–5), D13, D15, §8; the Workshop Scheduler notes on Todd's Drive (02 Constraints, 03 Staff, 06 Hours, 07 Architecture); roadmap M5 row. Binding: CLAUDE.md non-negotiable 7 (the board's structure, sizes and behaviour stay; any visual change is mirrored in `exportJpg()`; print stays black on white).
 
@@ -94,10 +94,15 @@ At **Finish week**, beside each job's outcome, the scheduler picks how far the j
 
 Solver inputs (estimated hours, skills, speed factors, machines), half-day leave (unless question 4 says otherwise), leave requests or approvals by workers (they have no logins), a stage history chart, and touch drag on the board.
 
-## 11. Questions for Todd (M5 · 1.2)
+## 11. Questions for Todd (M5 · 1.2) and decisions (M5 · 1.3, 2026-10-11)
 
 1. **Board exception (rule 7).** M5 needs four small, approved changes on the board, each mirrored in the JPG and print: (a) a materials mark and a short stage label on each row's existing icon line; (b) a grey "away" style for chips of people on leave; (c) a "Stage reached" select in the Finish week dialog; (d) a warning in the "+" picker when assigning someone on leave or over their days. Rows, columns, sizes and everything else stay as they are. *Recommended: approve these four exactly.*
+   - **Decision: approved, these four exactly** (recorded in CLAUDE.md rule 7).
 2. **Part-time patterns.** (a) *Recommended:* record both: "N days a week" (flexible, warns on an extra day) and an optional regular day off (greyed like leave). (b) Only fixed days off.
+   - **Decision: (a)**, days a week plus an optional regular day off.
 3. **Stage at Finish week:** (a) *Recommended:* optional, defaulting to the job's current stage, with only the stages that apply offered (paint for two-pac; return visit for two-pac with stone). (b) Required for every job before Done.
+   - **Decision: (a)**, optional with the smart default and filtered stages.
 4. **Leave granularity:** (a) *Recommended:* whole days (leave, sick, other), Monday to Friday. (b) Half days too.
+   - **Decision: (a)**, whole days.
 5. **TV refresh:** (a) *Recommended:* the board reloads every 5 minutes when nothing is open, so the TV picks up changes made elsewhere. (b) Keep today's behaviour (reloads only after an edit on that screen, or at midnight).
+   - **Decision: (a)**, every 5 minutes when idle.
