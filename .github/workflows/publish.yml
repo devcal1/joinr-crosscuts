@@ -95,6 +95,11 @@ jobs:
       - name: Check the house style
         run: node ci/style-check.js
 
+      # Backups (docs/plans/backup-contracts.md section 16.1): only the pinned rsync flags, no
+      # shell and no exec for children, and no secret in a log line. Fails fast, before the build.
+      - name: Check the backup guard
+        run: node ci/backup-guard.js
+
       - name: Prepare
         run: |
           platform='${{ matrix.platform }}'

@@ -20,6 +20,13 @@ const DEFAULTS = {
   "invoice.default_days": "10",
   "roundup.last_run": null,
   "tasks.reminder_last_run": null,
+  // Backups (docs/plans/backup-contracts.md section 2): written with {audit: false}, never
+  // exposed by /api/settings.
+  "backup.seeded_at": null,
+  "backup.snapshot_seed_slot": null,
+  "backup.copy_seed_slot": null,
+  "backup.overdue_alerted_snapshot": null,
+  "backup.overdue_alerted_copy": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 

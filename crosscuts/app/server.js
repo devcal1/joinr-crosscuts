@@ -64,6 +64,7 @@ const routers = [
   require("./routes/reports"),
   require("./routes/availability"),
   require("./routes/joinr"),
+  require("./routes/backup"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -84,4 +85,21 @@ app.listen(PORT, () => {
   require("./lib/tasks").startReminder(require("./db"));
   // The Joinr intake pull, every 5 minutes once a key is set (JOINR_SYNC_DISABLED=1 turns it off).
   require("./lib/joinr-sync").start(require("./db"));
+  // Backups: the nightly snapshot and the Saturday copy to the NAS (BACKUP_DISABLED=1 turns it
+  // all off). Wrapped so nothing it does at start can ever stop the board: only a safe error code
+  // is logged (docs/plans/backup-contracts.md section 11.3).
+  try {
+    Promise.resolve(require("./lib/backup").start(require("./db"))).catch((e) =>
+      console.error(`[backup] start failed (${safeCode(e)})`)
+    );
+  } catch (e) {
+    console.error(`[backup] start failed (${safeCode(e)})`);
+  }
 });
+
+// An error's system code or class name when it has that shape, else "unknown": never a message.
+function safeCode(e) {
+  if (e && typeof e.code === "string" && /^[A-Z][A-Z0-9_]{0,39}$/.test(e.code)) return e.code;
+  if (e && typeof e.name === "string" && /^[A-Z][A-Za-z]{0,38}Error$/.test(e.name)) return e.name;
+  return "unknown";
+}

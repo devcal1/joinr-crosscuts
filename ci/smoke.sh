@@ -5,7 +5,8 @@
 #
 # The image is started with a fresh temp host directory mounted at /data/db,
 # /data/uploads and /data/config on port 3000. Steps (in order):
-#   0  runtime versions (Node major, better-sqlite3) match the source
+#   0  runtime versions (Node major, better-sqlite3) match the source; 7-Zip and
+#      rsync run in the image and no popt alias file exists
 #   a  first-run setup            b  logged-out sweep (every routed API, pages)
 #   c  photo + schedule suite     d  one user per role preset, overrides
 #   e  wrong password / lockout   f  remember-me cookie lifetime
@@ -181,7 +182,9 @@ ccurl() {
 start_container() { # name image host-dir mount-root
   local name=$1 image=$2 dir=$3 root=$4
   docker rm -f "$name" >/dev/null 2>&1 || true
-  docker run -d --name "$name" -p "$PORT:3000" \
+  # BACKUP_SCHEDULE_DISABLED=1 is CI only (docs/plans/backup-contracts.md section 7.8): no
+  # backup timer in any container; the old image ignores it.
+  docker run -d --name "$name" -p "$PORT:3000" -e BACKUP_SCHEDULE_DISABLED=1 \
     -v "$dir/db:$root/db" -v "$dir/uploads:$root/uploads" -v "$dir/config:$root/config" \
     "$image" >/dev/null
 }
@@ -236,6 +239,19 @@ expect_eq "$got_bsq" "$want_bsq" "better-sqlite3 version in the image"
 sqlite=$(docker exec "$CONTAINER" node -p \
   'new (require("better-sqlite3"))(":memory:").prepare("select sqlite_version() v").get().v')
 echo "Node $(docker exec "$CONTAINER" node -v), better-sqlite3 $got_bsq, SQLite $sqlite"
+# Backups (docs/plans/backup-contracts.md section 16.2): 7-Zip and rsync run, and no popt alias
+# file can add flags to rsync unseen.
+docker exec "$CONTAINER" sh -c '(7zz i || 7z i) >/dev/null 2>&1' || fail "7-Zip does not run in the image"
+ok
+docker exec "$CONTAINER" rsync --version >/dev/null || fail "rsync does not run in the image"
+ok
+docker exec "$CONTAINER" sh -c 'test ! -e /etc/popt' || fail "/etc/popt exists in the image"
+docker exec "$CONTAINER" sh -c 'test ! -e /etc/popt.d' || fail "/etc/popt.d exists in the image"
+ok
+sz_out=$(docker exec "$CONTAINER" sh -c '7zz i 2>/dev/null || 7z i 2>/dev/null' || true)
+rsync_out=$(docker exec "$CONTAINER" rsync --version || true)
+echo "$(grep -m1 '7-Zip' <<<"$sz_out" || echo '7-Zip: no version line')"
+echo "${rsync_out%%$'\n'*}"
 
 # ============================================================================
 step "a. first-run setup"
@@ -1166,6 +1182,8 @@ for f in "$(dirname "$0")"/smoke-m4-*.sh; do [ -f "$f" ] && source "$f"; done
 for f in "$(dirname "$0")"/smoke-m5-*.sh; do [ -f "$f" ] && source "$f"; done
 # M6 suites (ci/smoke-m6-*.sh): same rules; they must not assume a pristine DB.
 for f in "$(dirname "$0")"/smoke-m6-*.sh; do [ -f "$f" ] && source "$f"; done
+# Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
+[ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 
 # ============================================================================
 step "k. cutover rehearsal: old public image, then this image on the same volume"

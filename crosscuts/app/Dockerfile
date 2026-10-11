@@ -2,6 +2,13 @@ FROM node:24-alpine
 
 WORKDIR /app
 
+# Backups (docs/plans/backup-contracts.md): rsync for the NAS copy, 7-Zip for the encrypted archives.
+# The build fails if either doesn't run, or if a popt alias file could add flags to rsync unseen.
+RUN apk add --no-cache rsync 7zip \
+ && rsync --version > /dev/null \
+ && { 7zz i > /dev/null 2>&1 || 7z i > /dev/null 2>&1; } \
+ && test ! -e /etc/popt && test ! -e /etc/popt.d
+
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
