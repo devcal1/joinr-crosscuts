@@ -20,6 +20,11 @@ function plural(n, one, many) {
 }
 
 // Bytes for people: "512 bytes", "4.2 KB", "2.1 MB", "1.3 GB".
+// "a 9.0 KB" but "an 8.9 KB", "an 11 MB", "an 18.2 KB" (said "eight", "eleven", "eighteen").
+function article(size) {
+  return (/^(8|1[18](?![0-9]))/.test(size) ? "an " : "a ") + size;
+}
+
 function formatBytes(bytes) {
   const n = count(bytes);
   if (n === undefined) return "an unknown size";
@@ -80,7 +85,7 @@ function snapshotSentence(run) {
   if (r.status === "running") return RUNNING;
   if (r.status === "succeeded") {
     const c = d.counts && typeof d.counts === "object" ? d.counts : {};
-    return `Succeeded: a ${formatBytes(d.archiveBytes)} archive (${plural(count(c.users) || 0, "user", "users")}, ${plural(
+    return `Succeeded: ${article(formatBytes(d.archiveBytes))} archive (${plural(count(c.users) || 0, "user", "users")}, ${plural(
       count(c.jobs) || 0,
       "job",
       "jobs"

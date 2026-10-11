@@ -28,8 +28,8 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
-const { DB_DIR, UPLOADS_DIR, CONFIG_DIR } = require("../lib/config");
-const { ARCHIVES_DIR, STAGING_DIR, CONFIG_MAX_BYTES } = require("../lib/backup/constants");
+// The data folders come from constants, already absolute (7-Zip runs inside staging folders).
+const { DB_DIR, UPLOADS_DIR, CONFIG_DIR, ARCHIVES_DIR, STAGING_DIR, CONFIG_MAX_BYTES } = require("../lib/backup/constants");
 const { SEVEN_ZIP, ToolMissingError, safeErrorCode } = require("../lib/backup/tools");
 const archive = require("../lib/backup/archive");
 const names = require("../lib/backup/names");

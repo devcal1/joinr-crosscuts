@@ -263,7 +263,7 @@ expect_status 202 "Back up now with the passphrase only"
 expect_jq '.running == true and .joined == false and .copy == false' "a new flight, without a copy"
 bk_wait 1 "the passphrase-only run"
 expect_jq ".snapshot.last.id > $BK_BEFORE and .snapshot.last.kind == \"snapshot\" and .snapshot.last.trigger == \"manual\" and .snapshot.last.status == \"succeeded\"" "the manual snapshot succeeded"
-expect_jq '.snapshot.last.sentence | startswith("Succeeded: a ")' "the snapshot sentence says it succeeded"
+expect_jq '.snapshot.last.sentence | test("^Succeeded: an? ")' "the snapshot sentence says it succeeded"
 expect_jq ".snapshot.lastSuccess.id == .snapshot.last.id" "lastSuccess is this run"
 expect_eq "$(bk_val "SELECT COUNT(*) AS n FROM backup_runs WHERE id > $BK_BEFORE AND kind = 'copy'")" 0 "no copy row while the NAS is not set up"
 BK_ARCH4=$(jqr '.snapshot.last.detail.archive')

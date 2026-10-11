@@ -1,7 +1,13 @@
 // Backups: every number, flag, file name and folder (docs/plans/backup-contracts.md section 4.2).
 // Requires only lib/config.js (the data folders), never the database.
 const path = require("path");
-const { DB_DIR, UPLOADS_DIR, CONFIG_DIR } = require("../config");
+const config = require("../config");
+
+// Absolute, always: 7-Zip runs with its working folder inside staging, so a relative data folder
+// (a local run with DB_DIR=../../.dev/...) would send the archive to the wrong place.
+const DB_DIR = path.resolve(config.DB_DIR);
+const UPLOADS_DIR = path.resolve(config.UPLOADS_DIR);
+const CONFIG_DIR = path.resolve(config.CONFIG_DIR);
 
 // The ONLY rsync flags; ci/backup-guard.js pins them. Never --delete, --partial, --inplace, -a, -r ...
 const RSYNC_FLAGS = Object.freeze(["--times", "--contimeout=10", "--timeout=120"]);
