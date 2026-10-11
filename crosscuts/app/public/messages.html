@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Messages - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="messages.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="ms-page">
+    <div class="ms-head">
+      <h1>Messages</h1>
+      <p class="ms-hint">Enter sends. Shift+Enter starts a new line.</p>
+    </div>
+
+    <div class="ms-layout">
+      <nav class="ms-channels" aria-label="Channels">
+        <ul id="channels" class="ms-channel-list"></ul>
+      </nav>
+
+      <div class="ms-select-wrap">
+        <label for="channelSelect">Channel</label>
+        <select id="channelSelect" class="hs-input"></select>
+      </div>
+
+      <section class="ms-thread" aria-labelledby="threadName">
+        <header class="ms-thread-head">
+          <h2 id="threadName" class="ms-thread-name">Messages</h2>
+        </header>
+
+        <div id="scroller" class="ms-scroll" tabindex="-1">
+          <div class="ms-older-wrap">
+            <button id="older" type="button" class="hs-btn" hidden>Load older</button>
+          </div>
+          <ol id="list" class="ms-list" role="log" aria-live="polite" aria-relevant="additions"></ol>
+          <p id="empty" class="ms-empty" hidden>No messages yet. Say hello.</p>
+        </div>
+        <button id="newer" type="button" class="hs-btn hs-btn-primary ms-newer" hidden>New messages</button>
+
+        <p id="error" class="ms-error" role="status"></p>
+        <form id="composer" class="ms-composer" autocomplete="off">
+          <label class="ms-sr" for="body">Message</label>
+          <textarea id="body" class="hs-input ms-body" rows="2" maxlength="4000" placeholder="Write a message" disabled></textarea>
+          <button id="send" type="submit" class="hs-btn hs-btn-primary" disabled>Send</button>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="messages.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
