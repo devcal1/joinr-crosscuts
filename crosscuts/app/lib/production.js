@@ -52,6 +52,7 @@ function currentStages(db, jobIds) {
 }
 
 // Upserts the stage for (jobId, weekStart). Synchronous; use inside the caller's transaction.
+// Returns true when it wrote (a new or changed stage), false when it was already that stage.
 function record(db, req, jobId, weekStart, stage) {
   const job = db.prepare("SELECT id, is_two_pac, benchtop FROM jobs WHERE id = ?").get(jobId);
   if (!job) throw new HttpError(400, `job ${jobId} does not exist`);
@@ -60,7 +61,7 @@ function record(db, req, jobId, weekStart, stage) {
   const prev = db
     .prepare("SELECT stage FROM production_stages WHERE job_id = ? AND week_start = ?")
     .get(jobId, weekStart);
-  if (prev && prev.stage === stage) return;
+  if (prev && prev.stage === stage) return false;
   db.prepare(
     `INSERT INTO production_stages (job_id, week_start, stage, recorded_by, recorded_at)
      VALUES (?, ?, ?, ?, ?)
@@ -74,6 +75,7 @@ function record(db, req, jobId, weekStart, stage) {
     before: prev ? { stage: prev.stage, weekStart } : null,
     after: { stage, weekStart },
   });
+  return true;
 }
 
 module.exports = { STAGES, LABELS, SHORT, stagesFor, currentStages, record };

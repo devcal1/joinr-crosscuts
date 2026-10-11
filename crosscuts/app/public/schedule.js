@@ -831,6 +831,9 @@
     for (const el of weeksContainer.querySelectorAll(".job-notes:not([hidden])")) {
       openNotes.set(el.id, el.querySelector("textarea").value);
     }
+    // M5 review: the panels' "Add job…" boxes are rebuilt too; keep their text
+    // (same order: one week, manufacturing then installing).
+    const addDrafts = [...weeksContainer.querySelectorAll(".add-row .input")].map((i) => i.value);
 
     weeksContainer.innerHTML = "";
 
@@ -889,6 +892,10 @@
       el.hidden = false;
       const textarea = el.querySelector("textarea");
       if (textarea.value !== draft) textarea.value = draft;
+    }
+    const addInputs = weeksContainer.querySelectorAll(".add-row .input");
+    if (addInputs.length === addDrafts.length) {
+      addInputs.forEach((input, i) => { if (addDrafts[i]) input.value = addDrafts[i]; });
     }
 
     syncRowHeights();
@@ -1271,7 +1278,15 @@
     finishDialog.showModal();
   }
 
-  async function refresh() {
+  // M5 review: refreshes run one after another, so an older response (an idle
+  // reload overlapping an edit) can never render after a newer one.
+  let refreshChain = Promise.resolve();
+  function refresh() {
+    const run = refreshChain.then(refreshNow);
+    refreshChain = run.catch(() => {});
+    return run;
+  }
+  async function refreshNow() {
     // jobs included so a rename can't leave the add-job autocomplete offering
     // stale names (which silently creates duplicate jobs server-side).
     await Promise.all([loadWorkers(), loadJobs(), loadSchedule()]);
@@ -1609,6 +1624,10 @@
     return true;
   }
   async function idleReloadTick() {
+    // M5 review: past midnight, leave it to the rollover tick above, which also
+    // re-anchors the week on Monday; refreshing here first would mark the new day
+    // as rendered and the board would stay on last week.
+    if (localTodayStr() !== renderedToday) return false;
     if (!boardIsIdle()) return false;
     try {
       await refresh();

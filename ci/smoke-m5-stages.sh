@@ -122,6 +122,7 @@ echo "--- a repeat with a different stage overwrites and creates nothing ---"
 m5a_finish "$M5A_WK" "[{\"jobId\":$M5A_J1,\"outcome\":\"manufacturing\",\"stage\":\"paint\"},{\"jobId\":$M5A_J2,\"outcome\":\"install\",\"stage\":\"kit\"},{\"jobId\":$M5A_J3,\"outcome\":\"complete\",\"stage\":\"install\"}]"
 expect_status 200 "repeat Finish week with a new stage"
 expect_jq '(.created | length) == 0 and (.skipped | length) == 2' "the repeat creates nothing"
+expect_jq ".stages == [{jobId:$M5A_J1,stage:\"paint\"}]" "only the changed stage is listed (kit and install were already recorded)"
 m5a_counts
 expect_eq "$M5A_COUNTS" "$M5A_COUNTS_FIRST" "the repeat changed no row or backlog counts"
 m5a_rowof "$M5A_J1" "$M5A_NEXT"

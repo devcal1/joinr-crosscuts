@@ -525,8 +525,7 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
     // per finished week, so a repeat overwrites and still creates no board rows.
     for (const { jobId, stage } of results) {
       if (stage === undefined || stage === null) continue;
-      production.record(db, req, jobId, sourceWeek, stage);
-      stages.push({ jobId, stage });
+      if (production.record(db, req, jobId, sourceWeek, stage)) stages.push({ jobId, stage });
     }
 
     for (const { jobId, outcome } of results) {

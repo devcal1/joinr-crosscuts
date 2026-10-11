@@ -156,3 +156,10 @@ All pages pass `node ci/style-check.js`; house style; user text via `textContent
 | **M5 · 4.1 Integrate** | integrator | merges; seed data; STATUS |
 
 Only A (Wave 1) and then D (Wave 2) edit the board files. `lib/schedule.js`, `lib/production.js` and the read half of `lib/availability.js` are the scaffold's; a wave that needs a change reports it. Worktree base: each agent resets to the commit the integrator names, and junctions `crosscuts/app/node_modules` from the main checkout.
+
+## 7. Changes after the M5 · 4.2 review (integrator, 2026-10-11)
+
+1. **Idle reload vs the Monday rollover:** `idleReloadTick` returns early when the local date has changed since the last render, leaving the 60-second rollover tick to re-anchor the week. (Before, an idle refresh just after midnight on Monday marked the new day as rendered and the TV stayed on last week.)
+2. **Refreshes are serialised** (`refresh()` chains `refreshNow()`), so an older response can't render after a newer one.
+3. **The panels' "Add job…" text survives a rebuild**, as the To start box's already did.
+4. **`production.record` returns true when it wrote**; Finish week's `stages` lists only stages written (new or changed), as §3 says. `smoke-m5-stages.sh` asserts it on the repeat.
