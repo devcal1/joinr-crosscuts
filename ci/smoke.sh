@@ -279,7 +279,7 @@ expect_jq '.setupNeeded == false and .loggedIn == true' "auth status after setup
 
 req GET /api/auth/me "$ADMIN"
 expect_status 200 "me as admin"
-expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 21' "setup user is an admin with all 21 keys"
+expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 23' "setup user is an admin with all 23 keys"
 
 # ============================================================================
 step "b. logged out: every routed API is 401, pages redirect"

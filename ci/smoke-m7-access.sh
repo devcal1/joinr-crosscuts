@@ -447,6 +447,9 @@ req GET "/api/planner/job/$M7X_JOB" "$SHOW"
 expect_status 403 "show GET /api/planner/job/:id"
 req GET "/api/planner/job/99999999" "$ADMIN"
 expect_status 404 "an unknown job"
+req GET "/api/planner/job/99999999" "$WSHOP"
+expect_status 200 "wshop (no jobs.view): an unknown job looks empty"
+expect_jq '.rows == [] and .more == false' "no hint that the job id is missing"
 req GET "/api/planner/job/abc" "$ADMIN"
 expect_status 404 "a job id that isn't a number"
 
@@ -458,6 +461,9 @@ expect_status 200 "admin revokes jobs.view from acct2"
 req POST /api/planner/events "$ACCT2" "{\"title\":\"M7X Acct2 link\",\"layer\":\"accounts\",\"allDay\":true,\"startDate\":\"2035-08-20\",\"jobId\":$M7X_JOB}"
 expect_status 403 "acct2 without jobs.view links a job"
 expect_jq '.error == "You can'"'"'t link a job"' "the job sentence"
+req POST /api/planner/events "$ACCT2" '{"title":"M7X Acct2 unknown link","layer":"accounts","allDay":true,"startDate":"2035-08-20","jobId":99999999}'
+expect_status 403 "acct2 without jobs.view links an unknown job: the same 403, no hint"
+expect_jq '.error == "You can'"'"'t link a job"' "the job sentence (unknown job)"
 req POST /api/planner/events "$ACCT2" '{"title":"M7X Acct2 no link","layer":"accounts","allDay":true,"startDate":"2035-08-20"}'
 expect_status 201 "acct2 without jobs.view still posts without a job"
 m7x_upd AC

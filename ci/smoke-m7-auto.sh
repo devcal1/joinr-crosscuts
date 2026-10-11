@@ -15,7 +15,14 @@ step "m7-auto. automatic events"
 M7A_MON=2035-06-04
 M7A_FROM=2035-06-01
 M7A_TO=2035-06-30
-M7A_TODAY=$(TZ=Australia/Sydney date +%F)
+# "Today" is always the server's Sydney date, never the runner's clock (a run can cross Sydney
+# midnight). M7A_YESTERDAY is fixed once: the overdue invoice is backdated to it.
+m7a_server_today() {
+  req GET /api/planner/layers "$ADMIN"
+  expect_status 200 "admin reads the server's today"
+  M7A_TODAY=$(jqr '.today')
+}
+m7a_server_today
 M7A_YESTERDAY=$(date -u -d "$M7A_TODAY - 1 day" +%F)
 M7A_CLIENT="CI M7A Secret Client"
 M7A_ADDR="77 M7A Hidden Lane"
@@ -193,7 +200,7 @@ for pair in "dpm:$DPM" "sched:$SCHED" "wshop:$WSHOP"; do
   m7a_none "a:invoice_due:$M7A_INVC" "$who does not see the invoice"
   m7a_get "$jar" "$M7A_FROM" "$M7A_TO" "accounts,install,company"
   expect_jq '[.events[] | select(.layer == "accounts")] | length == 0' "$who can't widen to accounts with layers="
-  m7a_get "$jar" "$M7A_YESTERDAY" "$M7A_TODAY" "accounts"
+  m7a_get "$jar" "$M7A_YESTERDAY" "$M7A_TODAY"
   expect_jq '[.events[] | select(.source == "invoices_overdue" or .source == "invoice_due")] | length == 0' "$who gets no invoice items even today"
 done
 for pair in "admin:$ADMIN" "acct:$ACCT" "acct2:$ACCT2" "multi:$MULTI" "dpm:$DPM" "sched:$SCHED" "wshop:$WSHOP"; do
@@ -243,6 +250,7 @@ M7A_OD=$(jqr 'length')
 [ "$M7A_OD" -ge 1 ] || fail "the overdue list should hold job D's deposit"
 ok
 if [ "$M7A_OD" = 1 ]; then M7A_ODT="1 invoice overdue"; else M7A_ODT="$M7A_OD invoices overdue"; fi
+m7a_server_today
 for pair in "admin:$ADMIN" "acct:$ACCT" "acct2:$ACCT2" "multi:$MULTI"; do
   who=${pair%%:*}; jar=${pair#*:}
   m7a_get "$jar" "$M7A_YESTERDAY" "$M7A_TODAY"
@@ -307,6 +315,7 @@ done
 m7a_get "$ADMIN" "$M7A_FROM" "$M7A_TO"
 expect_jq "[.events[] | select(.source == \"materials_due\" and .job.id == $M7A_JA)] | length == 0" "received lines are no longer due"
 # Received dates can't be in the future, so materials in lands on today.
+m7a_server_today
 m7a_get "$ADMIN" "$M7A_YESTERDAY" "$M7A_TODAY"
 m7a_one "a:materials_in:$M7A_JA" \
   ".layer == \"install\" and .sourceLabel == \"Orders\" and .title == \"Materials in: CI M7A Alpha kitchen\" and .start == \"$M7A_TODAY\" and .link == \"/job.html?id=$M7A_JA#orders\" and $M7A_RO" \
