@@ -1,0 +1,137 @@
+/* Messages (messages.html): the chat. Tokens come from tokens.css, hs- components from
+   components.css, and the dialog frame from the shell's cc-dialog. Page classes here are
+   prefixed ms-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[hidden] { display: none !important; }
+
+a { color: var(--teal-tint); text-decoration: none; overflow-wrap: anywhere; }
+a:hover { text-decoration: underline; }
+
+.ms-page { max-width: 1100px; margin: 0 auto; padding: 22px 16px 32px; }
+.ms-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 14px; }
+.ms-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.ms-hint { margin: 0; font-size: 12px; color: var(--muted); }
+
+.ms-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* The two columns fill the screen under the menu bar; the thread scrolls inside. */
+.ms-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px;
+  height: calc(100vh - 190px);
+  height: calc(100dvh - 190px);
+  min-height: 380px;
+}
+
+/* ---------- channel list ---------- */
+.ms-channels {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.ms-channel-list { list-style: none; margin: 0; padding: 0; }
+.ms-channel-list li { border-bottom: 1px solid var(--hairline); }
+.ms-channel-list li:last-child { border-bottom: 0; }
+.ms-channel {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 12px 14px;
+  background: none; border: 0; border-left: var(--accent-border) solid transparent;
+  color: var(--body); font-family: var(--font); font-size: 13px; text-align: left; cursor: pointer;
+}
+.ms-channel:hover { background: var(--raised); }
+.ms-channel[aria-current="true"] { background: var(--teal-8); border-left-color: var(--teal); color: var(--white); }
+.ms-channel-name { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
+.ms-count {
+  min-width: 20px; padding: 2px 6px;
+  border: 1px solid var(--teal); border-radius: var(--r-badge); background: var(--teal-16);
+  color: var(--teal-tint); font-size: 11px; font-weight: 700; text-align: center;
+}
+
+.ms-select-wrap { display: none; }
+.ms-select-wrap label {
+  display: block; margin-bottom: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+.ms-select-wrap .hs-input { color-scheme: dark; }
+
+/* ---------- thread ---------- */
+.ms-thread {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.ms-thread-head { padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+.ms-thread-name {
+  margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--white);
+}
+
+.ms-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 16px; overscroll-behavior: contain; }
+.ms-older-wrap { display: flex; justify-content: center; padding: 6px 0; }
+.ms-list { list-style: none; margin: 0; padding: 0; }
+.ms-empty { margin: 32px 0; text-align: center; color: var(--label); }
+
+.ms-day {
+  display: flex; align-items: center; gap: 10px; margin: 14px 0 6px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+.ms-day::before, .ms-day::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--hairline); }
+
+.ms-msg { padding: 6px 0 6px 10px; border-left: 3px solid transparent; }
+.ms-msg.ms-mine { border-left-color: var(--teal); }
+.ms-msg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.ms-author { font-size: 13px; font-weight: 700; color: var(--white); }
+.ms-mine .ms-author { color: var(--teal-tint); }
+.ms-time { font-size: 11px; color: var(--muted); }
+.ms-msg-body { margin: 2px 0 0; color: var(--body); overflow-wrap: anywhere; word-break: break-word; }
+.ms-removed { color: var(--muted); }
+.ms-remove {
+  margin-left: auto; padding: 2px 6px;
+  background: none; border: 1px solid transparent; border-radius: var(--r-control);
+  color: var(--muted); font-family: var(--font); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+}
+.ms-remove:hover { color: var(--stop-tint); border-color: var(--stop); }
+
+.ms-newer { position: absolute; left: 50%; bottom: 118px; transform: translateX(-50%); background: var(--surface); }
+
+.ms-error { min-height: 20px; margin: 0; padding: 4px 16px 0; font-size: 13px; color: var(--stop-tint); }
+
+.ms-composer {
+  display: flex; align-items: flex-end; gap: 10px; padding: 8px 16px 14px;
+}
+.ms-body { flex: 1 1 auto; resize: none; min-height: 44px; max-height: 160px; font-size: 14px; }
+.ms-composer .hs-btn { padding: 12px 16px; }
+
+/* ---------- phone: the channel list becomes a select above the thread ---------- */
+@media (max-width: 720px) {
+  .ms-page { padding: 14px 16px 20px; }
+  .ms-head h1 { font-size: 20px; }
+  .ms-hint { display: none; }
+  .ms-layout {
+    display: flex; flex-direction: column; gap: 10px;
+    height: calc(100vh - 160px);
+    height: calc(100dvh - 160px);
+    min-height: 360px;
+  }
+  .ms-channels { display: none; }
+  .ms-select-wrap { display: block; flex: 0 0 auto; }
+  .ms-thread { flex: 1 1 auto; }
+  .ms-newer { bottom: 104px; }
+}
+
+/* Dialog for the remove confirmation. */
+.cc-dialog.ms-dialog { width: min(94vw, 420px); }
