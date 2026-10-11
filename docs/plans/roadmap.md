@@ -120,5 +120,6 @@ This follows brief §9. The reasoning: money first, because it is the reason for
 | **M5** Scheduling extras | leave and availability, lookahead, production stage capture at Finish week, board indicators (mirrored in `exportJpg`) | Board-touching: extra care and the exportJpg mirror rule |
 | **M6** Joinr intake | pull sync of accepted quotes, contract document shared with tenon-quotr, intake inbox vs auto-create | |
 | **Backup** | weekly copy to the offsite NAS over Tailscale, with a tested restore runbook | As soon as Todd supplies the NAS details; can slot in anywhere |
+| **Staff planner** (future, not yet scoped) | a schedule / monthly planner for all staff members (Todd, 2026-10-11) | **Discussion with Todd first**, before any `mN-plan.md`: who it covers, what goes on it, and how it relates to the board, leave/availability (M5), the lookahead and tasks (M4). Not started and not approved |
 
 Each milestone gets its own `mN-plan.md` at stage 1. Nothing above is approved until that plan is.
