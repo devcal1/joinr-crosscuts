@@ -25,6 +25,7 @@ const PAGE_ACCESS = {
   "/reports.html": "accounts.view",
   "/availability.html": "scheduling.view",
   "/lookahead.html": "scheduling.view",
+  "/intake.html": "design.view",
 };
 
 // Any .html page not listed above.

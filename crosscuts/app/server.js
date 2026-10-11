@@ -63,6 +63,7 @@ const routers = [
   require("./routes/messages"),
   require("./routes/reports"),
   require("./routes/availability"),
+  require("./routes/joinr"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -81,4 +82,6 @@ app.listen(PORT, () => {
   require("./lib/roundup").start(require("./db"));
   // The weekday 7:00 Sydney task reminder (REMINDER_DISABLED=1 turns it off).
   require("./lib/tasks").startReminder(require("./db"));
+  // The Joinr intake pull, every 5 minutes once a key is set (JOINR_SYNC_DISABLED=1 turns it off).
+  require("./lib/joinr-sync").start(require("./db"));
 });
