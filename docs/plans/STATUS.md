@@ -22,7 +22,8 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
 - **Cutover:** the runbook draft is written (`docs/cutover.md`); approach agreed 2026-10-11. It can be rehearsed once 0.1.4 is installed.
 - **Carried LAN check (Todd, on the workshop LAN, Monday 12 Oct):** at `http://umbrel.local:4933`, logged out `/api/workers` is 401 and `/schedule.html` bounces to login; login with "remember this device" works; the board loads. Record the result here.
 - **Waiting on Todd:** the go-ahead for the next push (paused 2026-10-11); two questions from M3: should a progress invoice wait until the job has a value (today it falls due with no amount), and should the server enforce must-change-password (today only the browser does); the LAN check; the final invoice logo (a placeholder is in `public/assets/invoice-letterhead.png`); the release decision. Before the first real invoice: Todd fills in the business details, bank details and start number (Users page), and Tracy checks a printed sample (`docs/how-to-invoice.md`).
-- **Open branches/worktrees:** M3 Wave 1 worktrees agent-ad24acc9a25fb9932 (A), agent-a3f886208de66d9bf (B), agent-a1bb29bdba3aa35eb (C), agent-ab30fd5b02c80db3a (D), all merged: clean up at M3 · 6.2. M2 worktrees under `.claude/worktrees/` (agent-a4d4551cd68dabac8 A, agent-a9b47abdc9dbb6d5f B, agent-a9b852aa6631e1f12 C, agent-ade3a7d8a0117b074 D, agent-aa2c08da9c8390337 E, agent-a8a5dfe6fbdfb4ec2 4.3 fixes), all merged: clean up at M2 · 6.2.
+- **Open branches/worktrees:** none. All 23 agent worktrees (M2–M6) were checked merged and clean, their `node_modules` junctions unlinked first, then removed with their branches (2026-10-11). The `tenon-quotr` intake worktree is unregistered and its branch kept (merged to `master`, pushed), but its folder `C:\Users\todd\Desktop\Claude\code\tenon-quotr-crosscuts-intake` is still on disk (Windows long paths stopped git; the forced delete needs Todd's OK or Todd).
+- **Local, not pushed:** `db265a4` 0.1.7 (board print fix). The next push of app code is 0.1.7 or later.
 - **Tools for UI work (local only):** `tools/screenshots/seed.js` (sample data, test admin) and `tools/screenshots/shoot.js` (full-page PNGs of every page through headless Edge). See the comments at the top of each.
 - **Deferred findings:**
   - **M6 review (4.2, 2026-10-11)**, fix status in brackets:
@@ -64,9 +65,9 @@ Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) a
     10. Minor: paid showed green and void red on the invoice page. [fixed in 4.3]
     - Nits: the hardcoded "10 days" text, `safeLink` `/` [fixed in 4.3]; future paid dates accepted, and no confirm on Materials ordered [kept].
   - Job values appear in audit before/after. Kept, because `audit.view` is admin-only.
-  - Search tiles are not keyboard-focusable (plain divs); worth fixing when the photo pages are next touched (M3).
-  - The audit changed-value highlight was not seen in a screenshot (the sample data had no before/after entry).
-  - Print/PDF of the board was not checked after the re-theme (the print CSS was kept black on white).
+  - Search tiles: already real buttons (keyboard OK). A scan of every page for click handlers on non-interactive elements found only the board's chip "×" (a span, mouse only); kept, because board behaviour is frozen by rule 7. [checked 2026-10-11]
+  - Audit changed-value highlight: seen locally on a job.update (changed keys get the orange wash on both sides). [checked 2026-10-11]
+  - Board print: checked locally under print media (black on white; worker chips, the flag wash and "● note" are the intended colours). Found and fixed: the html canvas stayed ink, so printing with "Background graphics" ticked gave a dark page below the weeks (`db265a4`, 0.1.7, print CSS only). [fixed 2026-10-11]
 - **Gotchas learned (M1.1 onwards):**
   - npm 11.19 (Node 24 images) skips install scripts not listed in `package.json` `allowScripts`. The entry names `better-sqlite3@12.9.0` exactly, so **any better-sqlite3 bump must update it**.
   - Some source files mix CRLF and LF: `sed -i` rewrites every line ending. Edit with exact string replacement.
