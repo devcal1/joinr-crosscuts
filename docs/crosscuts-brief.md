@@ -148,9 +148,11 @@ Chromebooks (Chrome). No touch input is required.
 
 ## 4. The home screen
 
-After login, a **personal dashboard**: tiles for the departments the user can
-reach, "my tasks", "my notifications / messages", and a one-line summary of
-this week's board. Tiles the user has no permission for are not rendered.
+After login, a **personal dashboard**: the user's working tiles ("my tasks",
+"my notifications / messages", the planner) and a one-line summary of this
+week's board. Tiles the user has no permission for are not rendered.
+Departments are reached from the menu bar, grouped by department (Todd,
+2026-10-12; `docs/plans/menu-plan.md`).
 In milestone 1 the department tiles work; tasks and notifications tiles may be
 placeholders that say so.
 

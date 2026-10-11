@@ -22,6 +22,7 @@
           <h3 class="tile-title">New from Joinr</h3>
           <p class="tile-text">Quotes won in Joinr, waiting to become jobs.</p>
           <p class="tile-stat" id="joinrStat" hidden></p>
+          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/intake.html">Open New from Joinr</a></div>
         </article>
       </div>
     </section>
@@ -31,7 +32,7 @@
   <script src="shell/shell.js"></script>
   <script>
     // The New from Joinr tile: how many quotes are new, and how many changed after a decision.
-    // If the call fails the tile shows no count.
+    // If the call fails the tile is just the link.
     (function () {
       var stat = document.getElementById("joinrStat");
       // countsOnly: just the counts, not the rows.

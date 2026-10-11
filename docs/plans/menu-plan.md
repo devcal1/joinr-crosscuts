@@ -59,6 +59,13 @@ Ships as 0.1.10. The board's own bar (`.nav`, `--nav-h`, rule 7) is not touched;
 5. Remove the repeats: the dashboard loses its department cards (keeps its working tiles); the in-page links that only repeat the menu go.
 6. Photos page (`search.html`) stays free of the menu bar for customers (M1 decision) and gets one quiet outlined DASHBOARD button in its own header. This replaces the proposal's "Photos page gets the shell bar".
 
+## 3b. After the build (Todd, 2026-10-12): all four recommended
+
+1. The Design/PM page keeps its New from Joinr card with its Open New from Joinr button (to Intake): a link with a job to do, not a repeat of the menu.
+2. Departments with one page stay as menus (the same layout for everyone).
+3. The dashboard keeps its Accounts due/overdue line.
+4. The brief section 4 is updated: the dashboard shows working tiles; departments are reached from the menu bar.
+
 ## 4. Build outline (after the answers)
 
 - Scaffold: bump 0.1.10; the colour exception in CLAUDE.md and `style-check.js` if approved.
