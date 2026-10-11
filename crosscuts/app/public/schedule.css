@@ -243,6 +243,36 @@ main {
    too; the two stay apart by shape (left bar versus note icon). */
 .job-actions .btn-icon.has-notes,
 .job-actions .btn-icon.has-notes:hover { color: var(--orange-tint); }
+/* M5 row indicators (rule 7, M5 exception): the materials mark and the short stage
+   label after the delete button. The line has 33px spare there, so the two stack
+   inside the line's own 26px height; the fixed height and the clip mean they can
+   never make the line taller or wider. Mirrored in exportJpg() and in print. */
+.job-marks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 26px;
+  max-width: 31px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.job-marks .ph { font-size: 12px; line-height: 12px; }
+.job-mark-materials.in { color: var(--teal); }
+.job-mark-materials.ordered { color: var(--orange); }
+.job-mark-stage {
+  font-size: 10px;
+  line-height: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--muted);
+  cursor: default;
+}
+/* Print-only text twin of the indicators (see the print block). */
+.job-print-marks { display: none; }
 
 /* — drag to reorder — */
 .drag-grip { cursor: grab; }
@@ -565,6 +595,18 @@ main {
 }
 .finish-opt:focus-within { outline: 2px solid var(--teal); outline-offset: -2px; }
 
+/* M5 "Stage reached" select on each job line (optional; rule 7, M5 exception). It
+   sits on the line after the outcome control and wraps with it. */
+.finish-stage { display: inline-flex; align-items: center; gap: var(--space-2); }
+.finish-stage-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.finish-stage-select { min-height: 44px; font-size: 16px; }
+
 .finish-foot {
   display: flex;
   align-items: center;
@@ -635,6 +677,22 @@ main {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
+  /* The M5 materials and stage indicators, as text: black on white. A row with notes
+     carries "● note" on the same line, so a row never gains more than the one line
+     the note marker already took. */
+  .job-print-marks {
+    display: block;
+    color: #111;
+    font-size: 11px;
+    white-space: pre-wrap;
+  }
+  .has-notes-row .job-print-marks::after {
+    content: "  ● note";
+    color: #b45a00;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .has-notes-row .job-cell:has(> .job-print-marks)::after { content: none; }
 }
 
 @media print and (max-width: 900px) {

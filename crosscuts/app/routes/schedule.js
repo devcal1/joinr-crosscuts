@@ -15,6 +15,7 @@ const {
 
 const jobstage = require("../lib/jobstage");
 const audit = require("../lib/audit");
+const production = require("../lib/production");
 
 const r = defineRoutes("/api");
 
@@ -492,9 +493,22 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
       res.status(400).json({ error: `duplicate jobId ${r.jobId}` });
       return;
     }
-    if (!db.prepare("SELECT id FROM jobs WHERE id = ?").get(r.jobId)) {
+    const job = db.prepare("SELECT id, is_two_pac, benchtop FROM jobs WHERE id = ?").get(r.jobId);
+    if (!job) {
       res.status(400).json({ error: `job ${r.jobId} does not exist` });
       return;
+    }
+    // Optional production stage (m5-contracts.md section 3): null or absent = not
+    // recorded. Checked here too, so a bad stage fails before anything is written.
+    if (r.stage !== undefined && r.stage !== null) {
+      if (!production.STAGES.includes(r.stage)) {
+        res.status(400).json({ error: "stage must be one of " + production.STAGES.join(", ") });
+        return;
+      }
+      if (!production.stagesFor(job).includes(r.stage)) {
+        res.status(400).json({ error: "That stage doesn't apply to this job" });
+        return;
+      }
     }
     seenJobIds.add(r.jobId);
   }
@@ -504,8 +518,17 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
   const created = [];
   const skipped = [];
   const completed = [];
+  const stages = [];
 
   db.transaction(() => {
+    // Stages first, for every result that has one (any outcome): an upsert per job
+    // per finished week, so a repeat overwrites and still creates no board rows.
+    for (const { jobId, stage } of results) {
+      if (stage === undefined || stage === null) continue;
+      production.record(db, req, jobId, sourceWeek, stage);
+      stages.push({ jobId, stage });
+    }
+
     for (const { jobId, outcome } of results) {
       if (outcome === "complete") {
         jobstage.onFinishedComplete(db, jobId, req);
@@ -568,7 +591,7 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
     }
   })();
 
-  res.json({ created, skipped, completed });
+  res.json({ created, skipped, completed, stages });
 });
 
 module.exports = r.router;
