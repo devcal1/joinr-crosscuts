@@ -7,7 +7,9 @@ A release has two parts that can be undone separately: the **app image** (the co
 - **Yes:** restore the database too, using the full sequence below.
 - **No:** an image rollback alone is usually enough. Confirm with an engineer first.
 
-**Warning: anything entered since the backup is lost.** That includes board edits, jobs, users, logins and audit entries. Photos uploaded after the backup stay on disk but disappear from the app. The offsite NAS backup is **not decided yet**, so the local backups are the only copies.
+**Warning: anything entered since the backup is lost.** That includes board edits, jobs, users, logins and audit entries. Photos uploaded after the backup stay on disk but disappear from the app.
+
+**Other backups.** Besides the pre-migration files below, Crosscuts keeps encrypted nightly archives of the database on the Umbrel (`data/db/backups/archives/`) and copies them to the NAS every week. Each pre-migration file is also archived and copied there. To restore from one of those archives, or after losing the Umbrel, see [restore.md](restore.md).
 
 ## Order of steps
 
@@ -41,7 +43,7 @@ To go back past an upgrade, use the backup from that upgrade: the one whose `NNN
 
 1. **[Umbrel web UI]** Stop Crosscuts.
 2. **[Umbrel terminal or SSH]** Go to the Crosscuts `data/db` folder. Check the path with `ls` before doing anything else. On a standard umbrelOS install the app data is usually under `/home/umbrel/umbrel/app-data/tenon-joinr-crosscuts/`. This path has not been verified yet.
-3. **[Umbrel terminal or SSH]** List the backups with `ls -l backups/` and choose the one for the upgrade you are undoing.
+3. **[Umbrel terminal or SSH]** List the backups with `ls -l backups/` and choose the `photos-pre-NNN-…db` file for the upgrade you are undoing. (The `archives/` folder there holds the encrypted archives, restored with [restore.md](restore.md) instead.)
 4. **[Umbrel terminal or SSH]** Keep the current database. Rename `photos.db` to `photos-before-restore.db`, and rename any `photos.db-wal` and `photos.db-shm` files the same way. Rename them; do not delete them.
 5. **[Umbrel terminal or SSH]** Copy the chosen backup to `photos.db`. The restored file must keep the name `photos.db`. Check its ownership against the other files in the folder with `ls -l`.
 6. **[Umbrel web UI]** Click **Update** (after A4), then start Crosscuts if it has not started.
