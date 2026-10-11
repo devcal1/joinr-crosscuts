@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lookahead - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="lookahead.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="dash">
+    <header class="dash-head">
+      <h1>Lookahead</h1>
+      <p class="dash-date" id="laRange">The next four weeks on the board, and what is waiting to start.</p>
+    </header>
+
+    <p id="laMessage" class="la-message" role="status"></p>
+
+    <div id="laWeeks"><p class="la-empty">Loading...</p></div>
+
+    <section class="dash-section" aria-labelledby="la-tostart-h">
+      <div class="hs-sectionbar"><h2 class="dash-h2" id="la-tostart-h">To start</h2></div>
+      <p class="la-note">Jobs waiting on the board backlog, soonest promised install date first.</p>
+      <div id="laToStart"><p class="la-empty">Loading...</p></div>
+    </section>
+
+    <p class="dash-empty">
+      <a class="hs-btn" href="/scheduling.html">Back to Scheduling</a>
+      <a class="hs-btn" href="/schedule.html">Open the board</a>
+    </p>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="lookahead.js"></script>
+  <script src="shell/shell.js"></script>
+</body>
+</html>
