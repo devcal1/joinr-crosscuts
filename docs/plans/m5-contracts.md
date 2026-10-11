@@ -163,3 +163,4 @@ Only A (Wave 1) and then D (Wave 2) edit the board files. `lib/schedule.js`, `li
 2. **Refreshes are serialised** (`refresh()` chains `refreshNow()`), so an older response can't render after a newer one.
 3. **The panels' "Add job…" text survives a rebuild**, as the To start box's already did.
 4. **`production.record` returns true when it wrote**; Finish week's `stages` lists only stages written (new or changed), as §3 says. `smoke-m5-stages.sh` asserts it on the repeat.
+5. **Over-days marks only the extra day(s)** (Todd, 2026-10-11): `chip.overDays` is true only on the worker's distinct days beyond `days_per_week`, counted in Monday-to-Friday order across both panels (`availability.overDayKeysForWeek`); `week.overDays` still lists the worker. The picker's "Over days" warning is unchanged.

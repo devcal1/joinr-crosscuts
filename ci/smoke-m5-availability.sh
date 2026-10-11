@@ -136,12 +136,14 @@ req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":3}'
 expect_status 200 "sched PATCH daysPerWeek 3"
 expect_jq '.daysPerWeek == 3' "the worker echoes daysPerWeek"
 m5b_state mon
-expect_eq "$M5B_OVER" "true" "the chip is over days (4 days against 3)"
+expect_eq "$M5B_OVER" "false" "the first three days are within the pattern"
 expect_eq "$M5B_IN_OVER" "true" "week.overDays has the worker"
+m5b_state fri
+expect_eq "$M5B_OVER" "true" "only the fourth day (fri) is over days (4 days against 3)"
 req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":4}'
 expect_status 200 "sched PATCH daysPerWeek 4"
 expect_jq '.daysPerWeek == 4' "daysPerWeek changed"
-m5b_state mon
+m5b_state fri
 expect_eq "$M5B_OVER" "false" "4 days against 4 is not over"
 expect_eq "$M5B_IN_OVER" "false" "week.overDays no longer has the worker"
 req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":3,"regularDaysOff":["thu","mon"]}'

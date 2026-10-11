@@ -72,6 +72,35 @@ function overDaysForWeek(db, weekStart) {
   return out;
 }
 
+// Map workerId -> Set of day keys beyond their days_per_week that week: the distinct days they
+// are assigned (both panels), in Monday-to-Friday order, after the first days_per_week of them.
+// Todd (2026-10-11): only these extra days are outlined on the board.
+function overDayKeysForWeek(db, weekStart) {
+  const limits = daysPerWeek(db);
+  const out = new Map();
+  if (!limits.size) return out;
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT a.worker_id, a.day
+         FROM assignments a JOIN week_rows wr ON wr.id = a.week_row_id
+        WHERE wr.week_start = ?`
+    )
+    .all(weekStart);
+  const daysOf = new Map();
+  for (const r of rows) {
+    const id = Number(r.worker_id);
+    if (!limits.has(id)) continue;
+    if (!daysOf.has(id)) daysOf.set(id, new Set());
+    daysOf.get(id).add(r.day);
+  }
+  for (const [id, days] of daysOf) {
+    const ordered = DAY_KEYS.filter((d) => days.has(d));
+    const extra = ordered.slice(limits.get(id));
+    if (extra.length) out.set(id, new Set(extra));
+  }
+  return out;
+}
+
 // --- Wave 1 B: the lists and the writes (m5-contracts.md sections 2 and 3) ----------------
 
 const KINDS = ["leave", "sick", "other"];
@@ -280,6 +309,7 @@ module.exports = {
   awayForWeek,
   daysPerWeek,
   overDaysForWeek,
+  overDayKeysForWeek,
   listWorkers,
   listLeave,
   addLeave,

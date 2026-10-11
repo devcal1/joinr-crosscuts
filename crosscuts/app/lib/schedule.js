@@ -75,6 +75,7 @@ function weekContext(weekStart, jobIds) {
   return {
     away: availability.awayForWeek(db, weekStart),
     over: availability.overDaysForWeek(db, weekStart),
+    overDays: availability.overDayKeysForWeek(db, weekStart),
     stages: production.currentStages(db, jobIds),
   };
 }
@@ -101,7 +102,8 @@ function buildScheduleRow(weekRow, assignments, flagRows, ctx) {
       bg,
       fg,
       away: awayDays ? awayDays[a.day] : null,
-      overDays: c.over.has(Number(a.worker_id)),
+      // Only the day(s) beyond their pattern (Todd, 2026-10-11).
+      overDays: !!(c.overDays.get(Number(a.worker_id)) && c.overDays.get(Number(a.worker_id)).has(a.day)),
     });
   }
   const flags = {};
