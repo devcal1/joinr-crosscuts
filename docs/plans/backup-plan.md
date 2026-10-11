@@ -332,3 +332,5 @@ Todd, 2026-10-11, answered one by one:
 9. **Photos and files go across, add-only** (as recommended).
 10. **The config folder is backed up, encrypted:** inside each database archive, except `backup-passphrase` itself.
 11. **Switch it on as soon as the release is installed**, on test data, and drill the restore before cutover (as recommended).
+
+After the 4.2 review (Todd, 2026-10-11): the passphrase is passed to 7-Zip as `-p`, so while each 7-Zip runs it is readable in the Umbrel's process list (from the host's `/proc`, and by any app with host PID access). **Accepted, and the passphrase stays shared with Joinr Backup** (decision 3 kept), the same exposure Joinr Backup already has.
