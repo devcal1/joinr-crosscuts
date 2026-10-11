@@ -291,3 +291,4 @@ Todd, 2026-10-11, answered one by one; all as recommended. **The plan is approve
 4. **Reminders:** the creator, plus an optional "Remind everyone on this layer" on shared layers (never Personal).
 5. **Showroom:** no planner.
 6. **Job page:** a small Planner section listing the job's upcoming linked events, under the same layer rules.
+7. **Page layout: the fortnight is the hero** (Todd, 2026-10-11, after 4.3; supersedes the month-first layout chosen at 4.2). This week and next as two rows of seven tall day tiles (every day shown, even when empty, each item in full) on the left, about two thirds of the width; the month, slightly smaller, on the right, both in view on a desktop. Contracts §12 and §17.

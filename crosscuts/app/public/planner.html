@@ -28,6 +28,10 @@
     <p id="plStatus" class="pl-status" role="status" aria-live="polite"></p>
 
     <div class="pl-cols">
+      <section class="pl-weeks" id="plWeeksView" aria-label="This week and next">
+        <div id="plWeeks"><p class="pl-empty">Loading...</p></div>
+      </section>
+
       <section class="pl-month" id="plMonthView" aria-labelledby="plMonthTitle">
         <div class="pl-monthbar">
           <h2 class="pl-month-title" id="plMonthTitle">Loading...</h2>
@@ -40,11 +44,6 @@
         <div class="pl-grid" id="plGrid"></div>
         <div class="pl-compact" id="plCompact"></div>
         <div class="pl-daylist" id="plDayList" aria-live="polite"></div>
-      </section>
-
-      <section class="pl-weeks" id="plWeeksView" aria-labelledby="plWeeksTitle">
-        <div class="hs-sectionbar"><h2 id="plWeeksTitle">This week and next</h2></div>
-        <div id="plWeeks"><p class="pl-empty">Loading...</p></div>
       </section>
     </div>
 

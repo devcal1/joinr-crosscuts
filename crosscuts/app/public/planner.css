@@ -1,4 +1,5 @@
-/* Planner (planner.html): the month grid beside this week and next, layer buttons, dialogs,
+/* Planner (planner.html): this week and next as two rows of day tiles (the hero) with the month
+   grid at the side, layer buttons, dialogs,
    the phone layout and print (docs/plans/m7-contracts.md section 12). Page layout, hs- components
    and tokens come from index.css; the dialog frame is the shell's cc-dialog. Classes here are pl-.
 
@@ -6,7 +7,7 @@
    2026-10-11): a 3 px left edge on chips and bars, a 6 px dot in compact cells, and a hollow
    outline for Personal, from the --layer-* tokens, on this page only. Text stays white or body. */
 
-.dash.pl-page { max-width: 1680px; }
+.dash.pl-page { max-width: 1880px; }
 
 /* ---------- layer marker colours (the only place they are set) ---------- */
 .pl-l-company { --pl-mark: var(--layer-company); }
@@ -54,21 +55,31 @@
 .pl-none { margin: 0; color: var(--muted); font-size: 13px; }
 
 /* ---------- columns ----------
-   1440 px and up: the month and the two weeks side by side; the two-week column is exactly as tall
-   as the month (contain: size keeps it out of the row's height) and its list scrolls on its own.
-   Below 1440 px: the month full width, the two weeks underneath (side by side from 900 px), every
-   entry in full. Phone (640 px and below): the two weeks first (Todd, M7 · 4.3). */
+   The two weeks are the hero (Todd, 2026-10-11): from 1280 px they take about two thirds of the
+   width on the left, the month (compact) the third on the right, both in view at once. From 641 to
+   1279 px the two weeks go full width on top (still seven tiles a row) and the month underneath at
+   full size. Phone (640 px and below): the two weeks as a list of days, then the compact month. */
 .pl-cols { display: flex; flex-direction: column; gap: 28px; }
 .pl-month, .pl-weeks { min-width: 0; }
-@media screen and (min-width: 900px) and (max-width: 1439.98px) {
-  #plWeeks { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 24px; align-items: start; }
-  #plWeeks > .pl-empty { grid-column: 1 / -1; }
+@media screen and (min-width: 1280px) {
+  .pl-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  /* The month at the side: smaller type and chips, no source labels (the tiles carry them). */
+  .pl-month .pl-monthbar { margin-bottom: 8px; }
+  .pl-month .pl-month-title { font-size: 17px; }
+  .pl-month .pl-dow span { padding: 5px 6px; font-size: 9px; }
+  .pl-month .pl-wk { min-height: 92px; }
+  .pl-month .pl-num { margin: 2px 2px 1px; padding: 1px 5px; font-size: 11px; }
+  .pl-month .pl-chip-sm { padding: 1px 4px 1px 4px; font-size: 11px; line-height: 1.3; }
+  .pl-month .pl-chip-sm.pl-l-personal { padding-left: 6px; }
+  .pl-month .pl-wk > .pl-chip { margin: 0 2px 2px; }
+  .pl-month .pl-grid .pl-src { display: none; }
+  .pl-month .pl-band { padding: 3px 5px 1px; }
+  .pl-month .pl-band-line { font-size: 10px; }
+  .pl-month .pl-more { margin: 0 2px 3px; padding: 0 4px; font-size: 10px; }
 }
-@media screen and (min-width: 1440px) {
-  .pl-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: stretch; }
-  .pl-weeks { contain: size; display: flex; flex-direction: column; }
-  .pl-weeks > .hs-sectionbar { flex: none; }
-  #plWeeks { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 6px; scrollbar-color: var(--raised) transparent; }
+/* Narrow side month (cells under about 80 px): the title is worth more than the start time. */
+@media screen and (min-width: 1280px) and (max-width: 1679.98px) {
+  .pl-month .pl-chip-sm .pl-time { display: none; }
 }
 
 .pl-monthbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 10px; }
@@ -248,26 +259,76 @@ a.pl-chip-static { cursor: pointer; }
 .pl-daylist-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .pl-h3 { margin: 0; color: var(--white); font-size: 15px; font-weight: 700; }
 
-/* ---------- this week and next ---------- */
-.pl-weeks > .hs-sectionbar { margin-bottom: 12px; }
+/* ---------- this week and next: two rows of seven tall day tiles ---------- */
 .pl-wk2 { margin-bottom: 22px; }
-.pl-wk2-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 8px; }
-.pl-wk2-title { margin: 0; color: var(--white); font-size: 16px; font-weight: 700; }
-.pl-wk2-range { color: var(--label); font-size: 13px; }
-.pl-day { padding: 8px 0 10px; border-top: 1px solid var(--hairline); }
-.pl-day-h {
+.pl-wk2:last-child { margin-bottom: 0; }
+.pl-wk2-bar { margin-bottom: 8px; }
+.hs-sectionbar .pl-wk2-title { display: flex; align-items: baseline; gap: 12px; }
+.pl-wk2-range { color: var(--body); font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 13px; }
+.pl-tiles { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.pl-tile {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0 0 6px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 176px;
+  padding: 8px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  transition: background-color 0.3s;
+}
+.pl-tile:focus { outline: 0; }
+.pl-tile.pl-today { outline: 2px solid var(--teal); outline-offset: -2px; }
+.pl-tile.pl-tile-hit { background: var(--teal-16); border-color: var(--teal); }
+.pl-tile-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; margin: 0 2px; }
+.pl-tile-dow { color: var(--label); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.pl-tile-date { color: var(--white); font-size: 14px; font-weight: 700; }
+.pl-tag { color: var(--teal-tint); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.pl-tile .pl-none { margin: 0 2px; font-size: 12px; }
+
+/* The fuller item: when, the title over up to three lines, the source and layer small. */
+.pl-item { padding: 5px 6px 5px 6px; font-size: 13px; line-height: 1.3; }
+.pl-item.pl-l-personal { padding-left: 8px; }
+.pl-item-when { display: block; margin-bottom: 1px; }
+.pl-item .pl-time { font-size: 11px; color: var(--body); }
+.pl-item .pl-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+.pl-chip-static.pl-item .pl-title { color: var(--body); }
+.pl-item-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; margin-top: 3px; }
+.pl-item-layer {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   color: var(--label);
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pl-tile .pl-more { margin: 0; align-self: flex-start; }
+.pl-tile-add {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 2px 8px;
+  color: var(--label);
+  background: none;
+  border: 1px solid var(--raised);
+  border-radius: var(--r-badge);
+  font-family: var(--font);
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  cursor: pointer;
 }
-.pl-day-today .pl-day-h { color: var(--teal-tint); }
-.pl-tag { color: var(--teal-tint); font-size: 10px; }
+.pl-tile-add:hover, .pl-tile-add:focus-visible { color: var(--teal-tint); border-color: var(--teal); }
 
 /* ---------- dialogs ---------- */
 .cc-dialog.pl-dialog { width: min(94vw, 460px); max-height: 92vh; overflow-y: auto; }
@@ -291,14 +352,26 @@ a.pl-chip-static { cursor: pointer; }
 .pl-warn { margin: 0; color: var(--orange-tint); font-size: 13px; }
 .pl-warn[hidden] { display: none; }
 
+/* Seven tiles at tablet width: a little less padding so the titles keep their room. */
+@media screen and (min-width: 641px) and (max-width: 899.98px) {
+  .pl-tiles { gap: 4px; }
+  .pl-tile { padding: 6px 4px; }
+  .pl-item { padding: 4px 4px 4px 5px; font-size: 12px; }
+}
+
 /* ---------- phone ---------- */
+@media screen and (max-width: 640px) {
+  /* The two weeks as a list of days, every day shown. */
+  .pl-tiles { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .pl-tile { min-height: 0; padding: 8px 8px 10px; }
+  .pl-tile-add { margin-top: 0; }
+}
 @media (max-width: 640px) {
   .dash.pl-page { padding-left: 16px; padding-right: 16px; }
   .pl-head h1 { font-size: 24px; }
   .hs-btn.pl-layers-toggle { display: inline-flex; }
   .pl-layers { display: none; }
   .pl-layers.pl-layers-open { display: flex; }
-  .pl-weeks { order: -1; }
   .pl-grid { display: none; }
   .pl-compact, .pl-daylist { display: block; }
   .pl-compact { border-bottom: 1px solid var(--hairline); }
@@ -321,12 +394,9 @@ a.pl-chip-static { cursor: pointer; }
   .pl-head { margin: 0 0 4mm; }
   .pl-head h1 { color: #000; font-size: 14pt; }
   .pl-cols { display: block; }
-  .pl-weeks { margin-top: 6mm; }
   body.pl-print-month .pl-weeks, body.pl-print-weeks .pl-month { display: none; }
   .pl-month-title, .pl-wk2-title, .pl-h3 { color: #000; }
   .pl-month-title { font-size: 13pt; }
-  .pl-weeks > .hs-sectionbar { background: #fff; border: 0; padding: 0; min-height: 0; margin-bottom: 2mm; }
-  .pl-weeks > .hs-sectionbar h2 { color: #000; font-size: 12pt; }
 
   .pl-chip, .pl-chip.pl-l-personal, .pl-chip-sm.pl-l-personal {
     color: #000;
@@ -370,13 +440,31 @@ a.pl-chip-static { cursor: pointer; }
   .pl-more { color: #000; font-size: 7pt; padding: 0 1mm; }
   .pl-band-line, .pl-band-k, .pl-band a { color: #000; font-size: 7pt; white-space: normal; }
 
-  .pl-wk2 { break-inside: auto; margin-bottom: 4mm; }
-  .pl-wk2-range { color: #000; }
-  .pl-day { border-top: 0.3mm solid #000; padding: 1.5mm 0; break-inside: avoid; }
-  .pl-day-h, .pl-day-today .pl-day-h, .pl-tag { color: #000; font-size: 8pt; }
+  /* The two weeks on one A4 landscape page when they fit (a week row never splits, so a very busy
+     fortnight takes two): the same two rows of seven days, every item, each run on as one line
+     ("[Accounts] 9:00–10:00 Site meeting"), wrapping inside its day. */
+  body.pl-print-weeks .pl-head { display: none; }
+  .pl-wk2 { break-inside: avoid; margin-bottom: 4mm; }
+  .pl-wk2-bar { display: block; background: #fff; border: 0; padding: 0; min-height: 0; margin-bottom: 1mm; }
+  .pl-wk2-bar h2, .pl-wk2-bar .pl-wk2-title { color: #000; font-size: 10pt; }
+  .pl-wk2-range { color: #000; font-size: 10pt; }
+  .pl-band-wk { padding: 0 0 1mm; }
+  .pl-band-wk .pl-band-line { font-size: 8pt; }
+  .pl-tiles { gap: 0; border: 0.3mm solid #000; }
+  .pl-tile { min-height: 30mm; padding: 1mm 0.8mm; gap: 0.6mm; border: 0; border-left: 0.3mm solid #000; border-radius: 0; break-inside: avoid; }
+  .pl-tile:first-child { border-left: 0; }
+  .pl-tile.pl-today, .pl-tile.pl-tile-hit { outline: 0; background: #fff; }
+  .pl-tile-dow, .pl-tile-date, .pl-tag { color: #000; font-size: 8pt; }
+  .pl-tile .pl-none { color: #000; opacity: 0.6; font-size: 7pt; }
+  .pl-chip.pl-item, .pl-chip.pl-item.pl-l-personal { padding: 0 0.6mm; font-size: 7pt; line-height: 1.2; }
+  .pl-item-when, .pl-item .pl-title, .pl-item-meta { display: inline; margin: 0; }
+  .pl-item .pl-title { -webkit-line-clamp: none; line-clamp: none; overflow: visible; }
+  .pl-item .pl-time { font-size: 7pt; color: #000; }
+  .pl-chip-static.pl-item .pl-title, .pl-item .pl-src { color: #000; }
+  .pl-when-allday, .pl-item-layer { display: none; }
+  .pl-item .pl-src { font-size: 6pt; }
   .pl-none { color: #000; opacity: 0.6; font-size: 8pt; }
   .pl-list { gap: 0.5mm; }
-  .pl-band-wk .pl-band-line { font-size: 8pt; }
 
   .pl-print-foot { display: block; margin: 2mm 0 0; color: #000; font-size: 8pt; }
   a { color: #000; text-decoration: none; }

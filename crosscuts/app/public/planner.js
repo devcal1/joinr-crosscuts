@@ -1,5 +1,6 @@
-// Planner page (docs/plans/m7-contracts.md section 12): a Monday-to-Sunday month grid beside this
-// week and next, layer buttons, event detail and edit dialogs, the phone layout and print.
+// Planner page (docs/plans/m7-contracts.md section 12): this week and next as the hero (two rows of
+// seven tall day tiles), the Monday-to-Sunday month grid at the side, layer buttons, event detail
+// and edit dialogs, the phone layout and print.
 // Talks to /api/planner (section 9) and /api/job-records (the job picker, as taskui.js does).
 // Every date and time is Sydney calendar text from the server ("YYYY-MM-DD", "HH:MM"); the page
 // never reads the browser's clock or zone, and "today" is always the server's.
@@ -44,6 +45,7 @@
   var REPEAT_LABELS = { weekly: "Every week", fortnightly: "Every two weeks", monthly: "Every month" };
   var SCREEN_LANES = 3; // items a day in the month grid on screen, then "+N more"
   var PRINT_LANES = 4; // and on paper, so a busy month still fits one A4 landscape page (M7 · 4.3)
+  var TILE_CAP = 6; // items in a day tile of the two weeks on screen, then "+N more" (all on paper)
   var CHANGE_LATER_NOTE = "Change these for this and all later.";
   var WARN_SERIES = "One-off changes to this event will be replaced.";
   var WARN_SPLIT = "Later one-off changes will be replaced.";
@@ -108,6 +110,12 @@
     if (!isDate(s)) return s || "";
     var d = new Date(toMs(s));
     return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear();
+  }
+  // "5–11 Oct", or "28 Sep – 4 Oct" across a month end.
+  function fmtRange(a, b) {
+    if (a === b) return fmtShort(a);
+    if (a.slice(0, 7) === b.slice(0, 7)) return dayNum(a) + "–" + fmtShort(b);
+    return fmtShort(a) + " – " + fmtShort(b);
   }
   function fmtMonth(first) {
     var d = new Date(toMs(first));
@@ -282,6 +290,19 @@
     if (!(hit.manufacturing || []).length && !(hit.installing || []).length) return null;
     return hit;
   }
+  // The two weeks are always this week and next, whatever month the grid shows.
+  function fortnightFrom() {
+    return mondayOf(state.today);
+  }
+  function inFortnight(d) {
+    var from = fortnightFrom();
+    return !!state.today && d >= from && d <= addDays(from, 13);
+  }
+  // The loaded events that cover a day: the two weeks' for those days (the month may have moved).
+  function itemsFor(d) {
+    var data = inFortnight(d) && state.weekData ? state.weekData : state.monthData;
+    return data ? shown(data.events) : [];
+  }
   function findItem(id) {
     var lists = [state.monthData, state.weekData];
     for (var i = 0; i < lists.length; i++) {
@@ -376,11 +397,12 @@
           type: "button",
           class: "pl-num" + (out ? " pl-out" : "") + (d === state.today ? " pl-num-today" : ""),
           text: dayNum(d),
-          "aria-label": fmtDay(d) + (d === state.today ? ", today" : "") + ": list the day",
+          "aria-label": fmtDay(d) + (d === state.today ? ", today" : "") + (inFortnight(d) ? ": show it in the two weeks" : ": list the day"),
         });
+        // A day in the two weeks is shown there (scrolled to and highlighted); any other day is listed.
         num.addEventListener("click", function (e) {
           e.stopPropagation();
-          openDay(d);
+          if (!showTile(d)) openDay(d);
         });
         row.append(placeAt(num, col + 1, col + 2, 2));
       })(addDays(monday, c), c);
@@ -515,63 +537,139 @@
 
   // ---------- this week and next ----------
 
+  // The fuller item for a day tile: when ("9:00–10:00", "All day" or "12–14 Oct" for an item over
+  // several days), the title over up to three lines, then the source label (automatic items) and the
+  // layer name, small. The marker is the chip's left edge as everywhere; on paper the layer name in
+  // brackets comes first and the line runs on.
+  function itemCard(item) {
+    var cls = "pl-chip pl-item pl-l-" + item.layer + (item.overdue ? " pl-overdue" : "");
+    var when = timeText(item);
+    var multi = endOf(item) !== item.start;
+    var full = (when ? when + " " : "") + item.title + (item.overdue ? " (overdue)" : "");
+    var b = el("button", { type: "button", class: cls, title: full });
+    b.append(el("span", { class: "pl-pre", text: "[" + layerLabel(item.layer) + "] " }));
+    var w = el("span", { class: "pl-item-when" });
+    if (when) w.append(el("span", { class: "pl-time", text: when }));
+    else if (multi) w.append(el("span", { class: "pl-time pl-when-span", text: fmtRange(item.start, endOf(item)) }));
+    else w.append(el("span", { class: "pl-time pl-when-allday", text: "All day" }));
+    if (item.overdue) w.append(" ", el("span", { class: "pl-flag", text: "overdue" }));
+    b.append(w, " ", el("span", { class: "pl-title", text: item.title }));
+    var meta = el("span", { class: "pl-item-meta" });
+    if (item.sourceLabel) meta.append(el("span", { class: "pl-src", text: item.sourceLabel }), " ");
+    meta.append(el("span", { class: "pl-item-layer", text: layerLabel(item.layer) }));
+    b.append(" ", meta);
+    b.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openDetail(item);
+    });
+    return b;
+  }
+
+  // "Installing: job" on that job's assigned days, from the board band.
+  function installCard(j) {
+    var line = el(j.link ? "a" : "span", { class: "pl-chip pl-item pl-chip-static pl-l-install", href: j.link || null });
+    line.append(
+      el("span", { class: "pl-pre", text: "[" + layerLabel("install") + "] " }),
+      el("span", { class: "pl-item-when" }, el("span", { class: "pl-time pl-when-allday", text: "All day" })),
+      " ",
+      el("span", { class: "pl-title", text: "Installing: " + j.name }),
+      " ",
+      el("span", { class: "pl-item-meta" }, el("span", { class: "pl-src", text: "Board" }), " ", el("span", { class: "pl-item-layer", text: layerLabel("install") }))
+    );
+    return line;
+  }
+
+  // One day tile: the day and date, every item (up to TILE_CAP on screen, then "+N more"; all on
+  // paper), "Nothing on." when empty, and an Add button for those who may post.
+  function dayTile(d, items, band) {
+    var today = d === state.today;
+    var tile = el("div", { class: "pl-tile" + (today ? " pl-today" : ""), "data-date": d, tabindex: "-1", role: "group", "aria-label": fmtDay(d) + (today ? ", today" : "") });
+    var head = el(
+      "h3",
+      { class: "pl-tile-h" },
+      el("span", { class: "pl-tile-dow", text: DAY_NAMES[dayIndex(d)] }),
+      el("span", { class: "pl-tile-date", text: fmtShort(d) })
+    );
+    if (today) head.append(el("span", { class: "pl-tag", text: "Today" }));
+    tile.append(head);
+    var cards = dayOrder(onDay(items, d)).map(itemCard);
+    if (band) {
+      (band.installing || []).forEach(function (j) {
+        if ((j.days || []).includes(d)) cards.push(installCard(j));
+      });
+    }
+    var list = el("div", { class: "pl-list pl-tile-list" });
+    cards.forEach(function (c, i) {
+      if (i >= TILE_CAP) c.classList.add("pl-printonly");
+      list.append(c);
+    });
+    if (!cards.length) list.append(el("p", { class: "pl-none", text: "Nothing on." }));
+    tile.append(list);
+    if (cards.length > TILE_CAP) {
+      var rest = cards.length - TILE_CAP;
+      var more = el("button", { type: "button", class: "pl-more pl-screenonly", text: "+" + rest + " more", "aria-label": rest + " more on " + fmtDay(d) });
+      more.addEventListener("click", function (e) {
+        e.stopPropagation();
+        openDay(d);
+      });
+      tile.append(more);
+    }
+    if (canCreate()) {
+      var add = el("button", { type: "button", class: "pl-tile-add pl-screenonly", text: "Add", "aria-label": "New event on " + fmtDay(d) });
+      add.addEventListener("click", function (e) {
+        e.stopPropagation();
+        openForm({ date: d });
+      });
+      tile.append(add);
+      // The tile's empty area starts a new event on that day too.
+      tile.classList.add("pl-cell-add");
+      tile.addEventListener("click", function (e) {
+        if (e.target.closest("a, button")) return;
+        openForm({ date: d });
+      });
+    }
+    return tile;
+  }
+
+  // This week and next: a heading and the board band over each week's row of seven tiles, every
+  // day shown even when empty (a list of days on the phone).
   function renderWeeks() {
     var box = $("plWeeks");
     if (!state.weekData) return;
     var items = shown(state.weekData.events);
-    var from = mondayOf(state.today);
+    var from = fortnightFrom();
     var kids = [];
     for (var w = 0; w < 2; w++) {
       var monday = addDays(from, 7 * w);
       var sunday = addDays(monday, 6);
       var band = bandFor(state.weekData, monday);
-      var sec = el("section", { class: "pl-wk2", "aria-label": (w === 0 ? "This week" : "Next week") });
-      var head = el(
-        "div",
-        { class: "pl-wk2-head" },
-        el("h3", { class: "pl-wk2-title", text: w === 0 ? "This week" : "Next week" }),
-        el("span", { class: "pl-wk2-range", text: fmtShort(monday) + " – " + fmtShort(sunday) })
-      );
-      sec.append(head);
+      var name = w === 0 ? "This week" : "Next week";
+      var sec = el("section", { class: "pl-wk2", "aria-label": name + ", " + fmtRange(monday, sunday) });
+      var title = el("h2", { class: "pl-wk2-title" }, name, el("span", { class: "pl-wk2-range", text: fmtRange(monday, sunday) }));
+      sec.append(el("div", { class: "hs-sectionbar pl-wk2-bar" }, title));
       if (band) sec.append(bandBlock(band, "pl-band pl-band-wk"));
-      for (var c = 0; c < 7; c++) {
-        (function (d) {
-          var list = dayOrder(onDay(items, d));
-          var block = el("div", { class: "pl-day" + (d === state.today ? " pl-day-today" : "") });
-          var dh = el("h4", { class: "pl-day-h" }, el("span", { text: fmtDay(d) }));
-          if (d === state.today) dh.append(el("span", { class: "pl-tag", text: "Today" }));
-          block.append(dh);
-          var body = el("div", { class: "pl-list" });
-          list.forEach(function (it) { body.append(chip(it)); });
-          if (band) {
-            (band.installing || []).forEach(function (j) {
-              if (!(j.days || []).includes(d)) return;
-              var tag = j.link ? "a" : "span";
-              var line = el(tag, { class: "pl-chip pl-chip-static pl-l-install", href: j.link || null });
-              line.append(
-                el("span", { class: "pl-pre", text: "[" + layerLabel("install") + "] " }),
-                el("span", { class: "pl-title", text: "Installing: " + j.name }),
-                " ",
-                el("span", { class: "pl-src", text: "Board" })
-              );
-              body.append(line);
-            });
-          }
-          if (!body.childNodes.length) body.append(el("p", { class: "pl-none", text: "Nothing on." }));
-          block.append(body);
-          if (canCreate()) {
-            block.classList.add("pl-cell-add");
-            block.addEventListener("click", function (e) {
-              if (e.target.closest("a, button")) return;
-              openForm({ date: d });
-            });
-          }
-          sec.append(block);
-        })(addDays(monday, c));
-      }
+      var row = el("div", { class: "pl-tiles" });
+      for (var c = 0; c < 7; c++) row.append(dayTile(addDays(monday, c), items, band));
+      sec.append(row);
       kids.push(sec);
     }
     box.replaceChildren.apply(box, kids);
+  }
+
+  // From the month: bring a day of the two weeks into view and highlight it. False when the day
+  // isn't in the two weeks (or the tile isn't on screen), so the caller lists it instead.
+  var hitTimer = null;
+  function showTile(d) {
+    if (!inFortnight(d)) return false;
+    var tile = document.querySelector('.pl-tile[data-date="' + d + '"]');
+    if (!tile || !tile.getClientRects().length) return false;
+    document.querySelectorAll(".pl-tile-hit").forEach(function (t) { t.classList.remove("pl-tile-hit"); });
+    tile.classList.add("pl-tile-hit");
+    tile.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    tile.focus({ preventScroll: true });
+    clearTimeout(hitTimer);
+    hitTimer = setTimeout(function () { tile.classList.remove("pl-tile-hit"); }, 1800);
+    return true;
   }
 
   // ---------- layer buttons ----------
@@ -785,7 +883,7 @@
   function openDay(d) {
     var dlg = openDialogEl(fmtDay(d), "pl-daydlg");
     var box = el("div", { class: "cc-dialog-form" }, el("h2", { class: "cc-dialog-title", text: fmtDay(d) }));
-    var items = dayOrder(onDay(state.monthData ? shown(state.monthData.events) : [], d));
+    var items = dayOrder(onDay(itemsFor(d), d));
     var list = el("div", { class: "pl-list" });
     items.forEach(function (it) { list.append(chip(it)); });
     if (!items.length) list.append(el("p", { class: "pl-none", text: "Nothing on." }));
@@ -1231,7 +1329,7 @@
 
   var PAGE_SIZE = {
     month: "@page { size: A4 landscape; margin: 10mm; }",
-    weeks: "@page { size: A4 portrait; margin: 12mm; }",
+    weeks: "@page { size: A4 landscape; margin: 10mm; }",
   };
 
   function startPrint() {
