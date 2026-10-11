@@ -383,7 +383,10 @@
   // --- Joinr connection ---
 
   const JOINR_DEFAULT_URL = "https://app.joinr.com.au";
+  const JOINR_URL_HINT =
+    "Leave empty to use the standard address. Changing the address removes the saved key; enter the key for the new address.";
   let joinrKeyFromEnv = false;
+  let joinrUrlFromEnv = false;
 
   function showJoinrError(msg) {
     $("joinrError").textContent = msg || "";
@@ -416,6 +419,11 @@
     // The standard address shows as the placeholder, not as a value to edit.
     $("joinrUrl").value = s.baseUrl && s.baseUrl !== JOINR_DEFAULT_URL ? s.baseUrl : "";
     $("joinrKey").value = "";
+    joinrUrlFromEnv = !!s.baseUrlFromEnv;
+    $("joinrUrl").disabled = joinrUrlFromEnv;
+    $("joinrUrlHint").textContent = joinrUrlFromEnv
+      ? `Set by the server's environment (JOINR_BASE_URL)${s.baseUrl ? `: ${s.baseUrl}` : ""}. Change it there.`
+      : JOINR_URL_HINT;
     joinrKeyFromEnv = !!(s.key && s.key.fromEnv);
     const configured = !!(s.key && s.key.configured);
     $("joinrKeyHint").textContent = configured
@@ -439,7 +447,8 @@
     const btn = $("joinrSave");
     btn.disabled = true;
     try {
-      const body = { baseUrl: $("joinrUrl").value.trim() };
+      // An address set by the environment is not sent (the field is disabled).
+      const body = joinrUrlFromEnv ? {} : { baseUrl: $("joinrUrl").value.trim() };
       const key = $("joinrKey").value.trim();
       if (key) body.apiKey = key;
       fillJoinr(await api("/api/joinr/settings", { method: "PUT", body: JSON.stringify(body) }));
@@ -495,7 +504,10 @@
       btn.disabled = true;
       try {
         const r = await api("/api/joinr/import", { method: "POST" });
-        if (r && r.ok) {
+        if (r && r.ok && r.truncated) {
+          // Stopped at the page limit: what came in is kept; running it again continues.
+          showJoinrResult(`Imported ${r.items} ${r.items === 1 ? "item" : "items"}. ${r.message || "Stopped early; run it again to continue."}`, false);
+        } else if (r && r.ok) {
           showJoinrResult(`Import finished: ${r.items} ${r.items === 1 ? "item" : "items"}.`, true);
         } else {
           showJoinrResult(`Import failed: ${(r && r.error) || "unknown error"}`, false);

@@ -19,7 +19,13 @@
 //                            way. "garbage" is a 200 application/json body that is not JSON;
 //                            "html" a 200 text/html page; "big" a ~3 MB JSON body sent in
 //                            chunks; "hang" never answers. null or count 0 clears (and drops
-//                            any hung request).
+//                            any hung request). {"fail": {"page": {...}}} answers with that
+//                            envelope as-is (200); a "cursor" of "$after" is replaced by the
+//                            `after` the caller sent (for the paging-stuck test).
+//   POST /_control/pagesize  {"max": N | null}: pages hold at most N items whatever the
+//                            caller's limit (to make many pages from few items).
+//   Backfill pages that are not the last carry an opaque cursor "b.<event id>.<rootQuoteId>",
+//   as the real Joinr does; the last page's cursor is a plain number. `after` accepts both.
 //   GET  /_control/requests  {requests: [{method, path, query, auth, at}]}: what was asked,
 //                            with the Authorization header reduced to "…" + its last 4.
 //   POST /_control/clear     forgets the request log.
@@ -42,6 +48,7 @@ const events = []; // stored items, cursor ascending
 let lastId = 0;
 const requests = [];
 let fail = { mode: null, count: 0 };
+let pageMax = null;
 const hung = new Set();
 
 function defaults(body) {
@@ -123,11 +130,17 @@ function clearHung() {
 }
 
 // Applies a forced failure; returns true when the request was answered (or left hanging).
-function forcedFailure(res) {
+function forcedFailure(res, url) {
   if (!fail.mode || fail.count <= 0) return false;
   fail.count--;
   const mode = fail.mode;
   if (fail.count <= 0) fail = { mode: null, count: 0 };
+  if (mode && typeof mode === "object" && mode.page && typeof mode.page === "object") {
+    const page = { ...mode.page };
+    if (page.cursor === "$after") page.cursor = url.searchParams.get("after") || "0";
+    send(res, 200, page);
+    return true;
+  }
   if (mode === "hang") {
     hung.add(res);
     res.on("close", () => hung.delete(res));
@@ -177,24 +190,30 @@ function currentlyWon() {
 function wonQuotes(req, res, url) {
   const q = url.searchParams;
   if (!sameKey(req.headers.authorization)) return send(res, 401, { error: "unauthorised" });
-  if (forcedFailure(res)) return;
+  if (forcedFailure(res, url)) return;
   let limit = 50;
   if (q.has("limit")) {
     limit = Number(q.get("limit"));
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) return send(res, 400, { error: "bad limit" });
   }
+  if (pageMax) limit = Math.min(limit, pageMax);
+  const backfill = q.get("backfill") === "won";
   let after = null;
   if (q.has("after")) {
-    if (!/^\d+$/.test(q.get("after"))) return send(res, 400, { error: "bad after" });
-    after = Number(q.get("after"));
+    const a = q.get("after");
+    const opaque = /^b\.(\d+)\.[0-9a-f-]{36}$/i.exec(a);
+    if (/^\d+$/.test(a)) after = Number(a);
+    else if (backfill && opaque) after = Number(opaque[1]);
+    else return send(res, 400, { error: "bad after" });
   }
-  if (q.has("backfill") && q.get("backfill") !== "won") return send(res, 400, { error: "bad backfill" });
+  if (q.has("backfill") && !backfill) return send(res, 400, { error: "bad backfill" });
 
-  if (q.get("backfill") === "won") {
+  if (backfill) {
     const all = currentlyWon().filter((e) => after === null || Number(e.cursor) > after);
     const page = all.slice(0, limit);
     const more = all.length > limit;
-    const cursor = more ? page[page.length - 1].cursor : String(lastId);
+    const lastItem = page[page.length - 1];
+    const cursor = more ? `b.${lastItem.cursor}.${lastItem.rootQuoteId}` : String(lastId);
     return send(res, 200, { contract: 1, cursor, more, items: page });
   }
   if (after === null) return send(res, 200, { contract: 1, cursor: String(lastId), more: false, items: [] });
@@ -236,6 +255,11 @@ const server = http.createServer(async (req, res) => {
           fail = { mode, count };
         }
         return send(res, 200, { fail });
+      }
+      if (url.pathname === "/_control/pagesize") {
+        const max = Number(body.max);
+        pageMax = Number.isInteger(max) && max > 0 ? max : null;
+        return send(res, 200, { max: pageMax });
       }
       if (url.pathname === "/_control/clear") {
         requests.length = 0;

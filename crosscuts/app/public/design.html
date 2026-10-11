@@ -56,7 +56,8 @@
     // If the call fails the tile is just the link.
     (function () {
       var stat = document.getElementById("joinrStat");
-      fetch("/api/joinr/intake?state=new", { headers: { Accept: "application/json" } })
+      // countsOnly: just the counts, not the rows.
+      fetch("/api/joinr/intake?state=new&countsOnly=1", { headers: { Accept: "application/json" } })
         .then(function (res) { return res.ok ? res.json() : null; })
         .then(function (data) {
           var c = data && data.counts;

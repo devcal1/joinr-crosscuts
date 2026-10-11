@@ -104,6 +104,9 @@ req GET "/api/joinr/intake/$M6B_ACCESS" "$M6B_NV"
 expect_status 200 "no-value user GET intake/:id"
 expect_jq '.quote.valueIncGstCents == null' "value hidden without jobs.value"
 case $BODY in *1234567*) fail "the value leaked to a user without jobs.value" ;; *) ok ;; esac
+req GET "/api/joinr/intake?state=new&countsOnly=1" "$DPM"
+expect_status 200 "dpm GET the counts only (the Design/PM tile)"
+expect_jq '(keys == ["counts"]) and (.counts.new | type) == "number" and (.counts.changed | type) == "number"' "counts only, no rows"
 req GET "/api/joinr/intake?state=bogus" "$DPM"
 expect_status 400 "unknown view"
 req GET /api/joinr/intake/999999 "$DPM"
@@ -163,6 +166,12 @@ M6B_J2=$(jqr '.id')
 req POST /api/job-records "$DPM" '{"name":"M6B has a ref","quoteNumber":"JRQM6B20","externalRef":"m6b-other-ref"}'
 expect_status 201 "a job with the number but already tied to a quote"
 M6B_J3=$(jqr '.id')
+req POST /api/job-records "$DPM" '{"name":"M6B lost","quoteNumber":"JRQM6B20","stage":"lost"}'
+expect_status 201 "a job with the number that was lost"
+M6B_J4=$(jqr '.id')
+req POST /api/job-records "$DPM" '{"name":"M6B archived","quoteNumber":"JRQM6B20","archived":true}'
+expect_status 201 "an archived job with the number"
+M6B_J5=$(jqr '.id')
 m6b_seed "$(m6b_item m6b-link JRQM6B20 '.clientName = "Joinr Client" | .clientPhone = "0411 000 000" | .clientEmail = "lnk@example.com" | .valueIncGstCents = 777700 | .spec = {sheetCount: 9, twoPac: false, benchtop: "stone", jobType: "Vanity"}')"
 M6B_LINK=$M6B_ID
 req GET "/api/joinr/intake/$M6B_LINK" "$DPM"
@@ -174,6 +183,11 @@ req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" "{\"jobId\":$M6B_J2}"
 expect_status 409 "link to a job with another quote number"
 req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" "{\"jobId\":$M6B_J3}"
 expect_status 409 "link to a job already tied to a quote"
+req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" "{\"jobId\":$M6B_J4}"
+expect_status 409 "link to a lost job"
+expect_jq '.error == "Link only to a live job"' "the refusal says live jobs only"
+req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" "{\"jobId\":$M6B_J5}"
+expect_status 409 "link to an archived job"
 req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" '{"jobId":999999}'
 expect_status 404 "link to a job that does not exist"
 req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" '{}'

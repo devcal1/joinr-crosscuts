@@ -29,8 +29,28 @@ const HOUR_KEYS = ["office", "factory", "site", "travel"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_CENTS = 99999999999; // the same cap lib/intake.js quoteOf applies
+const TRUNCATED = `Stopped after ${MAX_PAGES} pages; run it again to continue`;
+const OLDER = "Joinr sent an older position";
+const STUCK = "Joinr's paging did not move forward";
 
 // ------------------------------------------------------------------ helpers ---
+
+// A real calendar date: YYYY-MM-DD that survives a round trip through a UTC date
+// (Date.parse alone rolls 2026-02-30 over to 2 March).
+function realYmd(s) {
+  if (typeof s !== "string" || !YMD.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return !Number.isNaN(t.getTime()) && t.getUTCFullYear() === y && t.toISOString().slice(0, 10) === s;
+}
+
+// Both plain whole numbers (the only case where "older" can be judged; cursors are opaque).
+const WHOLE = /^\d{1,30}$/;
+function isOlder(cursor, after) {
+  if (typeof after !== "string" || !WHOLE.test(cursor) || !WHOLE.test(after)) return false;
+  return BigInt(cursor) < BigInt(after);
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -146,6 +166,12 @@ function networkMessage(e) {
   if (/redirect/i.test(String((e && e.cause && e.cause.message) || ""))) {
     return "Joinr redirected the request; check the Joinr address";
   }
+  // Plain words for the common faults (these were Test connection's own messages before
+  // M6 · 4.3); the code stays in brackets for whoever reads the logs.
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return `Could not reach Joinr: the address was not found (${code})`;
+  if (code === "ECONNREFUSED") return `Could not reach Joinr: the connection was refused (${code})`;
+  if (code === "ECONNRESET") return `Could not reach Joinr: the connection was reset (${code})`;
+  if (/CERT|SSL|TLS/.test(code)) return `Could not reach Joinr: the secure connection failed (certificate problem, ${code})`;
   return code && /^[A-Z_]+$/.test(code) ? `Could not reach Joinr (${code})` : "Could not reach Joinr";
 }
 
@@ -207,7 +233,7 @@ function optString(item, name, max) {
 function optIso(item, name) {
   const v = item[name];
   if (v === null || v === undefined) return null;
-  if (typeof v !== "string" || !ISO_UTC.test(v) || Number.isNaN(Date.parse(v))) {
+  if (typeof v !== "string" || !ISO_UTC.test(v) || Number.isNaN(Date.parse(v)) || !realYmd(v.slice(0, 10))) {
     throw invalid(`${name} must be an ISO date-time or null`);
   }
   return v;
@@ -260,7 +286,7 @@ function validateItem(item) {
   const reference = optString(item, "reference", 500);
   let quoteDate = null;
   if (item.quoteDate !== null && item.quoteDate !== undefined) {
-    if (typeof item.quoteDate !== "string" || !YMD.test(item.quoteDate) || Number.isNaN(Date.parse(item.quoteDate))) {
+    if (!realYmd(item.quoteDate)) {
       throw invalid("quoteDate must be YYYY-MM-DD or null");
     }
     quoteDate = item.quoteDate;
@@ -268,7 +294,7 @@ function validateItem(item) {
   let valueIncGstCents = null;
   if (item.valueIncGstCents !== null && item.valueIncGstCents !== undefined) {
     const v = item.valueIncGstCents;
-    if (!Number.isSafeInteger(v) || v < 0 || v > 1e12) throw invalid("valueIncGstCents must be whole cents or null");
+    if (!Number.isSafeInteger(v) || v < 0 || v > MAX_CENTS) throw invalid("valueIncGstCents must be whole cents or null");
     valueIncGstCents = v;
   }
   let estimatedHours = null;
@@ -495,24 +521,23 @@ function applyItem(db, item) {
       return { action: "updated" };
     }
 
-    const differs =
-      fields.length > 0 ||
-      item.event === "unwon" ||
-      item.event === "deleted" ||
-      (item.event === "won" && item.quoteId !== row.quote_id);
+    // After a decision only a real difference from the stored payload counts (M6 · 4.3):
+    // changedFields already compares the revision (quoteId), status and deletedAt, so an
+    // unwon/deleted/won event for something Crosscuts already holds is not a change by itself.
+    // A repeat of an identical item only records that it was seen.
+    const differs = fields.length > 0;
+    if (!differs) {
+      db.prepare("UPDATE joinr_intake SET last_seen_at = ? WHERE id = ?").run(now, row.id);
+      return { action: row.state === "ignored" ? "ignored" : "skipped" };
+    }
 
     if (row.state === "ignored") {
       // Stays ignored; a real change is flagged silently.
-      if (differs) update(", changed = 1");
-      else update();
+      update(", changed = 1");
       return { action: "ignored" };
     }
 
     // accepted or linked
-    if (!differs) {
-      update();
-      return { action: "skipped" };
-    }
     const body = changeBody(item, row, fields);
     update(", changed = 1");
     alert(db, "joinr.changed", row.id, titleFor("Changed in Joinr", item), body);
@@ -529,12 +554,21 @@ function record(db, fields) {
   db.prepare(`UPDATE integration_sync SET ${sets} WHERE name = 'joinr'`).run(...Object.values(fields));
 }
 
+// Bumped by reset() (the Joinr address changed): a run that started before it stops before
+// its next item or cursor write, so nothing from the old address lands after the reset.
+let epoch = 0;
+// Where an import that stopped at the page limit picks up (in memory only; after a restart
+// the import starts again from the beginning, which is harmless: items are idempotent).
+let importResume = null;
+const RESET = "The Joinr settings changed during the sync";
+
 // Applies one page's items in order. Each item and the cursor move commit together.
 // Returns {handled, skipped}; throws (after committing what was handled) on a database fault.
-function applyPage(db, page, { moveCursor }) {
+function applyPage(db, page, { moveCursor, live }) {
   let handled = 0;
   let skipped = 0;
   for (const raw of page.items) {
+    live();
     let item;
     try {
       item = validateItem(raw);
@@ -560,52 +594,89 @@ async function runOnce(db, opts) {
   if (!config.getKey()) return { ok: false, items: 0, skipped: 0, error: NOT_SET_UP };
   let items = 0;
   let skipped = 0;
+  const myEpoch = epoch;
+  const live = () => {
+    if (epoch !== myEpoch) throw new JoinrError(RESET);
+  };
+  // A page is checked before anything on it is applied (M6 · 4.3): a whole-number cursor
+  // lower than the one sent is refused, and "more" with an unmoved cursor stops the run.
+  // Cursors are opaque (an import's are like "b.<resume>.<uuid>"), so "older" is judged only
+  // when both are plain whole numbers, and "unmoved" compares the strings exactly.
+  const checkPage = (page, after) => {
+    if (isOlder(page.cursor, after)) throw new JoinrError(OLDER);
+    if (page.more && after !== null && page.cursor === after) throw new JoinrError(STUCK);
+  };
   try {
     ensureRow(db);
     record(db, { last_run_at: nowIso() });
     const stored = syncRow(db).cursor || null;
+    let truncated = false;
 
     if (backfill) {
       // Every currently won quote, once. The stored cursor is left alone unless there is
-      // none yet, so no event between it and now is skipped.
-      let after = null;
+      // none yet, so no event between it and now is skipped. An import that stopped at the
+      // page limit resumes where it stopped; its cursors go back to Joinr exactly as sent.
+      let after = importResume;
       let finalCursor = null;
       for (let i = 0; i < MAX_PAGES; i++) {
         const page = await fetchPage({ backfill: true, after, limit: PAGE_LIMIT });
-        const r = applyPage(db, page, { moveCursor: false });
+        live();
+        checkPage(page, after);
+        const r = applyPage(db, page, { moveCursor: false, live });
         items += r.handled;
         skipped += r.skipped;
         after = page.cursor;
+        importResume = page.more ? page.cursor : null;
         if (!page.more) {
           finalCursor = page.cursor;
           break;
         }
       }
+      truncated = finalCursor === null;
+      live();
       if (finalCursor !== null && !stored) setCursor(db, finalCursor);
     } else if (!stored) {
       // First run with a key: start from now, no history.
       const page = await fetchPage({ limit: PAGE_LIMIT });
+      live();
       setCursor(db, page.cursor);
       console.log("[joinr] first sync: cursor stored, no history fetched");
     } else {
       let after = stored;
+      let more = false;
       for (let i = 0; i < MAX_PAGES; i++) {
         const page = await fetchPage({ after, limit: PAGE_LIMIT });
-        const r = applyPage(db, page, { moveCursor: true });
+        live();
+        checkPage(page, after);
+        const r = applyPage(db, page, { moveCursor: true, live });
         items += r.handled;
         skipped += r.skipped;
         // Every item on the page is handled, so the page's own cursor is safe to keep.
+        live();
         setCursor(db, page.cursor);
         after = page.cursor;
+        more = page.more;
         if (!page.more) break;
       }
+      truncated = more;
     }
 
+    if (truncated) {
+      // Not a failure: what was handled is kept, and the next run carries on from there.
+      record(db, { last_ok_at: nowIso(), last_error: TRUNCATED, last_error_at: nowIso(), last_items: items });
+      console.warn(`[joinr] sync${backfill ? " (import)" : ""}: ${items} item(s), ${skipped} skipped; ${TRUNCATED}`);
+      return { ok: true, truncated: true, items, skipped, error: null, message: TRUNCATED };
+    }
     record(db, { last_ok_at: nowIso(), last_error: null, last_error_at: null, last_items: items });
     if (items) console.log(`[joinr] sync${backfill ? " (import)" : ""}: ${items} item(s), ${skipped} skipped`);
     return { ok: true, items, skipped, error: null };
   } catch (e) {
     const error = scrub(e && e.message ? e.message : "Sync failed");
+    if (epoch !== myEpoch) {
+      // The settings were reset under this run: leave the fresh status row alone.
+      console.warn(`[joinr] sync${backfill ? " (import)" : ""} stopped: ${error}`);
+      return { ok: false, items, skipped, error };
+    }
     try {
       ensureRow(db);
       record(db, { last_error: error, last_error_at: nowIso(), last_items: items });
@@ -698,4 +769,27 @@ function status(db) {
   };
 }
 
-module.exports = { fetchPage, validateItem, applyItem, run, start, status, tick, stop, NOT_SET_UP };
+// The Joinr address changed (PUT /api/joinr/settings, M6 · 4.3): forget the old position and
+// its error, so the next run starts from now at the new address. A run in flight stops
+// before its next write.
+function reset(db) {
+  epoch++;
+  importResume = null;
+  ensureRow(db);
+  record(db, { cursor: null, last_error: null, last_error_at: null });
+}
+
+module.exports = {
+  fetchPage,
+  validateItem,
+  applyItem,
+  run,
+  start,
+  status,
+  tick,
+  stop,
+  reset,
+  JoinrError,
+  NOT_SET_UP,
+  TRUNCATED,
+};
