@@ -1,6 +1,6 @@
 # Crosscuts — Backup plan: nightly snapshots and an offsite copy to the NAS (2026-10-11)
 
-Status: **draft for Todd (Backup · 1.2).** Nothing here is approved until the "Decisions" section is filled in (Backup · 1.3). Steps: Backup · 1.1 (audit, §1), Backup · 1.2 (this plan and its questions, §11).
+Status: **approved (Backup · 1.3, Todd, 2026-10-11).** Where §2–§10 and the Decisions differ, the Decisions win; the main text has been brought into line. Steps: Backup · 1.1 (audit, §1), Backup · 1.2 (this plan and its questions, §11).
 
 Source of truth: brief §6.3 and D17 (weekly copy of the SQLite DB plus `uploads/` to the offsite NAS over Tailscale, several generations, a written and **tested** restore runbook; "not Backblaze"). Prior art, read-only: Joinr Backup (`tenon-quotr/apps/umbrel-backup/`) and Joinr Finance's NAS copy (`fpseven-fin/apps/server/src/nascopy/` and `src/backups/`). Both copy to the same ASUSTOR NAS.
 
@@ -121,13 +121,13 @@ Source of truth: brief §6.3 and D17 (weekly copy of the SQLite DB plus `uploads
 
 ## 3. How it works, in one paragraph
 
-Every night at 01:30 Sydney, Crosscuts writes a consistent copy of `photos.db` (`VACUUM INTO`), checks it, encrypts it into a 7-Zip archive with a passphrase only Todd holds, tests the archive and keeps it, pruning older ones. On copy days it then sends the NAS whatever the NAS lacks, using a dedicated rsync account and a module private to Crosscuts:
+Every night at 01:30 Sydney, Crosscuts writes a consistent copy of `photos.db` (`VACUUM INTO`), checks it, encrypts it into a 7-Zip archive with a passphrase only Todd holds, tests the archive and keeps it, pruning older ones. Every Saturday at 01:30 it then sends the NAS whatever the NAS lacks, using a dedicated rsync account and a module private to Crosscuts:
 - the archives;
 - new photos (plain);
 - new private files (each encrypted);
 - each pre-migration backup (encrypted, once).
 
-It then lists the NAS back to prove every file arrived at the right size. Nothing on the NAS is ever deleted or changed by the app. Admins see the state and the last result on the Users page and can press **Back up now**. A failure or an overdue copy raises a bell alert, and optionally a heartbeat ping tells Todd's phone when no good run has arrived.
+It then lists the NAS back to prove every file arrived at the right size. Nothing on the NAS is ever deleted or changed by the app. Admins see the state and the last result on the Users page and can press **Back up now**. A failure or an overdue copy raises a bell alert (there is no heartbeat: decision 6).
 
 ## 4. The snapshot (local)
 
@@ -173,7 +173,7 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
   3. List again; every planned file must be there at the planned size.
 - **Private files:** each one is encrypted into a staging `.7z` just before it is sent. Its size goes into a small ledger table, and the staging copy is deleted once proven. So a private file is never kept twice on the Umbrel, and a later missing or wrong-size blob on the NAS is re-encrypted and resent.
 - **Skipped:** `*.part` files, dotfiles and anything that isn't a regular file.
-- **Never sent:** the live `photos.db` and the whole `config/` folder. Every value in `config/` can be re-entered after a restore: the Joinr key can be re-issued in Joinr, the Gemini key re-pasted, and the NAS files placed again. Shipping them would put live API keys on the NAS.
+- **Never sent:** the live `photos.db`, and `config/backup-passphrase` (the archives' own key). The rest of `config/` (the Joinr and Gemini keys, the Joinr address, `nas-url`, `nas-password`) goes **inside each encrypted database archive** as `config/` (decision 10), so a restore can put it back. Nothing from `config/` is ever sent plain.
 - **Deleted photos stay on the NAS** (add-only). That protects against a mistaken delete. The runbook says how to remove one by hand if a client asks.
 - **Failures:** fixed sentences from rsync exit codes, copied from Finance `sentences.ts`:
 
@@ -200,7 +200,6 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
   | `nas-url` | the copy (both or neither with `nas-password`) |
   | `nas-password` | the copy |
   | `backup-passphrase` | the snapshot (at least 12 characters) |
-  | `heartbeat-url` | optional, https only |
 
   `data/config` is already mounted (non-negotiable 4), so the compose file needs no change. The app only reads these files: it never writes, shows, logs or returns them. The API reports each as *missing*, *not usable* or *set*.
 - **States:**
@@ -214,8 +213,8 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
   - written to hidden temporary files with `umask 077`, checked, then moved into `/home/umbrel/umbrel/app-data/tenon-joinr-crosscuts/data/config/` as mode 600, uid 1000, password before address;
   - `--check` (modes and owner only, never contents or size), `--remove` and `--dry-run` modes;
   - no docker or sudo, so umbrelOS 2.0's docker-group change doesn't matter.
-- **Manifest (store repo, at Backup · 5.2):** add `data/config/nas-password`, `data/config/backup-passphrase`, `data/config/heartbeat-url` and `data/db/backups/.staging` to `backupIgnore`.
-- **Passphrase custody:** Todd's password manager plus a paper copy, kept as he already does for Joinr Backup's. **A lost passphrase makes every archive useless**, so the drill (§9) proves the stored copy opens one.
+- **Manifest (store repo, at Backup · 5.2):** add `data/config/nas-password`, `data/config/backup-passphrase` and `data/db/backups/.staging` to `backupIgnore`.
+- **Passphrase custody:** the **same passphrase as Joinr Backup** (decision 3), already in Todd's password manager and on paper. The helper asks for it and places it. **A lost passphrase makes every archive useless**, so the drill (§9) proves the stored copy opens one.
 
 ## 7. Status, alerts and audit
 
@@ -234,8 +233,8 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
   The last run times live in `app_settings`, as the round-up's does.
 - **Bell alerts** to every `users.admin` holder, deduped per unread alert (`notify.toUsers` with `dedupeUnread`):
   - `backup.failed`: a snapshot failed, the copy hit the refusal lock, or retries were exhausted;
-  - `backup.overdue`: no proven copy for one copy interval plus a day.
-- **Heartbeat (optional):** with `heartbeat-url` set, it pings `/start`, success and `/fail`, with a 10 s timeout and one retry. It never affects the outcome. This is Joinr Backup's pattern, and it is the only alarm that fires when the Umbrel itself is dead (question 6).
+  - `backup.overdue`: no good snapshot for two days, or no proven copy for 8 days (a week plus a day).
+- **No heartbeat** (decision 6): alerts are the bell and the Users page only.
 - **Audit:** `backup.run` for **Back up now** (the actor, no detail). Scheduled runs are in `backup_runs`, not the audit log.
 - **Logs:** counts, durations, reason and exit code only.
 - **Kill switch:** `BACKUP_DISABLED=1` turns the timers off, as `ROUNDUP_DISABLED` does.
@@ -270,7 +269,7 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
   2. Install Crosscuts on the new Umbrel and stop it.
   3. Copy them into `app-data/…/data`.
   4. Run the CLI in a "decrypt files" mode for `files/`, then run A.
-  5. Place the NAS files and passphrase again with the helper, then re-enter the Joinr and Gemini keys.
+  5. Place the NAS files and passphrase again with the helper. The Joinr and Gemini keys come back from the archive's `config/` (the CLI restores them with mode 600).
 - **C. One photo or file:** fetch it from the NAS (decrypt with 7-Zip on Windows) and copy it into `uploads/`.
 - **Drill (Backup · 6.1, then once a quarter, recorded in STATUS):** restore the newest **NAS** archive, not a local one, into a throwaway container on a spare port, as the cutover rehearsal does.
   1. Log in.
@@ -292,7 +291,7 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
 | **Backup · 2.1** Contracts | `backup-contracts.md`: files and modules (`lib/backup/` snapshot, copy, schedule, secrets, sentences), migration 016, the API, the Users page section, the CLI, the smoke checks, the waves | ✂ |
 | **Backup · 2.2** Scaffold | Dockerfile tools; migration `016_backup.sql`; stub router (`users.admin`); `ci/backup-guard.js` wired into `publish.yml`; the next unreleased version (plus `package-lock.json`): **0.1.7** if nothing is pushed first, since local `db265a4` already took 0.1.7 for the board print fix and both ship in one push; otherwise 0.1.8; local boot | ✂ |
 | **Backup · 3.1** Wave 1 | **A** the snapshot, retention and archive (with `tools/restore.js` in the image); **B** the copy: runner, plan, listing, proof, sentences, secrets reader, ledger; **C** the helper `tools/backup-secrets.mjs` and the `docs/restore.md` draft | ✂ |
-| **Backup · 3.2** Wave 2 | **D** the schedule, catch-up, retries, lock, routes, Users page section, bell, heartbeat, audit; **E** `ci/smoke-backup.sh` with the in-container rsync daemon | ✂ |
+| **Backup · 3.2** Wave 2 | **D** the schedule, catch-up, retries, lock, routes, Users page section, bell, audit; **E** `ci/smoke-backup.sh` with the in-container rsync daemon | ✂ |
 | **Backup · 4.1–4.3** | integrate; independent review (secrets leakage, the add-only guarantee, event-loop stalls, timer safety); fix | ✂ each |
 | **Backup · 5.1** Publish | push (Todd OK); CI green; `image:` line recorded | **Todd** ✂ |
 | **Backup · 5.2** Pin | store: compose pin, `version:` (the release number), `releaseNotes`, the `backupIgnore` additions | **Todd** (push OK) ✂ |
@@ -321,4 +320,15 @@ The Backup · 6.1 checks:
 
 ## Decisions (Backup · 1.3)
 
-*Not yet answered.*
+Todd, 2026-10-11, answered one by one:
+1. **Inside Crosscuts** (as recommended).
+2. **Database archives and private files encrypted** (7-Zip AES-256, names hidden); photos plain (as recommended).
+3. **Reuse Joinr Backup's passphrase** (not a new one). One passphrase to keep. The helper places it in `config/backup-passphrase`; it is never logged or shown.
+4. **A new private shared folder with its own rsync account and module** (as recommended). Todd sets it up on the NAS before 6.1.
+5. **Copy weekly, Saturday 01:30 Sydney** (per D17, clear of Joinr Backup on Sunday 19:00 and Finance on Sunday 03:00). The snapshot stays **nightly at 01:30**. Each Saturday's copy sends every archive and file the NAS lacks, so all the week's nightly archives go across. Back up now also copies, when the NAS is set up.
+6. **No heartbeat.** Alerts are the bell (`backup.failed`, `backup.overdue`) and the Users page only.
+7. **Admins only** (`users.admin`, no new key) (as recommended).
+8. **Retention as recommended:** on the Umbrel, the newest of each of the 14 newest dates, plus one per month for 12 months, plus the newest 10 manual; on the NAS, everything, pruned by hand.
+9. **Photos and files go across, add-only** (as recommended).
+10. **The config folder is backed up, encrypted:** inside each database archive, except `backup-passphrase` itself.
+11. **Switch it on as soon as the release is installed**, on test data, and drill the restore before cutover (as recommended).
