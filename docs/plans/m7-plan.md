@@ -281,3 +281,13 @@ Only what the notes leave open.
 4. **Who gets a reminder?** (a) *Recommended:* the creator. On shared layers, a tick "Remind everyone on this layer" also alerts everyone who can see it, which is never offered on Personal. (b) The creator only.
 5. **The showroom account.** (a) *Recommended:* no planner (it stays photos only; one can be granted `planner.view` per user if ever wanted). (b) Showroom sees Company-wide and Install & hardware like the workshop.
 6. **The job page.** (a) *Recommended:* a small Planner section on each job listing its upcoming linked events, filtered by the same layer rules. (b) No; links go only from the planner to the job.
+
+## Decisions (M7 · 1.3)
+
+Todd, 2026-10-11, answered one by one; all as recommended. **The plan is approved.**
+1. **Workshop layer: floor notices.** Scheduling and admin post and edit; workshop logins see it read-only as a third layer.
+2. **Install & hardware, hand-made events:** design_pm, scheduling and admin add; the creator, anyone in design_pm or scheduling, and admin change or delete.
+3. **Migration 017 approved** (the one non-additive migration, rule 5): rebuild `user_roles` to allow `workshop`, row count checked, the automatic backup first, no data changed.
+4. **Reminders:** the creator, plus an optional "Remind everyone on this layer" on shared layers (never Personal).
+5. **Showroom:** no planner.
+6. **Job page:** a small Planner section listing the job's upcoming linked events, under the same layer rules.
