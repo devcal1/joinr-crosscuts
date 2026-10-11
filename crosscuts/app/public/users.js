@@ -524,6 +524,236 @@
 
   guarded(loadJoinr)();
 
+  // --- Backups (docs/plans/backup-contracts.md section 10) ---
+  // Everything shown comes from GET /api/backup/status: states and fixed sentences only, never a
+  // passphrase, password or address. All text goes in through textContent (h() with text).
+
+  // The same sentence as lib/backup/sentences.js FIX_FIRST.
+  const BK_FIX_FIRST =
+    "The NAS refused the last copy's password or module. Place the NAS files again with the backup helper first: repeated refusals could make the NAS block the Umbrel.";
+  const BK_POLL_MS = 3000;
+  let bkPollTimer = null;
+  let bkWatching = null; // when this page pressed Back up now (ms), until the run finishes
+
+  function bkBytes(bytes) {
+    const n = Number(bytes);
+    if (!Number.isFinite(n) || n < 0) return "";
+    if (n < 1024) return `${n} ${n === 1 ? "byte" : "bytes"}`;
+    const units = ["KB", "MB", "GB", "TB"];
+    let v = n / 1024;
+    let i = 0;
+    while (v >= 1024 && i < units.length - 1) {
+      v /= 1024;
+      i += 1;
+    }
+    return `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+  }
+
+  const bkPlural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const bkSydneyDay = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney" }).format(d);
+  const bkSydneyHour = (d) =>
+    Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", hour: "numeric", hourCycle: "h23" }).format(d));
+
+  // "Tonight at 1:30 am", "Today at 3:45 pm", "Saturday at 1:30 am", or the full date.
+  function bkWhen(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const now = new Date();
+    if (d.getTime() <= now.getTime() + 30000) return "Due now";
+    const time = d.toLocaleTimeString("en-AU", { timeZone: "Australia/Sydney", hour: "numeric", minute: "2-digit" }).toLowerCase();
+    const day = bkSydneyDay(d);
+    const today = bkSydneyDay(now);
+    const tomorrow = bkSydneyDay(new Date(now.getTime() + 86400000));
+    const small = bkSydneyHour(d) < 6;
+    if (day === today) return `${small && bkSydneyHour(now) < 6 ? "Tonight" : "Today"} at ${time}`;
+    if (day === tomorrow) return `${small ? "Tonight" : "Tomorrow"} at ${time}`;
+    if (d.getTime() - now.getTime() < 7 * 86400000) {
+      const weekday = d.toLocaleDateString("en-AU", { timeZone: "Australia/Sydney", weekday: "long" });
+      return `${weekday} at ${time}`;
+    }
+    return fmtDate(iso);
+  }
+
+  const BK_TRIGGER = { manual: "Back up now", schedule: "scheduled", startup: "catch-up after a restart" };
+
+  function bkRunLine(run) {
+    const when = fmtDate(run.finishedAt || run.startedAt);
+    const by = BK_TRIGGER[run.trigger] || run.trigger;
+    return `${when}, ${by}`;
+  }
+
+  function bkSnapshotState(s) {
+    switch (s.snapshot.state) {
+      case "ready":
+        return ["On", "bk-good"];
+      case "off":
+        return ["Off: the backup passphrase is not on the server", "bk-attend"];
+      case "invalid":
+        return ["Not usable: the backup passphrase file is not usable (one line, at least 12 characters)", "bk-attend"];
+      case "no_7zip":
+        return ["7-Zip is missing", "bk-attend"];
+      default:
+        return [String(s.snapshot.state), "bk-attend"];
+    }
+  }
+
+  function bkCopyState(s) {
+    const c = s.copy;
+    const f = c.files || {};
+    switch (c.state) {
+      case "off":
+        return ["Not set up", "bk-attend"];
+      case "half":
+        return [`Half set up: ${f.nasUrl === "missing" ? "nas-url" : "nas-password"} is missing`, "bk-attend"];
+      case "invalid": {
+        const bad = [];
+        if (f.nasUrl === "not_usable") bad.push("nas-url is not an rsync://account@IP/module address");
+        if (f.nasPassword === "not_usable") bad.push("nas-password is not usable");
+        return [`Not usable: ${bad.length ? bad.join(" and ") : "a NAS file is not usable"}`, "bk-attend"];
+      }
+      case "locked":
+        return [`Locked: ${BK_FIX_FIRST}`, "bk-attend"];
+      case "ready":
+        if (!s.tools.rsync) return ["Set up, but rsync is missing from the app image", "bk-attend"];
+        if (s.snapshot.passphrase !== "set") return ["Set up, but it waits for the backup passphrase", "bk-attend"];
+        return ["Set up", "bk-good"];
+      default:
+        return [String(c.state), "bk-attend"];
+    }
+  }
+
+  // One kind's facts as hs-kvt rows: [label, text, class, sub-line].
+  function bkFacts(container, rows) {
+    container.innerHTML = "";
+    for (const [label, text, cls, sub] of rows) {
+      container.append(
+        h("div", { class: "k", text: label }),
+        h("div", { class: "v" + (cls ? ` ${cls}` : "") }, h("span", { text }), sub ? h("span", { class: "bk-sub", text: sub }) : null)
+      );
+    }
+  }
+
+  function bkKindRows(s, kind, stateCell, noun) {
+    const k = s[kind];
+    const rows = [["State", stateCell[0], stateCell[1]]];
+    const running = s.running && s.running.kind === kind;
+    if (running) {
+      rows.push(["Last", "Running now.", "bk-good", `Started ${fmtDate(s.running.startedAt)}`]);
+    } else if (k.last) {
+      rows.push(["Last", k.last.sentence, k.last.status === "failed" ? "bk-attend" : "", bkRunLine(k.last)]);
+      if (k.last.status === "failed" && k.lastSuccess) {
+        rows.push(["Last good", fmtDate(k.lastSuccess.finishedAt || k.lastSuccess.startedAt), ""]);
+      }
+    } else {
+      rows.push(["Last", `No ${noun} yet.`, ""]);
+    }
+    if (!s.scheduleOn) rows.push(["Next", "Not scheduled on this server", ""]);
+    else if (k.retryAt) rows.push(["Next try", bkWhen(k.retryAt), "bk-attend"]);
+    else if (k.nextAt) rows.push(["Next", bkWhen(k.nextAt), ""]);
+    if (k.overdue) {
+      const since = k.lastSuccess ? `since ${fmtDate(k.lastSuccess.finishedAt || k.lastSuccess.startedAt)}` : "yet";
+      rows.push(["Overdue", kind === "copy" ? `No proven copy ${since}` : `No good snapshot ${since}`, "bk-attend"]);
+    }
+    return rows;
+  }
+
+  function bkKindLabel(a) {
+    if (a.kind === "manual") return "Back up now";
+    if (a.kind === "premigrate") {
+      const m = a.migration != null ? a.migration : Number((/premigrate-(\d+)-/.exec(a.name) || [])[1]);
+      return Number.isFinite(m) ? `Before migration ${String(m).padStart(3, "0")}` : "Before migration";
+    }
+    return "Nightly";
+  }
+
+  function bkArchives(s) {
+    const body = $("bkArchiveRows");
+    body.innerHTML = "";
+    if (!s.archives.length) {
+      body.append(h("tr", {}, h("td", { colspan: "3", class: "text-muted", text: "No archives yet." })));
+    }
+    for (const a of s.archives) {
+      body.append(
+        h("tr", {}, h("td", { text: fmtDate(a.made) }), h("td", { text: bkKindLabel(a) }), h("td", { class: "num", text: bkBytes(a.bytes) }))
+      );
+    }
+    const t = s.totals;
+    let line = `${bkPlural(t.archives, "archive", "archives")}, ${bkBytes(t.archiveBytes)}`;
+    if (t.unverified) line += `; ${t.unverified} unverified set aside`;
+    line += ".";
+    if (t.blobsTracked) line += ` ${bkPlural(t.blobsTracked, "private file", "private files")} encrypted for the NAS, ${t.blobsProven} proved there.`;
+    $("bkTotals").textContent = line;
+  }
+
+  function bkShowResult(msg, cls) {
+    const el = $("bkResult");
+    el.textContent = msg || "";
+    el.className = "bk-result" + (msg && cls ? ` ${cls}` : "");
+    el.hidden = !msg;
+  }
+
+  function renderBackups(s) {
+    const banner = $("bkBanner");
+    banner.hidden = s.enabled;
+    banner.textContent = s.enabled ? "" : "Backups are switched off on this server.";
+    bkFacts($("bkSnapshot"), bkKindRows(s, "snapshot", bkSnapshotState(s), "snapshot"));
+    bkFacts($("bkCopy"), bkKindRows(s, "copy", bkCopyState(s), "copy"));
+    bkArchives(s);
+    const btn = $("backupRun");
+    btn.disabled = !!s.running || !s.enabled;
+    btn.textContent = s.running ? "Backing up…" : "Back up now";
+  }
+
+  // After a run this page started: the new sentences, in orange if either job failed.
+  function bkFinished(s) {
+    const since = bkWatching;
+    bkWatching = null;
+    const mine = (run) => run && Date.parse(run.startedAt) >= since - 5000;
+    const parts = [];
+    let failed = false;
+    for (const run of [s.snapshot.last, s.copy.last]) {
+      if (!mine(run)) continue;
+      parts.push(`${run.kind === "copy" ? "Copy" : "Snapshot"}: ${run.sentence}`);
+      if (run.status === "failed") failed = true;
+    }
+    if (parts.length) bkShowResult(parts.join(" "), failed ? "bk-attend" : "bk-good");
+    else bkShowResult("");
+  }
+
+  async function loadBackups() {
+    clearTimeout(bkPollTimer);
+    bkPollTimer = null;
+    const s = await api("/api/backup/status");
+    renderBackups(s);
+    if (s.running) {
+      // A joined run started before the button was pressed.
+      const began = Date.parse(s.running.startedAt);
+      if (bkWatching !== null && Number.isFinite(began)) bkWatching = Math.min(bkWatching, began);
+      // Poll only while a run is in progress.
+      bkPollTimer = setTimeout(() => guarded(loadBackups)(), BK_POLL_MS);
+    } else if (bkWatching !== null) {
+      bkFinished(s);
+    }
+  }
+
+  $("backupRun").addEventListener("click", async () => {
+    const btn = $("backupRun");
+    btn.disabled = true;
+    bkShowResult("");
+    try {
+      const r = await api("/api/backup/run", { method: "POST" });
+      bkWatching = Date.now();
+      bkShowResult(r && r.joined ? "A backup is already running. Waiting for it to finish…" : "Backing up…", "bk-good");
+      await loadBackups();
+    } catch (err) {
+      // 409 and 429 carry a fixed sentence in {error}.
+      bkShowResult(err.message, "bk-attend");
+      btn.disabled = false;
+    }
+  });
+
+  guarded(loadBackups)();
+
   // --- Boot ---
 
   guarded(async () => {
