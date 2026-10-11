@@ -151,6 +151,12 @@ main {
   margin-left: 2px;
 }
 .chip-worker .chip-x:hover { opacity: 1; }
+/* M5 (rule 7, M5 exception). Away that day (leave, sick, other, regular day off):
+   token grey instead of the worker's colours (chipEl leaves the inline colours off).
+   Over their days this week: an orange outline drawn inside the chip, so neither
+   style changes the chip's size. Mirrored in exportJpg() and in print. */
+.chip-worker.away { background: var(--na); color: var(--muted); }
+.chip-worker.over-days { outline: 2px solid var(--orange); outline-offset: -2px; }
 
 /* — week / grid — */
 /* The board shows one week at a time now, so the doubled bottom gap that used
@@ -427,6 +433,21 @@ main {
 }
 .popover-item:hover { background: var(--raised); color: var(--white); }
 .popover-swatch { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+/* M5 picker warnings: people away that day are listed last and greyed, with the
+   kind; people who would go over their days are tagged in orange. */
+.popover-name { flex: 1; min-width: 0; }
+.popover-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.popover-tag.away { color: var(--muted); }
+.popover-tag.over { color: var(--orange); }
+.popover-item.away { color: var(--muted); }
+.popover-item.away .popover-swatch { opacity: 0.45; }
 .popover-empty { padding: 12px 10px; font-size: 15px; color: var(--label); }
 
 .empty-schedule { padding: 40px 0; text-align: center; color: var(--label); }
@@ -693,6 +714,31 @@ main {
     -webkit-print-color-adjust: exact;
   }
   .has-notes-row .job-cell:has(> .job-print-marks)::after { content: none; }
+  /* M5 away and over-days chips on paper: "(away)" / "(over days)" after the name,
+     black on white, inside the chip's own line (smaller type than the name, so the
+     chip is no taller). In a narrow day the mark gives way and the name does not:
+     the name keeps its width (up to the chip's), the mark takes what is left, and
+     the chip clips the rest (its × is hidden on paper). An away chip also prints plain white with a
+     dashed outline, and an over-days chip keeps its outline in the darker print
+     orange of the "● note" marker, so both still read when the text is clipped.
+     Outlines never change size. */
+  .chip-worker.away { background: #fff; color: #111; outline: 1px dashed #111; outline-offset: -1px; }
+  .chip-worker.over-days:not(.away) { outline-color: #b45a00; }
+  .chip-worker[data-print-mark] { overflow: clip; overflow-clip-margin: content-box; }
+  .chip-worker[data-print-mark] .chip-name { flex-shrink: 0; max-width: 100%; }
+  .chip-worker[data-print-mark]::after {
+    content: attr(data-print-mark);
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: #fff;
+    color: #111;
+    font-size: 10px;
+    white-space: nowrap;
+  }
 }
 
 @media print and (max-width: 900px) {

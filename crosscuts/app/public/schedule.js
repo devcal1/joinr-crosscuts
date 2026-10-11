@@ -26,6 +26,16 @@
   };
   const MATERIALS_TITLES = { in: "Materials in", ordered: "Materials ordered, not in" };
   const MATERIALS_PRINT = { in: "● materials in", ordered: "● materials ordered" };
+  // Why a worker is away on a day (week.away / chip.away, m5-contracts.md section 2):
+  // the chip's title and the "+" picker's label.
+  const AWAY_TITLES = { leave: "On leave", sick: "Sick", other: "Away", off: "Day off" };
+  // The same, as the middle of the picker's confirm() question.
+  const AWAY_PHRASES = {
+    leave: "is on leave that day",
+    sick: "is off sick that day",
+    other: "is away that day",
+    off: "has that day off",
+  };
 
   const weeksContainer = document.getElementById("weeksContainer");
   const legendEl = document.getElementById("legend");
@@ -120,15 +130,40 @@
   }
 
   // --- chip element ---
+  // M5 (rule 7, M5 exception): a chip for someone away that day (leave, sick, other,
+  // or their regular day off) takes the grey "away" style instead of the worker's
+  // colours; a chip for someone over their days this week gets an orange outline.
+  // Neither changes the chip's size or adds text inside it on screen.
+  // MIRRORED in exportJpg() (grey fill / orange stroke) and in print ("(away)" /
+  // "(over days)" after the name, from data-print-mark).
   function chipEl(chip) {
     const span = document.createElement("span");
     span.className = "chip-worker";
-    span.style.background = chip.bg;
-    span.style.color = chip.fg;
+    const awayKind = AWAY_TITLES[chip.away] ? chip.away : null;
+    if (awayKind) {
+      // The .away class supplies the token colours; the worker's inline colours
+      // are left off so they can't override it.
+      span.classList.add("away");
+    } else {
+      span.style.background = chip.bg;
+      span.style.color = chip.fg;
+    }
+    if (chip.overDays) span.classList.add("over-days");
     // Chips share a cell's width once they wrap into columns, so the name
     // ellipsises rather than spilling into the next day — title keeps the
     // full name reachable on hover.
-    span.title = chip.name;
+    const notes = [];
+    const printMarks = [];
+    if (awayKind) {
+      notes.push(AWAY_TITLES[awayKind]);
+      printMarks.push("(away)");
+    }
+    if (chip.overDays) {
+      notes.push("Over their days this week");
+      printMarks.push("(over days)");
+    }
+    span.title = notes.length ? `${chip.name}\n${notes.join("\n")}` : chip.name;
+    if (printMarks.length) span.dataset.printMark = printMarks.join(" ");
     const nameSpan = document.createElement("span");
     nameSpan.className = "chip-name";
     nameSpan.textContent = chip.name;
@@ -147,8 +182,45 @@
   }
 
   // --- worker picker popover ---
+  // M5 (rule 7, M5 exception): for the cell's day, each worker's availability from
+  // the loaded week. away: the kind ('leave' | 'sick' | 'other' | 'off') or null.
+  // over: { perWeek, on } when one more distinct day would take them past their
+  // days a week, else null. Counted across both panels of the week.
+  function pickerStatus(week, worker, day) {
+    const awayDays = week && week.away ? week.away[String(worker.id)] : null;
+    const away = awayDays && AWAY_TITLES[awayDays[day]] ? awayDays[day] : null;
+    let over = null;
+    const perWeek = Number(worker.daysPerWeek);
+    if (week && Number.isInteger(perWeek) && perWeek > 0) {
+      const days = new Set();
+      for (const row of [...week.manufacturing, ...week.installing]) {
+        for (const d of DAY_KEYS) {
+          if (row.cells[d].some((c) => c.workerId === worker.id)) days.add(d);
+        }
+      }
+      if (!days.has(day) && days.size + 1 > perWeek) over = { perWeek, on: days.size };
+    }
+    return { away, over };
+  }
+
+  // The question asked before assigning someone away or over their days, or null.
+  function pickerQuestion(worker, status) {
+    const parts = [];
+    if (status.away) parts.push(`${worker.name} ${AWAY_PHRASES[status.away]}.`);
+    if (status.over) {
+      const n = status.over.perWeek;
+      parts.push(`${worker.name} works ${n} ${n === 1 ? "day" : "days"} a week and is already on ${status.over.on}.`);
+    }
+    return parts.length ? `${parts.join(" ")} Assign anyway?` : null;
+  }
+
+  function weekOfRow(rowId) {
+    return state.weeks.find((w) => [...w.manufacturing, ...w.installing].some((r) => r.rowId === rowId)) || null;
+  }
+
   function openPopover(anchorEl, rowId, day) {
     popover.innerHTML = "";
+    const week = weekOfRow(rowId);
     const active = state.workers.filter((w) => !w.archived);
     if (active.length === 0) {
       const empty = document.createElement("div");
@@ -156,19 +228,34 @@
       empty.textContent = "No workers yet — add one on the Workers page.";
       popover.appendChild(empty);
     }
-    for (const w of active) {
+    // Everyone stays assignable; people away that day go last (stable order).
+    const entries = active.map((w) => ({ w, status: pickerStatus(week, w, day) }));
+    const ordered = [...entries.filter((e) => !e.status.away), ...entries.filter((e) => e.status.away)];
+    for (const { w, status } of ordered) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "popover-item";
+      btn.className = "popover-item" + (status.away ? " away" : "");
       const swatch = document.createElement("span");
       swatch.className = "popover-swatch";
       swatch.style.background = w.bg;
       btn.appendChild(swatch);
       const label = document.createElement("span");
+      label.className = "popover-name";
       label.textContent = w.name;
       btn.appendChild(label);
+      const tags = [];
+      if (status.away) tags.push(["away", AWAY_TITLES[status.away]]);
+      if (status.over) tags.push(["over", "Over days"]);
+      for (const [kind, text] of tags) {
+        const tag = document.createElement("span");
+        tag.className = `popover-tag ${kind}`;
+        tag.textContent = text;
+        btn.appendChild(tag);
+      }
+      const question = pickerQuestion(w, status);
       btn.addEventListener("click", guarded(async () => {
         closePopover();
+        if (question && !confirm(question)) return;
         await api(`/api/rows/${rowId}/assignments`, {
           method: "POST",
           body: JSON.stringify({ day, workerId: w.id }),
@@ -1407,10 +1494,20 @@
                 const text = chip.name;
                 ctx.font = `400 11px ${FONT}`;
                 const w = Math.min(colW - 4, ctx.measureText(text).width + 14);
-                ctx.fillStyle = chip.bg;
+                // M5: mirrors .chip-worker.away (grey ground, muted text) and
+                // .chip-worker.over-days (orange outline drawn inside the chip).
+                const away = !!AWAY_TITLES[chip.away];
+                ctx.fillStyle = away ? C.na : chip.bg;
                 roundRect(ctx, cx, cy, w, chipH - 4, 4);
                 ctx.fill();
-                ctx.fillStyle = chip.fg;
+                if (chip.overDays) {
+                  ctx.strokeStyle = C.orange;
+                  ctx.lineWidth = 1.5;
+                  roundRect(ctx, cx + 0.75, cy + 0.75, w - 1.5, chipH - 5.5, 3.5);
+                  ctx.stroke();
+                  ctx.lineWidth = 1;
+                }
+                ctx.fillStyle = away ? C.muted : chip.fg;
                 ctx.fillText(text, cx + 7, cy + (chipH - 4) / 2, w - 12);
               });
             });
@@ -1475,6 +1572,52 @@
       // successful refresh, so the next tick retries.
     }
   }, 60000);
+
+  // M5 (rule 7, M5 exception): the TV only re-fetched after an edit on that screen
+  // or at midnight, so materials, stages and leave entered elsewhere never showed.
+  // Every 5 minutes, reload the data, but only when nothing is open: no worker
+  // picker, no dialog (Finish week or any other), no notes editor, no drag, and no
+  // input, textarea or select in use. A busy tick is skipped, not queued.
+  // Focus alone outlives the person: the week picker keeps focus after a week is
+  // chosen, and an always-on TV would then never reload. So a focused field holds
+  // the reload while anyone has touched the page within the last interval, or
+  // while it has typing that hasn't been committed (an input event since its last
+  // change); a clean field nobody has touched for a whole interval doesn't.
+  const IDLE_RELOAD_MS = 5 * 60 * 1000;
+  let lastActivity = Date.now();
+  let uncommittedField = null;
+  for (const type of ["pointerdown", "keydown", "wheel"]) {
+    document.addEventListener(type, () => { lastActivity = Date.now(); }, true);
+  }
+  document.addEventListener("input", (e) => {
+    lastActivity = Date.now();
+    uncommittedField = e.target;
+  }, true);
+  document.addEventListener("change", (e) => {
+    if (e.target === uncommittedField) uncommittedField = null;
+  }, true);
+  function fieldInUse(el) {
+    if (!el || !(el.matches("input, textarea, select") || el.isContentEditable)) return false;
+    return el === uncommittedField || Date.now() - lastActivity < IDLE_RELOAD_MS;
+  }
+  function boardIsIdle() {
+    if (!popover.hidden) return false;
+    if (finishBusy || finishDialog.open || document.querySelector("dialog[open]")) return false;
+    if (weeksContainer.querySelector(".job-notes:not([hidden])")) return false;
+    if (dragState || backlogDrag) return false;
+    if (fieldInUse(document.activeElement)) return false;
+    return true;
+  }
+  async function idleReloadTick() {
+    if (!boardIsIdle()) return false;
+    try {
+      await refresh();
+    } catch {
+      // Server unreachable for a moment: keep what is on screen; the next tick retries.
+    }
+    return true;
+  }
+  setInterval(idleReloadTick, IDLE_RELOAD_MS);
 
   // --- boot ---
   (async function init() {
