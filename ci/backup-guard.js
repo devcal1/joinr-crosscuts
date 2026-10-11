@@ -21,7 +21,10 @@
 //     such as "-av" or "-rP" (/^-[a-zA-Z]{2,}$/), which could slip a banned flag past the list;
 //   - `shell:` is given any value but false (true, a shell path, 1, a variable ...);
 //   - runTool( is called with rsync (its first argument mentions rsync or RSYNC) anywhere but
-//     lib/backup/rsync.js: every rsync child starts there, behind its argument-shape check.
+//     lib/backup/rsync.js: every rsync child starts there, behind its argument-shape check;
+//   - (0.1.8) a passphrase could reach 7-Zip as an argument: a string literal that starts with -p
+//     and has anything after it ("-p${...}", "-psecret"), or "-p" joined to something with +.
+//     The passphrase goes on 7-Zip's stdin; a bare "-p" (ask for it) is the only -p allowed.
 // Missing files are skipped (later waves add them), except constants.js, which must exist.
 // If this check fails, fix the code, not the guard.
 "use strict";
@@ -186,6 +189,13 @@ function checkFile(file, problems) {
     while ((m = runRe.exec(code)) !== null) {
       if (/rsync/i.test(m[1])) problems.push(`${rel}:${lineOf(code, m.index)}: runTool called with rsync outside lib/backup/rsync.js`);
     }
+  }
+  for (const lit of stringLiterals(code)) {
+    if (/^-p./.test(lit)) problems.push(`${rel}: a -p literal with a value ("${lit.slice(0, 3)}..."): the passphrase goes on 7-Zip's stdin`);
+  }
+  const pJoin = /["'`]-p["'`]\s*\+/g;
+  while ((m = pJoin.exec(code)) !== null) {
+    problems.push(`${rel}:${lineOf(code, m.index)}: "-p" joined to a value: the passphrase goes on 7-Zip's stdin`);
   }
   for (const p of execProblems(code)) problems.push(`${rel}: ${p}`);
   const callRe = /\bconsole\s*\.\s*[A-Za-z]+\s*\(/g;

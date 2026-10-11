@@ -471,10 +471,24 @@ ok
 echo "--- Back up now with the NAS set up ---"
 bk_rewind
 bk_mark
+# 0.1.8: the passphrase goes on 7-Zip's stdin, never in a command line. Sample every process's
+# command line in the container for the length of this run (snapshot, archive tests, the private
+# file's encryption), then look for the passphrase in the samples.
+docker exec "$CONTAINER" rm -f /tmp/bk-ps.txt
+docker exec -d "$CONTAINER" sh -c 'end=$(( $(date +%s) + 25 )); while [ "$(date +%s)" -lt "$end" ]; do for f in /proc/[0-9]*/cmdline; do tr "\000" " " < "$f" 2>/dev/null; echo; done >> /tmp/bk-ps.txt; done'
 bk_run
 expect_status 202 "Back up now with the NAS set up"
 expect_jq '.running == true and .joined == false and .copy == true' "a new flight with a copy"
 bk_wait 2 "the first copy"
+# Searched here on the runner, not with a grep inside the container (whose own command line
+# would hold the passphrase and could be sampled).
+docker exec "$CONTAINER" cat /tmp/bk-ps.txt > "$WORK/bk-ps.txt"
+bk_ps_7z=$(grep -c "7z" "$WORK/bk-ps.txt" || true)
+if grep -qF -- "$BK_PP" "$WORK/bk-ps.txt"; then
+  fail "the passphrase appeared in a process command line during a run"
+fi
+ok
+echo "INFO: sampled process command lines during the run; $bk_ps_7z sample(s) of a 7-Zip command, none holding the passphrase."
 expect_jq ".snapshot.last.id > $BK_BEFORE and .snapshot.last.status == \"succeeded\"" "the snapshot succeeded"
 expect_jq ".copy.last.id > $BK_BEFORE and .copy.last.kind == \"copy\" and .copy.last.trigger == \"manual\" and .copy.last.status == \"succeeded\"" "the copy succeeded"
 expect_jq '.copy.last.detail.missingAfter == 0 and .copy.last.detail.attempted == true' "nothing missing after the copy"

@@ -135,7 +135,9 @@ function abortWhy(signal) {
 
 // Runs one child. Resolves {code, out, err, outTruncated} for any exit code. Rejects only with
 // ToolMissingError (the tool could not be started) or ToolAbortError ({why}).
-function runTool(executable, args, { cwd, extraEnv, signal, outputLimit } = {}) {
+// `input` (optional string): written to the child's stdin, which is then closed. 7-Zip takes the
+// passphrase this way, so it never appears in a process list (0.1.8).
+function runTool(executable, args, { cwd, extraEnv, signal, outputLimit, input } = {}) {
   const tool = toolLabel(executable);
   const limit = Number.isFinite(outputLimit) && outputLimit > 0 ? outputLimit : OUTPUT_LIMIT;
   return new Promise((resolve, reject) => {
@@ -167,12 +169,19 @@ function runTool(executable, args, { cwd, extraEnv, signal, outputLimit } = {}) 
         shell: false,
         cwd,
         env: childEnv(extraEnv, tool),
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [typeof input === "string" ? "pipe" : "ignore", "pipe", "pipe"],
         windowsHide: true,
       });
     } catch (e) {
       reject(new ToolMissingError(tool, safeSystemCode(e)));
       return;
+    }
+
+    if (typeof input === "string") {
+      // A child that exits without reading (a bad archive, a missing file) closes the pipe: EPIPE
+      // is expected then and changes nothing; the exit code tells the caller what happened.
+      child.stdin.on("error", () => {});
+      child.stdin.end(input);
     }
 
     const outChunks = [];
