@@ -23,6 +23,8 @@ Crosscuts makes an invoice **due** by itself, and everyone in accounts gets an a
 
 Jobs that were already on the board before invoicing started don't get automatic invoices. Use **New invoice** for those.
 
+**An invoice always has a value.** If the job has no value yet, the deposit, progress or final waits as **Needs value**, and whoever can set job values is told. It becomes due, with its amount, as soon as the value is set on the job. The Friday round-up lists how many are waiting.
+
 ## Issuing an invoice
 
 1. Open **Accounts** and click the orange **Due** cell.

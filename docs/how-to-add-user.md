@@ -10,7 +10,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
 2. Enter a username (the name they type to log in; it is not case-sensitive), their display name, and a starting password.
 3. Tick their roles. A person can have more than one. The list is below.
 4. Save.
-5. Tell them the username and starting password in person. They will be asked to choose their own password at first login.
+5. Tell them the username and starting password in person. They will be asked to choose their own password at first login, and again every six months.
 
 ## Roles, in plain English
 

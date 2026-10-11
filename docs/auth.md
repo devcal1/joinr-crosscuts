@@ -89,5 +89,11 @@ Passwords and PINs use Node's built-in `crypto.scrypt` (N=2^15, r=8, p=1). The p
 There is **no email reset.**
 
 - Another admin can reset the password on the Users page. The user must change it at next login, and their sessions end.
+
+## Password expiry
+
+A password lasts six months. At the first sign-in after that, the user must choose a new one before Crosscuts shows anything else. Sessions that are already signed in, such as the workshop TV, keep working: the check happens only at sign-in. Changing a password signs that person out on their other devices.
+
+While a password change is pending, the server refuses every API call except who-am-I, the change itself and lock (403, `mustChangePassword`), so the rule holds even outside the browser.
 - If the only admin forgets their password, there is **no recovery path yet**. A recovery runbook, with a manual step on the Umbrel, is to be written. It is not yet available.
 - Until then, keep a second admin account.
