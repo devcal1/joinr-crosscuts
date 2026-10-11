@@ -5,6 +5,27 @@
     { key: "manufacturing", label: "Manufacturing" },
     { key: "installing", label: "Installing" },
   ];
+  // Production stages (lib/production.js keeps the same keys, names and codes).
+  const STAGE_LABELS = {
+    cut_edge: "Cut & edge",
+    kit: "Kit",
+    assemble: "Assemble",
+    inspect: "Inspect",
+    paint: "Paint",
+    install: "Install",
+    return_visit: "Return visit",
+  };
+  const STAGE_SHORT = {
+    cut_edge: "CUT",
+    kit: "KIT",
+    assemble: "ASM",
+    inspect: "INSP",
+    paint: "PAINT",
+    install: "INST",
+    return_visit: "RV",
+  };
+  const MATERIALS_TITLES = { in: "Materials in", ordered: "Materials ordered, not in" };
+  const MATERIALS_PRINT = { in: "● materials in", ordered: "● materials ordered" };
 
   const weeksContainer = document.getElementById("weeksContainer");
   const legendEl = document.getElementById("legend");
@@ -365,7 +386,11 @@
       await api(`/api/rows/${row.rowId}`, { method: "DELETE" });
       await refresh();
     })));
+    const marks = rowIndicatorsEl(row);
+    if (marks) actions.appendChild(marks);
     jobCell.appendChild(actions);
+    const printMarks = rowPrintMarksEl(row);
+    if (printMarks) jobCell.appendChild(printMarks);
     rowDiv.appendChild(jobCell);
 
     DAY_KEYS.forEach((day, i) => {
@@ -460,6 +485,49 @@
     wrap.appendChild(notes);
 
     return wrap;
+  }
+
+  // M5 row indicators (CLAUDE.md rule 7, M5 exception): the materials mark and the
+  // short production-stage label, at the end of the EXISTING icon line. That line has
+  // 33px spare after the delete button, too little for the mark and "PAINT" side by
+  // side, so the two stack inside the line's own 26px height (.job-marks is fixed at
+  // that height): no new line, no width change, no row-height change.
+  // MIRRORED in exportJpg() (a filled square and the code) and in print (text).
+  function rowIndicatorsEl(row) {
+    const materials = MATERIALS_TITLES[row.materials] ? row.materials : null;
+    const stage = STAGE_SHORT[row.productionStage] ? row.productionStage : null;
+    if (!materials && !stage) return null;
+    const box = document.createElement("span");
+    box.className = "job-marks";
+    if (materials) {
+      const mark = document.createElement("i");
+      mark.className = `ph ph-package job-mark-materials ${materials}`;
+      mark.title = MATERIALS_TITLES[materials];
+      mark.setAttribute("role", "img");
+      mark.setAttribute("aria-label", MATERIALS_TITLES[materials]);
+      box.appendChild(mark);
+    }
+    if (stage) {
+      const label = document.createElement("span");
+      label.className = "job-mark-stage";
+      label.textContent = STAGE_SHORT[stage];
+      label.title = STAGE_LABELS[stage];
+      box.appendChild(label);
+    }
+    return box;
+  }
+
+  // Print twin of the indicators (.job-actions is hidden on paper), shown only in
+  // the print block, like the "● note" marker.
+  function rowPrintMarksEl(row) {
+    const parts = [];
+    if (MATERIALS_PRINT[row.materials]) parts.push(MATERIALS_PRINT[row.materials]);
+    if (STAGE_SHORT[row.productionStage]) parts.push("● " + STAGE_SHORT[row.productionStage]);
+    if (!parts.length) return null;
+    const el = document.createElement("span");
+    el.className = "job-print-marks";
+    el.textContent = parts.join("  ");
+    return el;
   }
 
   function iconBtn(icon, title, onClick) {
@@ -907,10 +975,25 @@
     for (const [panelKey, rows] of [["manufacturing", week.manufacturing], ["installing", week.installing]]) {
       for (const row of rows) {
         const key = alignKey(row);
-        if (!groups.has(key)) groups.set(key, { name: row.jobName, mfgJobId: null, instJobId: null });
+        if (!groups.has(key)) {
+          // The stage select defaults to the first row's current stage (manufacturing
+          // first), and offers the stages that row's job allows.
+          groups.set(key, {
+            name: row.jobName,
+            mfgJobId: null,
+            instJobId: null,
+            productionStage: row.productionStage || null,
+            stageOptions: Array.isArray(row.stageOptions) ? row.stageOptions.slice() : [],
+          });
+        }
         const g = groups.get(key);
         if (panelKey === "manufacturing" && g.mfgJobId === null) g.mfgJobId = row.jobId;
         if (panelKey === "installing" && g.instJobId === null) g.instJobId = row.jobId;
+        // Two separate job records can share a name (one per panel). Whichever one
+        // the outcome sends, the stage must apply to it, so offer only the stages
+        // both allow.
+        const opts = Array.isArray(row.stageOptions) ? row.stageOptions : [];
+        g.stageOptions = g.stageOptions.filter((s) => opts.includes(s));
       }
     }
     return [...groups.values()];
@@ -981,7 +1064,31 @@
       seg.appendChild(label);
     }
 
-    item.append(info, seg);
+    // M5 (rule 7, M5 exception): how far the job got this week. Optional; it does
+    // not count towards "answered", so Done's rule is unchanged.
+    const stageWrap = document.createElement("label");
+    stageWrap.className = "finish-stage";
+    const stageText = document.createElement("span");
+    stageText.className = "finish-stage-label text-muted";
+    stageText.textContent = "Stage reached";
+    const select = document.createElement("select");
+    select.className = "input finish-stage-select";
+    select.name = `fw-stage-${index}`;
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "Not recorded";
+    select.appendChild(none);
+    for (const key of g.stageOptions) {
+      if (!STAGE_LABELS[key]) continue;
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = STAGE_LABELS[key];
+      select.appendChild(opt);
+    }
+    select.value = g.productionStage && g.stageOptions.includes(g.productionStage) ? g.productionStage : "";
+    stageWrap.append(stageText, select);
+
+    item.append(info, seg, stageWrap);
     return item;
   }
 
@@ -1040,7 +1147,8 @@
     cancel.addEventListener("click", () => finishDialog.close());
     done.addEventListener("click", guarded(async () => {
       // One entry per group. A jobId already used by an earlier group is dropped,
-      // since the server rejects duplicate jobIds in one request.
+      // since the server rejects duplicate jobIds in one request; its stage goes
+      // with it, so each jobId sent carries one stage (a key, or null).
       const seen = new Set();
       const results = [];
       groups.forEach((g, i) => {
@@ -1048,7 +1156,9 @@
         const jobId = finishJobId(g, outcome);
         if (seen.has(jobId)) return;
         seen.add(jobId);
-        results.push({ jobId, outcome });
+        const stageSelect = list.querySelector(`select[name="fw-stage-${i}"]`);
+        const stage = stageSelect && stageSelect.value ? stageSelect.value : null;
+        results.push({ jobId, outcome, stage });
       });
       finishBusy = true;
       updateProgress();
@@ -1167,6 +1277,7 @@
       white: tok("--white"),
       body: tok("--body"),
       label: tok("--label"),
+      muted: tok("--muted"),
       na: tok("--na"),
       hairline: tok("--hairline"),
       teal: tok("--teal"),
@@ -1239,16 +1350,40 @@
           const h = weekLines[wi][li];
           if (row) {
             const hasNotes = !!(row.notes && row.notes.trim());
-            ctx.fillStyle = C.white;
-            ctx.font = `700 12px ${FONT}`;
-            ctx.fillText(row.jobName, x, py + h / 2, hasNotes ? jobW - 24 : jobW - 10);
+            const midY = py + h / 2;
+            // The marks sit at the right of the job column, laid out right to left:
+            // the notes dot, then the stage code, then the materials square. The
+            // name's maxWidth shrinks to whatever is left (as it always did for notes).
+            let marksLeft = x + jobW - 6;
             if (hasNotes) {
               // Mirrors the board's orange-tint notes icon.
               ctx.fillStyle = C.orangeTint;
               ctx.beginPath();
-              ctx.arc(x + jobW - 12, py + h / 2, 3.5, 0, Math.PI * 2);
+              ctx.arc(x + jobW - 12, midY, 3.5, 0, Math.PI * 2);
               ctx.fill();
+              marksLeft = x + jobW - 20;
             }
+            // M5: the stage label (muted, uppercase code) and the materials mark
+            // (teal in, orange ordered), mirroring the board's icon-line indicators.
+            if (STAGE_SHORT[row.productionStage]) {
+              const code = STAGE_SHORT[row.productionStage];
+              ctx.font = `400 9px ${FONT}`;
+              if ("letterSpacing" in ctx) ctx.letterSpacing = "0.4px";
+              const codeW = ctx.measureText(code).width;
+              ctx.fillStyle = C.muted;
+              ctx.fillText(code, marksLeft - codeW, midY);
+              if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+              marksLeft -= codeW + 5;
+            }
+            if (row.materials === "in" || row.materials === "ordered") {
+              const sq = 7;
+              ctx.fillStyle = row.materials === "in" ? C.teal : C.orange;
+              ctx.fillRect(marksLeft - sq, midY - sq / 2, sq, sq);
+              marksLeft -= sq + 5;
+            }
+            ctx.fillStyle = C.white;
+            ctx.font = `700 12px ${FONT}`;
+            ctx.fillText(row.jobName, x, midY, marksLeft - x - 4);
 
             DAY_KEYS.forEach((day, i) => {
               const cellX = x + jobW + i * dayW;
