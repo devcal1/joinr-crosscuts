@@ -118,6 +118,9 @@ function loadUser(userId) {
     roles,
     perms: computeEffective(roles, overrides),
     mustChangePassword: !!row.must_change_password,
+    // Why: "expired" (six months old) or "admin" (set by an administrator; no
+    // stamp, since a reset clears it). Null when no change is needed.
+    passwordReason: row.must_change_password ? (row.password_changed_at ? "expired" : "admin") : null,
   };
 }
 
@@ -130,6 +133,7 @@ function publicUser(user) {
     roles: user.roles,
     perms: [...user.perms].sort(),
     mustChangePassword: !!user.mustChangePassword,
+    passwordReason: user.passwordReason || null,
   };
 }
 
@@ -239,9 +243,25 @@ function originCheck(req, res, next) {
   next();
 }
 
+// A password lasts six months (Todd, 2026-10-11). Checked at sign-in only, so a
+// session already running (the workshop TV) is never cut off by the clock.
+const PASSWORD_MAX_AGE_MS = 182 * DAY_MS;
+
+function passwordExpired(row, now = Date.now()) {
+  const at = row && row.password_changed_at ? Date.parse(row.password_changed_at) : NaN;
+  return !Number.isFinite(at) || now - at > PASSWORD_MAX_AGE_MS;
+}
+
+// While a user must change their password, the API serves only these (and the
+// public routes): the change itself, who am I, and lock.
+const MUST_CHANGE_ALLOWED = new Set(["/api/auth/me", "/api/auth/password", "/api/auth/lock"]);
+
 function requireLogin(req, res, next) {
   if (!req.user || !req.session) return res.status(401).json({ error: "Not logged in" });
   if (req.session.locked) return res.status(401).json({ error: "Locked", locked: true });
+  if (req.user.mustChangePassword && !MUST_CHANGE_ALLOWED.has(String(req.originalUrl || "").split("?")[0])) {
+    return res.status(403).json({ error: "Change your password first", mustChangePassword: true });
+  }
   next();
 }
 
@@ -366,6 +386,7 @@ module.exports = {
   revokeSession,
   pinState,
   userPinDisabled,
+  passwordExpired,
   DEVICE_PIN_MAX_FAILURES,
   hashToken,
 };

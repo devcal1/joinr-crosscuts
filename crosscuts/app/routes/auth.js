@@ -193,8 +193,8 @@ r.post("/setup", "public", wrap(async (req, res) => {
     userId = db().transaction(() => {
       if (userCount() > 0) throw Object.assign(new Error("exists"), { code: "SETUP_DONE" });
       const info = db()
-        .prepare("INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, ?)")
-        .run(username, displayName, hash);
+        .prepare("INSERT INTO users (username, display_name, password_hash, password_changed_at) VALUES (?, ?, ?, ?)")
+        .run(username, displayName, hash, nowIso());
       const id = Number(info.lastInsertRowid);
       db().prepare("INSERT INTO user_roles (user_id, role) VALUES (?, 'admin')").run(id);
       return id;
@@ -242,6 +242,11 @@ r.post("/login", "public", wrap(async (req, res) => {
   }
 
   settleAttempt(attemptId);
+  // Six months old: the password must be changed before anything else.
+  const expired = !row.must_change_password && auth.passwordExpired(row);
+  if (expired) {
+    db().prepare("UPDATE users SET must_change_password = 1, updated_at = ? WHERE id = ?").run(nowIso(), row.id);
+  }
   const sess = auth.startSession(req, res, row.id, remember);
   audit.log(req, {
     action: "auth.login",
@@ -249,7 +254,7 @@ r.post("/login", "public", wrap(async (req, res) => {
     entityId: String(row.id),
     actorId: row.id,
     actorLabel: row.username,
-    after: { remember: sess.remember },
+    after: expired ? { remember: sess.remember, passwordExpired: true } : { remember: sess.remember },
   });
   res.json({ user: auth.publicUser(auth.loadUser(row.id)) });
 }));
@@ -378,8 +383,8 @@ r.post("/password", "login", wrap(async (req, res) => {
   db().transaction(() => {
     const now = nowIso();
     db()
-      .prepare("UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?")
-      .run(hash, now, req.user.id);
+      .prepare("UPDATE users SET password_hash = ?, must_change_password = 0, password_changed_at = ?, updated_at = ? WHERE id = ?")
+      .run(hash, now, now, req.user.id);
     db()
       .prepare("UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND id <> ? AND revoked_at IS NULL")
       .run(now, req.user.id, req.session.id);

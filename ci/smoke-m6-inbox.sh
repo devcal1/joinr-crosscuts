@@ -68,6 +68,7 @@ M6B_NV="$WORK/jar-m6bnv"
 new_jar "$M6B_NV"
 login "$M6B_NV" m6bnv 'M6b-Passw0rd-1'
 expect_status 200 "login m6bnv"
+own_password "$M6B_NV" 'M6b-Passw0rd-1' 'M6b-Passw0rd-2'
 
 echo "--- access ---"
 m6b_seed "$(m6b_item m6b-access JRQM6B00)"

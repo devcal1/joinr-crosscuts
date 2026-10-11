@@ -227,7 +227,7 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
   - **Back up now**.
 
   Routes go through `defineRoutes` with `users.admin` (`GET /api/backup/status`, `POST /api/backup/run`). No new feature key (question 7).
-- **Data:** migration `015_backup.sql` (additive) adds:
+- **Data:** migration `016_backup.sql` (additive) adds:
   - `backup_runs`: id, trigger (`schedule`, `startup`, `manual`), kind, started and finished times, status, reason, exit code, and a detail JSON of counts and bytes, never paths or addresses;
   - `backup_blobs`: the private-file ledger.
 
@@ -289,8 +289,8 @@ It then lists the NAS back to prove every file arrived at the right size. Nothin
 | **Backup · 1.2** Plan | this file; questions in §11 | **Todd** reads and answers ✂ |
 | **Backup · 1.3** Decisions | answers recorded below; plan approved | **Todd** ✂ |
 | *NAS prep (parallel; due by 6.1)* | on the NAS: a private shared folder; the rsync server on; a new rsync account allowed only on a new module for that folder; Todd's own NAS user given read access; Btrfs snapshots on the share; ADM Defender still admits `100.64.0.0/10`; Tailscale key expiry off on the NAS and the Umbrel | **Todd** (Claude guides) |
-| **Backup · 2.1** Contracts | `backup-contracts.md`: files and modules (`lib/backup/` snapshot, copy, schedule, secrets, sentences), migration 015, the API, the Users page section, the CLI, the smoke checks, the waves | ✂ |
-| **Backup · 2.2** Scaffold | Dockerfile tools; migration `015_backup.sql`; stub router (`users.admin`); `ci/backup-guard.js` wired into `publish.yml`; the next unreleased version (plus `package-lock.json`): **0.1.7** if nothing is pushed first, since local `db265a4` already took 0.1.7 for the board print fix and both ship in one push; otherwise 0.1.8; local boot | ✂ |
+| **Backup · 2.1** Contracts | `backup-contracts.md`: files and modules (`lib/backup/` snapshot, copy, schedule, secrets, sentences), migration 016, the API, the Users page section, the CLI, the smoke checks, the waves | ✂ |
+| **Backup · 2.2** Scaffold | Dockerfile tools; migration `016_backup.sql`; stub router (`users.admin`); `ci/backup-guard.js` wired into `publish.yml`; the next unreleased version (plus `package-lock.json`): **0.1.7** if nothing is pushed first, since local `db265a4` already took 0.1.7 for the board print fix and both ship in one push; otherwise 0.1.8; local boot | ✂ |
 | **Backup · 3.1** Wave 1 | **A** the snapshot, retention and archive (with `tools/restore.js` in the image); **B** the copy: runner, plan, listing, proof, sentences, secrets reader, ledger; **C** the helper `tools/backup-secrets.mjs` and the `docs/restore.md` draft | ✂ |
 | **Backup · 3.2** Wave 2 | **D** the schedule, catch-up, retries, lock, routes, Users page section, bell, heartbeat, audit; **E** `ci/smoke-backup.sh` with the in-container rsync daemon | ✂ |
 | **Backup · 4.1–4.3** | integrate; independent review (secrets leakage, the add-only guarantee, event-loop stalls, timer safety); fix | ✂ each |

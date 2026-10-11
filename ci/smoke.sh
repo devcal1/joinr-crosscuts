@@ -817,17 +817,28 @@ login() {
     "$(jq -nc --arg u "$2" --arg p "$3" --argjson r "${4:-false}" '{username:$u,password:$p,remember:$r}')"
 }
 
+# A new user signs in with the password an admin set and must choose their own
+# before the API serves anything else (the server enforces it).
+# own_password JAR CURRENT NEW
+own_password() {
+  req POST /api/auth/password "$1" "$(jq -nc --arg c "$2" --arg n "$3" '{currentPassword:$c,newPassword:$n}')"
+  expect_status 204 "choose own password"
+  req GET /api/auth/me "$1"
+  expect_jq '.user.mustChangePassword == false and .user.passwordReason == null' "no password change pending"
+}
+
 SCHED_PW='Sched-Passw0rd-1'
 ACCT_PW='Acct-Passw0rd-1'
 DPM_PW='Dpm-Passw0rd-1'
 SHOW_PW='Show-Passw0rd-1'
 LOCK_PW='Lock-Passw0rd-1'
 
-create_user sched "CI Scheduling" "$SCHED_PW" scheduling
+# Created with a temporary password (Tmp-...); each user then picks their own.
+create_user sched "CI Scheduling" "Tmp-$SCHED_PW" scheduling
 SCHED_ID=$CREATED_ID
-create_user acct "CI Accounts" "$ACCT_PW" accounts
-create_user dpm "CI Design PM" "$DPM_PW" design_pm
-create_user show "CI Showroom" "$SHOW_PW" showroom
+create_user acct "CI Accounts" "Tmp-$ACCT_PW" accounts
+create_user dpm "CI Design PM" "Tmp-$DPM_PW" design_pm
+create_user show "CI Showroom" "Tmp-$SHOW_PW" showroom
 create_user locktest "CI Lockout" "$LOCK_PW" showroom
 
 # A duplicate username is a 409 (case-insensitively).
@@ -841,19 +852,27 @@ DPM="$WORK/jar-dpm"
 SHOW="$WORK/jar-show"
 for j in "$SCHED" "$ACCT" "$DPM" "$SHOW"; do new_jar "$j"; done
 
-login "$SCHED" sched "$SCHED_PW"
+login "$SCHED" sched "Tmp-$SCHED_PW"
 expect_status 200 "login sched"
-login "$ACCT" acct "$ACCT_PW"
+login "$ACCT" acct "Tmp-$ACCT_PW"
 expect_status 200 "login acct"
-login "$DPM" dpm "$DPM_PW"
+login "$DPM" dpm "Tmp-$DPM_PW"
 expect_status 200 "login dpm"
-login "$SHOW" show "$SHOW_PW"
+login "$SHOW" show "Tmp-$SHOW_PW"
 expect_status 200 "login show"
 
-# mustChangePassword does not block API use.
+# mustChangePassword blocks the API (server-enforced, Todd 2026-10-11) except
+# who-am-I, lock and the change itself.
 req GET /api/auth/me "$SCHED"
 expect_status 200 "me as sched"
-expect_jq '.user.mustChangePassword == true' "sched must change password"
+expect_jq '.user.mustChangePassword == true and .user.passwordReason == "admin"' "sched must change an admin-set password"
+req GET /api/schedule "$SCHED"
+expect_status 403 "sched cannot use the API before changing the password"
+expect_jq '.mustChangePassword == true' "the 403 says why"
+own_password "$SCHED" "Tmp-$SCHED_PW" "$SCHED_PW"
+own_password "$ACCT" "Tmp-$ACCT_PW" "$ACCT_PW"
+own_password "$DPM" "Tmp-$DPM_PW" "$DPM_PW"
+own_password "$SHOW" "Tmp-$SHOW_PW" "$SHOW_PW"
 
 D_WEEK=2032-03-01   # a Monday far from every other test week
 

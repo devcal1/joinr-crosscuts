@@ -73,6 +73,9 @@
 
   function afterLogin(user) {
     if (user && user.mustChangePassword) {
+      if (user.passwordReason === "expired") {
+        $("change-why").textContent = "Your password is six months old. Pick a new one to continue.";
+      }
       $("change-current").value = typedPassword;
       show("form-change");
       if (typedPassword) $("change-new").focus();

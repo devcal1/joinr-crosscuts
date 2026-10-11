@@ -764,7 +764,11 @@
       resolveReady(cc);
       document.dispatchEvent(new Event("cc:ready"));
       if (user && user.mustChangePassword && !devMode) {
-        openPasswordDialog("An administrator set this password for you. Please choose your own before carrying on.");
+        openPasswordDialog(
+          user.passwordReason === "expired"
+            ? "Your password is six months old. Please choose a new one before carrying on."
+            : "An administrator set this password for you. Please choose your own before carrying on."
+        );
       }
     };
     var fallback = function () {

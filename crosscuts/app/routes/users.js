@@ -335,7 +335,7 @@ r.post(
     const hash = await hashSecret(password);
     let revoked = 0;
     db.transaction(() => {
-      db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = ? WHERE id = ?").run(
+      db.prepare("UPDATE users SET password_hash = ?, must_change_password = 1, password_changed_at = NULL, updated_at = ? WHERE id = ?").run(
         hash,
         nowIso(),
         id

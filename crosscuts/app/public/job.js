@@ -395,7 +395,11 @@
     );
     const tb = el("tbody");
     for (const inv of list) {
-      const status = inv.overdue ? "Overdue" : inv.status.charAt(0).toUpperCase() + inv.status.slice(1);
+      const status = inv.overdue
+        ? "Overdue"
+        : inv.status === "pending" && inv.kind !== "extra"
+          ? "Needs value"
+          : inv.status.charAt(0).toUpperCase() + inv.status.slice(1);
       tb.append(
         el(
           "tr",

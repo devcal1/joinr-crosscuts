@@ -131,6 +131,7 @@ M3C_JAR="$WORK/jar-m3cphoto"
 new_jar "$M3C_JAR"
 login "$M3C_JAR" m3cphoto 'M3c-Passw0rd-1'
 expect_status 200 "login m3cphoto"
+own_password "$M3C_JAR" 'M3c-Passw0rd-1' 'M3c-Passw0rd-2'
 m3c_count
 M3C_BEFORE=$M3C_COUNT
 m3c_files

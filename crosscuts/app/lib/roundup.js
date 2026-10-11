@@ -75,6 +75,11 @@ function buildSummary(db, today) {
     )
     .get().n;
 
+  // Deposits, progress and finals held back because the job has no value yet.
+  const needsValueCount = db
+    .prepare("SELECT COUNT(*) AS n FROM invoices WHERE status = 'pending' AND kind IN ('deposit','progress','final')")
+    .get().n;
+
   // Oldest first: a due invoice by when it became due, an overdue one by its due date.
   waiting.sort((a, b) => (a.since < b.since ? -1 : a.since > b.since ? 1 : a.invoiceId - b.invoiceId));
 
@@ -84,6 +89,7 @@ function buildSummary(db, today) {
     overdueCount: overdueRows.length,
     overdueCents,
     notMyobCount,
+    needsValueCount,
     oldest: waiting.slice(0, OLDEST_N),
   };
 }
@@ -93,6 +99,7 @@ function message(s) {
   if (s.dueCount) parts.push(`${s.dueCount} due`);
   if (s.overdueCount) parts.push(`${s.overdueCount} overdue`);
   if (s.notMyobCount) parts.push(`${s.notMyobCount} not in MYOB`);
+  if (s.needsValueCount) parts.push(`${s.needsValueCount} need a job value`);
   const title = `Friday round-up: ${parts.join(", ")}`;
 
   const lines = [];
@@ -103,6 +110,7 @@ function message(s) {
     lines.push(`${s.overdueCount} overdue, ${dollars(s.overdueCents)} in total.`);
   }
   if (s.notMyobCount) lines.push(`${s.notMyobCount} not yet entered in MYOB.`);
+  if (s.needsValueCount) lines.push(`${s.needsValueCount} waiting for a job value before they can be invoiced.`);
   if (s.oldest.length) {
     lines.push(
       "Oldest: " + s.oldest.map((o) => `${o.jobName} (${KIND_LABEL[o.kind] || o.kind}, ${o.status})`).join("; ") + "."
@@ -118,7 +126,7 @@ function run(db, { force = false, now = new Date(), friday } = {}) {
   return db.transaction(() => {
     const summary = buildSummary(db, sydneyToday(now));
     let sent = 0;
-    if (summary.dueCount || summary.overdueCount || summary.notMyobCount) {
+    if (summary.dueCount || summary.overdueCount || summary.notMyobCount || summary.needsValueCount) {
       const { title, body } = message(summary);
       sent = notify.toKey(db, "invoices.edit", {
         kind: "invoice.roundup",

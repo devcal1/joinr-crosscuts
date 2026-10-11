@@ -6,6 +6,7 @@ const { defineRoutes } = require("../lib/routes");
 const audit = require("../lib/audit");
 const jobstage = require("../lib/jobstage");
 const orders = require("../lib/orders");
+const invoices = require("../lib/invoices");
 const { HttpError, bad, sendError, can } = require("../lib/httperror");
 const { DATE_RE, parseDateUTC, formatDateUTC, sydneyToday } = require("../lib/time");
 
@@ -279,6 +280,8 @@ r.patch("/:id", "jobs.edit", handle((req, res) => {
         after[c] = values[c];
       }
       audit.log(req, { action: "job.update", entityType: "job", entityId: id, before, after });
+      // An invoice waiting for a value falls due once the job has one.
+      if (changed.includes("value_cents") && values.value_cents != null) invoices.onValueSet(db, id, req);
     }
     if (newStage !== undefined) {
       if (MANUAL_STAGES.has(newStage)) {

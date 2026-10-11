@@ -190,6 +190,7 @@ M4C_ACCT2="$WORK/jar-m4c2"
 new_jar "$M4C_ACCT2"
 login "$M4C_ACCT2" m4c2 'M4c2-Passw0rd-1'
 expect_status 200 "login the second accounts user"
+own_password "$M4C_ACCT2" 'M4c2-Passw0rd-1' 'M4c2-Passw0rd-2'
 req GET /api/reports "$M4C_ACCT2"
 expect_status 200 "the second accounts user sees every report (decision 3)"
 expect_jq ".rows[] | select(.id == $M4C_PDF) | .canEdit == false" "the second user can't edit someone else's report"

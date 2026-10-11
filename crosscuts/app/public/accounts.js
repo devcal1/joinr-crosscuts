@@ -114,8 +114,15 @@
     $("allJobs").disabled = filter !== "all";
   }
 
+  // A pending deposit, progress or final is waiting for the job value (an
+  // invoice always has one); a pending extra waits for the job to be complete.
+  function waitingForValue(inv) {
+    return inv.status === "pending" && inv.kind !== "extra";
+  }
+
   function statusLabel(c) {
-    return c.overdue ? "Overdue" : STATUS[c.status] || c.status;
+    if (c.overdue) return "Overdue";
+    return waitingForValue(c) ? "Needs value" : STATUS[c.status] || c.status;
   }
 
   function cellButton(c, kindLabel) {
@@ -302,7 +309,7 @@
       h.append(
         el("span", {
           class: "hs-badge " + (od ? "hs-badge-stop" : STATUS_BADGE[inv.status] || "hs-badge-na"),
-          text: od ? "Overdue" : STATUS[inv.status] || inv.status,
+          text: statusLabel(inv),
         })
       );
     }
@@ -375,7 +382,9 @@
     root.append(
       el("p", { class: "ac-dsub", text: [job.clientName, job.valueCents != null ? "Job value " + fmtMoney(job.valueCents) : ""].filter(Boolean).join(" | ") })
     );
-    if (inv.status === "pending") {
+    if (waitingForValue(inv)) {
+      root.append(el("p", { class: "ac-hint", text: "Waiting for the job value: set it on the job and this falls due straight away." }));
+    } else if (inv.status === "pending") {
       root.append(el("p", { class: "ac-hint", text: "Pending: this becomes due when the job is complete. You can edit the lines now." }));
     } else if (!inv.linesCustom) {
       root.append(el("p", { class: "ac-hint", text: "The amount follows the job's value until you change a line." }));

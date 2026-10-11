@@ -226,6 +226,62 @@ function insertDue(db, jobId, kind, reason) {
   return Number(info.lastInsertRowid);
 }
 
+// An invoice always has a value (Todd, 2026-10-11). A deposit, progress or final
+// for a job with no value is held as 'pending' (its due_reason kept) and falls
+// due in onValueSet when the job gets one; the job's value holders and accounts
+// are told it is waiting. Otherwise it is due now, as before.
+function raise(db, jobId, kind, reason, req) {
+  const job = getJob(db, jobId);
+  if (job && job.value_cents == null) {
+    const info = db
+      .prepare("INSERT INTO invoices (job_id, kind, status, due_reason) VALUES (?, ?, 'pending', ?)")
+      .run(jobId, kind, reason);
+    const id = Number(info.lastInsertRowid);
+    audit.log(req, {
+      action: "invoice.waiting",
+      entityType: "invoice",
+      entityId: id,
+      after: { jobId, kind, status: "pending", dueReason: reason },
+    });
+    const ids = [...notify.usersWithKey(db, "jobs.value"), ...notify.usersWithKey(db, "invoices.edit")];
+    notify.toUsers(db, ids, {
+      kind: "invoice.waiting",
+      title: `${KIND_LABEL[kind]} waiting for a job value: ${job.name}`,
+      body: "Set the job's value and the invoice falls due straight away.",
+      link: `/job.html?id=${jobId}`,
+      entityType: "invoice",
+      entityId: id,
+    });
+    return id;
+  }
+  const id = insertDue(db, jobId, kind, reason);
+  announceDue(db, id, req);
+  return id;
+}
+
+// The job now has a value: its deposit, progress and final invoices that were
+// waiting for one fall due. Never throws (a savepoint, like the other hooks).
+function onValueSet(db, jobId, req) {
+  return hook(db, "onValueSet", () => {
+    const job = getJob(db, jobId);
+    if (!job || job.value_cents == null) return false;
+    const waiting = db
+      .prepare(
+        "SELECT id FROM invoices WHERE job_id = ? AND kind IN ('deposit','progress','final') AND status = 'pending' ORDER BY id"
+      )
+      .all(jobId);
+    for (const { id } of waiting) {
+      db.prepare("UPDATE invoices SET status = 'due', became_due_date = ?, updated_at = ? WHERE id = ?").run(
+        sydneyToday(),
+        nowIso(),
+        id
+      );
+      announceDue(db, id, req);
+    }
+    return waiting.length > 0;
+  });
+}
+
 // A row was placed on the board. The first placement of a job that has no
 // deposit in any status makes the deposit due, but only if that row is the
 // job's only week row: the caller has already inserted it, so the count must be
@@ -236,7 +292,7 @@ function onScheduled(db, jobId, weekStart, req) {
     if (!getJob(db, jobId)) return false;
     if (db.prepare("SELECT 1 AS x FROM invoices WHERE job_id = ? AND kind = 'deposit' LIMIT 1").get(jobId)) return false;
     if (db.prepare("SELECT COUNT(*) AS n FROM week_rows WHERE job_id = ?").get(jobId).n !== 1) return false;
-    announceDue(db, insertDue(db, jobId, "deposit", "scheduled"), req);
+    raise(db, jobId, "deposit", "scheduled", req);
     return true;
   });
 }
@@ -250,7 +306,7 @@ function onMaterialsOrdered(db, jobId, date, req) {
     ) {
       return false;
     }
-    announceDue(db, insertDue(db, jobId, "progress", "materials_ordered"), req);
+    raise(db, jobId, "progress", "materials_ordered", req);
     return true;
   });
 }
@@ -266,7 +322,7 @@ function onCompleted(db, jobId, req) {
     if (
       !db.prepare("SELECT 1 AS x FROM invoices WHERE job_id = ? AND kind = 'final' AND status <> 'void' LIMIT 1").get(jobId)
     ) {
-      announceDue(db, insertDue(db, jobId, "final", "completed"), req);
+      raise(db, jobId, "final", "completed", req);
       made = true;
     }
     const pending = db
@@ -443,18 +499,21 @@ function waive(db, id, reason, req) {
   })();
 }
 
-// Take a waived invoice back to due (the waive was a mistake).
+// Take a waived invoice back to due (the waive was a mistake), or back to
+// pending when it is a deposit, progress or final and the job still has no value.
 function unwaive(db, id, req) {
   return db.transaction(() => {
     const inv = getInvoice(db, id);
     if (inv.status !== "waived") throw conflict(`Only a waived invoice can be un-waived (this one is ${inv.status})`);
-    db.prepare("UPDATE invoices SET status = 'due', waive_reason = NULL, updated_at = ? WHERE id = ?").run(nowIso(), id);
+    const job = getJob(db, inv.job_id);
+    const to = inv.kind !== "extra" && (!job || job.value_cents == null) ? "pending" : "due";
+    db.prepare("UPDATE invoices SET status = ?, waive_reason = NULL, updated_at = ? WHERE id = ?").run(to, nowIso(), id);
     audit.log(req, {
       action: "invoice.waive",
       entityType: "invoice",
       entityId: id,
       before: { status: "waived" },
-      after: { status: "due" },
+      after: { status: to },
     });
     return getInvoice(db, id);
   })();
@@ -534,6 +593,7 @@ module.exports = {
   onScheduled,
   onMaterialsOrdered,
   onCompleted,
+  onValueSet,
   suggestedCents,
   standardLine,
   linesFor,

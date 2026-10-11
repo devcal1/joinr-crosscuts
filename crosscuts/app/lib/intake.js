@@ -3,6 +3,7 @@
 // decisions. Every write is one transaction and is audited. The wire shape of `payload` is
 // docs/integrations/joinr-crosscuts-intake.md.
 const audit = require("./audit");
+const invoices = require("./invoices");
 const { HttpError, bad, notFound, conflict } = require("./httperror");
 const { DATE_RE, sydneyToday } = require("./time");
 
@@ -433,6 +434,8 @@ function link(db, req, id, jobId) {
       entityId: row.id,
       after: { jobId: jid, rootQuoteId: row.root_quote_id, filled: cols.filter((c) => c !== "external_ref") },
     });
+    // Link filled an empty value: an invoice waiting for one falls due.
+    if ("value_cents" in after) invoices.onValueSet(db, jid, req);
     return jid;
   })();
   const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(result);

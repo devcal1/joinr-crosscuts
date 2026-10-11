@@ -126,8 +126,22 @@ req POST /api/rows "$ADMIN" "{\"weekStart\":\"$M2A_WEEK_NEXT\",\"panel\":\"manuf
 expect_status 201 "quick-add a job to the board"
 JQA=$(jqr '.jobId')
 m2a_job_invoices "$JQA"
-expect_jq 'length == 1 and .[0].kind == "deposit" and .[0].status == "due"' "quick-add job: deposit due, amount from no value"
-expect_jq '.[0].lines[0].amountCents == 0 and .[0].suggestedCents == null' "no value: an empty line to fill in"
+# An invoice always has a value (Todd, 2026-10-11): with no job value the deposit waits as pending.
+expect_jq 'length == 1 and .[0].kind == "deposit" and .[0].status == "pending" and .[0].dueReason == "scheduled"' \
+  "quick-add job (no value): the deposit waits as pending"
+JQA_DEP=$(jqr '.[0].id')
+req POST "/api/invoices/$JQA_DEP/issue" "$ACCT" '{}'
+expect_status 409 "a deposit waiting for a value cannot be issued"
+m2a_audit_min invoice.waiting "$JQA_DEP" 1
+req GET "/api/notifications?limit=100" "$ACCT"
+expect_jq "[.rows[] | select(.kind == \"invoice.waiting\" and .link == \"/job.html?id=$JQA\")] | length == 1" \
+  "accounts is told the deposit is waiting for a value"
+req PATCH "/api/job-records/$JQA" "$ADMIN" '{"valueCents":250000}'
+expect_status 200 "give the quick-add job a value"
+m2a_job_invoices "$JQA"
+expect_jq 'length == 1 and .[0].id == '"$JQA_DEP"' and .[0].status == "due" and .[0].suggestedCents == 25000' \
+  "the value makes the waiting deposit due, 10% of the value"
+m2a_audit_min invoice.due "$JQA_DEP" 1
 
 echo "--- a job with another week row gets no deposit, and no final ---"
 req POST /api/job-records "$ADMIN" '{"name":"M2 Legacy"}'
