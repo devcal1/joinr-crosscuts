@@ -27,7 +27,14 @@ Status: **discussion with Todd (started 2026-10-11).** Nothing here is approved.
 7. **Placement:** a new Planner page (menu and home tile). **The TV stays board-only.**
 8. **In this milestone:** reminders in the bell (e.g. one day before) and print/PDF of the month or the two-week view (black on white). A calendar feed for Outlook or phones is left for later.
 
-## Still to settle in the plan
+## The four open points, settled (Todd, 2026-10-11)
+
+1. **Layer colours: spectrum markers.** A new named house-style exception (needs adding to CLAUDE.md "Look and feel" when the plan is approved): each layer gets a small coloured marker (a left edge or dot on its events) from the brand spectrum (teal, violet, fuchsia, orange) plus greys for the rest. Event text stays white on the dark surface; print stays black on white with the layer name.
+2. **Personal events: owner only.** Nobody else sees them, admin included. Admin sees every department and shared layer.
+3. **Departments:** a person sees and posts to the layer of **every department role they hold**, picking the layer when creating an event (their main one pre-selected). **Automatic events: every job-related one goes on Install & hardware** (promised installs, manufacturing and installing weeks, materials ordered / due in / received, client inspections), so the workshop sees the whole production picture. Who's away goes on Company-wide, invoices on Accounts, task due dates on the assignee's Personal layer.
+4. **Repeats: a series with one-off changes.** Weekly, fortnightly or monthly, with an optional end date; shown as far ahead as anyone scrolls; editing offers "this one" or "this and all later"; deleting one occurrence leaves the rest.
+
+## Was still to settle (kept for the record)
 
 - **Overlay colours vs the house style.** The house style allows only teal (working), orange (attend), red (overdue/destructive), and the spectrum as thin rules; worker colours and the board icons are the only exceptions. Overlays need to be told apart, so the plan will propose a named exception (for example the four spectrum colours plus neutrals as small overlay markers) for Todd to approve.
 - **Admin and personal events.** "Admin sees everything" versus "personal: only the owner": recommend admin does not see the content of others' personal events (only that a slot is busy, or nothing at all).
