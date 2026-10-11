@@ -14,13 +14,53 @@ r.get("/status", "design.view", stub);
 // ---- end block A -----------------------------------------------------------------------
 
 // ---- Block B: the inbox (Wave 1 B) -----------------------------------------------------
-r.get("/intake", "design.view", stub);
-r.get("/intake/:id", "design.view", stub);
-r.post("/intake/:id/accept", "jobs.edit", stub);
-r.post("/intake/:id/link", "jobs.edit", stub);
-r.post("/intake/:id/ignore", "jobs.edit", stub);
-r.post("/intake/:id/acknowledge", "jobs.edit", stub);
-r.get("/job/:jobId", "jobs.view", stub);
+const intake = require("../lib/intake");
+const inboxDb = require("../db");
+const { sendError: inboxSendError, can: inboxCan } = require("../lib/httperror");
+
+function handleB(fn) {
+  return (req, res) => {
+    try {
+      fn(req, res);
+    } catch (e) {
+      inboxSendError(res, e, "[joinr]");
+    }
+  };
+}
+
+r.get("/intake", "design.view", handleB((req, res) => {
+  const rows = intake.list(inboxDb, req.user, { state: req.query.state });
+  res.json({ rows, counts: intake.counts(inboxDb), sync: require("../lib/joinr-sync").status(inboxDb) });
+}));
+
+r.get("/intake/:id", "design.view", handleB((req, res) => {
+  const item = intake.get(inboxDb, req.user, req.params.id);
+  if (inboxCan(req, "jobs.edit")) item.matchJobs = intake.matches(inboxDb, req.params.id);
+  res.json(item);
+}));
+
+r.post("/intake/:id/accept", "jobs.edit", handleB((req, res) => {
+  res.json(intake.accept(inboxDb, req, req.params.id));
+}));
+
+r.post("/intake/:id/link", "jobs.edit", handleB((req, res) => {
+  const b = req.body && typeof req.body === "object" ? req.body : {};
+  res.json(intake.link(inboxDb, req, req.params.id, b.jobId));
+}));
+
+r.post("/intake/:id/ignore", "jobs.edit", handleB((req, res) => {
+  res.json({ item: intake.ignore(inboxDb, req, req.params.id) });
+}));
+
+r.post("/intake/:id/acknowledge", "jobs.edit", handleB((req, res) => {
+  res.json({ item: intake.acknowledge(inboxDb, req, req.params.id) });
+}));
+
+r.get("/job/:jobId", "jobs.view", handleB((req, res) => {
+  const item = intake.forJob(inboxDb, req.user, req.params.jobId);
+  if (!item) return res.status(404).json({ error: "Not found" });
+  res.json(item);
+}));
 // ---- end block B -----------------------------------------------------------------------
 
 // ---- Block C: connection settings (Wave 1 C) -------------------------------------------

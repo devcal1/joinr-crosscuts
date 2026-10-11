@@ -1,0 +1,78 @@
+/* New from Joinr (intake.html): the inbox of won quotes. Tokens come from tokens.css, hs-
+   components from components.css, and the dialog frame from the shell's cc-dialog. Page
+   classes here are prefixed in-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[hidden] { display: none !important; }
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.in-page { max-width: 1000px; margin: 0 auto; padding: 22px 16px 48px; }
+.in-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.in-head h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 700; color: var(--white); }
+
+.in-sync { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 14px; }
+.in-sync-line { margin: 0; flex: 1 1 auto; color: var(--label); }
+.in-sync-line .in-err { color: var(--orange-tint); }
+
+.in-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.in-tab { gap: 8px; }
+.in-tab[aria-pressed="true"] { border-color: var(--teal); color: var(--teal-tint); background: var(--teal-16); }
+.in-tab-n { color: var(--label); font-variant-numeric: tabular-nums; }
+.in-tab[aria-pressed="true"] .in-tab-n { color: var(--teal-tint); }
+.in-tab-n.in-attn { color: var(--orange-tint); }
+
+.in-message { min-height: 20px; margin: 0 0 8px; }
+.in-message.err { color: var(--stop-tint); }
+.in-message.ok { color: var(--go-tint); }
+
+.in-list { display: grid; gap: 12px; }
+.in-empty { padding: 28px 14px; text-align: center; color: var(--label); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+
+.in-card { padding: 0; overflow: hidden; border-left: var(--accent-border) solid var(--hairline); }
+.in-card.in-new { border-left-color: var(--teal); }
+.in-card.in-changed { border-left-color: var(--orange); }
+.in-card.in-hl { background: var(--teal-8); border-color: var(--teal); }
+
+.in-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding: 12px 14px 4px; }
+.in-qn { font-size: 16px; font-weight: 700; color: var(--white); }
+.in-site { flex: 1 1 200px; min-width: 0; color: var(--white); overflow-wrap: anywhere; }
+.in-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.in-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 18px; padding: 8px 14px 12px; }
+.in-fact { min-width: 0; }
+.in-fact-k { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.in-fact-v { color: var(--body); overflow-wrap: anywhere; }
+.in-fact-v b { color: var(--white); font-weight: 700; }
+.in-muted { color: var(--muted); font-size: 12px; }
+
+.in-note { margin: 0 14px 12px; }
+.in-note p { margin: 0 0 4px; }
+.in-diff { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.in-diff li { overflow-wrap: anywhere; }
+.in-diff b { color: var(--white); font-weight: 700; }
+
+.in-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--hairline); }
+.in-acts .in-spacer { flex: 1 1 auto; }
+.in-linkbox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--hairline); background: var(--raised); }
+.in-linkbox label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.in-linkbox .hs-input { flex: 1 1 260px; width: auto; min-width: 0; color-scheme: dark; }
+.in-linkbox .in-linkhint { flex: 1 1 100%; margin: 0; }
+
+.cc-dialog.in-dialog { width: min(94vw, 460px); }
+
+@media (max-width: 640px) {
+  .in-head h1 { font-size: 20px; }
+  .in-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .in-fact-wide { grid-column: 1 / -1; }
+  .in-acts .hs-btn, .in-linkbox .hs-btn { flex: 1 1 auto; }
+  .in-tab { flex: 1 1 auto; }
+}
