@@ -6,8 +6,9 @@
 //                        photos-pre-NNN-<stamp>.db instead
 //   MANIFEST.txt         key: value lines, never a secret (parsed back by tools/restore.js)
 //   README-restore.txt   fixed text: how to open it
-//   config/              every regular file in CONFIG_DIR except backup-passphrase, dotfiles,
-//                        *.new and files over CONFIG_MAX_BYTES (configFileOk below)
+//   config/              every regular file in CONFIG_DIR except any name holding "passphrase",
+//                        dotfiles, *.new, *~, *.bak, *.old, *.orig and files over
+//                        CONFIG_MAX_BYTES (configFileOk below)
 //
 // Pure apart from sha256File (reads one file). Requires no database: dbFacts takes an open
 // connection. tools/restore.js requires this module too, so it stays free of the service.
@@ -29,16 +30,26 @@ const COUNT_TABLES = ["users", "jobs", "week_rows", "photos", "files"];
 const RESTORE_DOC = "https://github.com/devcal1/joinr-crosscuts/blob/main/docs/restore.md";
 
 // ---- what goes in config/ -----------------------------------------------------------------------
-// A config file name that may go in an archive (and come back out of one): a plain name (no
-// dotfile, no separator, no comma, so the manifest list stays one line), never backup-passphrase,
-// never a helper's half-placed *.new. The caller also checks it is a regular file (lstat) of at
-// most CONFIG_MAX_BYTES.
+// No copy of the passphrase ever goes in an archive: not backup-passphrase itself, nor any name
+// holding "passphrase" in any case (backup-passphrase.bak, .old, .orig, a copy made by hand).
+// Editor leftovers (*~, *.bak, *.old, *.orig) and a helper's half-placed *.new never go either.
+const PASSPHRASE_WORD_RE = /passphrase/i;
+const LEFTOVER_RE = /(~|\.bak|\.old|\.orig|\.new)$/i;
+
+// A plain config name (no dotfile, no separator, no comma, so the manifest list stays one line).
+function plainConfigName(name) {
+  return typeof name === "string" && FILE_NAME_RE.test(name);
+}
+
+// A config file name that may go in an archive (and come back out of one). The caller also checks
+// it is a regular file (lstat) of at most CONFIG_MAX_BYTES. tools/restore.js applies the same rule
+// to what it finds in an archive's config/, so an older archive's copy is never restored either.
 function configNameOk(name) {
   return (
-    typeof name === "string" &&
-    FILE_NAME_RE.test(name) &&
+    plainConfigName(name) &&
     name !== CONFIG_FILES.passphrase &&
-    !/\.new$/i.test(name)
+    !PASSPHRASE_WORD_RE.test(name) &&
+    !LEFTOVER_RE.test(name)
   );
 }
 
@@ -171,7 +182,9 @@ function parseManifest(text) {
   }
   if (typeof kv["config files"] !== "string") return null;
   const configFiles = kv["config files"] === "" ? [] : kv["config files"].split(",").map((s) => s.trim());
-  if (!configFiles.every(configNameOk)) return null;
+  // Plain names only: an archive made before the passphrase-copy rule may list one, and it still
+  // opens; the restore skips such a file (configNameOk).
+  if (!configFiles.every(plainConfigName)) return null;
   return {
     kind,
     made,

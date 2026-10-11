@@ -110,9 +110,39 @@ function list(runs) {
   return Array.isArray(runs) ? runs.filter((r) => r && typeof r === "object") : [];
 }
 
-// Failed runs stored for `slot`, other than `interrupted` (a stop mid-run is not an attempt).
+function oldestFirst(a, b) {
+  const sa = ms(a.startedAt) ?? 0;
+  const sb = ms(b.startedAt) ?? 0;
+  if (sa !== sb) return sa - sb;
+  return (Number(a.id) || 0) - (Number(b.id) || 0);
+}
+
+// The failed runs stored for `slot`, oldest first.
+function failedRuns(runs, slot) {
+  return list(runs)
+    .filter((r) => r.slot === slot && r.status === "failed")
+    .sort(oldestFirst);
+}
+
+// The real attempts for `slot`: every failed run other than `interrupted` (a stop mid-run), plus
+// one for each two consecutive `interrupted` runs (so a job that keeps taking the app down still
+// uses up the slot's attempts instead of looping). A pair counts as the later of the two.
 function realAttemptRuns(runs, slot) {
-  return list(runs).filter((r) => r.slot === slot && r.status === "failed" && r.reason !== "interrupted");
+  const out = [];
+  let streak = 0;
+  for (const r of failedRuns(runs, slot)) {
+    if (r.reason === "interrupted") {
+      streak += 1;
+      if (streak === 2) {
+        out.push(r);
+        streak = 0;
+      }
+    } else {
+      out.push(r);
+      streak = 0;
+    }
+  }
+  return out;
 }
 
 function realAttempts(runs, slot) {
@@ -139,18 +169,27 @@ function newestFirst(a, b) {
   return (Number(b.id) || 0) - (Number(a.id) || 0);
 }
 
-// The earliest the next attempt for `slot` may start, or null (no attempt yet, the attempts are used
-// up, or the last attempt was a refusal: the refusal lock is then the only gate).
+// The earliest the next attempt for `slot` may start, or null (no gate: no attempt yet, the attempts
+// are used up, or the last attempt was a refusal, where the refusal lock is the only gate).
+//   - after the n-th real attempt: its finish + RETRY_DELAYS_MIN[n-1] (1 h, 2 h, 4 h);
+//   - after an `interrupted` run (the app stopped mid-run, perhaps because of the run itself): at
+//     least its finish + the first delay (1 h), so a run that takes the app down can't start again
+//     5 minutes after every restart.
 function retryAt(runs, slot) {
   const attempts = realAttemptRuns(runs, slot).sort(newestFirst);
   const n = attempts.length;
-  if (n === 0 || n >= MAX_ATTEMPTS) return null;
-  const last = attempts[0];
-  if (REFUSAL_REASONS.includes(last.reason)) return null;
-  const finished = ms(last.finishedAt) ?? ms(last.startedAt);
-  if (finished === null) return null;
-  const delay = RETRY_DELAYS_MIN[Math.min(n, RETRY_DELAYS_MIN.length) - 1];
-  return new Date(finished + delay * 60_000);
+  if (n >= MAX_ATTEMPTS) return null;
+  let gate = null;
+  if (n > 0 && !REFUSAL_REASONS.includes(attempts[0].reason)) {
+    const finished = ms(attempts[0].finishedAt) ?? ms(attempts[0].startedAt);
+    if (finished !== null) gate = finished + RETRY_DELAYS_MIN[Math.min(n, RETRY_DELAYS_MIN.length) - 1] * 60_000;
+  }
+  const newest = failedRuns(runs, slot).sort(newestFirst)[0];
+  if (newest && newest.reason === "interrupted") {
+    const finished = ms(newest.finishedAt) ?? ms(newest.startedAt);
+    if (finished !== null) gate = Math.max(gate === null ? -Infinity : gate, finished + RETRY_DELAYS_MIN[0] * 60_000);
+  }
+  return gate === null ? null : new Date(gate);
 }
 
 // ---- the refusal lock (section 7.6) -------------------------------------------------------------

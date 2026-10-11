@@ -533,7 +533,9 @@
     "The NAS refused the last copy's password or module. Place the NAS files again with the backup helper first: repeated refusals could make the NAS block the Umbrel.";
   const BK_POLL_MS = 3000;
   let bkPollTimer = null;
-  let bkWatching = null; // when this page pressed Back up now (ms), until the run finishes
+  // After Back up now: the newest finished run id seen just before it was pressed. Runs with a
+  // higher id are this press's (or the run it joined), whatever the browser's clock says.
+  let bkWatching = null;
 
   function bkBytes(bytes) {
     const n = Number(bytes);
@@ -704,11 +706,21 @@
     btn.textContent = s.running ? "Backing up…" : "Back up now";
   }
 
+  // The newest finished run id in a status (0 when there is none). A run still going is left out,
+  // so a run that Back up now joins counts as this press's.
+  function bkNewestFinishedId(s) {
+    let newest = 0;
+    for (const run of (s && s.recent) || []) {
+      if (run && run.status !== "running" && Number(run.id) > newest) newest = Number(run.id);
+    }
+    return newest;
+  }
+
   // After a run this page started: the new sentences, in orange if either job failed.
   function bkFinished(s) {
-    const since = bkWatching;
+    const after = bkWatching;
     bkWatching = null;
-    const mine = (run) => run && Date.parse(run.startedAt) >= since - 5000;
+    const mine = (run) => run && run.status !== "running" && Number(run.id) > after;
     const parts = [];
     let failed = false;
     for (const run of [s.snapshot.last, s.copy.last]) {
@@ -726,13 +738,26 @@
     const s = await api("/api/backup/status");
     renderBackups(s);
     if (s.running) {
-      // A joined run started before the button was pressed.
-      const began = Date.parse(s.running.startedAt);
-      if (bkWatching !== null && Number.isFinite(began)) bkWatching = Math.min(bkWatching, began);
       // Poll only while a run is in progress.
-      bkPollTimer = setTimeout(() => guarded(loadBackups)(), BK_POLL_MS);
+      bkPollTimer = setTimeout(bkPoll, BK_POLL_MS);
     } else if (bkWatching !== null) {
       bkFinished(s);
+    }
+  }
+
+  // One poll while a run is in progress. A failed poll stops polling, gives the button back and
+  // says so in one short line (the run itself carries on on the server).
+  async function bkPoll() {
+    try {
+      await loadBackups();
+    } catch (err) {
+      clearTimeout(bkPollTimer);
+      bkPollTimer = null;
+      bkWatching = null;
+      const btn = $("backupRun");
+      btn.disabled = false;
+      btn.textContent = "Back up now";
+      bkShowResult("The backup status could not be read. Reload the page to see how the run went.", "bk-attend");
     }
   }
 
@@ -741,15 +766,19 @@
     btn.disabled = true;
     bkShowResult("");
     try {
+      // The newest finished run before this press, from a fresh status: the runs after it are ours.
+      const before = await api("/api/backup/status");
+      const after = bkNewestFinishedId(before);
       const r = await api("/api/backup/run", { method: "POST" });
-      bkWatching = Date.now();
+      bkWatching = after;
       bkShowResult(r && r.joined ? "A backup is already running. Waiting for it to finish…" : "Backing up…", "bk-good");
-      await loadBackups();
     } catch (err) {
       // 409 and 429 carry a fixed sentence in {error}.
       bkShowResult(err.message, "bk-attend");
       btn.disabled = false;
+      return;
     }
+    await bkPoll();
   });
 
   guarded(loadBackups)();

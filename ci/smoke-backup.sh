@@ -117,7 +117,8 @@ bk_put() {
 
 bk_rm_config() {
   docker exec "$CONTAINER" rm -f /data/config/backup-passphrase /data/config/nas-url /data/config/nas-password \
-    /data/config/.backup-passphrase.new /data/config/.nas-url.new /data/config/.nas-password.new
+    /data/config/.backup-passphrase.new /data/config/.nas-url.new /data/config/.nas-password.new \
+    /data/config/backup-passphrase.bak /data/config/.backup-passphrase.bak.new
 }
 
 # bk_7z ARGS...: 7-Zip inside the container (exit code passed through).
@@ -256,6 +257,9 @@ step "backup-4. passphrase only: a manual snapshot, encrypted, names hidden, res
 # ============================================================================
 
 bk_put backup-passphrase "$BK_PP"
+# A hand-made copy of the passphrase beside it (Backup 4.3): no copy of the passphrase may ever
+# go in an archive, whatever its suffix. Removed again after this step's checks.
+bk_put backup-passphrase.bak "$BK_PP"
 bk_status
 expect_jq '.snapshot.state == "ready" and .snapshot.passphrase == "set" and .copy.state == "off"' "snapshots ready, the copy still off"
 bk_run
@@ -274,6 +278,7 @@ esac
 expect_jq "[.archives[] | select(.name == \"$BK_ARCH4\" and .kind == \"manual\" and .bytes > 0)] | length == 1" "the archive is listed as manual"
 expect_jq '.totals.archives >= 1 and .totals.archiveBytes > 0' "the totals count it"
 BK_VACUUM4=$(jqr '.snapshot.last.detail.vacuumMs')
+BK_CHECK4=$(jqr '.snapshot.last.detail.checkMs')
 docker exec "$CONTAINER" sh -c 'test -f "$1"' sh "$BK_ARCHIVES/$BK_ARCH4" || fail "the archive file is not in $BK_ARCHIVES"
 ok
 
@@ -295,7 +300,7 @@ case $bk_list_right in
   *) fail "7z l with the passphrase does not list photos.db and MANIFEST.txt" ;;
 esac
 case $bk_list_right in
-  *backup-passphrase*) fail "the archive holds backup-passphrase" ;;
+  *passphrase*) fail "the archive holds a backup-passphrase file (backup-passphrase.bak was beside it)" ;;
   *) ok ;;
 esac
 
@@ -320,6 +325,7 @@ process.stdout.write(JSON.stringify({
   check, manOk: !!man, kind: man && man.kind, man: man && man.counts, arch: facts.counts, live: liveCounts,
   migrations: man && man.migrationCount, archMigrations: facts.migrationCount, configFiles: man ? man.configFiles : null,
   passphraseFile: fs.existsSync("/tmp/bk-x/config/backup-passphrase"),
+  passphraseCopies: fs.existsSync("/tmp/bk-x/config") ? fs.readdirSync("/tmp/bk-x/config").filter((n) => /passphrase/i.test(n)).length : 0,
 }));') || fail "could not read the extracted archive"
 printf '%s' "$bk_facts" | jq -e '.check == "ok" and .manOk == true and .kind == "manual"' >/dev/null \
   || fail "the extracted photos.db or MANIFEST.txt is not right: $bk_facts"
@@ -330,10 +336,11 @@ ok
 printf '%s' "$bk_facts" | jq -e '.man == .arch and .migrations == .archMigrations' >/dev/null \
   || fail "MANIFEST.txt counts differ from the archived photos.db: $bk_facts"
 ok
-printf '%s' "$bk_facts" | jq -e '.passphraseFile == false and ((.configFiles // []) | index("backup-passphrase") | not)' >/dev/null \
-  || fail "the archive holds config/backup-passphrase: $bk_facts"
+printf '%s' "$bk_facts" | jq -e '.passphraseFile == false and .passphraseCopies == 0 and ((.configFiles // []) | map(select(test("passphrase"; "i"))) | length == 0)' >/dev/null \
+  || fail "the archive holds config/backup-passphrase or a copy of it (backup-passphrase.bak): $bk_facts"
 ok
 docker exec "$CONTAINER" rm -rf /tmp/bk-x
+docker exec "$CONTAINER" rm -f /data/config/backup-passphrase.bak
 
 echo "An immediate second Back up now is too soon..."
 bk_run
@@ -372,7 +379,7 @@ done
 ok
 bk_wait 1 "the event-loop run"
 expect_jq ".snapshot.last.id > $BK_BEFORE and .snapshot.last.status == \"succeeded\"" "the event-loop run's snapshot succeeded"
-echo "INFO: VACUUM INTO took $BK_VACUUM4 ms (step 4) and $(jqr '.snapshot.last.detail.vacuumMs') ms (this run); the snapshot took $(jqr '.snapshot.last.detail.durationMs') ms."
+echo "INFO: VACUUM INTO took $BK_VACUUM4 ms (step 4) and $(jqr '.snapshot.last.detail.vacuumMs') ms (this run); integrity_check took $BK_CHECK4 ms (step 4) and $(jqr '.snapshot.last.detail.checkMs') ms (this run); the snapshot took $(jqr '.snapshot.last.detail.durationMs') ms. Both block the event loop (accepted, contracts section 18)."
 
 # ============================================================================
 step "backup-6. NAS half set up, then not usable"

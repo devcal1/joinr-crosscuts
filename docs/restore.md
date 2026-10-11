@@ -7,7 +7,7 @@ This repo is public. **The NAS's address, the rsync account and module names, th
 ## How the backups work
 
 - **Every night at 1:30 am** Crosscuts takes a snapshot of its database. It copies `photos.db`, checks the copy, and locks it into an encrypted 7-Zip archive (AES-256, with the names inside hidden). It then opens the archive again with the passphrase to prove it, and keeps it on the Umbrel in `data/db/backups/archives/`.
-- **The archive also holds the `config/` folder** (the Joinr and Gemini keys, the Joinr address, `nas-url` and `nas-password`), so a restore can put them back. It never holds `backup-passphrase`, the key to the archives themselves.
+- **The archive also holds the `config/` folder** (the Joinr and Gemini keys, the Joinr address, `nas-url` and `nas-password`), so a restore can put them back. It never holds `backup-passphrase`, the key to the archives themselves, nor any copy of it: a file in `config/` whose name contains `passphrase` (such as `backup-passphrase.bak`), and leftovers ending `~`, `.bak`, `.old`, `.orig` or `.new`, are never put in an archive, and the restore tool never puts one back.
 - **Every Saturday at 1:30 am** Crosscuts copies to the NAS everything the NAS doesn't have yet, over Tailscale, then lists the NAS back to prove it all arrived. **Back up now** on the Users page does a snapshot and, when the NAS is set up, a copy straight away.
 - **The NAS only ever gains files.** Crosscuts never deletes or changes anything there. Photos deleted in the app stay on the NAS.
 - **Problems show as a bell alert** to admins and on the Users page, under **Backups**. There is no phone alert.
@@ -56,7 +56,7 @@ sudo docker run --rm --network none -it -v $CC:/data $IMG node tools/restore.js 
 | `db <archive>` | puts the archive's database in place (case A). `--config` also puts back the config files (case B). |
 | `files <folder>` | decrypts every `<name>.7z` in the folder into `uploads/files/`. Skips files that are already there. |
 
-The tool asks for the passphrase in a hidden prompt and never prints it. It **never deletes**. The database it replaces is renamed `photos-before-restore-<stamp>.db` (with its `-wal` and `-shm` files, if any). It **refuses** an archive from a newer Crosscuts than the image ("This archive is from a newer Crosscuts…"). An older archive is fine: Crosscuts upgrades it on start, writing its usual pre-migration backup first.
+The tool asks for the passphrase in a hidden prompt and never prints it. **Ctrl+C at any of its questions stops it** (exit code 130) before anything is restored. It **never deletes**. The database it replaces is renamed `photos-before-restore-<stamp>.db` (with its `-wal` and `-shm` files, if any). It **refuses** an archive from a newer Crosscuts than the image ("This archive is from a newer Crosscuts…"). An older archive is fine: Crosscuts upgrades it on start, writing its usual pre-migration backup first.
 
 ## A. Restore the database from an archive on the Umbrel
 
@@ -174,7 +174,7 @@ console.log(db.prepare('SELECT stored_name, original_name, removed_at FROM files
      sudo docker run --rm --network none -it -v $CC:/data $IMG node tools/restore.js files /data/restore-in/one
      sudo rm -rf $CC/restore-in /home/umbrel/<stored name>.7z
      ```
-     The app can stay running for this. The tool never overwrites a file that is already there.
+     The app can stay running for this: the tool works in its own folder under `db/backups/.staging/` (`restore-…`), and a backup running meanwhile clears only its own folders there. The tool never overwrites a file that is already there.
 
 ## The restore drill
 
@@ -200,6 +200,7 @@ It restores the newest **NAS** archive (not one from the Umbrel) into a throwawa
    sudo docker run --rm --network none -it -v $DRILL:/data $IMG node tools/restore.js db /data/in/<archive name> --yes
    ```
    ☐ `check` prints the manifest. Its `config files:` line lists the config files, and not `backup-passphrase`. ☐ `db` prints matching counts. Write them down.
+   ☐ **Also on Windows:** open the same archive from `C:\crosscuts-drill\` with 7-Zip (right-click, **7-Zip**, **Open archive**) and the passphrase from the password manager. It must list `photos.db`. This proves the Umbrel's 7-Zip and Windows 7-Zip turn the passphrase into the same key. It matters most if the passphrase has any character outside plain ASCII (an accent, a symbol, an emoji): the helper warns about that when it places it.
 4. Start the throwaway copy, with backups switched off so it never copies to the NAS:
    ```
    sudo docker run -d --name crosscuts-drill -p 4999:3000 -e BACKUP_DISABLED=1 \
@@ -241,9 +242,11 @@ The passphrase and the NAS files are placed with the backup helper, `tools/backu
 3. **Place them:** `node tools/backup-secrets.mjs`. It asks for:
    - **the NAS address**, shown as you type (it is not a secret). It must have the form above. An address outside Tailscale's range gets a warning and is used only if you type `yes`.
    - **the NAS password**, hidden, twice;
-   - **the passphrase**, hidden, twice: **the Joinr Backup passphrase from the password manager**, exactly as stored, at least 12 characters.
+   - **the passphrase**, hidden, twice: **the Joinr Backup passphrase from the password manager**, exactly as stored, at least 12 characters. If it has any character outside plain ASCII (an accent, a symbol, an emoji), the helper prints a warning but still places it: then, at step 5 (and at Backup · 6.1), copy the new archive to the PC and check it opens in 7-Zip on Windows with the passphrase before relying on it (as in the drill, step 3).
 4. **Check:** `node tools/backup-secrets.mjs --check`. ☐ All three files show `present (600, uid 1000)`. ☐ It reports "Snapshots: on" and "Copy to the NAS: set up". It shows only each file's mode and owner, never its contents or size.
 5. **Users page, Backups:** press **Back up now**. ☐ The snapshot succeeds. ☐ The copy says "proved on the NAS". ☐ The NAS folder now has `db/`, `photos/` and `files/`.
+
+   **The first copy of many photos may need more than one run.** Each copy stops after 30 minutes ("The copy took longer than 30 minutes and was stopped part way. What was sent is kept; the next run carries on."). Nothing is lost: the next run lists the NAS and sends only what is still missing. Press **Back up now** again after 10 minutes, until the copy says "proved on the NAS". (A Saturday copy that stops part way retries by itself after 1, 2 and 4 hours.)
 
 Other options:
 - `--only nas` or `--only passphrase` places one group. For example, use `--only nas` after changing the rsync password on the NAS.
@@ -273,4 +276,6 @@ Crosscuts never deletes on the NAS. If a client asks for their photos or files t
 - **An archive "won't open" on Windows:** double-clicking doesn't work, because the names inside are encrypted. Right-click it, then **7-Zip**, **Open archive**, and enter the passphrase.
 - **Back up now says "The backup passphrase is not on the server":** place it with the helper (`--only passphrase`).
 - **"The NAS did not answer":** the NAS is off or asleep, off Tailscale, its rsync server is off, its Tailscale key has expired, or ADM Defender has blocked the Umbrel.
+- **"The copy took longer than 30 minutes and was stopped part way":** normal for a first copy of many photos. What was sent is kept; the next run carries on. **"The copy to the NAS stalled"** is different: the NAS stopped answering in the middle of a transfer (rsync's own two-minute timeout). Check the NAS and Tailscale as for "did not answer".
+- **"There is not enough free space on the Umbrel to encrypt the private files":** the copy encrypts each batch of private files into `data/db/backups/.staging/` before sending it, and needs room for the batch plus 256 MB. Free some space on the Umbrel; the copy tries again by itself.
 - **No copy for 8 days, or no snapshot for 2 days:** admins get a bell alert, and the Users page says "Overdue". Look at the last run's sentence on the Users page.

@@ -19,7 +19,11 @@
 // It goes to 7-Zip as -p (archive.js) and is never printed.
 //
 // Exit codes: 0 done; 1 failed (nothing changed, unless the message says otherwise); 2 usage;
-// 3 refused (an archive from a newer Crosscuts, or the stop was not confirmed).
+// 3 refused (an archive from a newer Crosscuts, or the stop was not confirmed); 130 Ctrl+C at a
+// prompt (nothing restored: every prompt comes before any file is replaced or written).
+//
+// It works in its own staging folder (db/backups/.staging/restore-<stamp>-<pid>/); the app's
+// snapshot and copy clear only their own folders there, so `files` can run beside a running app.
 //
 // This file must NEVER require db/index.js or server.js: opening the live database would run the
 // migrations on the very file being replaced. It requires only lib/config.js,
@@ -335,16 +339,21 @@ async function openArchive(file, passphrase, dir) {
     if (e instanceof CliError) throw e;
     throw new CliError(`The database file could not be opened (${safeErrorCode(e)}).`);
   }
+  // The same rule as the snapshot (manifest.configFileOk): no name holding "passphrase", no
+  // leftover (*~, *.bak, *.old, *.orig, *.new), so a copy of the passphrase in an older archive is
+  // never restored. Such files are only counted, never written.
   const configFiles = [];
+  let configSkipped = 0;
   const configDir = path.join(dir, manifest.CONFIG_FOLDER);
   const cst = lstatOrNull(configDir);
   if (cst && cst.isDirectory()) {
     for (const name of fs.readdirSync(configDir).sort()) {
       const st = lstatOrNull(path.join(configDir, name));
       if (manifest.configFileOk(name, st)) configFiles.push(name);
+      else configSkipped += 1;
     }
   }
-  return { man, dbPath, facts, configFiles };
+  return { man, dbPath, facts, configFiles, configSkipped };
 }
 
 function printCounts(label, counts) {
@@ -414,6 +423,7 @@ async function cmdCheck(arg, flags) {
     say("Counts (MANIFEST.txt, then the file in the archive):");
     printSideBySide(a.man.counts, "manifest", a.facts.counts, "archive");
     say(`Config files in the archive: ${a.configFiles.length > 0 ? a.configFiles.join(", ") : "none"}`);
+    if (a.configSkipped > 0) say(`${a.configSkipped} other file(s) in its config/ would never be restored (a passphrase copy or a leftover).`);
     const highest = imageHighestMigration();
     if (a.man.migrationHighest > highest) {
       say(`Note: this archive is from a newer Crosscuts (migration ${a.man.migrationHighest}; this image has ${highest}). Restore it with an image at least as new.`);
@@ -548,6 +558,7 @@ async function cmdDb(arg, flags) {
       try {
         const results = writeConfig(configPlan);
         say(results.length > 0 ? `Config files: ${results.join("; ")}.` : "Config files: none in the archive.");
+        if (a.configSkipped > 0) say(`${a.configSkipped} other file(s) in the archive's config/ were not restored (a passphrase copy or a leftover).`);
       } catch (e) {
         configFailed = true;
         warn(`The database was restored, but the config files could not all be written (${safeErrorCode(e)}).`);

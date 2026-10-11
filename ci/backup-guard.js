@@ -15,7 +15,13 @@
 //     or --list-only appears anywhere but constants.js;
 //   - `shell: true` appears, or exec, execSync, execFile or execFileSync is taken from
 //     child_process (children are spawn with an argument array only; db.exec is not a child);
-//   - a console. call mentions passphrase, password, nasUrl, RSYNC_PASSWORD, args, .out or .err.
+//   - a console. call mentions passphrase, password, nasUrl, RSYNC_PASSWORD, args, .out or .err;
+//   - (Backup 4.3) in an rsync-related file under lib/backup (one whose code mentions rsync; not
+//     archive.js, which builds 7-Zip's arguments), a string literal is a bundled short-flag group
+//     such as "-av" or "-rP" (/^-[a-zA-Z]{2,}$/), which could slip a banned flag past the list;
+//   - `shell:` is given any value but false (true, a shell path, 1, a variable ...);
+//   - runTool( is called with rsync (its first argument mentions rsync or RSYNC) anywhere but
+//     lib/backup/rsync.js: every rsync child starts there, behind its argument-shape check.
 // Missing files are skipped (later waves add them), except constants.js, which must exist.
 // If this check fails, fix the code, not the guard.
 "use strict";
@@ -26,6 +32,9 @@ const REPO = path.join(__dirname, "..");
 const BACKUP_DIR = path.join(REPO, "crosscuts", "app", "lib", "backup");
 const EXTRA_FILES = [path.join(REPO, "crosscuts", "app", "tools", "restore.js"), path.join(REPO, "tools", "backup-secrets.mjs")];
 const CONSTANTS = path.join(BACKUP_DIR, "constants.js");
+const RSYNC_JS = path.join(BACKUP_DIR, "rsync.js");
+const ARCHIVE_JS = path.join(BACKUP_DIR, "archive.js");
+const BUNDLED_SHORT_FLAGS = /^-[a-zA-Z]{2,}$/;
 
 const BANNED = new Set([
   "--del",
@@ -146,10 +155,17 @@ function execProblems(code) {
 function checkFile(file, problems) {
   const rel = path.relative(REPO, file).split(path.sep).join("/");
   const code = codeLines(fs.readFileSync(file, "utf8"));
-  const isConstants = path.resolve(file) === path.resolve(CONSTANTS);
+  const abs = path.resolve(file);
+  const isConstants = abs === path.resolve(CONSTANTS);
+  const inBackupLib = abs.startsWith(path.resolve(BACKUP_DIR) + path.sep);
+  const rsyncRelated = inBackupLib && abs !== path.resolve(ARCHIVE_JS) && /rsync/i.test(code);
 
   for (const lit of stringLiterals(code)) {
-    if (BANNED.has(lit) || lit.startsWith("--delete")) problems.push(`${rel}: banned rsync flag literal "${lit}"`);
+    if (BANNED.has(lit) || lit.startsWith("--delete")) {
+      problems.push(`${rel}: banned rsync flag literal "${lit}"`);
+    } else if (rsyncRelated && BUNDLED_SHORT_FLAGS.test(lit)) {
+      problems.push(`${rel}: bundled short-flag literal "${lit}" in an rsync-related file`);
+    }
   }
   if (!isConstants) {
     let i = code.indexOf("--list-only");
@@ -158,9 +174,19 @@ function checkFile(file, problems) {
       i = code.indexOf("--list-only", i + 1);
     }
   }
-  const shellRe = /\bshell\s*:\s*true\b/g;
+  // `shell:` (the key quoted or not) with any value but false.
+  const shellRe = /(?<![\w$])["']?shell["']?\s*:\s*(?!false\b)(?=[^\s,}])/g;
   let m;
-  while ((m = shellRe.exec(code)) !== null) problems.push(`${rel}:${lineOf(code, m.index)}: shell: true`);
+  while ((m = shellRe.exec(code)) !== null) {
+    problems.push(`${rel}:${lineOf(code, m.index)}: shell: given a value other than false`);
+  }
+  // runTool( with rsync, outside rsync.js.
+  if (abs !== path.resolve(RSYNC_JS)) {
+    const runRe = /\brunTool\s*\(\s*([^,)]*)/g;
+    while ((m = runRe.exec(code)) !== null) {
+      if (/rsync/i.test(m[1])) problems.push(`${rel}:${lineOf(code, m.index)}: runTool called with rsync outside lib/backup/rsync.js`);
+    }
+  }
   for (const p of execProblems(code)) problems.push(`${rel}: ${p}`);
   const callRe = /\bconsole\s*\.\s*[A-Za-z]+\s*\(/g;
   const calls = consoleCalls(code);

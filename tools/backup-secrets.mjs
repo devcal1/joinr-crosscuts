@@ -88,6 +88,11 @@ export const NOT_A_TERMINAL_MESSAGE =
 export const NOT_TAILSCALE_WARNING =
   "This is not a Tailscale address (100.64.0.0/10): the rsync protocol is not encrypted, so the files would cross the network readable.";
 
+// A warning, not a refusal (Backup 4.3): 7-Zip on the Umbrel and 7-Zip on Windows must turn the
+// passphrase into the same key, which is certain only for plain ASCII.
+export const NON_ASCII_PASSPHRASE_WARNING =
+  "Warning: the passphrase has a character outside plain ASCII (an accent, a symbol or an emoji). " +
+  "It is placed as typed, but check that an archive made with it opens in 7-Zip on Windows (docs/restore.md, the drill) before relying on it.";
 export const PASSPHRASE_REMINDER =
   "Use the Joinr Backup passphrase from the password manager. A lost passphrase makes every archive useless.";
 
@@ -210,6 +215,11 @@ export function passwordProblem(pw) {
   // Crosscuts trims the password it reads, so one with a space at either end could never log in.
   if (pw.trim() !== pw) return "The password starts or ends with a space.";
   return null;
+}
+
+/** True when the text holds a character outside printable ASCII (an accent, a symbol, an emoji). */
+export function hasNonAscii(text) {
+  return /[^\x20-\x7e]/.test(text);
 }
 
 /** Why a typed passphrase is refused, or null. It is kept exactly as typed (never trimmed). */
@@ -634,6 +644,7 @@ async function askPassphrase(ctx, prompt) {
   ctx.out(`It must be at least ${PASSPHRASE_MIN} characters, and is kept exactly as typed (spaces included).`);
   const value = await askTwice(ctx, prompt, { label: "Passphrase", problemOf: passphraseProblem });
   ctx.out("passphrase accepted");
+  if (hasNonAscii(value)) ctx.out(NON_ASCII_PASSPHRASE_WARNING);
   return value;
 }
 

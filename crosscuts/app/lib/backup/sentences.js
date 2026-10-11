@@ -102,7 +102,7 @@ const COPY_WITH_CODE = {
     "The NAS has no rsync module by the name in nas-url. Check the module on the NAS, then place the address again",
   refused: "The NAS refused the connection, usually because of a wrong password or module name",
   unreachable: "The NAS did not answer. Check it is switched on and reachable over Tailscale",
-  timeout:
+  stalled:
     "The copy to the NAS stalled and was stopped. No incomplete file is left under a backup's name on the NAS",
   broken:
     "The connection to the NAS broke part way through. No incomplete file is left under a backup's name on the NAS",
@@ -114,6 +114,9 @@ const COPY_WITH_CODE = {
 const COPY_FIXED = {
   nas_off: "The copy to the NAS is not set up.",
   encrypt_failed: "A private file could not be encrypted, so the copy stopped. It will be tried again.",
+  // The copy's own deadline (COPY_DEADLINE_MS), not rsync's exit 30 ('stalled').
+  timeout:
+    "The copy took longer than 30 minutes and was stopped part way. What was sent is kept; the next run carries on.",
   no_rsync: "rsync is missing from the app image, so nothing can be copied.",
   no_7zip: "7-Zip is missing from the app image, so the private files can't be encrypted.",
   interrupted: "The copy was cut short when the app stopped.",
@@ -147,6 +150,11 @@ function copyBody(reason, exitCode, d) {
     }
     // Starts with the file's name, lower case as it is on disk (as Finance's sentence does).
     return `${what}. Run the backup helper again.`;
+  }
+  if (reason === "no_space") {
+    return `There is not enough free space on the Umbrel to encrypt the private files for the NAS (${formatBytes(
+      d.needBytes
+    )} needed, ${formatBytes(d.freeBytes)} free). It will be tried again.`;
   }
   if (reason === "not_verified") {
     const missing = count(d.missingAfter) || 0;

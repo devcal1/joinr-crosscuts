@@ -7,7 +7,9 @@
 //
 // Steps (each failure stops the run with the reason in brackets):
 //   1. 7-Zip resolved (no_7zip); the passphrase file is set (no_passphrase / passphrase_unusable).
-//   2. ARCHIVES_DIR made; STAGING_DIR emptied and made (mode 700), with snap/ inside.
+//   2. ARCHIVES_DIR made; STAGING_DIR made (mode 700) and cleared of the snapshot's own entries
+//      (snap/, wrap-*, staged crosscuts-* archives; never the copy's blobs/ or a restore-*), with
+//      snap/ inside.
 //   3. Free space >= 3 x (photos.db + photos.db-wal) + 256 MB (no_space; nothing pruned).
 //   4. VACUUM INTO staging/snap/photos.db (copy_failed).
 //   5. A fresh connection to the copy: journal_mode DELETE, integrity_check ok (check_failed),
@@ -18,7 +20,8 @@
 //  10. 7z test with the passphrase (test_failed: kept as ARCHIVES_DIR/<name>.unverified).
 //  11. fsync, rename into ARCHIVES_DIR/<name>, fsync the folder.
 //  12. Retention (retention.js): detail.pruned.  13. Pre-migration wraps (section 5.5).
-//  14. finally: STAGING_DIR emptied (no plaintext copy or config copy outlives the run).
+//  14. finally: the snapshot's own staging entries removed (no plaintext copy or config copy
+//      outlives the run).
 // The signal (or a ToolAbortError) gives 'timeout'; anything unexpected gives 'other', logged
 // with a safe code only.
 //
@@ -90,10 +93,24 @@ function emptyDir(dir) {
   fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 }
 
-// Empties STAGING_DIR (keeping the folder). Never throws.
+// The snapshot's own entries in STAGING_DIR: snap/, the wrap-* folders and the archives staged
+// beside them (crosscuts-*). The copy's blobs/ and a restore's restore-* folder are theirs; the
+// service's start-up wipe clears everything.
+function ownStagingEntry(name) {
+  return name === "snap" || name.startsWith("wrap-") || name.startsWith("crosscuts-");
+}
+
+// Removes the snapshot's own entries from STAGING_DIR (keeping the folder). Never throws.
 function clearStaging() {
   try {
-    for (const entry of fs.readdirSync(STAGING_DIR)) emptyDir(path.join(STAGING_DIR, entry));
+    for (const entry of fs.readdirSync(STAGING_DIR)) {
+      if (!ownStagingEntry(entry)) continue;
+      try {
+        emptyDir(path.join(STAGING_DIR, entry));
+      } catch (e) {
+        console.error(`[backup] snapshot: staging not emptied (${safeErrorCode(e)})`);
+      }
+    }
   } catch (e) {
     if (e && e.code !== "ENOENT") console.error(`[backup] snapshot: staging not emptied (${safeErrorCode(e)})`);
   }
@@ -364,8 +381,8 @@ async function run(db, { trigger, signal, now }, detail) {
 
   // 2. The folders.
   fs.mkdirSync(ARCHIVES_DIR, { recursive: true });
-  emptyDir(STAGING_DIR);
   fs.mkdirSync(STAGING_DIR, { recursive: true, mode: 0o700 });
+  clearStaging();
   try {
     fs.chmodSync(STAGING_DIR, 0o700);
   } catch {

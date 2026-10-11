@@ -11,7 +11,11 @@
 // its planned size. It only ever ADDS: the flags are RSYNC_FLAGS, nothing on the NAS is deleted or
 // renamed, and a file somebody else put there is never listed as ours. Private files are encrypted
 // one by one into staging just before their batch is sent, and the staging blobs are deleted after
-// the batch whatever happened, so a private file is never kept twice on the Umbrel.
+// the batch whatever happened, so a private file is never kept twice on the Umbrel. Before each
+// batch is encrypted, staging must have the batch's bytes plus SPACE_FLOOR_BYTES free (no_space).
+// The proof judges each file against a fresh local lstat: a file whose size changed since the plan
+// is counted `changed` (neither proved nor missing) and is sent again by the next run. The local
+// walks are asynchronous, so a big uploads/ folder never holds the event loop.
 //
 // The NAS password and the passphrase live in this function's local scope only. Nothing rsync or
 // 7-Zip printed, no path, address, account, module or value ever reaches the outcome or a log.
@@ -55,32 +59,60 @@ const fileNameOk = (n) => names.isUploadName(n, "file");
 const blobNameOk = (n) => typeof n === "string" && n.endsWith(".7z") && fileNameOk(n.slice(0, -3));
 
 // ---- the local side --------------------------------------------------------------------------------
+// The walks are asynchronous (fs.promises, LSTAT_CHUNK lstats at a time), so thousands of photos
+// never hold the event loop: the board shares this process.
+const LSTAT_CHUNK = 64;
+
+// lstat, or null when the file is gone or unreadable.
+async function lstatOrNull(file) {
+  try {
+    return await fs.promises.lstat(file);
+  } catch {
+    return null;
+  }
+}
+
 // The regular files directly in `dir` that `accept` takes: [{name, source, bytes, mtimeMs}].
 // Skipped: dotfiles, *.part, anything that is not a regular file (lstat: a symlink is skipped).
-function localEntries(dir, accept) {
+async function localEntries(dir, accept) {
   let list;
   try {
-    list = fs.readdirSync(dir);
+    list = await fs.promises.readdir(dir);
   } catch (e) {
     const code = tools.safeSystemCode(e);
     if (code === "ENOENT" || code === "ENOTDIR") return [];
     console.error(`[backup] copy: a local folder could not be read (${code})`);
     throw new Stop("other");
   }
+  const names = list.filter((name) => plainName(name) && accept(name));
   const out = [];
-  for (const name of list) {
-    if (!plainName(name) || !accept(name)) continue;
-    const source = path.join(dir, name);
-    let st;
-    try {
-      st = fs.lstatSync(source);
-    } catch {
-      continue; // gone since the folder was read
-    }
-    if (!st.isFile()) continue;
-    out.push({ name, source, bytes: st.size, mtimeMs: st.mtimeMs });
+  for (let i = 0; i < names.length; i += LSTAT_CHUNK) {
+    const chunk = names.slice(i, i + LSTAT_CHUNK);
+    const stats = await Promise.all(chunk.map((name) => lstatOrNull(path.join(dir, name))));
+    chunk.forEach((name, k) => {
+      const st = stats[k];
+      if (!st || !st.isFile()) return; // gone since the folder was read, or not a regular file
+      out.push({ name, source: path.join(dir, name), bytes: st.size, mtimeMs: st.mtimeMs });
+    });
   }
   return out;
+}
+
+// The local size of each file's source now (null: gone, or no longer a regular file).
+async function sizesNow(files) {
+  const out = new Map();
+  for (let i = 0; i < files.length; i += LSTAT_CHUNK) {
+    const chunk = files.slice(i, i + LSTAT_CHUNK);
+    const stats = await Promise.all(chunk.map((f) => lstatOrNull(f.source)));
+    chunk.forEach((f, k) => out.set(f, stats[k] && stats[k].isFile() ? stats[k].size : null));
+  }
+  return out;
+}
+
+// Free bytes on the filesystem holding `dir` (bavail x bsize).
+function freeBytesAt(dir) {
+  const st = fs.statfsSync(dir);
+  return Number(st.bavail) * Number(st.bsize);
 }
 
 function isRegularFile(file) {
@@ -108,7 +140,7 @@ function clearBlobDir() {
 }
 
 function newFolder(extra) {
-  return { local: 0, alreadyThere: 0, sent: 0, missingAfter: 0, vanished: 0, bytes: 0, ...extra };
+  return { local: 0, alreadyThere: 0, sent: 0, missingAfter: 0, vanished: 0, changed: 0, bytes: 0, ...extra };
 }
 
 function abortStop(signal) {
@@ -220,21 +252,37 @@ async function copyToNas(db, { trigger, signal, now = new Date(), runner } = {})
       throw failure("send", res);
     };
 
-    // Relist and prove: every intended file on the NAS at its expected size. A source that is
-    // gone locally counts as vanished, not missing. `onProved(files)` hears the files proved even
-    // when others are missing (the ledger keeps what it saw).
-    const prove = async (folder, nameOk, intended, expected, gone, F, saw23, onProved) => {
+    // Relist and prove: every intended file on the NAS at its expected size, judged against a
+    // fresh local lstat taken now:
+    //   - the source is gone: proved if the NAS has it at the expected size, else vanished;
+    //   - the source's size changed since the plan (f.bytes): neither proved nor missing, counted
+    //     `changed` (what the NAS holds is an older version; the next run sends it again);
+    //   - else proved at the expected size, or missing.
+    // `onProved(files)` hears the files proved even when others are missing (the ledger keeps what
+    // it saw).
+    const prove = async (folder, nameOk, intended, expected, F, saw23, onProved) => {
       const after = await list(folder, nameOk, true);
       const sizes = new Map(after.map((r) => [r.name, r.bytes]));
+      const now = await sizesNow(intended);
       const proved = [];
       for (const f of intended) {
         const want = expected(f);
-        if (Number.isFinite(want) && sizes.get(f.name) === want) {
+        const onNas = Number.isFinite(want) && sizes.get(f.name) === want;
+        const local = now.get(f);
+        if (local === null) {
+          if (onNas) {
+            F.sent += 1;
+            F.bytes += want;
+            proved.push(f);
+          } else {
+            F.vanished += 1;
+          }
+        } else if (local !== f.bytes) {
+          F.changed += 1;
+        } else if (onNas) {
           F.sent += 1;
           F.bytes += want;
           proved.push(f);
-        } else if (gone(f)) {
-          F.vanished += 1;
         } else {
           F.missingAfter += 1;
         }
@@ -250,14 +298,14 @@ async function copyToNas(db, { trigger, signal, now = new Date(), runner } = {})
     {
       const F = newFolder();
       detail.folders.db = F;
-      const local = localEntries(ARCHIVES_DIR, dbNameOk);
+      const local = await localEntries(ARCHIVES_DIR, dbNameOk);
       F.local = local.length;
       const remote = await list("db", dbNameOk, false);
       const plan = planFolder(local, remote, (f) => f.bytes, { order: "archive" });
       F.alreadyThere = plan.alreadyThere;
       if (plan.toSend.length > 0) {
         const code = await send("db", plan.toSend.map((f) => f.source));
-        await prove("db", dbNameOk, plan.toSend, (f) => f.bytes, (f) => !isRegularFile(f.source), F, code === 23);
+        await prove("db", dbNameOk, plan.toSend, (f) => f.bytes, F, code === 23);
       }
     }
 
@@ -265,7 +313,7 @@ async function copyToNas(db, { trigger, signal, now = new Date(), runner } = {})
     {
       const F = newFolder({ encrypted: 0 });
       detail.folders.files = F;
-      const local = localEntries(FILES_DIR, fileNameOk).map((f) => ({ ...f, stored: f.name, name: `${f.name}.7z` }));
+      const local = (await localEntries(FILES_DIR, fileNameOk)).map((f) => ({ ...f, stored: f.name, name: `${f.name}.7z` }));
       F.local = local.length;
       const rows = ledger.rowsByName(db);
       const remote = await list("files", blobNameOk, false);
@@ -299,6 +347,21 @@ async function copyToNas(db, { trigger, signal, now = new Date(), runner } = {})
         staged = true;
 
         for (const batch of batches(plan.toSend, C.BLOB_BATCH, C.BLOB_BATCH_BYTES)) {
+          // Room for this batch's blobs in staging first: the batch's source bytes (a blob is
+          // about its source's size) plus SPACE_FLOOR_BYTES, else stop (no_space, retryable).
+          const needBytes = batch.reduce((n, f) => n + (Number(f.bytes) || 0), 0) + C.SPACE_FLOOR_BYTES;
+          let freeBytes;
+          try {
+            freeBytes = freeBytesAt(BLOB_DIR);
+          } catch (e) {
+            console.error(`[backup] copy: free space could not be read (${tools.safeSystemCode(e)})`);
+            throw new Stop("other");
+          }
+          if (!(freeBytes >= needBytes)) {
+            detail.needBytes = needBytes;
+            detail.freeBytes = freeBytes;
+            throw new Stop("no_space");
+          }
           const blobs = [];
           try {
             const toSend = [];
@@ -371,7 +434,6 @@ async function copyToNas(db, { trigger, signal, now = new Date(), runner } = {})
             blobNameOk,
             intended,
             (f) => f.blobBytes,
-            (f) => !isRegularFile(f.source),
             F,
             saw23,
             (proved) => ledger.markProven(db, proved.map((f) => f.stored))
@@ -384,7 +446,7 @@ async function copyToNas(db, { trigger, signal, now = new Date(), runner } = {})
     {
       const F = newFolder();
       detail.folders.photos = F;
-      const local = localEntries(PHOTOS_DIR, photoNameOk);
+      const local = await localEntries(PHOTOS_DIR, photoNameOk);
       F.local = local.length;
       const remote = await list("photos", photoNameOk, false);
       const plan = planFolder(local, remote, (f) => f.bytes, { order: "mtime" });
@@ -395,7 +457,7 @@ async function copyToNas(db, { trigger, signal, now = new Date(), runner } = {})
           const code = await send("photos", batch.map((f) => f.source));
           if (code === 23) saw23 = true;
         }
-        await prove("photos", photoNameOk, plan.toSend, (f) => f.bytes, (f) => !isRegularFile(f.source), F, saw23);
+        await prove("photos", photoNameOk, plan.toSend, (f) => f.bytes, F, saw23);
       }
     }
 

@@ -63,10 +63,10 @@ const NUMBER_KEYS = {
     "needBytes",
     "freeBytes",
   ],
-  copy: ["sent", "alreadyThere", "missingAfter", "bytes", "durationMs", "total"],
+  copy: ["sent", "alreadyThere", "missingAfter", "bytes", "durationMs", "total", "needBytes", "freeBytes"],
 };
 const COUNT_KEYS = ["users", "jobs", "weekRows", "photos", "files"];
-const FOLDER_KEYS = ["local", "alreadyThere", "sent", "missingAfter", "vanished", "bytes", "encrypted"];
+const FOLDER_KEYS = ["local", "alreadyThere", "sent", "missingAfter", "vanished", "changed", "bytes", "encrypted"];
 const FILE_STATES = ["missing", "not_usable", "set"];
 
 function num(v) {
@@ -501,6 +501,10 @@ function startTimer(db) {
 
 // ---- start (section 7.4) ------------------------------------------------------------------------
 
+// A run cut short by the last stop is marked `interrupted`, finished now. The schedule then waits
+// at least the first retry delay (1 h) before trying that slot again, and two interrupted runs in a
+// row count as one real attempt (schedule.js retryAt, realAttemptRuns), so a run that takes the app
+// down can't loop on every restart.
 function sweepInterrupted(db) {
   const info = db
     .prepare(

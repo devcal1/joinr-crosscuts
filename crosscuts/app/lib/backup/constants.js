@@ -97,12 +97,14 @@ const COPY_REASONS = Object.freeze([
   "unknown_module",
   "refused",
   "unreachable",
-  "timeout",
+  "timeout", // the copy's own deadline (COPY_DEADLINE_MS)
+  "stalled", // rsync exit 30: no data within --timeout
   "broken",
   "nas_io",
   "not_verified",
   "readback_failed",
   "encrypt_failed",
+  "no_space", // too little free space to encrypt a batch of private files (retryable, as the snapshot's)
   "no_rsync",
   "no_7zip",
   "interrupted",

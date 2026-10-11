@@ -1,7 +1,8 @@
 // Finding 7-Zip and rsync, and running one child (docs/plans/backup-contracts.md section 4.3).
 //
 // Every child is an argument array with NO shell (`shell: false`, never exec), and an environment
-// built from scratch: a fixed PATH and LC_ALL=C plus whatever the caller adds (rsync's password).
+// built from scratch: a fixed PATH and LC_ALL (C for rsync, C.UTF-8 for 7-Zip) plus whatever the
+// caller adds (rsync's password).
 // No HOME, so rsync reads no ~/.popt; nothing RSYNC_* leaks in from the parent.
 //
 // No argument array, environment, `out` or `err` is ever logged, stored, returned outside
@@ -113,8 +114,17 @@ function toolLabel(executable) {
 }
 
 // ---- running a child ----------------------------------------------------------------------------
-function childEnv(extraEnv) {
-  const base = IS_WINDOWS ? { PATH: process.env.PATH || "", LC_ALL: "C" } : { PATH: CHILD_PATH, LC_ALL: "C" };
+// The locale: rsync gets LC_ALL=C, so its messages (matched in rsync.js) stay in English. 7-Zip gets
+// LC_ALL=C.UTF-8: it turns its arguments into Unicode by the locale, and under plain C a passphrase
+// with any non-ASCII character would become a different key from the one Windows 7-Zip derives
+// from the same text, so the archives would not open on Windows.
+function localeFor(tool) {
+  return tool === "7-Zip" ? "C.UTF-8" : "C";
+}
+
+function childEnv(extraEnv, tool) {
+  const LC_ALL = localeFor(tool);
+  const base = IS_WINDOWS ? { PATH: process.env.PATH || "", LC_ALL } : { PATH: CHILD_PATH, LC_ALL };
   return { ...base, ...(extraEnv && typeof extraEnv === "object" ? extraEnv : {}) };
 }
 
@@ -156,7 +166,7 @@ function runTool(executable, args, { cwd, extraEnv, signal, outputLimit } = {}) 
       child = spawn(executable, Array.isArray(args) ? args : [], {
         shell: false,
         cwd,
-        env: childEnv(extraEnv),
+        env: childEnv(extraEnv, tool),
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });
@@ -266,9 +276,9 @@ async function probeVersions() {
   }
   if (RSYNC !== null) {
     try {
-      const r = await runTool(RSYNC, ["--version"], { outputLimit: 64 * 1024 });
-      const line = r.out.split(/\r?\n/).find((l) => l.includes("rsync  version"));
-      if (line !== undefined) out.rsync = line.trim().slice(0, 200);
+      // Every rsync child starts in rsync.js (ci/backup-guard.js). Required here, at run time, as
+      // rsync.js requires this file.
+      out.rsync = await require("./rsync").probeVersion();
     } catch {
       // not runnable: reported as missing
     }

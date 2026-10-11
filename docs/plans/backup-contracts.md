@@ -186,10 +186,12 @@ NON_RETRYABLE = ['no_passphrase', 'passphrase_unusable', 'no_7zip', 'no_rsync', 
 ```js
 const SEVEN_ZIP;                       // the resolved name or path, or null
 function toolsStatus();                // {sevenZip: bool, rsync: bool}, cached after the first call
-async function probeVersions();        // {sevenZip: string|null, rsync: string|null} (first line containing "7-Zip" / "rsync  version")
+async function probeVersions();        // {sevenZip: string|null, rsync: string|null} (first line containing "7-Zip" / "rsync  version";
+                                       //  the rsync line comes from rsync.probeVersion(), 4.3)
 // Runs one child: spawn(executable, args, {shell: false, cwd, stdio: ['ignore','pipe','pipe']}) with an
 // environment built FROM SCRATCH: {PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-// LC_ALL: 'C', ...extraEnv} (no HOME, so rsync reads no ~/.popt; no RSYNC_* from the parent). On Windows
+// LC_ALL, ...extraEnv} with LC_ALL 'C' for rsync (its messages stay English for rsync.js) and 'C.UTF-8'
+// for 7-Zip (4.3: it converts -p by the locale) (no HOME, so rsync reads no ~/.popt; no RSYNC_* from the parent). On Windows
 // dev boxes PATH is passed through instead. stdout capped at outputLimit (outTruncated set), stderr at
 // STDERR_LIMIT. On signal abort: SIGTERM, then SIGKILL after KILL_GRACE_MS.
 // Resolves {code, out, err, outTruncated} for any exit code. Rejects only with ToolMissingError (ENOENT)
@@ -248,7 +250,9 @@ function isUploadName(name, kind);      // 'photo' | 'file': the regex, no leadi
 photos.db            the verified copy (journal_mode DELETE)
 MANIFEST.txt         key: value lines (below)
 README-restore.txt   how to open it (below)
-config/              every regular file in CONFIG_DIR except backup-passphrase, dotfiles, *.new and files over 64 KB
+config/              every regular file in CONFIG_DIR except any name containing "passphrase" (any case: backup-passphrase
+                     and every copy of it, e.g. backup-passphrase.bak), dotfiles, names ending ~ .bak .old .orig .new,
+                     and files over 64 KB (4.3). restore.js applies the same rule to an archive's config/.
 ```
 A pre-migration wrap holds `photos-pre-NNN-<stamp>.db` in place of `photos.db`, plus the same three.
 
@@ -289,7 +293,7 @@ function listArchives();
 
 Steps, in order (each failure stops the run with the reason in brackets):
 1. 7-Zip resolved (`no_7zip`); `readPassphrase()` is `set` (`no_passphrase` / `passphrase_unusable`). The service checks both first; the job checks again.
-2. Make `ARCHIVES_DIR`; empty and make `STAGING_DIR` (mode 700) and `STAGING_DIR/snap/`.
+2. Make `ARCHIVES_DIR`; make `STAGING_DIR` (mode 700) and clear the snapshot's **own** entries in it (`snap/`, `wrap-*`, staged `crosscuts-*` archives; 4.3: never the copy's `blobs/` or a restore's `restore-*`); make `STAGING_DIR/snap/`.
 3. **Space:** `fs.statfsSync(DB_DIR)` free bytes (`bavail × bsize`) ≥ 3 × (size of `photos.db` + size of `photos.db-wal`) + 256 MB, else `no_space` (`detail.needBytes`, `detail.freeBytes`); nothing is pruned.
 4. `db.exec("VACUUM INTO '<staging>/snap/photos.db'")` (quotes doubled), timed as `detail.vacuumMs` (`copy_failed`). This blocks the event loop for its duration (plan trap 6); the smoke measures it.
 5. On a **fresh connection** to the copy: `journal_mode = DELETE`; `integrity_check` (simple) must be `ok` (`check_failed`); `SELECT COUNT(*) FROM schema_migrations` must equal the live count (`migrations_mismatch`); record the counts (§5.2). Close it. Timed as `detail.checkMs`.
@@ -301,7 +305,7 @@ Steps, in order (each failure stops the run with the reason in brackets):
 11. fsync the archive, rename it into `ARCHIVES_DIR/<name>`, fsync the folder (fsync errors on Windows ignored).
 12. Retention (§5.6); `detail.pruned` = files removed.
 13. Pre-migration wraps (§5.5).
-14. `finally`: empty `STAGING_DIR` (the plaintext copy and the config copies never outlive the run).
+14. `finally`: remove the snapshot's own staging entries (the plaintext copy and the config copies never outlive the run). The service's start-up wipe (§7.4) clears all of `STAGING_DIR`.
 
 A deadline or `ToolAbortError` → `timeout`. Any unexpected error → `other`, logged as `[backup] snapshot: unexpected error (<safe code>)`.
 
@@ -358,9 +362,11 @@ Each folder is created by the first send (rsync makes one missing folder level).
 1. **List** the folder (§6.4). Exit 0 → parse. Exit 23 with `No such file or directory` on stderr → the folder doesn't exist yet: empty. Else classify (`list` phase) and stop.
 2. **Local set** with sizes (`lstat`), and the **plan** (§6.5).
 3. **Send** in batches, newest first: `db/` in one batch; `photos/` up to 500 paths per rsync run; `files/` per §6.6. Exit 0, 23 or 24 → go on to the proof (24 = a source vanished, e.g. a photo deleted meanwhile); anything else → classify (`send` phase) and stop.
-4. **Relist** and **prove**: every file sent must be on the NAS at its planned size (`files/`: the ledger's `blob_bytes`). A sent source that no longer exists locally counts as `vanished`, not missing. Missing > 0 → `not_verified`. A relist failure → `readback_failed`.
+4. **Relist** and **prove**: every file sent must be on the NAS at its planned size (`files/`: the ledger's `blob_bytes`), judged against a **fresh local `lstat` at proof time** (4.3): a sent source that no longer exists locally counts as proved if the NAS has it at that size, else `vanished`, not missing; a source whose local size changed since the plan counts as `changed`, neither proved nor missing (the NAS holds an older version; the next run sends it again). Missing > 0 → `not_verified`. A relist failure → `readback_failed`.
 
-A failure in one folder stops the copy; folders already proved keep their counts in `detail`. `detail = {attempted, folders: {db: F, files: F, photos: F}, sent, alreadyThere, missingAfter, bytes, durationMs}`, `F = {local, alreadyThere, sent, missingAfter, vanished, bytes}` (`files` adds `encrypted`).
+A failure in one folder stops the copy; folders already proved keep their counts in `detail`. `detail = {attempted, folders: {db: F, files: F, photos: F}, sent, alreadyThere, missingAfter, bytes, durationMs}`, `F = {local, alreadyThere, sent, missingAfter, vanished, changed, bytes}` (`files` adds `encrypted`; `changed` 4.3). A `no_space` stop adds `needBytes` and `freeBytes` (§6.6).
+
+The local walks (`readdir`, `lstat`) are asynchronous (`fs.promises`, 64 `lstat`s at a time), so thousands of photos never hold the event loop (4.3).
 
 ### 6.3 rsync (`rsync.js`)
 
@@ -370,6 +376,7 @@ function sendArgs(sources, folderUrl);   // [...RSYNC_FLAGS, '--', ...sources, f
 async function runRsync(args, { password, signal, outputLimit });  // runTool('rsync', args, {extraEnv: {RSYNC_PASSWORD: password}, ...})
 function classify(phase, code, stderr);  // section 6.8
 function listingMeansEmpty(code, stderr);
+async function probeVersion();          // 4.3: the 'rsync  version' line or null, for tools.probeVersions; every rsync child starts in rsync.js
 ```
 **The flags are exactly `RSYNC_FLAGS`, plus `--list-only` for listings. Never** `--delete*`, `--partial`, `--inplace`, `--append*`, `--remove-source-files`, `-a`, `--archive`, `-r`, `--recursive`, `--mkpath`, `--files-from`, `--password-file`, `-e`/`--rsh`, or anything else (`ci/backup-guard.js`, §16.1). The password goes **only** in the child's `RSYNC_PASSWORD`, in the scratch environment of `runTool`. The address goes only in the final argument.
 
@@ -385,6 +392,7 @@ function listingMeansEmpty(code, stderr);
 ### 6.6 Private files: encrypt, send, forget the copy
 
 For each `files/` batch (at most 50 files or 512 MB of source):
+0. (4.3) `fs.statfsSync` on the staging folder: free bytes (`bavail × bsize`) ≥ the batch's source bytes + `SPACE_FLOOR_BYTES` (256 MB), else stop with `no_space` (`detail.needBytes`, `detail.freeBytes`). Retryable, as the snapshot's `no_space` is (neither is in `NON_RETRYABLE`).
 1. For each file: `archive.create` into `STAGING_DIR/blobs/<name>.7z` with `cwd` = `uploads/files`, entry = the bare name, level 1; `archive.test`; on either failing → `encrypt_failed` (retryable) and stop.
 2. `ledger.recordEncrypted(db, name, sourceBytes, blobBytes)`.
 3. A file that had **no** ledger row and whose new `blob_bytes` equals the size the NAS lists is counted `alreadyThere` and not sent (a ledger lost with an older database doesn't cause a re-send).
@@ -416,7 +424,8 @@ stderr is matched **only** against these fixed patterns and is never stored, log
 | 35 | `unreachable` |
 | 10 at the first listing | `unreachable` (connection refused) |
 | 10 later, 12 | `broken` |
-| 30, or the copy deadline | `timeout` |
+| 30 (rsync's own `--timeout`: no data for 120 s) | `stalled` (4.3) |
+| the copy deadline (`COPY_DEADLINE_MS`: the signal's `TimeoutError`, or `ToolAbortError` `deadline`) | `timeout` (4.3: distinct from 30) |
 | 11 at the first listing | `other` |
 | 11 or 23 on a send | `nas_io` (23 on a send goes to the proof first) |
 | any failure of the relist | `readback_failed` |
@@ -446,9 +455,9 @@ A slot `S` is **settled** when any of these holds:
 - (a) `S` ≤ the seed slot for that kind (§7.4);
 - (b) a **succeeded** run of that kind, any trigger, has `slotOf(started_at) = S` (so a Back up now after 01:30 settles that night, and a successful Saturday-week manual copy settles the Saturday);
 - (c) a failed run for `S` has a reason in `NON_RETRYABLE`;
-- (d) `S` already has `MAX_ATTEMPTS` (4) **real attempts**: failed runs for `S` other than `interrupted`.
+- (d) `S` already has `MAX_ATTEMPTS` (4) **real attempts**: failed runs for `S` other than `interrupted`, plus one for each **two consecutive `interrupted` runs** for `S` (4.3: a run that keeps taking the app down still uses up the slot).
 
-**Retry gate:** after the *n*-th real attempt for `S` (n = 1..3), the next may start no earlier than that run's `finished_at` + `RETRY_DELAYS_MIN[n−1]` (1 h, 2 h, 4 h). It applies to both kinds, except after a refusal (`auth`, `unknown_module`, `refused`): there the refusal lock (§7.6) is the only gate, so the copy tries again on the first tick after the helper places the files.
+**Retry gate:** after the *n*-th real attempt for `S` (n = 1..3), the next may start no earlier than that run's `finished_at` + `RETRY_DELAYS_MIN[n−1]` (1 h, 2 h, 4 h). It applies to both kinds, except after a refusal (`auth`, `unknown_module`, `refused`): there the refusal lock (§7.6) is the only gate, so the copy tries again on the first tick after the helper places the files. **After an `interrupted` run for `S`** (4.3), the next timer attempt of `S` waits at least that run's `finished_at` + `RETRY_DELAYS_MIN[0]` (1 h), whatever the ladder says, so a run that crashes the app can't restart every 5 minutes.
 
 ### 7.3 Due, the tick and the triggers
 
@@ -535,7 +544,7 @@ const FIX_FIRST = "The NAS refused the last copy's password or module. Place the
 | `interrupted` | The snapshot was cut short when the app stopped. |
 | `other` | The snapshot failed. |
 
-**Copy** (failures end with `COPY_TAIL`; "(rsync exit code {code})" is added before the full stop when a code is known, for `auth`, `unknown_module`, `refused`, `unreachable`, `timeout`, `broken`, `nas_io`, `readback_failed`, `other`):
+**Copy** (failures end with `COPY_TAIL`; "(rsync exit code {code})" is added before the full stop when a code is known, for `auth`, `unknown_module`, `refused`, `unreachable`, `stalled`, `broken`, `nas_io`, `readback_failed`, `other`):
 
 | Reason | Sentence |
 |---|---|
@@ -547,7 +556,9 @@ const FIX_FIRST = "The NAS refused the last copy's password or module. Place the
 | `unknown_module` | The NAS has no rsync module by the name in nas-url. Check the module on the NAS, then place the address again |
 | `refused` | The NAS refused the connection, usually because of a wrong password or module name |
 | `unreachable` | The NAS did not answer. Check it is switched on and reachable over Tailscale |
-| `timeout` | The copy to the NAS stalled and was stopped. No incomplete file is left under a backup's name on the NAS |
+| `stalled` (4.3) | The copy to the NAS stalled and was stopped. No incomplete file is left under a backup's name on the NAS |
+| `timeout` (4.3) | The copy took longer than 30 minutes and was stopped part way. What was sent is kept; the next run carries on. |
+| `no_space` (4.3) | There is not enough free space on the Umbrel to encrypt the private files for the NAS ({need} needed, {free} free). It will be tried again. |
 | `broken` | The connection to the NAS broke part way through. No incomplete file is left under a backup's name on the NAS |
 | `nas_io` | The NAS could not store or list the files: it may be full, or the rsync account may not be allowed to write the folder |
 | `not_verified` | rsync reported success, but {missing} of {total} files are not on the NAS at the right size. |
@@ -604,7 +615,7 @@ Logged out: 401 (the auth layer). Any other role: 403. The scaffold registers bo
 - **Snapshots** (sub-bar): the state ("On", "Off: the backup passphrase is not on the server", "Not usable: …", "7-Zip is missing"); the last snapshot's sentence and time; the next run ("Next: tonight at 1:30 am" / "Next try: 3:45 pm" / "Not scheduled on this server" when `scheduleOn` is false); "Overdue: no good snapshot since …" when `overdue`.
 - **Copy to the NAS** (sub-bar): the state ("Not set up", "Half set up: nas-password is missing", "Not usable: …", "Locked: " + the fix-first sentence, "Set up"); the last copy's sentence and time; the next run; overdue as above.
 - **Archives on this server**: an `hs-table` (Made, Kind: "Nightly" / "Back up now" / "Before migration NNN", Size), newest 10, and a line with the totals ("14 archives, 31 MB; 2 unverified set aside").
-- **Back up now** (`hs-btn-primary`, `id="backupRun"`): `POST /api/backup/run`; disabled while `running`; 202 shows "Backing up…" and polls `GET /api/backup/status` every 3 s until `running` is null, then shows the new sentences; 409/429 show `{error}` in orange in `role="status"`.
+- **Back up now** (`hs-btn-primary`, `id="backupRun"`): first `GET /api/backup/status` and note the newest finished run id, then `POST /api/backup/run`; disabled while `running`; 202 shows "Backing up…" and polls `GET /api/backup/status` every 3 s until `running` is null, then shows the sentences of the runs with an id above the noted one (4.3: never matched by the browser's clock); 409/429 show `{error}` in orange in `role="status"`. A failed poll stops polling, re-enables the button and shows one short orange line (4.3).
 - Hint: "Back up now takes a snapshot and, when the NAS is set up, copies to it. It can't run again within 10 minutes of a good snapshot."
 - Times in Sydney time with the page's existing `fmtDate`. The section loads with the page; it doesn't poll unless a run is in progress.
 
@@ -671,7 +682,9 @@ sudo docker run --rm --network none -it -v /home/umbrel/umbrel/app-data/tenon-jo
 - **`db`:** (1) refuse unless the archive's name passes `parseArchiveName` (or `--unverified` for a `.unverified` file); (2) "Have you stopped Crosscuts in umbrelOS? Type YES" (skipped by `--yes`); (3) extract into `/data/db/backups/.staging/restore-<stamp>/` (wiped at the end, and by the app's next start); (4) `MANIFEST.txt` parses, the database file's sha256 matches it, `integrity_check` is `ok`; (5) refuse (exit 3) if the archive's highest migration is **higher** than this image's (`db/migrations`, read with `listMigrations`): "This archive is from a newer Crosscuts. Restore it with an image at least as new." An older archive is fine: the app migrates it up on start, with its usual pre-migration backup; (6) rename `photos.db`, `photos.db-wal` and `photos.db-shm` (whichever exist) to `photos-before-restore-<stamp>.db`, `.db-wal`, `.db-shm` (**never deletes**: the three are renamed as one set, so an old WAL is never paired with the restored file); (7) move the restored file in as `photos.db`, with the mode and owner of the file it replaces, else `0644` and the owner of `/data/db`; (8) with `--config`: each file in the archive's `config/` is written to `/data/config` with **mode 600** and the owner of `/data/config`; an existing file with different contents is first renamed `<name>.before-restore-<stamp>`; (9) print the archive's counts and the restored file's counts side by side.
 - **`files`:** for each `<FILE_NAME_RE>.7z`: skip if `/data/uploads/files/<name>` exists (count it); else extract to staging, move into place (`0644`, owner of the folder). Prints counts. Never overwrites.
 - Requires only `lib/config.js`, `lib/backup/{constants,tools,archive,names}.js`, `manifest.js`, `db/migrate.js` (`listMigrations` only) and `better-sqlite3`. **Never `db/index.js` or `server.js`.**
-- Exit codes: 0 done; 1 failed (nothing changed); 2 usage; 3 refused (newer archive, or not confirmed).
+- Exit codes: 0 done; 1 failed (nothing changed); 2 usage; 3 refused (newer archive, or not confirmed); 130 Ctrl+C at a prompt (4.3; every prompt comes before anything is restored).
+- **Config files** (4.3): only names passing the §5.2 rule are restored or listed; anything else in an archive's `config/` (an older archive's passphrase copy) is counted and never written (its name shows only where `check` prints the archive's `MANIFEST.txt`). `parseManifest` accepts any plain name on the `config files:` line, so such an older archive still opens.
+- **Staging** (4.3): its own `restore-<stamp>-<pid>/` under `STAGING_DIR`; the snapshot and the copy clear only their own entries there, so `files` (case C) may run while the app runs.
 
 ## 14. Docs (Wave 1 C)
 
@@ -706,7 +719,10 @@ In `tenon-umbrel-store/tenon-joinr-crosscuts/` (push only with Todd's OK):
 - a string literal is any of `--delete` (or any `--delete-*`), `--del`, `--partial`, `--partial-dir`, `--inplace`, `--append`, `--append-verify`, `--remove-source-files`, `--remove-sent-files`, `-a`, `--archive`, `-r`, `--recursive`, `--mkpath`, `--files-from`, `--password-file`, `-e`, `--rsh`, `-P`;
 - `RSYNC_FLAGS` in `constants.js` is not exactly `['--times', '--contimeout=10', '--timeout=120']`, or `--list-only` appears anywhere but `constants.js`;
 - `shell: true` appears, or `exec`, `execSync`, `execFile` or `execFileSync` is taken from `child_process` (children are `spawn` with an argument array only; `db.exec` for `VACUUM INTO` is not a child and is fine);
-- a `console.` line mentions `passphrase`, `password`, `nasUrl`, `RSYNC_PASSWORD`, `args`, `.out` or `.err`.
+- a `console.` line mentions `passphrase`, `password`, `nasUrl`, `RSYNC_PASSWORD`, `args`, `.out` or `.err`;
+- (4.3) in an rsync-related file under `lib/backup/` (its code mentions rsync; not `archive.js`), a string literal is a bundled short-flag group (`/^-[a-zA-Z]{2,}$/`, e.g. `-av`);
+- (4.3) `shell:` has any value but `false` (the `shell: true` rule widened);
+- (4.3) `runTool(` is called with rsync (its first argument mentions rsync) anywhere but `lib/backup/rsync.js`.
 
 If it fails, fix the code, not the guard.
 
@@ -728,8 +744,8 @@ Checks, in order:
 1. **Access:** logged out `GET /status` and `POST /run` 401; `$ADMIN` 200; `$SCHED`, `$ACCT`, `$DPM`, `$SHOW` 403 on both.
 2. **Nothing set up:** `snapshot.state == "off"`, `copy.state == "off"`, `enabled` true, `scheduleOn` false, `tools` both true; `POST /run` 409 with the no-passphrase sentence; no `backup_runs` rows; no `backup.run` audit.
 3. **Passphrase not usable** (11 characters): `snapshot.state == "invalid"`; `POST /run` 409.
-4. **Passphrase only:** `POST /run` 202 (`joined` false, `copy` false); `bk_wait`; the last snapshot succeeded; no copy row; an archive listed with kind `manual`; the archive file exists; inside the container: `7z t` with the passphrase exits 0; `7z t -p<wrong>` fails; `7z l -p<wrong>` output doesn't contain `photos.db` (names hidden); extracted with the passphrase, `photos.db` passes `integrity_check` and its `users`/`jobs` counts equal the live ones; `MANIFEST.txt` counts match; there's no `config/backup-passphrase` in it. An immediate second `POST /run` → 429 with `retryAfterSeconds`. `GET /api/audit?action=backup.run` has one row with the admin as actor.
-5. **Event loop:** during a run, 20 `/healthz` calls each answer within 2 s; the snapshot's `detail.vacuumMs` is printed.
+4. **Passphrase only:** `POST /run` 202 (`joined` false, `copy` false); `bk_wait`; the last snapshot succeeded; no copy row; an archive listed with kind `manual`; the archive file exists; inside the container: `7z t` with the passphrase exits 0; `7z t -p<wrong>` fails; `7z l -p<wrong>` output doesn't contain `photos.db` (names hidden); extracted with the passphrase, `photos.db` passes `integrity_check` and its `users`/`jobs` counts equal the live ones; `MANIFEST.txt` counts match; there's no `config/backup-passphrase` in it, nor any copy: the step places `backup-passphrase.bak` beside the passphrase first, asserts nothing named `*passphrase*` is in the listing, `config/` or the manifest, then removes it (4.3). An immediate second `POST /run` → 429 with `retryAfterSeconds`. `GET /api/audit?action=backup.run` has one row with the admin as actor.
+5. **Event loop:** during a run, 20 `/healthz` calls each answer within 2 s; the snapshot's `detail.vacuumMs` and `detail.checkMs` are printed (4.3).
 6. **Half set up:** only `nas-url` → `copy.state == "half"`; an address with a host name → `"invalid"`.
 7. **The copy:** start the stand-in; place `nas-url` (`rsync://ci-cc-backup@127.0.0.1:8873/ccnas`) and `nas-password`; put a foreign file at `/tmp/fake-nas/photos/foreign-not-ours.jpg` and record its sha256 and mtime; upload a test photo (as admin) and a small PDF to the report library (as acct); `bk_rewind`; `POST /run` 202 (`copy` true); `bk_wait`; the copy succeeded with `missingAfter == 0`; on the stand-in: `db/` holds every verified archive at its local size, `photos/` holds the test photo and its thumbnail (plain, same sha256), `files/` holds `<stored name>.7z` that is not the plain file and that `7z x` with the passphrase turns back into a file with the `files` row's sha256; `backup_blobs` has the file with `proven_at` set; the archive made in this run contains `config/nas-url` and `config/nas-password` and no `config/backup-passphrase`; the foreign file is unchanged.
 8. **Second run:** `bk_rewind`; `POST /run`; `bk_wait`; the copy succeeded with `folders.photos.sent == 0`, `folders.files.sent == 0` and `folders.db.sent == 1` (its own new archive only); the foreign file still unchanged; nothing on the stand-in was removed.
@@ -780,6 +796,21 @@ Optional, informational only (never a failure): print whether this image's 7-Zip
 9. `ci/backup-guard.js` is in the scaffold (as the plan's 2.2 says), so it guards Wave 1 from the start; E owns only the smoke.
 
 10. (After Wave 1.) The copy is due only when the passphrase is set (§7.3); B's `copyToNas` still records `encrypt_failed` with `detail.passphraseState` if it is called without one. `listArchives()` returns `{archives: [{name, kind, bytes, made, migration}], archiveBytes, unverified}` (A); the copy outcome `detail` is `{attempted, folders: {db?, files?, photos?}, sent, alreadyThere, missingAfter, bytes, durationMs}` plus optional `files`, `total`, `passphraseState` (B): D keeps these keys.
+
+11. (4.3, review fixes.) Changed here, each marked "4.3" where it lands:
+    - **No copy of the passphrase in any archive** (§5.2, §13): any config name containing `passphrase` (any case) and leftovers ending `~`, `.bak`, `.old`, `.orig`, `.new` are never archived, and `restore.js` never restores one; the smoke proves it with a `backup-passphrase.bak` (§16.3 step 4).
+    - **The copy checks staging space per private-file batch** (§6.6 step 0): reason `no_space` for the copy too, **retryable** like the snapshot's.
+    - **The proof uses a fresh local lstat** (§6.2): a file whose size changed since the plan is `changed` (new per-folder detail key, whitelisted in `index.js` `cleanDetail`), neither proved nor missing; it is sent again next run. `needBytes`/`freeBytes` are whitelisted for the copy too.
+    - **7-Zip runs with `LC_ALL=C.UTF-8`**, rsync keeps `LC_ALL=C` (§4.3); the helper warns (never refuses) on a non-ASCII passphrase, and `docs/restore.md` adds a Windows 7-Zip open check to the drill and to placing the files.
+    - **No restart loop after `interrupted`** (§7.2): the 1 h gate after an interrupted run of a slot, and two consecutive interrupted runs count as one real attempt.
+    - **The copy's walks are async** (§6.2). **Accepted stall:** `VACUUM INTO` (§5.3 step 4) and `integrity_check` (§5.3 step 5) stay synchronous on the main thread and block the event loop (the board) for their duration; the smoke prints `vacuumMs` and `checkMs`, and 6.1 reads both on the live-size database. Moving them to a worker is a later change if they prove long.
+    - **Copy deadline vs rsync 30** (§6.8, §8): `timeout` is now only the copy's own 30-minute deadline ("took longer than 30 minutes … the next run carries on"); rsync's exit 30 is the new reason `stalled` (the old "stalled" sentence, with its exit code). `docs/restore.md` says the first copy of many photos may need more than one run.
+    - **Back up now matches its runs by id** (§10), not the browser's clock; a failed poll gives the button back.
+    - **The guard** (§16.1) also fails on bundled short-flag literals, any truthy `shell:`, and `runTool(` with rsync outside `rsync.js` (the version probe moved to `rsync.probeVersion`).
+    - **Staging is shared** (§5.3, §13): the snapshot clears only its own entries, the copy only `blobs/`, a restore uses its own `restore-*`; the start-up wipe clears all.
+    - **`restore.js` exit 130** on Ctrl+C at a prompt (§13).
+12. (4.3, noted for Todd; behaviour unchanged.) **The passphrase on 7-Zip's command line** (`-p`, §4.4) is more exposed than first stated: while each 7-Zip runs it is readable from the host's `/proc` (by root on the Umbrel, and by any app container sharing the host PID namespace), not only inside this container; and the first copy runs 7-Zip twice per private file (create and test), so many short windows. Left as is for Todd's decision (§18 to-check item 2 covers the stdin alternative).
+13. (4.3, accepted.) **A same-name file of a different size on the NAS is replaced** by the next send (§6.1, rsync's rename into place). This is how a half-written photo heals, but it also means a wrong-size file someone else put under one of our names is overwritten. Accepted: the protection is the Btrfs snapshots on the share (already in the NAS prep, `docs/restore.md`).
 
 **To check** (couldn't verify from here):
 1. **Alpine's 7-Zip package.** `apk add 7zip` (community repo) and which names it installs (`7zz`, `7z`, or both). The runtime resolution and the Dockerfile's `7zz || 7z` cover either; the first CI build proves the package exists for both architectures.

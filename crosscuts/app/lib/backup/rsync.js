@@ -92,6 +92,19 @@ async function runRsync(args, { password, signal, outputLimit } = {}) {
   });
 }
 
+// rsync's version line for the start banner, or null. Never throws. The one rsync child besides
+// the two shapes above; it lives here so every rsync child starts in this file (ci/backup-guard.js).
+async function probeVersion() {
+  if (tools.RSYNC === null) return null;
+  try {
+    const r = await tools.runTool(tools.RSYNC, ["--version"], { outputLimit: 64 * 1024 });
+    const line = r.out.split(/\r?\n/).find((l) => l.includes("rsync  version"));
+    return line === undefined ? null : line.trim().slice(0, 200);
+  } catch {
+    return null; // not runnable: reported as missing
+  }
+}
+
 const MAX_CONNECTIONS_RE = /max connections/i;
 const READ_OR_WRITE_ONLY_RE = /read only|write only/i;
 const AUTH_FAILED_RE = /auth failed/i;
@@ -122,7 +135,7 @@ function classify(phase, code, stderr) {
     case 12:
       return "broken";
     case 30:
-      return "timeout";
+      return "stalled"; // rsync's own --timeout; the copy's deadline is 'timeout' (copy.js)
     case 11:
       return phase === "send" ? "nas_io" : "other";
     case 23:
@@ -132,4 +145,4 @@ function classify(phase, code, stderr) {
   }
 }
 
-module.exports = { PHASES, listArgs, sendArgs, argsOk, runRsync, classify, listingMeansEmpty };
+module.exports = { PHASES, listArgs, sendArgs, argsOk, runRsync, probeVersion, classify, listingMeansEmpty };
