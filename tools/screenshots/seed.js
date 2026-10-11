@@ -31,5 +31,24 @@ async function api(method, path, body) {
     i++;
   }
   await api("POST", "/api/rows", { weekStart: wk2, panel: "manufacturing", jobName: "Lee bathroom" });
+
+  // M4: tasks (one overdue, one on a job), a job comment, chat messages and a report.
+  const me = (await api("GET", "/api/auth/me")).user;
+  const jobsList = await api("GET", "/api/job-records");
+  const job = (Array.isArray(jobsList) ? jobsList : jobsList.rows || jobsList.jobs || [])[0];
+  const existing = (await api("GET", "/api/tasks?view=open")).rows;
+  if (!existing.length) {
+    await api("POST", "/api/tasks", { title: "Check BAS draft before lodging", assigneeId: me.id, dueDate: "2026-10-01" });
+    await api("POST", "/api/tasks", { title: "Confirm handle spec with client", assigneeId: me.id, notes: "Brushed nickel or matt black?", jobId: job ? job.id : null });
+    await api("POST", "/api/tasks", { title: "Book the stone template", assigneeId: me.id });
+    if (job) await api("POST", "/api/comments", { entityType: "job", entityId: job.id, body: "Client asked to move install a week. See https://example.com/note." });
+    const ch = (await api("GET", "/api/messages/channels")).rows;
+    for (const body of ["Morning all. Truck is in at 10.", "Stone for Smith kitchen arrives Thursday."]) await api("POST", `/api/messages/channels/${ch[0].id}`, { body });
+    const fd = new FormData();
+    fd.append("file", new Blob([Buffer.from("%PDF-1.4\n% seed\n")], { type: "application/pdf" }), "BAS September 2026.pdf");
+    fd.append("period", "2026-09"); fd.append("category", "bas"); fd.append("title", "BAS September 2026");
+    const r = await fetch(B + "/api/reports", { method: "POST", headers: { Origin: B, Cookie: cookie }, body: fd });
+    if (!r.ok) throw new Error(`POST /api/reports ${r.status}`);
+  }
   console.log("seeded; week", wk, "workers", workers.length);
 })().catch(e => { console.error(e.message); process.exit(1); });

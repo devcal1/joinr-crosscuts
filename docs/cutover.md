@@ -126,6 +126,8 @@ ls -la $SNAP; du -sh $SNAP/uploads $OLD/uploads
    ls -la $CC/db $CC/config
    ```
    If Todd chose option B, `crosscuts-before/photos.db` is what the carry-over tool reads.
+
+   Everything made in Crosscuts while testing goes aside with it and does not carry over: tasks, comments, chat messages, and the report library and task attachments (their files are in `uploads/files/`, so they land in `crosscuts-before/uploads/files/`). The old app has none of these, so the loaded data starts with empty task, chat and report lists.
 3. **[Umbrel web UI]** Start Crosscuts. Then read the migration log:
    ```
    docker logs tenon-joinr-crosscuts_web_1 2>&1 | grep -E 'migrate|foreign_key|roundup'
