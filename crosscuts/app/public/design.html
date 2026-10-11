@@ -22,38 +22,16 @@
           <h3 class="tile-title">New from Joinr</h3>
           <p class="tile-text">Quotes won in Joinr, waiting to become jobs.</p>
           <p class="tile-stat" id="joinrStat" hidden></p>
-          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/intake.html">Open New from Joinr</a></div>
-        </article>
-        <article class="tile hs-card">
-          <h3 class="tile-title">Jobs</h3>
-          <p class="tile-text">Job records and where each one is up to.</p>
-          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/jobs.html">Open Jobs</a></div>
-        </article>
-        <article class="tile hs-card">
-          <h3 class="tile-title">Pipeline board</h3>
-          <p class="tile-text">Jobs laid out by stage, from enquiry through design to handover.</p>
-          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/pipeline.html">Open the Pipeline</a></div>
-        </article>
-        <article class="tile hs-card">
-          <h3 class="tile-title">Orders</h3>
-          <p class="tile-text">Materials and hardware orders per job, and whether each has been placed.</p>
-          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/orders.html">Open Orders</a></div>
-        </article>
-        <article class="tile hs-card">
-          <h3 class="tile-title">Client inspections</h3>
-          <p class="tile-text">Book inspections on the job page; upcoming ones are listed on the Scheduling page.</p>
-          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/scheduling.html">Open Scheduling</a></div>
         </article>
       </div>
     </section>
 
-    <p class="dash-empty"><a class="hs-btn" href="/">Back to the dashboard</a></p>
   </main>
 
   <script src="shell/shell.js"></script>
   <script>
     // The New from Joinr tile: how many quotes are new, and how many changed after a decision.
-    // If the call fails the tile is just the link.
+    // If the call fails the tile shows no count.
     (function () {
       var stat = document.getElementById("joinrStat");
       // countsOnly: just the counts, not the rows.

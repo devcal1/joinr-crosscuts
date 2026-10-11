@@ -47,13 +47,23 @@
   text-transform: uppercase;
 }
 
-/* Department links */
+/* Dashboard link and department menus */
 .cc-nav {
   display: flex;
   align-items: center;
   gap: 2px;
+  align-self: stretch;
   flex: 1 1 auto;
   min-width: 0;
+}
+.cc-depts {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .cc-group {
   display: flex;
@@ -62,11 +72,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-.cc-group + .cc-group {
-  margin-left: 8px;
-  padding-left: 10px;
-  border-left: 1px solid var(--hairline);
 }
 .cc-group-label {
   display: none;
@@ -78,6 +83,7 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+.cc-dashboard { display: flex; align-items: center; }
 .cc-link {
   display: inline-flex;
   align-items: center;
@@ -96,6 +102,95 @@
   color: var(--white);
   border-bottom-color: var(--teal);
 }
+
+/* A department: one button (its name) that opens a small list of its pages.
+   Menu 3.1, the fourth named exception in CLAUDE.md: Scheduling, Design/PM and Accounts carry a
+   2 px rule in their Planner layer colour under the name and down the left edge of the open
+   panel. Photos and Admin stay plain. Nothing else on the bar takes these colours. */
+.cc-dept {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+}
+.cc-dept-scheduling { --cc-dept-rule: var(--layer-scheduling); }
+.cc-dept-design { --cc-dept-rule: var(--layer-design); }
+.cc-dept-accounts { --cc-dept-rule: var(--layer-accounts); }
+.cc-dept-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 7px 9px 5px;
+  color: var(--label);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cc-dept-ruled { border-bottom-color: var(--cc-dept-rule); }
+.cc-dept-btn:hover,
+.cc-dept-btn[aria-expanded="true"] { color: var(--white); }
+/* The department holding this page: white name and the bar's teal marker. On a ruled department
+   the teal sits just above its colour rule. */
+.cc-dept-btn[aria-current] { color: var(--white); }
+.cc-dept-btn[aria-current]:not(.cc-dept-ruled) { border-bottom-color: var(--teal); }
+.cc-dept-btn[aria-current].cc-dept-ruled::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--teal);
+}
+.cc-dept-head { display: none; }
+.cc-dept-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 1;
+  min-width: 190px;
+  padding: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+}
+.cc-dept-panel.cc-open { display: block; }
+.cc-dept-scheduling > .cc-dept-panel::before,
+.cc-dept-design > .cc-dept-panel::before,
+.cc-dept-accounts > .cc-dept-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--cc-dept-rule);
+}
+.cc-dept-list { margin: 0; padding: 0; list-style: none; }
+.cc-dept-link {
+  display: block;
+  padding: 8px 12px;
+  color: var(--body);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--r-control);
+}
+.cc-dept-link:hover,
+.cc-dept-link:focus-visible { background: var(--raised); color: var(--white); }
+.cc-dept-link[aria-current="page"] { color: var(--white); font-weight: 700; background: var(--raised); }
 
 /* Right-hand side: user menu */
 .cc-right {
@@ -262,33 +357,19 @@
 .cc-menu-item:focus-visible { background: var(--raised); color: var(--white); }
 .cc-menu-sep { height: 1px; margin: 6px 4px; background: var(--hairline); border: 0; }
 
-/* Mid widths: tighter links so the full admin set fits beside the right-hand
-   buttons (M3 added Pipeline and Orders). */
-@media (max-width: 1599px) {
-  .cc-link { padding-left: 6px; padding-right: 6px; letter-spacing: 0.08em; }
-  .cc-group + .cc-group { margin-left: 4px; padding-left: 6px; }
-}
-/* M4: Tasks and Messages joined Alerts on the right, so below 1680 px the right-hand
-   buttons tighten and the wordmark goes (measured with the full admin link set).
-   M7: the Planner link moved that point to 1760 px. */
-@media (max-width: 1759px) {
+/* Below 1400 px the app name beside the wordmark goes and the right-hand buttons tighten
+   (measured with the full admin set, a long name and 99+ on every badge). */
+@media (max-width: 1399px) {
   .cc-brand-app { display: none; }
   .cc-right { gap: 2px; }
   .cc-right .cc-btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.04em; }
   .cc-user-name { max-width: 10ch; }
 }
-/* M7: with the Planner link, 1366 to 1439 px needs the links a little tighter again
-   before they collapse into the Menu (measured with the full admin link set). */
-@media (max-width: 1439px) {
-  .cc-brand-app { display: none; }
-}
-@media (min-width: 1366px) and (max-width: 1439px) {
-  .cc-link { padding-left: 4px; padding-right: 4px; letter-spacing: 0.06em; }
-  .cc-group + .cc-group { margin-left: 3px; padding-left: 4px; }
-}
 
-/* Narrow screens: links collapse into a menu (below 1366 px since M4) */
-@media (max-width: 1365px) {
+/* Narrow screens: Dashboard and the departments collapse into the Menu panel as a flat list
+   (no nested dropdowns): each department is a heading over its pages, with its colour rule as
+   a left edge. */
+@media (max-width: 1199px) {
   .cc-menu-btn { display: inline-flex; margin-left: 4px; }
   .cc-brand { margin-right: 0; }
   .cc-nav {
@@ -299,6 +380,7 @@
     right: 0;
     flex-direction: column;
     align-items: stretch;
+    align-self: auto;
     gap: 0;
     padding: 6px 12px 12px;
     background: var(--ink);
@@ -307,20 +389,55 @@
     overflow-y: auto;
   }
   .cc-nav.cc-open { display: flex; }
-  .cc-group { flex-direction: column; align-items: stretch; gap: 0; }
-  .cc-group + .cc-group { margin-left: 0; padding-left: 0; border-left: 0; border-top: 1px solid var(--hairline); margin-top: 6px; padding-top: 2px; }
+  .cc-group,
+  .cc-depts { flex-direction: column; align-items: stretch; align-self: auto; gap: 0; }
   .cc-group-label { display: block; }
+  .cc-dashboard { display: block; }
   .cc-link { padding: 10px 12px; border-bottom: 0; border-left: 2px solid transparent; }
   .cc-link[aria-current="page"] { border-left-color: var(--teal); }
+  .cc-dept {
+    display: block;
+    align-self: auto;
+    margin-top: 6px;
+    padding-top: 2px;
+    border-top: 1px solid var(--hairline);
+    border-left: 2px solid var(--cc-dept-rule, transparent);
+  }
+  .cc-dept-btn { display: none; }
+  .cc-dept-head {
+    display: block;
+    padding: 10px 12px 2px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .cc-dept-panel,
+  .cc-dept-panel.cc-open {
+    display: block;
+    position: static;
+    min-width: 0;
+    padding: 0;
+    overflow: visible;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .cc-dept-scheduling > .cc-dept-panel::before,
+  .cc-dept-design > .cc-dept-panel::before,
+  .cc-dept-accounts > .cc-dept-panel::before { display: none; }
+  .cc-dept-link { padding: 10px 12px; font-size: 14px; border-radius: 0; background: none; border-left: 2px solid transparent; }
+  .cc-dept-link[aria-current="page"] { background: none; border-left-color: var(--teal); }
 }
-/* The phone-only counts group comes first in the nav; while it is hidden the next
-   group must not get the divider a following group has. */
-.cc-group-counts + .cc-group { margin-left: 0; padding-left: 0; border-left: 0; border-top: 0; margin-top: 0; padding-top: 0; }
-/* Phones: Tasks and Messages leave the bar for the top of the Menu panel. */
+/* The phone-only counts group comes first in the nav; while it is hidden the Dashboard link
+   must not get the divider the group would give it. */
+.cc-group-counts + .cc-depts { margin: 0; padding: 0; border: 0; }
+/* Phones: Planner, Tasks and Messages leave the bar for the top of the Menu panel. */
 @media (max-width: 640px) {
   .cc-right .cc-count { display: none; }
   .cc-group.cc-group-counts { display: flex; }
-  .cc-group-counts + .cc-group { border-top: 1px solid var(--hairline); margin-top: 6px; padding-top: 2px; }
+  .cc-group-counts + .cc-depts { margin-top: 6px; padding-top: 2px; border-top: 1px solid var(--hairline); }
 }
 @media (max-width: 520px) {
   .cc-brand-app { display: none; }

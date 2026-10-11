@@ -1,6 +1,6 @@
 @import url('tokens.css');
 
-/* Dashboard and the placeholder pages (accounts, design, scheduling). House style:
+/* Dashboard and the landing pages (design, scheduling, lookahead). House style:
    hs-sectionbar headings, hs-card tiles, hs-btn links and hs-badge badges come from
    components.css; this file holds only the layout. */
 
@@ -22,9 +22,12 @@ body {
 .dash-head h1 { margin: 0; color: var(--white); font-size: 28px; font-weight: 700; }
 .dash-date { margin: 2px 0 0; color: var(--label); font-size: 14px; }
 
+.dash-lines { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
+.dash-lines:not(:has(> :not([hidden]))) { margin-bottom: 0; }
+.dash-hint { margin: 0 0 28px; color: var(--label); }
+.dash-hint[hidden] { display: none; }
 .week-line {
   display: block;
-  margin-bottom: 28px;
   color: var(--body);
   text-decoration: none;
 }
@@ -35,7 +38,6 @@ body {
 
 .dash-section { margin-bottom: 32px; }
 .dash-section > .hs-sectionbar { margin-bottom: 12px; }
-.dash-empty { color: var(--label); }
 
 .tiles {
   display: grid;
@@ -59,15 +61,11 @@ body {
   padding-top: 12px;
 }
 
-/* "Coming later" and "Planned" tiles: a muted card, no accent */
-.tile-later .tile-title,
-.tile-later .tile-text { color: var(--muted); }
-.tile-badge { align-self: flex-start; margin: 8px 0 0; }
-
-/* Accounts tile: "N due · N overdue". Red is reserved for overdue, so it shows only when there is some. */
+/* "N due · N overdue" (the New from Joinr tile, the dashboard's accounts line). Red is reserved for overdue, so it shows only when there is some. */
 .tile-stat { margin: 2px 0 0; color: var(--label); font-size: 14px; }
 .tile-stat strong { color: var(--white); font-weight: 700; }
-.tile-stat .stat-overdue { color: var(--stop-tint); }
+.tile-stat .stat-overdue,
+.week-line .stat-overdue { color: var(--stop-tint); }
 
 /* Latest alerts */
 .hs-card.alerts-card { padding: 0; overflow: hidden; }

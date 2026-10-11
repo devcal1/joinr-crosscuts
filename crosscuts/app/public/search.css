@@ -35,12 +35,15 @@ body {
   margin: 0 auto;
   width: 100%;
 }
+/* A quiet way back to the dashboard. The page has no shell bar (customers see it in the showroom). */
+.hero-top { display: flex; justify-content: flex-end; }
+.hero-home { color: var(--label); }
 .hero-lockup {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  margin: 28px 0 32px;
+  margin: 12px 0 32px;
   text-align: center;
 }
 .hero-lockup .hs-lockup { font-size: 40px; letter-spacing: 0.08em; }

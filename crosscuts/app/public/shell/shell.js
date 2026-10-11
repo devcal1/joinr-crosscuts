@@ -10,31 +10,47 @@
   "use strict";
   if (window.cc && window.cc.__shell) return;
 
-  var LINK_GROUPS = [
-    // M7: the Planner is its own one-item group, first (docs/plans/m7-contracts.md section 14.1).
+  // Menu 3.1 (docs/plans/menu-plan.md): the bar is the wordmark, a Dashboard link, one button per
+  // department (each opens a short list of its pages), then a fixed right-hand cluster for
+  // everyone: Planner, Tasks, Messages, Alerts and the user's name. A department shows only the
+  // pages the user can see, and only when there is at least one. dept = the layer colour its
+  // thin rule takes (the fourth named exception in CLAUDE.md); Photos and Admin stay plain.
+  var DEPARTMENTS = [
     {
-      label: "Planner",
-      items: [{ label: "Planner", href: "/planner.html", key: "planner.view" }],
-    },
-    {
-      label: "Production",
+      id: "scheduling",
+      label: "Scheduling",
+      dept: "scheduling",
       items: [
-        { label: "Scheduling", href: "/scheduling.html", key: "scheduling.view" },
         { label: "Board", href: "/schedule.html", key: "board.view" },
+        { label: "Scheduling", href: "/scheduling.html", key: "scheduling.view" },
+        { label: "Lookahead", href: "/lookahead.html", key: "scheduling.view" },
+        { label: "Availability", href: "/availability.html", key: "scheduling.view" },
         { label: "Workers", href: "/workers.html", key: "workers.edit" },
       ],
     },
     {
-      label: "Jobs and money",
+      id: "design",
+      label: "Design/PM",
+      dept: "design",
       items: [
+        { label: "Design/PM", href: "/design.html", key: "design.view" },
         { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
         { label: "Orders", href: "/orders.html", key: "jobs.view" },
-        { label: "Design/PM", href: "/design.html", key: "design.view" },
-        { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
+        { label: "Intake", href: "/intake.html", key: "design.view" },
       ],
     },
     {
+      id: "accounts",
+      label: "Accounts",
+      dept: "accounts",
+      items: [
+        { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
+        { label: "Reports", href: "/reports.html", key: "accounts.view" },
+      ],
+    },
+    {
+      id: "photos",
       label: "Photos",
       items: [
         { label: "Photos", href: "/search.html", key: "photos.search" },
@@ -42,6 +58,7 @@
       ],
     },
     {
+      id: "admin",
       label: "Admin",
       items: [
         { label: "Users", href: "/users.html", key: "users.admin" },
@@ -51,7 +68,7 @@
   ];
 
   // Pages that belong to a nav link but have a different path.
-  var PAGE_ALIASES = { "/job.html": "/jobs.html", "/index.html": "/" };
+  var PAGE_ALIASES = { "/job.html": "/jobs.html", "/invoice.html": "/accounts.html", "/index.html": "/" };
 
   var path = location.pathname;
   var onAuthPage = /^\/(login|setup)\.html$/.test(path);
@@ -643,6 +660,63 @@
     return here === href;
   }
 
+  // A department menu: a button (the department's name) that opens a small list of its pages.
+  // Disclosure pattern: aria-expanded/aria-controls, Escape closes and refocuses the button, only
+  // one popup is open at a time (closeAllPopups). In the collapsed Menu panel the button is hidden
+  // and the department shows as a heading over a flat list (shell.css), so there is no nesting.
+  function buildDepartment(d, allowed) {
+    var panelId = "cc-dept-" + d.id;
+    var current = allowed.some(function (it) { return isCurrent(it.href); });
+    var btn = h("button", {
+      class: "cc-dept-btn" + (d.dept ? " cc-dept-ruled" : ""),
+      type: "button",
+      "data-cc-toggle": "",
+      "aria-expanded": "false",
+      "aria-controls": panelId,
+      "aria-current": current ? "true" : false,
+      text: d.label,
+    });
+    var head = h("span", { class: "cc-dept-head", id: "cc-dh-" + d.id, text: d.label });
+    var list = h("ul", { class: "cc-dept-list" });
+    allowed.forEach(function (it) {
+      list.appendChild(
+        h("li", null, [
+          h("a", { class: "cc-dept-link", href: it.href, "aria-current": isCurrent(it.href) ? "page" : false, text: it.label }),
+        ])
+      );
+    });
+    var panel = h("div", { class: "cc-dept-panel", id: panelId, role: "group", "aria-labelledby": "cc-dh-" + d.id }, [list]);
+    var li = h("li", { class: "cc-dept" + (d.dept ? " cc-dept-" + d.dept : "") }, [btn, head, panel]);
+
+    function links() { return Array.prototype.slice.call(panel.querySelectorAll("a[href]")); }
+    function open(focusFirst) {
+      closeAllPopups(btn);
+      setOpen(btn, true);
+      if (focusFirst) { var l = links(); if (l.length) l[0].focus(); }
+    }
+    btn.addEventListener("click", function () {
+      if (btn.getAttribute("aria-expanded") === "true") setOpen(btn, false);
+      else open(false);
+    });
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); open(true); }
+    });
+    panel.addEventListener("keydown", function (e) {
+      var l = links();
+      var i = l.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); l[(i + 1) % l.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); l[(i - 1 + l.length) % l.length].focus(); }
+      else if (e.key === "Home") { e.preventDefault(); l[0].focus(); }
+      else if (e.key === "End") { e.preventDefault(); l[l.length - 1].focus(); }
+    });
+    // Tabbing out of the department closes its panel; clicking inside it never does.
+    li.addEventListener("focusout", function (e) {
+      var to = e.relatedTarget;
+      if (to && !li.contains(to)) setOpen(btn, false);
+    });
+    return li;
+  }
+
   function render(root, user) {
     root.textContent = "";
     // The spectrum rule sits above the bar, so it sticks with it.
@@ -661,29 +735,19 @@
       return;
     }
 
-    var nav = h("nav", { class: "cc-nav", id: "cc-nav", "aria-label": "Departments" });
-    LINK_GROUPS.forEach(function (g, gi) {
-      var allowed = g.items.filter(function (it) { return cc.can(it.key); });
-      if (!allowed.length) return;
-      var ul = h("ul", { class: "cc-group", "aria-labelledby": "cc-gl-" + gi });
-      var li0 = h("li", { class: "cc-group-label", id: "cc-gl-" + gi, text: g.label });
-      li0.setAttribute("role", "presentation");
-      // The label is only visible in the collapsed menu; it names the list for screen readers.
-      ul.appendChild(li0);
-      allowed.forEach(function (it) {
-        ul.appendChild(
-          h("li", null, [h("a", { class: "cc-link", href: it.href, "aria-current": isCurrent(it.href) ? "page" : false, text: it.label })])
-        );
-      });
-      nav.appendChild(ul);
-    });
-    // M4: on phones Tasks and Messages move from the bar into the top of the Menu panel
-    // (shell.css shows this group only at 640 px and below).
-    if (!devMode && !onAuthPage && (cc.can("tasks.use") || cc.can("messages.use"))) {
+    var nav = h("nav", { class: "cc-nav", id: "cc-nav", "aria-label": "Main" });
+    // Phones only (shell.css): the common features come first in the Menu panel, together.
+    var wantEveryday = cc.can("planner.view") || cc.can("tasks.use") || cc.can("messages.use");
+    if (!devMode && !onAuthPage && wantEveryday) {
       var cg = h("ul", { class: "cc-group cc-group-counts", "aria-labelledby": "cc-gl-counts" });
-      var cl = h("li", { class: "cc-group-label", id: "cc-gl-counts", text: "Tasks and messages" });
+      var cl = h("li", { class: "cc-group-label", id: "cc-gl-counts", text: "Everyday" });
       cl.setAttribute("role", "presentation");
       cg.appendChild(cl);
+      if (cc.can("planner.view")) {
+        cg.appendChild(h("li", null, [
+          h("a", { class: "cc-link cc-count-link", href: "/planner.html", "aria-current": path === "/planner.html" ? "page" : false, text: "Planner" }),
+        ]));
+      }
       if (cc.can("tasks.use")) {
         counts.tasksNav = buildCount("Tasks", "/tasks.html", "open", "cc-link cc-count-link");
         cg.appendChild(h("li", null, [counts.tasksNav.link]));
@@ -692,8 +756,21 @@
         counts.messagesNav = buildCount("Messages", "/messages.html", "unread", "cc-link cc-count-link");
         cg.appendChild(h("li", null, [counts.messagesNav.link]));
       }
-      nav.insertBefore(cg, nav.firstChild);
+      nav.appendChild(cg);
     }
+
+    // Dashboard, then the department menus (fixed order, only those with a visible page).
+    var depts = h("ul", { class: "cc-depts" });
+    depts.appendChild(
+      h("li", { class: "cc-dashboard" }, [
+        h("a", { class: "cc-link", href: "/", "aria-current": path === "/" || path === "/index.html" ? "page" : false, text: "Dashboard" }),
+      ])
+    );
+    DEPARTMENTS.forEach(function (d) {
+      var allowed = d.items.filter(function (it) { return cc.can(it.key); });
+      if (allowed.length) depts.appendChild(buildDepartment(d, allowed));
+    });
+    nav.appendChild(depts);
 
     var menuBtn = h(
       "button",
@@ -710,6 +787,12 @@
 
     // The bell needs a real session, so it is left out of dev mode and the auth pages.
     var right = h("div", { class: "cc-right" });
+    // The common features, the same order for everyone: Planner, Tasks, Messages, Alerts, name.
+    if (cc.can("planner.view")) {
+      right.appendChild(
+        h("a", { class: "cc-btn cc-count", href: "/planner.html", "aria-current": path === "/planner.html" ? "page" : false, text: "Planner" })
+      );
+    }
     if (!devMode && !onAuthPage) {
       // M4: Tasks and Messages (each only with its key), then Alerts.
       if (cc.can("tasks.use")) {
@@ -735,7 +818,7 @@
   // Global dismissal for popups.
   document.addEventListener("click", function (e) {
     if (!e.target.closest || !e.target.closest("#cc-shell")) closeAllPopups(null);
-    else if (!e.target.closest(".cc-right") && !e.target.closest(".cc-menu-btn")) closeAllPopups(null);
+    else if (!e.target.closest(".cc-right") && !e.target.closest(".cc-menu-btn") && !e.target.closest(".cc-dept")) closeAllPopups(null);
   });
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
