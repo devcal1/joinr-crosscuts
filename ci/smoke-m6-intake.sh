@@ -231,11 +231,17 @@ ok
 
 echo "--- import currently won quotes (admin) ---"
 M6_CURSOR_BEFORE=$(m6_cursor)
+# One item per page, so the import pages through Joinr's opaque "b.<resume>.<uuid>" cursors,
+# which Crosscuts must send back exactly as given (the last page's cursor is a plain number).
+m6_fake POST /_control/pagesize '{"max":1}'
+m6_fake POST /_control/clear
 req POST /api/joinr/import "$ADMIN" '{}'
 expect_status 200 "admin POST /api/joinr/import"
-expect_jq '.ok == true and .error == null' "the import is ok"
+expect_jq '.ok == true and .error == null and (.truncated | not)' "the import is ok"
+m6_fake POST /_control/pagesize '{"max":null}'
 m6_fake GET /_control/requests
-m6_expect_out '[.requests[] | select(.query.backfill == "won")] | length >= 1' "the import asked with backfill=won"
+m6_expect_out '[.requests[] | select(.query.backfill == "won")] | length >= 3' "the import asked with backfill=won, page by page"
+m6_expect_out '[.requests[] | select(.query.backfill == "won") | .query.after // empty] | length >= 2 and all(test("^b\\.[0-9]+\\.[0-9a-f-]{36}$"))' "the import sent the opaque cursors back as-is"
 expect_eq "$(m6_intake_count "$M6_Q0")" "1" "the quote won before the first sync is imported"
 expect_eq "$(m6_intake_field "$M6_Q0" state)" "new" "the imported quote is new"
 expect_eq "$(m6_intake_count "$M6_Q1")" "1" "the import does not duplicate quote 1"
@@ -290,11 +296,169 @@ m6_fake GET /_control/requests
 case $M6_OUT in *"$M6_KEY"*) fail "the key appears in a request URL" ;; *) ok ;; esac
 
 # ---- Block B (inbox) ----------------------------------------------------------
-# Wave 1 B adds its assertions here (Accept, Link, Ignore, acknowledge, the intake
-# routes and page). The stand-in Joinr is still running and Crosscuts still points
-# at it; quotes 0 to 3 above exist ($M6_Q0 new, $M6_Q1 new, $M6_Q2 withdrawn,
-# $M6_Q3 new). Use new root ids for anything you decide on.
+# Puller-driven decisions (M6 · 4.3): the stand-in Joinr is still running and Crosscuts
+# still points at it; quotes 0 to 3 above exist ($M6_Q0 new, $M6_Q1 new, $M6_Q2 withdrawn,
+# $M6_Q3 new). Quotes 4 and 5 are new roots decided on here. Every item carries its own
+# wonAt, so a repeat is identical (the fake would otherwise stamp a fresh one).
+M6_Q4=c6000000-0000-4000-8000-000000000004
+M6_Q5=c6000000-0000-4000-8000-000000000005
+M6_Q9=c6000000-0000-4000-8000-000000000009
+
+m6_alerts() { # KIND INTAKE_ID -> how many alerts of KIND for that record dpm has (read or not)
+  req GET "/api/notifications?limit=100" "$DPM"
+  expect_status 200 "dpm notifications"
+  jqr "[.rows[] | select(.kind == \"$1\" and .link == \"/intake.html?item=$2\")] | length"
+}
+
+echo "--- accept a pulled quote, then Joinr changes it: flagged, one alert, the job untouched ---"
+M6_Q4_ITEM='{"quoteNumber":"CI-M6-0004","siteAddress":"4 Far Future St","clientName":"M6 Client Four","wonAt":"2099-05-02T01:00:00Z","valueIncGstCents":500000}'
+m6_event "$M6_Q4" "$M6_Q4" won won "$M6_Q4_ITEM"
+m6_sync "$DPM" "sync quote 4"
+expect_eq "$(m6_intake_field "$M6_Q4" state)" "new" "quote 4 is new"
+M6_Q4_ID=$(m6_intake_field "$M6_Q4" id)
+req POST "/api/joinr/intake/$M6_Q4_ID/accept" "$DPM" '{}'
+expect_status 200 "dpm accepts quote 4"
+expect_jq '.item.state == "accepted" and .job.stage == "won" and .job.source == "joinr"' "quote 4 accepted as a job at won"
+M6_Q4_JOB=$(jqr '.job.id')
+req GET "/api/job-records/$M6_Q4_JOB" "$DPM"
+expect_jq ".valueCents == 500000 and .externalRef == \"$M6_Q4\"" "the job has the quote's value and root id"
+M6_Q4_CHANGED=$(printf '%s' "$M6_Q4_ITEM" | jq -c '. + {valueIncGstCents: 650000}')
+m6_event "$M6_Q4" "$M6_Q4" changed won "$M6_Q4_CHANGED"
+m6_sync "$DPM" "sync a changed value"
+expect_jq '.ok == true' "sync of a change to an accepted quote"
+expect_eq "$(m6_intake_field "$M6_Q4" changed)" "1" "the accepted record is flagged changed"
+expect_eq "$(m6_intake_field "$M6_Q4" state)" "accepted" "it stays accepted"
+expect_eq "$(m6_alerts joinr.changed "$M6_Q4_ID")" "1" "one joinr.changed alert for dpm"
+req GET "/api/job-records/$M6_Q4_JOB" "$DPM"
+expect_jq '.valueCents == 500000' "the job's value is unchanged"
+
+echo "--- the identical item again: nothing new (no flag, no alert) ---"
+req POST "/api/joinr/intake/$M6_Q4_ID/acknowledge" "$DPM" '{}'
+expect_status 200 "dpm acknowledges the change"
+expect_eq "$(m6_intake_field "$M6_Q4" changed)" "0" "acknowledged"
+# Read alerts are not deduplicated, so a second flag would show as a second alert.
+req POST /api/notifications/read-all "$DPM" '{}'
+expect_status 204 "dpm marks alerts read"
+M6_Q4_SEEN=$(m6_intake_field "$M6_Q4" last_seen_at)
+m6_event "$M6_Q4" "$M6_Q4" changed won "$M6_Q4_CHANGED"
+m6_sync "$DPM" "sync an identical repeat"
+expect_jq '.ok == true' "sync of an identical repeat"
+expect_eq "$(m6_intake_field "$M6_Q4" changed)" "0" "an identical repeat does not flag the record"
+expect_eq "$(m6_alerts joinr.changed "$M6_Q4_ID")" "1" "still one joinr.changed alert"
+[ "$(m6_intake_field "$M6_Q4" last_seen_at)" != "$M6_Q4_SEEN" ] || fail "an identical repeat updates last_seen_at"
+ok
+
+echo "--- un-won after Accept: flagged once; the same un-won again: nothing new ---"
+M6_Q4_UNWON=$(printf '%s' "$M6_Q4_CHANGED" | jq -c '. + {status: "lost"}')
+m6_event "$M6_Q4" "$M6_Q4" unwon lost "$M6_Q4_UNWON"
+m6_sync "$DPM" "sync an unwon accepted quote"
+expect_eq "$(m6_intake_field "$M6_Q4" changed)" "1" "un-won after Accept is flagged"
+expect_eq "$(m6_alerts joinr.changed "$M6_Q4_ID")" "2" "a second joinr.changed alert (the first was read)"
+req POST "/api/joinr/intake/$M6_Q4_ID/acknowledge" "$DPM" '{}'
+expect_status 200 "dpm acknowledges the un-won"
+req POST /api/notifications/read-all "$DPM" '{}'
+m6_event "$M6_Q4" "$M6_Q4" unwon lost "$M6_Q4_UNWON"
+m6_sync "$DPM" "sync a repeated unwon"
+expect_eq "$(m6_intake_field "$M6_Q4" changed)" "0" "a repeated un-won is not a change"
+expect_eq "$(m6_alerts joinr.changed "$M6_Q4_ID")" "2" "no alert for a repeated un-won"
+req GET "/api/job-records/$M6_Q4_JOB" "$DPM"
+expect_jq '.valueCents == 500000 and .stage == "won"' "the job is still untouched"
+
+echo "--- ignore a pulled quote, then Joinr changes it: flagged silently ---"
+M6_Q5_ITEM='{"quoteNumber":"CI-M6-0005","siteAddress":"5 Far Future St","clientName":"M6 Client Five","wonAt":"2099-05-03T01:00:00Z","valueIncGstCents":300000}'
+m6_event "$M6_Q5" "$M6_Q5" won won "$M6_Q5_ITEM"
+m6_sync "$DPM" "sync quote 5"
+M6_Q5_ID=$(m6_intake_field "$M6_Q5" id)
+req POST "/api/joinr/intake/$M6_Q5_ID/ignore" "$DPM" '{}'
+expect_status 200 "dpm ignores quote 5"
+m6_event "$M6_Q5" "$M6_Q5" changed won "$(printf '%s' "$M6_Q5_ITEM" | jq -c '. + {valueIncGstCents: 310000}')"
+m6_sync "$DPM" "sync a change to an ignored quote"
+expect_eq "$(m6_intake_field "$M6_Q5" changed)" "1" "the ignored record is flagged changed"
+expect_eq "$(m6_intake_field "$M6_Q5" state)" "ignored" "it stays ignored"
+expect_eq "$(m6_alerts joinr.changed "$M6_Q5_ID")" "0" "no joinr.changed alert for an ignored quote"
 # ---- end block B ----------------------------------------------------------------
+
+echo "--- paging faults: an older position, and paging that does not move ---"
+M6_CUR=$(m6_cursor)
+M6_Q9_ITEM=$(jq -nc --arg r "$M6_Q9" '{cursor: "1", event: "won", quoteId: $r, rootQuoteId: $r, revision: 0,
+  quoteNumber: "CI-M6-0009", status: "won", standing: "active", deletedAt: null, wonAt: "2099-05-04T01:00:00Z",
+  updatedAt: "2099-05-04T01:00:00Z", clientName: "M6 Client Nine", clientPhone: null, clientEmail: null,
+  siteAddress: null, label: null, reference: null, quoteDate: null, valueIncGstCents: null, estimatedHours: null,
+  spec: {sheetCount: null, twoPac: null, benchtop: null, jobType: null}, raw: {doorsPanels: [], benchtops: [], jobTypes: []},
+  url: "https://app.joinr.com.au/org/o/quotes/x"}')
+m6_set_fail "{\"page\":{\"contract\":1,\"cursor\":\"1\",\"more\":false,\"items\":[$M6_Q9_ITEM]}}"
+m6_sync "$DPM" "sync while Joinr sends an older position"
+expect_jq '.ok == false and (.error | contains("older position"))' "an older position is an error"
+expect_eq "$(m6_intake_count "$M6_Q9")" "0" "nothing from that page is applied"
+expect_eq "$(m6_cursor)" "$M6_CUR" "the stored cursor is unchanged"
+m6_set_fail '{"page":{"contract":1,"cursor":"$after","more":true,"items":[]}}'
+m6_sync "$DPM" "sync while Joinr's paging is stuck"
+expect_jq '.ok == false and (.error | contains("did not move forward"))' "stuck paging stops the run"
+expect_eq "$(m6_cursor)" "$M6_CUR" "the stored cursor is still unchanged"
+m6_fake POST /_control/fail '{"fail":null}'
+m6_sync "$DPM" "sync with paging fixed"
+expect_jq '.ok == true' "the sync is ok again"
+
+echo "--- settings: access ---"
+for pair in "ACCT:$ACCT" "DPM:$DPM"; do
+  who=${pair%%:*}; jar=${pair#*:}
+  req GET /api/joinr/settings "$jar"
+  expect_status 403 "$who GET /api/joinr/settings"
+  req PUT /api/joinr/settings "$jar" '{"baseUrl":"https://evil.example.com"}'
+  expect_status 403 "$who PUT /api/joinr/settings"
+  req DELETE /api/joinr/settings/key "$jar"
+  expect_status 403 "$who DELETE /api/joinr/settings/key"
+  req POST /api/joinr/test "$jar" '{}'
+  expect_status 403 "$who POST /api/joinr/test"
+  req POST /api/joinr/import "$jar" '{}'
+  expect_status 403 "$who POST /api/joinr/import"
+done
+
+echo "--- settings: the key through the API (write-only) ---"
+req PUT /api/joinr/settings "$ADMIN" "{\"baseUrl\":\"$M6_BASE_URL\",\"apiKey\":\"$M6_KEY\"}"
+expect_status 200 "admin PUT key and address"
+expect_jq ".key.configured == true and .key.last4 == \"$M6_LAST4\" and .baseUrl == \"$M6_BASE_URL\" and .baseUrlFromEnv == false" "the key shows as set, last four only"
+case $BODY in *"$M6_KEY"*) fail "the key appears in the PUT response" ;; *) ok ;; esac
+req GET /api/joinr/settings "$ADMIN"
+expect_status 200 "admin GET /api/joinr/settings"
+expect_jq ".key.configured == true and .key.last4 == \"$M6_LAST4\" and (.key | keys == [\"configured\",\"fromEnv\",\"last4\"])" "GET shows only the last four"
+case $BODY in *"$M6_KEY"*) fail "the key appears in /api/joinr/settings" ;; *) ok ;; esac
+req POST /api/joinr/test "$ADMIN" '{}'
+expect_status 200 "admin POST /api/joinr/test"
+expect_jq '.ok == true and (.cursor | type) == "string"' "Test connection reaches the stand-in"
+req GET "/api/audit?limit=500" "$ADMIN"
+case $BODY in *"$M6_KEY"*) fail "the key appears in /api/audit after the PUT" ;; *) ok ;; esac
+req DELETE /api/joinr/settings/key "$ADMIN"
+expect_status 200 "admin DELETE the key"
+expect_jq '.key.configured == false and .key.last4 == null' "the key is gone"
+req POST /api/joinr/test "$ADMIN" '{}'
+expect_jq '.ok == false and .error == "No API key is set"' "Test connection without a key"
+req PUT /api/joinr/settings "$ADMIN" '{"baseUrl":"http://joinr.example.com"}'
+expect_status 400 "plain http to a public address"
+expect_jq '.error == "Use an https address"' "the refusal asks for https"
+
+echo "--- settings: changing the address clears the key and the sync position ---"
+req PUT /api/joinr/settings "$ADMIN" "{\"apiKey\":\"$M6_KEY\"}"
+expect_status 200 "admin sets the key again"
+m6_sync "$DPM" "sync before the address change"
+[ "$(m6_cursor)" != "null" ] || fail "a cursor is stored before the address change"
+ok
+req PUT /api/joinr/settings "$ADMIN" '{"baseUrl":"http://192.168.77.1:4999"}'
+expect_status 200 "admin changes the address (a private LAN address may be http)"
+expect_jq '.baseUrl == "http://192.168.77.1:4999" and .key.configured == false and .sync.lastError == null' "the new address, no key, no old error"
+expect_eq "$(m6_cursor)" "null" "the sync position is reset"
+req GET "/api/audit?action=joinr.settings&limit=1" "$ADMIN"
+expect_jq '.rows[0].after == {"baseUrl":"http://192.168.77.1:4999","key":"cleared","cursor":"reset"}' "the change is audited without the key"
+req PUT /api/joinr/settings "$ADMIN" "{\"baseUrl\":\"$M6_BASE_URL\",\"apiKey\":\"$M6_KEY\"}"
+expect_status 200 "admin restores the stand-in's address with its key"
+expect_jq ".baseUrl == \"$M6_BASE_URL\" and .key.configured == true and .key.last4 == \"$M6_LAST4\"" "address and key restored"
+req GET "/api/audit?action=joinr.settings&limit=1" "$ADMIN"
+expect_jq ".rows[0].after == {\"baseUrl\":\"$M6_BASE_URL\",\"key\":\"cleared\",\"cursor\":\"reset\",\"newKey\":\"set\"}" "address change plus a new key, audited without it"
+case $BODY in *"$M6_KEY"*) fail "the key appears in the audit row" ;; *) ok ;; esac
+m6_sync "$DPM" "sync after the address change"
+expect_jq '.ok == true' "the sync works at the restored address"
+[ "$(m6_cursor)" != "null" ] || fail "the first sync at the new address stores a cursor"
+ok
 
 echo "--- tidy up: stop the stand-in and remove the Joinr set-up ---"
 m6_fake POST /_control/stop

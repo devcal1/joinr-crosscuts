@@ -57,21 +57,59 @@ function clearKey() {
   fs.rmSync(KEY_FILE, { force: true });
 }
 
-function setBaseUrl(url) {
-  if (url === null || url === undefined || url === "") {
-    fs.rmSync(BASE_FILE, { force: true });
-    return;
-  }
+function baseUrlFromEnv() {
+  return !!(process.env.JOINR_BASE_URL && process.env.JOINR_BASE_URL.trim());
+}
+
+// Plain http is allowed only where the key can't cross the internet in clear (M6 · 4.3):
+// loopback (localhost, 127.0.0.0/8, ::1), the private IPv4 ranges (10/8, 172.16/12,
+// 192.168/16) and *.local names. Everything else must be https.
+function isLocalHost(hostname) {
+  const h = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (h === "localhost" || h === "::1" || h.endsWith(".local")) return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+// Checks an address and returns it normalised (no trailing slash), or null for "use the
+// standard address" (null/undefined/""). Throws HttpError 400.
+function normaliseBaseUrl(url) {
+  if (url === null || url === undefined || url === "") return null;
+  if (typeof url !== "string") throw new HttpError(400, "The Joinr address must be text");
+  if (!url.trim()) return null;
   let u;
   try {
-    u = new URL(String(url).trim());
+    u = new URL(url.trim());
   } catch {
     throw new HttpError(400, "The Joinr address must be a full http(s) URL");
   }
-  if (!/^https?:$/.test(u.protocol) || u.search || u.hash || u.username || u.password || String(url).length > 200) {
+  if (!/^https?:$/.test(u.protocol) || u.search || u.hash || u.username || u.password || url.length > 200) {
     throw new HttpError(400, "The Joinr address must be a plain http(s) URL with no query, fragment or credentials");
   }
-  fs.writeFileSync(BASE_FILE, u.toString().replace(/\/+$/, "") + "\n");
+  if (u.protocol === "http:" && !isLocalHost(u.hostname)) throw new HttpError(400, "Use an https address");
+  return u.toString().replace(/\/+$/, "");
 }
 
-module.exports = { DEFAULT_BASE, getKey, getBaseUrl, keyStatus, setKey, clearKey, setBaseUrl };
+function setBaseUrl(url) {
+  const v = normaliseBaseUrl(url);
+  if (v === null) {
+    fs.rmSync(BASE_FILE, { force: true });
+    return;
+  }
+  fs.writeFileSync(BASE_FILE, v + "\n");
+}
+
+module.exports = {
+  DEFAULT_BASE,
+  getKey,
+  getBaseUrl,
+  baseUrlFromEnv,
+  keyStatus,
+  setKey,
+  clearKey,
+  normaliseBaseUrl,
+  setBaseUrl,
+  isLocalHost,
+};

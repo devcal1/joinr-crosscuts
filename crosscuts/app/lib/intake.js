@@ -31,7 +31,16 @@ const strList = (v) =>
   Array.isArray(v)
     ? v.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 200)).slice(0, 30)
     : [];
-const isoDate = (v) => (typeof v === "string" && DATE_RE.test(v) ? v : null);
+// A real calendar date only (M6 · 4.3): 2026-02-30 is dropped, not rolled over to March.
+const realYmd = (v) => {
+  if (typeof v !== "string" || !DATE_RE.test(v)) return false;
+  const [y, m, d] = v.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return !Number.isNaN(t.getTime()) && t.getUTCFullYear() === y && t.toISOString().slice(0, 10) === v;
+};
+const isoDate = (v) => (realYmd(v) ? v : null);
+// A date-time whose date part is real (it feeds won_date).
+const isoDateTime = (v) => (typeof v === "string" && realYmd(v.slice(0, 10)) && !Number.isNaN(Date.parse(v)) ? v : null);
 // Only http(s) links reach the page.
 const httpUrl = (v) => (typeof v === "string" && /^https?:\/\/\S+$/i.test(v.trim()) && v.length <= 2000 ? v.trim() : null);
 
@@ -59,7 +68,7 @@ function quoteOf(payload, showValue) {
     label: str(p.label, 200),
     reference: str(p.reference, 200),
     quoteDate: isoDate(p.quoteDate),
-    wonAt: typeof p.wonAt === "string" && !Number.isNaN(Date.parse(p.wonAt)) ? p.wonAt : null,
+    wonAt: isoDateTime(p.wonAt),
     valueIncGstCents: showValue ? cents(p.valueIncGstCents) : null,
     estimatedHours: hours && Object.values(hours).some((x) => x !== null) ? hours : null,
     spec: {
@@ -115,7 +124,8 @@ const SELECT = `
     (SELECT COUNT(*) FROM jobs m
       WHERE i.state = 'new' AND i.quote_number IS NOT NULL AND TRIM(i.quote_number) <> ''
         AND m.quote_number = TRIM(i.quote_number) COLLATE NOCASE
-        AND (m.external_ref IS NULL OR m.external_ref = '')) AS match_count
+        AND (m.external_ref IS NULL OR m.external_ref = '')
+        AND m.archived = 0 AND m.stage NOT IN ('lost','archived')) AS match_count
   FROM joinr_intake i
   LEFT JOIN jobs j ON j.id = i.job_id
   LEFT JOIN users u ON u.id = i.decided_by`;
@@ -209,7 +219,10 @@ function get(db, user, id) {
   return toObject(db, user, loadRow(db, id));
 }
 
-// Jobs that carry this record's quote number and have not been tied to a Joinr quote.
+// A job Link may tie to (M6 · 4.3): not archived, not lost.
+const isLiveJob = (job) => !job.archived && job.stage !== "lost" && job.stage !== "archived";
+
+// Live jobs that carry this record's quote number and have not been tied to a Joinr quote.
 function matches(db, id) {
   const row = db.prepare("SELECT quote_number FROM joinr_intake WHERE id = ?").get(parseId(id) || 0);
   if (!row) throw notFound();
@@ -219,6 +232,7 @@ function matches(db, id) {
     .prepare(
       `SELECT id, name, client_name, stage FROM jobs
         WHERE quote_number = ? COLLATE NOCASE AND (external_ref IS NULL OR external_ref = '')
+          AND archived = 0 AND stage NOT IN ('lost','archived')
         ORDER BY id`
     )
     .all(qn)
@@ -375,6 +389,7 @@ function link(db, req, id, jobId) {
     if (row.state !== "new") throw conflict("This quote has already been dealt with");
     const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jid);
     if (!job) throw new HttpError(404, "Job not found");
+    if (!isLiveJob(job)) throw conflict("Link only to a live job");
     if (!isEmpty(job.external_ref)) throw conflict("That job is already tied to a Joinr quote");
     const qn = row.quote_number == null ? "" : String(row.quote_number).trim().toLowerCase();
     if (!qn || String(job.quote_number == null ? "" : job.quote_number).trim().toLowerCase() !== qn) {

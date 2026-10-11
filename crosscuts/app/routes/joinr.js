@@ -21,7 +21,10 @@ const stub = (req, res) => res.status(501).json({ error: "Not built" });
     try {
       if (!joinrConfig.getKey()) return res.status(409).json({ error: joinrSync.NOT_SET_UP });
       const result = await joinrSync.run(db, opts);
-      res.json({ ok: result.ok, items: result.items, skipped: result.skipped || 0, error: result.error || null });
+      const out = { ok: result.ok, items: result.items, skipped: result.skipped || 0, error: result.error || null };
+      // Stopped at the page limit with more to come (M6 · 4.3): ok, but say so.
+      if (result.truncated) Object.assign(out, { truncated: true, message: result.message });
+      res.json(out);
     } catch (e) {
       sendError(res, e, "[joinr]");
     }
@@ -55,6 +58,8 @@ function handleB(fn) {
 }
 
 r.get("/intake", "design.view", handleB((req, res) => {
+  // ?countsOnly=1 (M6 · 4.3): the Design/PM tile needs only the counts.
+  if (req.query.countsOnly === "1") return res.json({ counts: intake.counts(inboxDb) });
   const rows = intake.list(inboxDb, req.user, { state: req.query.state });
   res.json({ rows, counts: intake.counts(inboxDb), sync: require("../lib/joinr-sync").status(inboxDb) });
 }));
@@ -99,67 +104,26 @@ const { HttpError: ConfigHttpError, sendError: configSendError } = require("../l
 // The key never leaves joinr-config: responses carry keyStatus() (last four only), the audit
 // rows carry the word 'set' or 'cleared', and no error message below includes it.
 const KEY_OK = /^[\x21-\x7e]{8,200}$/;
-const TEST_TIMEOUT_MS = 10000;
-const TEST_MAX_BYTES = 1024 * 1024;
 
 function settingsPayload() {
-  return { baseUrl: configLib.getBaseUrl(), key: configLib.keyStatus(), sync: configSync.status(configDb) };
+  return {
+    baseUrl: configLib.getBaseUrl(),
+    baseUrlFromEnv: configLib.baseUrlFromEnv(),
+    key: configLib.keyStatus(),
+    sync: configSync.status(configDb),
+  };
 }
 
-// Reads at most TEST_MAX_BYTES of the body as text.
-async function readCapped(res) {
-  const reader = res.body.getReader();
-  const chunks = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.length;
-    if (total > TEST_MAX_BYTES) {
-      reader.cancel().catch(() => {});
-      throw new Error("Joinr's reply was too large");
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-// One request for the current position: no `after`, no `backfill`, so a healthy Joinr answers
-// {cursor, items: [], more: false}. Returns {ok:true, cursor} or {ok:false, error}.
+// One request for the current position through the puller's own fetchPage (no `after`, no
+// `backfill`), so the test and the sync share one fetch, one timeout and one set of messages.
 async function testConnection() {
-  const key = configLib.getKey();
-  if (!key) return { ok: false, error: "No API key is set" };
-  const url = `${configLib.getBaseUrl()}/api/integrations/crosscuts/won-quotes`;
   try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-      redirect: "manual",
-      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
-    });
-    if (res.status === 401) return { ok: false, error: "Joinr rejected the API key (401)" };
-    if (res.status >= 300 && res.status < 400) return { ok: false, error: `Joinr redirected the request (HTTP ${res.status}); check the address` };
-    if (!res.ok) return { ok: false, error: `Joinr answered HTTP ${res.status}` };
-    let body;
-    try {
-      body = JSON.parse(await readCapped(res));
-    } catch (e) {
-      return { ok: false, error: e.message === "Joinr's reply was too large" ? e.message : "Joinr's reply wasn't valid JSON" };
-    }
-    if (!body || typeof body !== "object" || !Array.isArray(body.items) || body.cursor === undefined || body.cursor === null) {
-      return { ok: false, error: "Joinr's reply didn't look like the won-quotes feed; check the address" };
-    }
-    return { ok: true, cursor: String(body.cursor) };
+    const page = await configSync.fetchPage({});
+    return { ok: true, cursor: page.cursor };
   } catch (e) {
-    if (e && (e.name === "TimeoutError" || e.name === "AbortError")) {
-      return { ok: false, error: `Joinr didn't answer within ${TEST_TIMEOUT_MS / 1000} seconds` };
-    }
-    const code = e && e.cause && e.cause.code;
-    if (code === "ENOTFOUND" || code === "EAI_AGAIN") return { ok: false, error: "Couldn't find that address (DNS lookup failed)" };
-    if (code === "ECONNREFUSED") return { ok: false, error: "Joinr refused the connection" };
-    if (code === "ECONNRESET") return { ok: false, error: "The connection to Joinr was reset" };
-    if (code && /CERT|SSL|TLS/i.test(String(code))) return { ok: false, error: "The secure connection to Joinr failed (certificate problem)" };
-    return { ok: false, error: "Couldn't reach Joinr" };
+    if (e && e.message === configSync.NOT_SET_UP) return { ok: false, error: "No API key is set" };
+    if (e instanceof configSync.JoinrError) return { ok: false, error: e.message };
+    return { ok: false, error: "Could not reach Joinr" };
   }
 }
 
@@ -171,34 +135,55 @@ r.get("/settings", "users.admin", (req, res) => {
   }
 });
 
+// {baseUrl?, apiKey?}. Everything is checked before anything is written. When the address
+// really changes (M6 · 4.3), the saved key belonged to the old address: it is removed and the
+// sync position and error are reset, so the next run starts from now at the new address; a key
+// sent in the same request is saved after that.
 r.put("/settings", "users.admin", (req, res) => {
   try {
     const body = req.body && typeof req.body === "object" ? req.body : {};
-    const hasUrl = body.baseUrl !== undefined && body.baseUrl !== null;
-    const hasKey = typeof body.apiKey === "string" && body.apiKey.trim() !== "";
     if (body.baseUrl !== undefined && body.baseUrl !== null && typeof body.baseUrl !== "string") {
       throw new ConfigHttpError(400, "The Joinr address must be text");
     }
     if (body.apiKey !== undefined && body.apiKey !== null && typeof body.apiKey !== "string") {
       throw new ConfigHttpError(400, "The API key must be text");
     }
+    const hasUrl = typeof body.baseUrl === "string";
+    const hasKey = typeof body.apiKey === "string" && body.apiKey.trim() !== "";
+    const keyFromEnv = configLib.keyStatus().fromEnv;
     if (hasKey) {
-      if (configLib.keyStatus().fromEnv) {
+      if (keyFromEnv) {
         throw new ConfigHttpError(409, "The API key is set by the server's environment and can't be changed here");
       }
-      // Checked up front so a bad key doesn't leave a half-saved address behind.
       if (!KEY_OK.test(body.apiKey.trim())) throw new ConfigHttpError(400, "The API key must be 8 to 200 characters with no spaces");
     }
-    const detail = {};
+
+    const before = configLib.getBaseUrl();
+    let urlChanges = false;
     if (hasUrl) {
-      const before = configLib.getBaseUrl();
+      const wanted = configLib.normaliseBaseUrl(body.baseUrl) || configLib.DEFAULT_BASE;
+      if (wanted !== before) {
+        if (configLib.baseUrlFromEnv()) {
+          throw new ConfigHttpError(409, "The Joinr address is set by the server's environment and can't be changed here");
+        }
+        if (keyFromEnv) throw new ConfigHttpError(409, "Remove JOINR_API_KEY from the environment first");
+        urlChanges = true;
+      }
+    }
+
+    const detail = {};
+    if (urlChanges) {
       configLib.setBaseUrl(body.baseUrl);
-      const after = configLib.getBaseUrl();
-      if (after !== before) detail.baseUrl = after;
+      configLib.clearKey();
+      configSync.reset(configDb);
+      detail.baseUrl = configLib.getBaseUrl();
+      detail.key = "cleared";
+      detail.cursor = "reset";
     }
     if (hasKey) {
       configLib.setKey(body.apiKey);
-      detail.key = "set";
+      if (urlChanges) detail.newKey = "set";
+      else detail.key = "set";
     }
     if (Object.keys(detail).length) {
       configAudit.log(req, { action: "joinr.settings", entityType: "joinr", entityId: "settings", after: detail });
