@@ -87,11 +87,18 @@ const upload = multer({
 });
 
 // Multer single-file upload of `field`. Multer removes partial files on error.
+// A file over the limit is refused (exactly 25 MB is allowed). Anything that isn't a
+// MulterError (a full disk, a permissions problem) is a server fault: logged, 500.
 function single(field) {
   const mw = upload.single(field);
   return function filesUpload(req, res, next) {
     mw(req, res, (err) => {
       if (!err) return next();
+      if (!(err instanceof multer.MulterError)) {
+        console.error("[files] upload failed:", err && err.message ? err.message : err);
+        res.status(500).json({ error: "Server error" });
+        return;
+      }
       const msg =
         err.code === "LIMIT_FILE_SIZE"
           ? "That file is too big (25 MB at most)"
@@ -160,7 +167,10 @@ async function accept(file) {
   }
   const storedName = `${path.basename(file.path, ".part")}.${ext}`;
   const finalPath = path.join(FILES_DIR, storedName);
+  // Hash before the rename, so a failure at either step leaves only the .part to remove.
+  let sha256;
   try {
+    sha256 = await sha256Of(file.path);
     await fs.promises.rename(file.path, finalPath);
   } catch (e) {
     await rmQuiet(file.path);
@@ -171,7 +181,7 @@ async function accept(file) {
     originalName: cleanName(file.originalname, ext),
     mime: type.mime,
     size: file.size,
-    sha256: await sha256Of(finalPath),
+    sha256,
   };
 }
 
@@ -214,7 +224,9 @@ function toFile(row) {
 function contentDisposition(kind, name) {
   // ASCII fallback for old clients, RFC 5987 UTF-8 for everyone else.
   const ascii = String(name).replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+  // RFC 5987 doesn't allow ' ( ) * unencoded, which encodeURIComponent leaves.
+  const ext = encodeURIComponent(name).replace(/['()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${ext}`;
 }
 
 // Streams a stored file with the section 8 headers. Never trusts a client value for the path.

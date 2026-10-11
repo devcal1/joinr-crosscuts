@@ -122,8 +122,8 @@ STATUS=$(curl -s -o "$BODY_FILE" -w '%{http_code}' -H "Origin: $REQ_ORIGIN" -b "
   -F "period=$M4C_PREV" -F "category=other" -F "title=no file" "$BASE/api/reports")
 BODY=$(cat "$BODY_FILE")
 expect_status 400 "a request with no file is refused"
-# Over 25 MB.
-head -c 26214400 /dev/zero > "$WORK/m4c-big.bin"
+# Over 25 MB (exactly 25 MB is allowed: multer refuses only beyond the limit).
+head -c 26214401 /dev/zero > "$WORK/m4c-big.bin"
 printf '%%PDF-' | dd of="$WORK/m4c-big.bin" conv=notrunc 2>/dev/null
 m4c_upload "$ACCT" "$WORK/m4c-big.bin" "big.pdf" "$M4C_PREV" other "too big"
 expect_status 400 "a file over 25 MB is refused"

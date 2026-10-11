@@ -1113,7 +1113,7 @@
     if (can("jobs.view")) {
       commentsEl.hidden = false;
       if (window.ccComments) {
-        window.ccComments.mount($("commentsBody"), "job", jobId, { canWrite: can("messages.use") });
+        window.ccComments.mount($("commentsBody"), "job", jobId, { canWrite: can("messages.use"), heading: false });
       }
     }
   }

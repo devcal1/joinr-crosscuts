@@ -81,7 +81,8 @@ r.post("/:id/files", "tasks.use", files.single("file"), async (req, res) => {
     res.status(201).json(task);
   } catch (e) {
     if (accepted) files.discard(accepted);
-    else if (req.file && req.file.path) fs.promises.rm(req.file.path, { force: true }).catch(() => {});
+    // Awaited, so the .part file is gone before the reply (m4-contracts.md section 11.9).
+    else if (req.file && req.file.path) await fs.promises.rm(req.file.path, { force: true }).catch(() => {});
     sendError(res, e, "[tasks]");
   }
 });

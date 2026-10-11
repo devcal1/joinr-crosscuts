@@ -1,6 +1,7 @@
 // Comment threads, shared by the task dialog (taskui.js) and the job page.
 //
-//   ccComments.mount(container, "task" | "job", entityId, { canWrite, onChange })
+//   ccComments.mount(container, "task" | "job", entityId, { canWrite, onChange, heading })
+//   heading: false leaves out the widget's own "Comments (n)" title (the job page has a section bar).
 //     -> { reload() }
 //   ccComments.renderText(parent, text)    // plain text with http(s) links, line breaks as <br>
 //
@@ -119,6 +120,7 @@
     container.classList.add("cm-box");
 
     var title = el("h3", { class: "cm-title", text: "Comments" });
+    if (o.heading === false) title.hidden = true;
     var followBtn = el("button", { type: "button", class: "hs-btn hs-btn-quiet cm-follow", text: "Follow" });
     var head = el("div", { class: "cm-head" }, title, followBtn);
     var msg = el("p", { class: "cm-msg", role: "status", "aria-live": "polite" });

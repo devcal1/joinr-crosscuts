@@ -538,3 +538,12 @@ Wave 2 starts only after Wave 1 is merged on `main`, so D codes against real API
 6. **Files live under the uploads volume** (`uploads/files/`), not a new mount, and `/photos` is narrowed to top-level image files. Files uploaded during testing are dropped at cutover with the rest of the pre-cutover uploads (as `docs/cutover.md` step 3 already does); the integrator adds one line saying so to the runbook at 4.1.
 7. **multer 2.4.0** (released 2026-09-14). The API is unchanged for our use; the photo smoke steps are the regression check.
 8. **The reminder time is 7:00 Sydney on weekdays** (Todd, decision 4).
+
+## 12. Changes after the M4 · 4.2 review (integrator, 2026-10-11)
+
+1. **File size limit:** a file of exactly 25 MB is accepted; only a larger one is refused (multer gives busboy the limit + 1). `smoke-m4-reports.sh` now uploads 25 MB + 1 byte for the "too big" case.
+2. **`files.single`:** an error that isn't a `MulterError` (a full disk, a permissions problem) is logged and answered 500 `Server error`, not 400. Multer's own errors stay 400. This replaces "400 otherwise" in §2.
+3. **`files.accept`:** hashes the `.part` file before renaming it, so a failure at either step leaves only the `.part` to remove (no orphan stored file).
+4. **Task attachment refusals** (403/409 after multer wrote the file) await the `.part` removal before replying, as §11.9 promised.
+5. **`Content-Disposition` `filename*`** also percent-encodes `' ( ) *` (RFC 5987).
+6. **`ccComments.mount`** takes `heading: false` (the job page passes it), so the job page shows one "Comments" heading; the Follow button stays on the right.
