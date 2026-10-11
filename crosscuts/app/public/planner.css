@@ -53,11 +53,22 @@
 .pl-empty { margin: 0; padding: 12px 14px; color: var(--label); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
 .pl-none { margin: 0; color: var(--muted); font-size: 13px; }
 
-/* ---------- columns ---------- */
+/* ---------- columns ----------
+   1440 px and up: the month and the two weeks side by side; the two-week column is exactly as tall
+   as the month (contain: size keeps it out of the row's height) and its list scrolls on its own.
+   Below 1440 px: the month full width, the two weeks underneath (side by side from 900 px), every
+   entry in full. Phone (640 px and below): the two weeks first (Todd, M7 · 4.3). */
 .pl-cols { display: flex; flex-direction: column; gap: 28px; }
 .pl-month, .pl-weeks { min-width: 0; }
-@media (min-width: 1100px) {
-  .pl-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media screen and (min-width: 900px) and (max-width: 1439.98px) {
+  #plWeeks { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 24px; align-items: start; }
+  #plWeeks > .pl-empty { grid-column: 1 / -1; }
+}
+@media screen and (min-width: 1440px) {
+  .pl-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: stretch; }
+  .pl-weeks { contain: size; display: flex; flex-direction: column; }
+  .pl-weeks > .hs-sectionbar { flex: none; }
+  #plWeeks { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 6px; scrollbar-color: var(--raised) transparent; }
 }
 
 .pl-monthbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 10px; }
@@ -160,7 +171,7 @@ a.pl-chip-static { cursor: pointer; }
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-/* Rows: 1 band, 2 day numbers, 3-5 items, 6 "+N more", 7-9 the extra printed items, 10 filler. */
+/* Rows: 1 band, 2 day numbers, 3-5 items, 6 "+N more", 7 the extra printed item (8-9 spare), 10 filler. */
 .pl-wk {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -300,7 +311,9 @@ a.pl-chip-static { cursor: pointer; }
 /* ---------- print: black on white, layer names in words, no markers ---------- */
 /* style-check: print-start */
 @media print {
-  html, body { background: #fff; color: #000; }
+  /* html:root and html body outrank tokens.css's html and index.css's html, body rules in any
+     load order (the shell appends tokens.css when a page doesn't link it). */
+  html:root, html body { background: #fff; color: #000; }
   body, body:has(> .cc-foot-rule) { padding-bottom: 0; font-size: 9pt; }
   #cc-shell, .cc-foot-rule, .cc-dialog, .pl-tools, .pl-layers, .pl-status, .pl-monthbar .pl-nav,
   .pl-compact, .pl-daylist, .pl-screenonly { display: none !important; }
@@ -324,7 +337,7 @@ a.pl-chip-static { cursor: pointer; }
     font-size: 8pt;
     line-height: 1.25;
   }
-  .pl-chip-sm { white-space: normal; text-overflow: clip; }
+  .pl-chip-sm { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
   .pl-bar { border-top: 0.3mm solid #000; border-bottom: 0.3mm solid #000; }
   .pl-time, .pl-chip-sm .pl-time, .pl-src, .pl-flag, .pl-overdue, .pl-overdue .pl-title, .pl-title { color: #000; }
   .pl-flag { font-weight: 700; }
@@ -332,12 +345,18 @@ a.pl-chip-static { cursor: pointer; }
   .pl-printonly { display: block; }
   .pl-mark, .pl-dot { display: none; }
 
-  /* The month fits one A4 landscape page: no page heading, no source labels, small type. */
+  /* The month fits one A4 landscape page, however busy (M7 · 4.3): no page heading, no source
+     labels, small type, every item and band line on one line, four items a day then "+N more",
+     and every week row the same fixed height. */
   body.pl-print-month .pl-head { display: none; }
   body.pl-print-month .pl-monthbar { margin-bottom: 2mm; }
   .pl-grid .pl-src { display: none; }
-  .pl-grid .pl-chip { font-size: 7pt; line-height: 1.15; }
-  .pl-wk > .pl-chip { margin: 0 0.8mm 0.6mm; }
+  .pl-grid .pl-chip { font-size: 7pt; line-height: 1.12; }
+  .pl-wk > .pl-chip { margin: 0 0.8mm 0.4mm; }
+  .pl-grid .pl-band { padding: 0.6mm 1mm 0; }
+  .pl-grid .pl-band-line { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; line-height: 1.2; }
+  .pl-grid .pl-more { margin: 0 0.8mm; line-height: 1.15; }
+  body.pl-print-month .pl-wk { height: 26.5mm; min-height: 0; overflow: hidden; }
   .pl-grid { display: block; border: 0.3mm solid #000; border-radius: 0; overflow: visible; }
   .pl-dow { background: #fff; border-bottom: 0.3mm solid #000; }
   .pl-dow span { color: #000; padding: 1mm; font-size: 7pt; }

@@ -357,6 +357,8 @@
       [h("span", { class: "cc-user-name", text: displayName })]
     );
     btn.setAttribute("aria-label", "Account menu for " + displayName);
+    // The name can be cut with an ellipsis on a narrow bar; the tooltip shows it in full.
+    btn.setAttribute("title", displayName);
 
     function open(focusIndex) {
       closeAllPopups(btn);

@@ -441,7 +441,16 @@ function occurrencesForSweep(db, { from, to } = {}) {
   const out = [];
   const filter = { clause: "e.reminder IS NOT NULL", args: [] };
   for (const { row, exceptions } of loadRange(db, { from, to, filter })) {
-    for (const occ of expand(row, exceptions, from, to)) {
+    // One bad row must not stop every reminder (M7 · 4.3): it is skipped and logged by id only.
+    let occs;
+    try {
+      occs = expand(row, exceptions, from, to);
+    } catch (e) {
+      const code = e && typeof e.name === "string" && /^[A-Za-z]{1,40}$/.test(e.name) ? e.name : "error";
+      console.error(`[planner] reminder skipped for event ${Number(row.id)}: ${code}`);
+      continue;
+    }
+    for (const occ of occs) {
       if (occ.start >= from && occ.start <= to) out.push({ event: row, occ });
     }
   }
@@ -622,7 +631,14 @@ function buildSeries(db, user, base, body) {
     remindLayer = creating ? false : b.remindLayer && layer !== "personal" && reminder !== null;
   }
 
-  const jobId = given("jobId") ? parseJobId(db, body.jobId) : creating ? null : b.jobId;
+  // Without jobs.view the job is checked before it is looked up: any change is a 403, so the answer
+  // never says whether a job id exists (M7 · 4.3). Sending the current value back is no change.
+  const baseJob = creating ? null : b.jobId;
+  if (given("jobId") && !has(user, "jobs.view")) {
+    const asked = body.jobId === null || body.jobId === "" ? null : parseIdValue(body.jobId);
+    if (asked !== baseJob) throw new HttpError(403, "You can't link a job");
+  }
+  const jobId = given("jobId") ? parseJobId(db, body.jobId) : baseJob;
 
   return {
     layer, title, notes, allDay, startDate, endDate, startTime, endTime,
@@ -863,7 +879,10 @@ function updateWhole(db, req, g, body) {
   checkWriteRights(user, row.owner_id, base, cand);
   const changed = diff(base, cand);
   if (changed.length === 0) return present(db, user, row);
-  const clears = changed.includes("startDate") || changed.includes("repeat") || changed.includes("repeatDay");
+  // A one-off change keeps the shape it was made in (times on a timed series, dates on an all-day
+  // one), so switching All day on the whole series clears them too (M7 · 4.3).
+  const clears = changed.includes("startDate") || changed.includes("repeat") || changed.includes("repeatDay")
+    || changed.includes("allDay");
   const visible = changed.filter((k) => k !== "repeatDay" || !changed.includes("startDate"));
   db.transaction(() => {
     const ts = nextStamp(row.updated_at);

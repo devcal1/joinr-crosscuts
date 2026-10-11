@@ -144,10 +144,15 @@ r.post("/events", "planner.edit", handle((req, res) => {
 }));
 
 // 200 {rows, more}: the job's hand-made occurrences the viewer can see, today to today + 89
-// (Sydney), at most 20. 404 when the job doesn't exist (checked here, before the library).
+// (Sydney), at most 20. 404 when the job doesn't exist (checked here, before the library), but
+// only for a viewer with jobs.view: anyone else gets 200 {rows: [], more: false} for a missing job,
+// the same as a job with nothing on it, so the answer never says whether a job id exists (M7 · 4.3).
 r.get("/job/:jobId", "planner.view", handle((req, res) => {
   const jobId = idOr404(req.params.jobId);
-  if (!db.prepare("SELECT 1 AS ok FROM jobs WHERE id = ?").get(jobId)) throw notFound();
+  if (!db.prepare("SELECT 1 AS ok FROM jobs WHERE id = ?").get(jobId)) {
+    if (!req.user.perms.has("jobs.view")) return res.json({ rows: [], more: false });
+    throw notFound();
+  }
   const today = sydneyToday();
   res.json(events.listForJob(db, req.user, jobId, { from: today, to: addDays(today, JOB_DAYS - 1), limit: JOB_LIMIT }));
 }));

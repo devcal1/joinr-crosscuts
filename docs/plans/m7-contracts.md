@@ -367,7 +367,7 @@ The page offers **This one** and **This and all later** (Decisions; settled poin
 | `later`, occurrence D after the series' first | **split**, in one transaction: the original's `repeat_until` = D − 1 day; a new event = the original with the edits applied, `start_date` = the edited start or D (end keeping the length unless edited), the same `repeat`, `repeat_day` and `repeat_until` unless edited, `split_from_id` = original id, **`owner_id` = the original's owner**; the original's exceptions on or after D stay with the original and are no longer shown | the original's `repeat_until` = D − 1 day |
 | `later` at the first occurrence, or `all` | update the series row itself | soft-delete the row (`removed_at`, `removed_by`) |
 
-- **A whole-series edit that changes `start_date`, `repeat` or `repeat_day`** deletes that series' exception rows in the same transaction (their keys no longer line up), and the audit row records `exceptionsCleared: N`. The page warns first: "One-off changes to this event will be replaced." (The split's equivalent warning: "Later one-off changes will be replaced.")
+- **A whole-series edit that changes `start_date`, `repeat`, `repeat_day` or `all_day`** deletes that series' exception rows in the same transaction (their keys no longer line up; a one-off change keeps the shape it was made in, times on a timed series and dates on an all-day one, so switching All day clears them too, 4.3), and the audit row records `exceptionsCleared: N`. The page warns first (also when All day is switched): "One-off changes to this event will be replaced." (The split's equivalent warning: "Later one-off changes will be replaced.")
 - **Layer changes** (scope `later` or `all` only): the new layer must be postable by the user, and `canEdit` must hold on the old row and on the row with the new layer. Moving to or from `personal` is therefore possible only for the owner. Moving to `personal` sets `remind_layer = 0`.
 - **Job changes:** setting or changing `jobId` needs `jobs.view` (403 otherwise); leaving it as it is needs nothing.
 - **Concurrency:** every PATCH and DELETE carries the series' `updatedAt`; a mismatch is 409. Every write to the series or to any of its exceptions sets the series' `updated_at` to a fresh stamp (the `nextStamp` rule from `lib/tasks.js`: later than the previous one even within the same millisecond) and `updated_by`.
@@ -395,7 +395,7 @@ The page offers **This one** and **This and all later** (Decisions; settled poin
 | `reminder` | timed: null/start/min15/hour1/day1; all-day: null/morning/day_before | `That reminder doesn't fit a timed event` / `That reminder doesn't fit an all-day event` |
 | `remindLayer` | boolean; never on personal; needs a reminder | `Personal events can't remind anyone else` / `Choose a reminder first` |
 | `jobId` | null or an existing job id | `Unknown job` |
-| `jobId` | needs `jobs.view` to set or change | **403** `You can't link a job` |
+| `jobId` | needs `jobs.view` to set or change; without it, any value other than the current one is a 403 **before** the id is looked up, so a missing id answers the same as a real one (4.3) | **403** `You can't link a job` |
 | `updatedAt` (PATCH, DELETE) | required string | `updatedAt is required` |
 | `scope` (repeating series) | `one`, `later` or `all` | `scope must be one, later or all` |
 | `occurrence` (scope one/later) | a date that is an occurrence of the series (on its rule, ≥ start, ≤ `repeat_until`, not cancelled) | `occurrence must be a date (YYYY-MM-DD)` / `That date isn't an occurrence of this event` |
@@ -485,7 +485,7 @@ The router is thin and complete in the scaffold: it parses the query, calls the 
 | `POST /events` | `planner.edit` | 201 series object |
 | `PATCH /events/:id` | `planner.edit` | 200 series object; body `{updatedAt, scope?, occurrence?, ...fields}` |
 | `DELETE /events/:id?scope&occurrence&updatedAt` | `planner.edit` | 204; `updatedAt` URL-encoded in the query |
-| `GET /job/:jobId` | `planner.view` | 200 `{rows, more}`: the job's hand-made occurrences the viewer can see, from today to today + 89 (Sydney), at most 20; 404 `Not found` when the job doesn't exist |
+| `GET /job/:jobId` | `planner.view` | 200 `{rows, more}`: the job's hand-made occurrences the viewer can see, from today to today + 89 (Sydney), at most 20; 404 `Not found` when the job doesn't exist, for a viewer with `jobs.view` only: without `jobs.view` a missing job answers 200 `{"rows":[],"more":false}`, the same as a job with nothing on it, so job ids can't be probed (4.3) |
 | `POST /reminders/run` | `users.admin` | 200 `{sent, from, to}`; body `{at?: ISO, windowMinutes?: 1–360}` (default now and 360); runs the sweep for `(at − windowMinutes, at]` **without moving the stored mark** (§10) |
 
 Route order inside the file: `/layers`, `/events`, `/events/:id` (GET, PATCH, DELETE), `POST /events`, `/job/:jobId`, `/reminders/run`. `:id` and `:jobId` that are not positive integers → 404.
@@ -567,7 +567,8 @@ Route order inside the file: `/layers`, `/events`, `/events/:id` (GET, PATCH, DE
   - off with `PLANNER_REMINDER_DISABLED=1`; a 60 s `setInterval`, `unref()`; started once;
   - **first start:** if `planner.reminder_swept_to` is null, set it to now (`{audit:false}`), log the seeding, send nothing;
   - **each tick:** window = `(max(mark, now − 6 h), now]`; `runSweep(db, {from, to: now})`; then the mark = now. The sends and the mark commit in **one transaction**, so a crash neither loses nor doubles;
-  - `runSweep` expands `occurrencesForSweep(db, {from: sydneyDate(from) − 1 day, to: sydneyDate(now) + 2 days})`, computes each occurrence's `fire_at`, keeps those with `from < fire_at ≤ to`, skips occurrences that have **already ended** at `to` (timed: `sydneyInstant(start, endTime)`; all-day: `sydneyInstant(end + 1 day, "00:00")`) and cancelled ones (already dropped by `expand`), then for each recipient `INSERT OR IGNORE INTO planner_reminders_sent` and, only when a row was inserted, `notify.toUser`;
+  - `runSweep` expands `occurrencesForSweep(db, {from: sydneyDate(from) − 1 day, to: sydneyDate(now) + 2 days})`, computes each occurrence's `fire_at`, keeps those with `from < fire_at ≤ to`, skips occurrences that have **already ended** at `to` (the end is timed: `sydneyInstant(start, endTime)`; all-day: `sydneyInstant(end + 1 day, "00:00")`; taken as `max(end, fire_at)`, and an occurrence counts as ended only when that end is after `fire_at` and at or before `to`, so a start in the spring-forward gap, moved an hour later past its own end time, still reminds, 4.3) and cancelled ones (already dropped by `expand`), then for each recipient `INSERT OR IGNORE INTO planner_reminders_sent` and, only when a row was inserted, `notify.toUser`;
+  - **one bad row can't stop the sweep** (4.3): each occurrence's sends run in their own savepoint inside the sweep's transaction, and a failure rolls back only that occurrence and logs `[planner] reminder skipped for event <id>: <code>` (the error's code or name, never its message); a series whose occurrences can't be worked out is skipped the same way;
   - a reminder whose fire time had already passed when the event was made or moved never fires (the window has moved on). Accepted.
 - **The admin route** (`POST /api/planner/reminders/run`) calls `runNow(db, {at, windowMinutes})`: `runSweep` for `(at − windowMinutes, at]`, the "already ended" test made against `at`, the mark untouched. Running it twice for the same window sends nothing the second time.
 
@@ -603,17 +604,17 @@ Titles are cut at 120 characters. Times are 24-hour "H:MM" (no leading zero). No
 
 ### 11.3 Logs
 
-Prefix `[planner]`. Allowed: counts, window bounds, event ids, layer ids, error messages from code. **Never** a title, notes, job name or worker name (personal content must not reach the container log). Examples: `[planner] first start: reminder mark seeded to 2026-10-12T03:00:00.000Z, nothing sent`; `[planner] reminders: 3 sent (2026-10-12T02:59:00.000Z to 2026-10-12T03:00:00.000Z)` (only when > 0); `[planner] reminder sweep failed: <message>`.
+Prefix `[planner]`. Allowed: counts, window bounds, event ids, layer ids, error messages from code. **Never** a title, notes, job name or worker name (personal content must not reach the container log). Examples: `[planner] first start: reminder mark seeded to 2026-10-12T03:00:00.000Z, nothing sent`; `[planner] reminders: 3 sent (2026-10-12T02:59:00.000Z to 2026-10-12T03:00:00.000Z)` (only when > 0); `[planner] reminder sweep failed: <message>`; `[planner] reminder skipped for event 42: TypeError` (4.3: one occurrence, by id and code only).
 
 ## 12. The Planner page (Wave 1 C: `public/planner.html`, `planner.css`, `planner.js`)
 
 Built against §9's shapes. Until A and B merge the API answers 501, so C develops against stubbed responses in headless Edge (as Backup's D stubbed `/api/backup/status`) and against the real routes once Wave 1 is merged at 4.1.
 
-**Frame.** `planner.html` follows `lookahead.html`: `index.css` then `planner.css`, `<div id="cc-shell">`, `shared.js`, `planner.js`, `shell/shell.js`; `<main class="dash">`. Title "Planner - Crosscuts". Page classes prefixed **`pl-`**; the shell keeps `cc-`; never `ph-`. All user text through `textContent`. Dialogs use the shell's `cc-dialog` styling (`<dialog class="cc-dialog pl-dialog">`). Passes `node ci/style-check.js`.
+**Frame.** `planner.html` follows `lookahead.html`: `tokens.css` (linked first, as `invoice.html` does, so the shell doesn't append it after `planner.css` and its `html` ground beat the print rule; 4.3), `index.css` then `planner.css`, `<div id="cc-shell">`, `shared.js`, `planner.js`, `shell/shell.js`; `<main class="dash">`. Title "Planner - Crosscuts". Page classes prefixed **`pl-`**; the shell keeps `cc-`; never `ph-`. All user text through `textContent`. Dialogs use the shell's `cc-dialog` styling (`<dialog class="cc-dialog pl-dialog">`). Passes `node ci/style-check.js`.
 
 **Loading.** `GET /api/planner/layers` first (gives `today`, the layers and the default), then two event requests: the month grid (`from` = the Monday on or before the 1st, 42 days) and the two weeks (this Sydney Monday, 14 days). "Today" always comes from the server's `today`, never the browser's clock. After any save or delete, both are fetched again. Prev / Today / Next move the month only; the two-week view always stays on this week and next.
 
-**Desktop (1100 px and up).** The month grid takes about two-thirds of the width, the two-week view the rest.
+**Desktop (Todd's layout decision, 4.3).** From **1440 px** the month grid takes about two-thirds of the width and the two-week view the rest, side by side; the two-week column is exactly as tall as the month (no empty area under the month) and its day list scrolls on its own. **Below 1440 px** (down to the phone layout) the month goes full width on top and the two weeks underneath, every entry in full (the two weeks side by side from 900 px).
 - **Month grid:** six week rows, Monday to Sunday, day numbers; days outside the month dimmed (`--muted`); today ringed in teal. At the top of each week row, the board-week band from `weeks`: "Manufacturing: A, B, C" and "Installing: D, E" in small body text (only when Install & hardware is on). Then up to **three** items per day, multi-day items as bars across the week row, then "+N more" (a button that lists the day in a dialog). Clicking an empty part of a day opens New event on that date (with `planner.edit`).
 - **Two-week view:** this week and next, one block per day: all-day items first, then timed items in time order with "9:00–10:00" (automatic timed items show only the start). Each week's header carries its "Manufacturing / Installing" lines, and an installing job's assigned days show "Installing: *job*" in those day blocks.
 - **Item chips:** the title in white or body text on the surface, the time before it for timed items, a small uppercase letterspaced `sourceLabel` on automatic items, and the layer **marker**: a 3 px left edge in `var(--layer-<id>)`; Personal has a 1 px outline in `var(--layer-personal)` and no filled edge. Invoice items with `overdue` show "overdue" and their text in `var(--stop-tint)` (red only for overdue). No other use of layer colours.
@@ -637,7 +638,7 @@ Built against §9's shapes. Until A and B merge the API answers 501, so C develo
 
 **Phone (640 px and below).** The two-week view comes first, as a single-column agenda. The month becomes a compact grid of day numbers, each with up to three 6 px marker **dots** (Personal: a hollow dot) and a count; tapping a day lists it below the grid. The layer buttons sit in a collapsible row ("Layers"). No horizontal scroll at 375 px.
 
-**Print / PDF.** A **Print** button asks "Month" or "Two weeks", adds `pl-print-month` or `pl-print-weeks` to `<body>`, writes `@page { size: A4 landscape; margin: 10mm; }` (month) or `@page { size: A4 portrait; margin: 12mm; }` (two weeks) into a `<style id="plPageSize">`, calls `window.print()`, and removes the class on `afterprint`. Save as PDF comes from the browser, as for invoices. The print CSS sits between `/* style-check: print-start */` and `/* style-check: print-end */`: black on white; the shell, toolbar, layer buttons, dialogs and the other view hidden; **no markers**; every item prefixed with its layer name in brackets (`[Accounts] 9:00 Site meeting`); the month shows up to six items a day then "+N more"; only layers switched on are printed; a footer lists them and the print date: "Layers: Company-wide, Accounts. Printed 11 Oct 2026."
+**Print / PDF.** A **Print** button asks "Month" or "Two weeks", adds `pl-print-month` or `pl-print-weeks` to `<body>`, writes `@page { size: A4 landscape; margin: 10mm; }` (month) or `@page { size: A4 portrait; margin: 12mm; }` (two weeks) into a `<style id="plPageSize">`, calls `window.print()`, and removes the class on `afterprint`. Save as PDF comes from the browser, as for invoices. The print CSS sits between `/* style-check: print-start */` and `/* style-check: print-end */`: black on white; the shell, toolbar, layer buttons, dialogs and the other view hidden; **no markers**; every item prefixed with its layer name in brackets (`[Accounts] 9:00 Site meeting`); the month fits **one A4 landscape page however busy** (4.3): every item and board-band line on one line (cut with an ellipsis), up to **four** items a day then "+N more" as text, and every week row the same fixed height; the two weeks may take two portrait pages or more; only layers switched on are printed; a footer lists them and the print date: "Layers: Company-wide, Accounts. Printed 11 Oct 2026."
 
 **House style.** Ink ground, surface cards, white and body text, teal for actions and today, red only for overdue invoices, Arial 400/700, uppercase letterspaced, no icons, no emoji, no shadows. The markers are the planner's named exception (§13) and appear nowhere else.
 
@@ -654,8 +655,10 @@ Built against §9's shapes. Until A and B merge the API answers 501, so C develo
   --layer-design: var(--violet);
   --layer-scheduling: var(--fuchsia);
   --layer-workshop: var(--muted);
-  --layer-personal: var(--body);   /* drawn as a hollow outline, never a fill */
+  --layer-personal: var(--label);  /* drawn as a hollow outline, never a fill; the quiet label grey (M7 · 4.3) */
 ```
+
+(4.3, Todd: Personal's outline moved from `--body` to the quieter `--label`, so it reads no louder than the other layers. CLAUDE.md's exception text names no colour for Personal, so it is unchanged.)
 
 **`CLAUDE.md`, "Look and feel"** (the plan's 1.3 step said this lands with the decisions; it hasn't, so the scaffold makes it). Replace the line
 
@@ -780,7 +783,7 @@ All on jobs and rows it creates itself in a 2035 range (`M7A_` names), through t
 - **Writes:** wshop → 403 on POST, PATCH and DELETE; show → 403; acct → 403 posting to install, design_pm, scheduling or workshop; sched → 201 on workshop; acct2 edits acct's Accounts event → 200; acct2 on acct's Personal → 404; acct2 on acct's Company-wide → 403; admin on acct's Company-wide → 200; sched edits dpm's Install event → 200; dpm deletes sched's Workshop event → 404 (dpm can't see Workshop).
 - **Layer moves:** acct moves its own Company-wide event to Personal → 200, and then admin gets 404 on it; acct2 tries to move acct's Accounts event to Personal → 403.
 - **`layers` narrows only:** dpm `?layers=accounts,design_pm` → only design_pm items; acct `?layers=accounts` → no company items.
-- **Job page route:** acct's personal event linked to a job → `GET /job/:jobId` lists it for acct, not for admin or acct2; an unknown job → 404; a job link by wshop is impossible (no `planner.edit`), and by a user with `planner.edit` but `jobs.view` revoked by override → 403 `You can't link a job` (then remove the override).
+- **Job page route:** acct's personal event linked to a job → `GET /job/:jobId` lists it for acct, not for admin or acct2; an unknown job → 404 for admin (who has `jobs.view`; without it the answer is 200 `{"rows":[],"more":false}`, 4.3); a job link by wshop is impossible (no `planner.edit`), and by a user with `planner.edit` but `jobs.view` revoked by override → 403 `You can't link a job` (then remove the override).
 - **Pages:** `/planner.html`, `/planner.css`, `/planner.js` → 200 for admin, acct, dpm, sched and wshop; `/planner.html` → 403 for show; `planner.css` contains `style-check: print-start` and `@media print`.
 - **No leak through the bell:** after a personal reminder run, only the owner has a `planner.reminder` for it.
 
@@ -847,3 +850,11 @@ Docker isn't on the dev box (and no jq), so smoke files get `bash -n` only; CI i
 6. **Load on a busy month:** the month grid shows at most three items a day; whether Install & hardware is too busy in real use is a 6.1 look (it can be switched off).
 7. **Invoice backdating in smoke:** whether the M2 routes can make an issued invoice already past due; B falls back to a CI-only `docker exec` write if not.
 8. **Reminders to the TV account** on "remind everyone" for Company-wide and Install & hardware write bell rows nobody reads. Harmless; noted for 6.1.
+
+**Changed at 4.3 (review fixes, Todd's calls where named):**
+1. **Switching All day on a whole series clears its one-off changes** (§7.3), counted in `exceptionsCleared`, and the page shows "One-off changes to this event will be replaced." when All day changes too. Before, a moved occurrence kept its old shape: a timed series made all-day lost its morning reminder on that occurrence, and an all-day multi-day series made timed could show one occurrence across midnight.
+2. **The job route doesn't confirm job ids to viewers without `jobs.view`** (§9.1): a missing job answers 200 `{"rows":[],"more":false}` for them (404 still for anyone with `jobs.view`), and linking a job without `jobs.view` is a 403 before the id is looked up (§7.4), so a missing id and a real one answer the same.
+3. **Reminders** (§10): the "already ended" test uses `max(end, fire_at)`, so a start in the spring-forward gap still reminds; each occurrence runs in its own savepoint and a failure is logged by event id and code only (§11.3), so one bad row can't stop every reminder.
+4. **Layout (Todd):** side by side from 1440 px with the two-week column as tall as the month and scrolling on its own; below 1440 px the month on top and the two weeks underneath (§12). The phone layout is unchanged.
+5. **Print:** `planner.html` links `tokens.css` first and the print rule outranks the ink ground in any order, so html and body print white; the month prints four items a day, one line each, with fixed week rows, so a busy month fits one A4 landscape page with its footer (§12).
+6. **Personal's outline is `--label`** (Todd), no louder than the other layers (§13).

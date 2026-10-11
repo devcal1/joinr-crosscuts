@@ -48,11 +48,23 @@ function fireAt(occ, reminder) {
   }
 }
 
-// When the occurrence is over: the end time (timed) or midnight after its last day (all-day).
-function endsAt(occ) {
-  return occ.startTime && occ.endTime
+// When the occurrence is over: the end time (timed) or midnight after its last day (all-day), but
+// never before the reminder's own fire time `at`. A start in the spring-forward gap moves an hour
+// later (02:30 -> 03:30) while an end after the gap doesn't (03:15), so the end can come before the
+// start; such an occurrence counts as over only once a sweep has passed its fire time (M7 · 4.3).
+function endsAt(occ, at) {
+  const end = occ.startTime && occ.endTime
     ? sydneyInstant(occ.start, occ.endTime)
     : sydneyInstant(addDays(occ.end, 1), "00:00");
+  return at && at.getTime() > end.getTime() ? at : end;
+}
+
+// A short, safe word for a log line: an error's code or name, never its message (a message may
+// carry a row's content).
+function safeCode(e) {
+  if (e && typeof e.code === "string" && /^[A-Za-z0-9_]{1,40}$/.test(e.code)) return e.code;
+  if (e && typeof e.name === "string" && /^[A-Za-z]{1,40}$/.test(e.name)) return e.name;
+  return "error";
 }
 
 // "09:00" -> "9:00".
@@ -125,20 +137,36 @@ function sweep(db, from, to) {
   const audience = new Map();
   let sent = 0;
   for (const { event, occ } of items) {
-    const at = fireAt(occ, event.reminder);
-    if (!at) continue;
-    const ms = at.getTime();
-    if (!(ms > fromMs && ms <= toMs)) continue;
-    if (endsAt(occ).getTime() <= toMs) continue; // already over
-    const fire = at.toISOString();
-    let body = null;
-    for (const userId of recipients(db, event, audience)) {
-      const info = record.run(event.id, occ.occurrence, userId, fire);
-      if (Number(info.changes) !== 1) continue;
-      if (!body) body = payload(event, occ);
-      notify.toUser(db, userId, body);
-      sent++;
+    // One bad row must not stop every reminder: each occurrence runs in its own savepoint, and a
+    // failure is logged with the event id and a safe code only, then the sweep goes on (M7 · 4.3).
+    try {
+      sent += db.transaction(() => sendOne(db, event, occ, fromMs, toMs, record, audience))();
+    } catch (e) {
+      console.error(`[planner] reminder skipped for event ${Number(event && event.id)}: ${safeCode(e)}`);
     }
+  }
+  return sent;
+}
+
+// The sends for one occurrence whose reminder fires in (fromMs, toMs]. Returns how many were sent.
+function sendOne(db, event, occ, fromMs, toMs, record, audience) {
+  const at = fireAt(occ, event.reminder);
+  if (!at) return 0;
+  const ms = at.getTime();
+  if (!(ms > fromMs && ms <= toMs)) return 0;
+  // Already over: it ended after its reminder fired and before now. An end at the fire time (only
+  // the spring-forward gap, through endsAt's max) is never over yet.
+  const ends = endsAt(occ, at).getTime();
+  if (ends > ms && ends <= toMs) return 0;
+  const fire = at.toISOString();
+  let body = null;
+  let sent = 0;
+  for (const userId of recipients(db, event, audience)) {
+    const info = record.run(event.id, occ.occurrence, userId, fire);
+    if (Number(info.changes) !== 1) continue;
+    if (!body) body = payload(event, occ);
+    notify.toUser(db, userId, body);
+    sent++;
   }
   return sent;
 }

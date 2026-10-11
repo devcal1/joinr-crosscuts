@@ -72,7 +72,7 @@ The Planner (M7) has seven layers. `planner.view` is needed to see any of them a
 | Workshop | Scheduling, Workshop, admin | Scheduling, admin | Scheduling, admin |
 | Personal | only its owner (not even admin), and only with `planner.edit` | anyone with `planner.edit`, for themselves | only its owner |
 
-So a **workshop** login (the workshop TV, workshop staff) sees Company-wide, Install & hardware and Workshop, read-only, and has no Personal layer. **Showroom** has no planner. Someone given `planner.view` by an override with no planner role sees Company-wide and Install & hardware only; with `planner.edit` as well, they can also add to Company-wide and have a Personal layer. On a department layer, edit rights follow the role a person holds now: someone who leaves the department can no longer change its events.
+So a **workshop** login (the workshop TV, workshop staff) sees Company-wide, Install & hardware and Workshop, read-only, and has no Personal layer. **Showroom** has no planner. Someone given `planner.view` by an override with no planner role sees Company-wide and Install & hardware only; with `planner.edit` as well, they can also add to Company-wide and have a Personal layer. On a department layer, edit rights follow the role a person holds now: someone who leaves the department can no longer change its events. Because layers follow roles, revoking `accounts.view` from someone with the Accounts role still leaves the automatic invoice items on their Accounts layer, without links to the invoices.
 
 Known M1 limit: the board does not hide edit controls from view-only users. The server refuses their edits with a 403.
 

@@ -43,7 +43,7 @@
   ];
   var REPEAT_LABELS = { weekly: "Every week", fortnightly: "Every two weeks", monthly: "Every month" };
   var SCREEN_LANES = 3; // items a day in the month grid on screen, then "+N more"
-  var PRINT_LANES = 6; // and on paper
+  var PRINT_LANES = 4; // and on paper, so a busy month still fits one A4 landscape page (M7 · 4.3)
   var CHANGE_LATER_NOTE = "Change these for this and all later.";
   var WARN_SERIES = "One-off changes to this event will be replaced.";
   var WARN_SPLIT = "Later one-off changes will be replaced.";
@@ -352,7 +352,7 @@
     return node;
   }
   // Grid rows in a week: 1 band, 2 day numbers, 3-5 the screen lanes, 6 "+N more" on screen,
-  // 7-9 the extra lanes printed, 10 "+N more" on paper (and the filler).
+  // 7 the extra lane printed (8-9 spare), 10 "+N more" on paper (and the filler).
   function laneRow(lane) {
     return lane < SCREEN_LANES ? 3 + lane : 4 + lane;
   }
@@ -1029,7 +1029,9 @@
         var exc = series.exceptions || [];
         var d = item.occurrence;
         if (d === series.startDate) {
-          if (exc.length && (fStart.value !== init.startDate || fRepeat.value !== init.repeat)) text = WARN_SERIES;
+          if (exc.length && (fStart.value !== init.startDate || fRepeat.value !== init.repeat || fAllDay.checked !== init.allDay)) {
+            text = WARN_SERIES;
+          }
         } else if (exc.some(function (x) { return x.occurrence >= d; })) {
           text = WARN_SPLIT;
         }

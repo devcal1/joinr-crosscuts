@@ -43,7 +43,7 @@
   --layer-design: var(--violet);
   --layer-scheduling: var(--fuchsia);
   --layer-workshop: var(--muted);
-  --layer-personal: var(--body);   /* drawn as a hollow outline, never a fill */
+  --layer-personal: var(--label);  /* drawn as a hollow outline, never a fill; the quiet label grey (M7 · 4.3) */
 
   /* 16% fills, for badges, hovers, selected rows and highlights */
   --teal-16: rgba(23, 200, 160, 0.16);
