@@ -743,7 +743,9 @@
     head.append(el("span", { class: "pl-mark pl-l-" + item.layer, "aria-hidden": "true" }));
     head.append(el("h2", { class: "cc-dialog-title", text: item.title }));
     box.append(head);
-    var auto = item.source !== "event";
+    // Automatic items are read-only and show their source; a hand-made one (readOnly false) can be
+    // changed only when the server says this viewer may (canEdit).
+    var auto = !!item.readOnly || item.source !== "event";
     if (auto && item.sourceLabel) box.append(el("p", { class: "pl-src pl-src-detail", text: "Automatic · " + item.sourceLabel }));
     var rows = [["Layer", layerLabel(item.layer)], ["When", whenText(item)]];
     if (item.overdue) rows.push(["Status", el("span", { class: "pl-flag", text: "Overdue" })]);
@@ -767,7 +769,7 @@
     actions.append(close);
     if (auto) {
       if (item.link) actions.append(el("a", { class: "hs-btn hs-btn-primary", href: item.link, text: "Open" }));
-    } else if (item.canEdit) {
+    } else if (!item.readOnly && item.canEdit) {
       var del = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Delete" });
       del.addEventListener("click", function () { startDelete(item); });
       var edit = el("button", { type: "button", class: "hs-btn hs-btn-primary", text: "Edit" });
