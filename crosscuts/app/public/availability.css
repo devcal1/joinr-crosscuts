@@ -1,0 +1,90 @@
+/* Leave and availability (availability.html). Tokens come from tokens.css, hs- components
+   from components.css, and the dialog frame from the shell's cc-dialog. Page classes here
+   are prefixed av-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[hidden] { display: none !important; }
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.av-page { max-width: 1100px; margin: 0 auto; padding: 22px 16px 48px; }
+.av-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.av-head h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 700; color: var(--white); }
+
+.av-message { min-height: 20px; margin: 0 0 8px; }
+.av-message.err { color: var(--stop-tint); }
+.av-message.ok { color: var(--go-tint); }
+
+.av-section { margin-bottom: 26px; }
+.av-section > .hs-sectionbar { margin-bottom: 8px; }
+.av-n { font-size: 12px; color: var(--label); }
+.av-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+
+.av-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.av-table th { padding: 10px 12px; }
+.av-table td { padding: 10px 12px; vertical-align: top; overflow-wrap: anywhere; }
+.av-table tbody tr:last-child td { border-bottom: 0; }
+.av-table tbody tr:hover { background: var(--raised); }
+.av-table th.num, .av-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.av-table td.av-name { color: var(--white); font-weight: 700; }
+.av-table td.av-when { white-space: nowrap; }
+.av-table td.av-acts { white-space: nowrap; text-align: right; }
+.av-table td.av-acts .hs-btn { padding: 6px 10px; }
+.av-table td.av-note { min-width: 160px; white-space: pre-wrap; color: var(--label); }
+.av-workers { min-width: 0; }
+.av-workers td.av-acts { width: 1%; }
+.av-leave { min-width: 760px; }
+.av-archived td.av-name { color: var(--label); }
+.av-tag { margin-left: 8px; }
+.av-pattern-none { color: var(--muted); }
+
+.av-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin-bottom: 10px; }
+.av-filter { flex: 0 1 220px; min-width: 0; }
+.av-filter label {
+  display: block; margin-bottom: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+.av-filter .hs-input { color-scheme: dark; }
+.av-check { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; color: var(--body); cursor: pointer; }
+input[type="checkbox"] { accent-color: var(--teal); }
+
+.av-empty { padding: 22px 14px; text-align: center; color: var(--label); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); margin-top: 8px; }
+
+/* dialogs */
+.cc-dialog.av-dialog { width: min(94vw, 480px); max-height: 92vh; overflow-y: auto; }
+.av-dialog .hs-input { color-scheme: dark; min-height: 36px; }
+.av-dialog textarea.hs-input { min-height: 72px; resize: vertical; }
+.av-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.av-days { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.av-days label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--body); }
+.av-hint-dlg { margin: 0; font-size: 12px; color: var(--muted); }
+.av-dialog .cc-dialog-actions { align-items: center; }
+
+@media (max-width: 640px) {
+  /* leave rows become stacked cards, so Remove is never off-screen */
+  .av-leave { min-width: 0; }
+  .av-leave thead { display: none; }
+  .av-leave, .av-leave tbody, .av-leave tr, .av-leave td { display: block; }
+  .av-leave tr { padding: 10px 12px; border-bottom: 1px solid var(--hairline); }
+  .av-leave tbody tr:last-child { border-bottom: 0; }
+  .av-leave td { padding: 2px 0; border: 0; }
+  .av-leave td[data-label]:not(:empty)::before {
+    content: attr(data-label);
+    display: inline-block; min-width: 82px; margin-right: 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+  }
+  .av-leave td.num { text-align: left; }
+  .av-leave td.av-note { min-width: 0; }
+  .av-leave td.av-acts { margin-top: 8px; text-align: left; }
+  .av-head h1 { font-size: 20px; }
+  .av-filter { flex: 1 1 100%; }
+  .av-two { grid-template-columns: minmax(0, 1fr); }
+}

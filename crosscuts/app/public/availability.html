@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leave and availability - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="availability.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="av-page">
+    <div class="av-head">
+      <h1>Leave and availability</h1>
+      <a class="hs-btn" href="/scheduling.html">Scheduling</a>
+      <button id="addLeave" class="hs-btn hs-btn-primary" type="button" hidden>Add leave</button>
+    </div>
+
+    <p id="message" class="av-message" role="status"></p>
+
+    <section class="av-section" aria-labelledby="workers-h">
+      <div class="hs-sectionbar">
+        <h2 id="workers-h">Workers</h2>
+        <span id="workersCount" class="av-n"></span>
+      </div>
+      <div class="av-wrap">
+        <table class="hs-table av-table av-workers">
+          <thead>
+            <tr><th>Worker</th><th>Pattern</th><th></th></tr>
+          </thead>
+          <tbody id="workers"></tbody>
+        </table>
+      </div>
+      <p class="av-hint">A pattern is how many days a week a part-time worker is booked, and any regular day off. The board shows a regular day off as away and flags a worker booked on more days than their pattern.</p>
+    </section>
+
+    <section class="av-section" aria-labelledby="leave-h">
+      <div class="hs-sectionbar">
+        <h2 id="leave-h">Upcoming leave</h2>
+        <span id="leaveCount" class="av-n"></span>
+      </div>
+      <div class="av-tools">
+        <div class="av-filter">
+          <label for="fWorker">Worker</label>
+          <select id="fWorker" class="hs-input"><option value="">All workers</option></select>
+        </div>
+        <label class="av-check"><input id="fPast" type="checkbox"> Include the last 30 days</label>
+      </div>
+      <div class="av-wrap">
+        <table class="hs-table av-table av-leave">
+          <thead>
+            <tr><th>Worker</th><th>From</th><th>To</th><th class="num">Weekdays</th><th>Kind</th><th>Note</th><th></th></tr>
+          </thead>
+          <tbody id="leave"></tbody>
+        </table>
+      </div>
+      <div id="leaveEmpty" class="av-empty" hidden></div>
+    </section>
+  </main>
+
+  <dialog id="dlg" class="cc-dialog av-dialog" aria-labelledby="dlgTitle"></dialog>
+
+  <script src="shared.js"></script>
+  <script src="availability.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
