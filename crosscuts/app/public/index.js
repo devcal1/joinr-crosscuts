@@ -174,11 +174,82 @@
       .catch(function () { /* the summary is optional; leave it hidden */ });
   }
 
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtDate(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+    return m ? Number(m[3]) + " " + MONTHS[Number(m[2]) - 1] : "";
+  }
+
+  // My tasks: up to 8 open tasks assigned to me, overdue first. Each opens in the task page.
+  function renderMyTasks(cc) {
+    if (!cc.can("tasks.use")) return;
+    var tile = document.getElementById("ix-tasks");
+    var list = document.getElementById("ix-tasks-list");
+    var empty = document.getElementById("ix-tasks-empty");
+    document.getElementById("work-section").hidden = false;
+    tile.hidden = false;
+    api("/api/tasks?view=mine&limit=8")
+      .then(function (data) {
+        if (!data) return;
+        var rows = (data.rows || []).slice(0, 8);
+        empty.hidden = rows.length > 0;
+        rows.forEach(function (t) {
+          var a = el("a", "ix-item");
+          a.href = "/tasks.html?task=" + encodeURIComponent(t.id);
+          a.appendChild(el("span", "ix-main", t.title));
+          var meta = [];
+          if (t.job && t.job.name) meta.push(t.job.name);
+          if (meta.length) a.appendChild(el("span", "ix-sub", meta.join(" · ")));
+          var due = el("span", "ix-side" + (t.overdue ? " ix-overdue" : ""), t.dueDate ? (t.overdue ? "Overdue " : "Due ") + fmtDate(t.dueDate) : "No date");
+          a.appendChild(due);
+          var li = el("li", "ix-li");
+          li.appendChild(a);
+          list.appendChild(li);
+        });
+      })
+      .catch(function () {
+        empty.textContent = "Tasks could not be loaded.";
+        empty.hidden = false;
+      });
+  }
+
+  // Messages: each channel I can see, with how many messages I have not read.
+  function renderMessages(cc) {
+    if (!cc.can("messages.use")) return;
+    var tile = document.getElementById("ix-messages");
+    var list = document.getElementById("ix-messages-list");
+    var empty = document.getElementById("ix-messages-empty");
+    document.getElementById("work-section").hidden = false;
+    tile.hidden = false;
+    api("/api/messages/channels")
+      .then(function (data) {
+        if (!data) return;
+        var rows = data.rows || [];
+        empty.hidden = rows.length > 0;
+        rows.forEach(function (ch) {
+          var a = el("a", "ix-item");
+          a.href = "/messages.html?channel=" + encodeURIComponent(ch.slug);
+          a.appendChild(el("span", "ix-main", ch.name));
+          var n = Number(ch.unread) || 0;
+          a.appendChild(el("span", "ix-side" + (n ? " ix-unread" : ""), n ? n + " new" : "Up to date"));
+          var li = el("li", "ix-li");
+          li.appendChild(a);
+          list.appendChild(li);
+        });
+      })
+      .catch(function () {
+        empty.textContent = "Messages could not be loaded.";
+        empty.hidden = false;
+      });
+  }
+
   function init(cc) {
     renderGreeting(cc);
     renderTiles(cc);
     renderWeek(cc);
     renderAlerts(cc);
+    renderMyTasks(cc);
+    renderMessages(cc);
   }
 
   if (window.cc && window.cc.loaded) init(window.cc);

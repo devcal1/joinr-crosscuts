@@ -215,3 +215,23 @@ a.hs-btn:hover { text-decoration: none; }
   .jobs-tools select.hs-input { width: 100%; }
   .jo-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* job page: Tasks and Comments (jo-) */
+.jo-tasks { min-width: 560px; }
+.jo-taskrow { cursor: pointer; }
+.jo-taskrow:hover td { background: var(--raised); }
+.jo-linkbtn {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.jo-linkbtn:hover { color: var(--teal-tint); text-decoration: underline; }
+.jo-linkbtn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.jo-table td.jo-overdue-red, .jo-overdue-red { color: var(--stop-tint); }

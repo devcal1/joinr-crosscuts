@@ -6,6 +6,7 @@
 <title>Job - Crosscuts</title>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="jobs.css">
+<link rel="stylesheet" href="tasks.css">
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -104,6 +105,22 @@
       </form>
     </section>
 
+    <section id="tasks" class="jo-sec" aria-labelledby="tasks-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="tasks-h">Tasks</h2>
+        <button id="newTask" class="hs-btn hs-btn-primary" type="button">New task</button>
+      </div>
+      <p id="tasksStatus" class="jo-status muted" role="status"></p>
+      <div id="tasksBody"></div>
+    </section>
+
+    <section id="comments" class="jo-sec" aria-labelledby="comments-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="comments-h">Comments</h2>
+      </div>
+      <div id="commentsBody" class="jo-comments"></div>
+    </section>
+
     <section id="invoices" class="jobinv" aria-labelledby="invoices-h" hidden>
       <div class="hs-sectionbar">
         <h2 id="invoices-h">Invoices</h2>
@@ -114,6 +131,8 @@
   </main>
 
   <script src="shared.js"></script>
+  <script src="comments.js"></script>
+  <script src="taskui.js"></script>
   <script src="job.js"></script>
   <script src="/shell/shell.js"></script>
 </body>
