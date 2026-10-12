@@ -64,6 +64,21 @@ Changes from the old weekly tab: a fortnight instead of a Friday-to-Thursday wee
 
 - **Workshop Manager and Scheduler are two different roles**, held by two different people today. Today's `workshop` role is the workshop TV and workshop logins (board and Planner only); the Workshop Manager needs a new role.
 
+## Milestones (Todd, 2026-10-12)
+
+Todd chose small milestones, each released on its own, in this order:
+
+| Milestone | Scope |
+|---|---|
+| **M8 Pay runs** | Fortnightly timesheet entry mirroring the paper form row for row, overtime, the per-employee pay-run summary for MYOB (Timesheet, Overtime, Payroll tabs). |
+| **M9 BAS and suppliers** | BAS monthly sales built from Crosscuts invoices; the Supplier Accounts checklist. |
+| **M10 New roles** | Ordering and Workshop Manager roles in one `user_roles` rebuild migration (as M7's 017), their keys and menus, receiving deliveries. |
+| **M11 Ordering pages** | One drawer order (EDGE and DTC), the monthly stock order, the paint order, the board stocktake (monthly value to Accounts). Today's Orders are free-text lines, so filling the drawer order from Orders needs structured drawer counts: settle in M11's plan. |
+| **M12 Design/PM tools** | Stone order form, benchtop sheet, batten calculator. |
+| **M13 Owner-only** | A kind of key the admin preset does not get by default (today `admin` gets every key), then Bonuses, alarm-code holders, Loan Balances. |
+
+Each runs the standard six stages (`roadmap.md`). The open points below are settled in the plan step of the milestone they belong to.
+
 ## Open points for the planning step
 
 1. **The newer timesheet:** received (see "The fortnightly timesheet" above); it shapes the pay-run tables.
