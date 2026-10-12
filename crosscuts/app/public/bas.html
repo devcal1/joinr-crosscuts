@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BAS sales - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="bas.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="ba-page">
+    <!-- On paper: the title, the basis line and the printed date (the screen header is hidden). -->
+    <div class="ba-printhead" aria-hidden="true">
+      <p id="printTitle" class="ba-print-title">BAS sales</p>
+      <p id="printRange" class="ba-print-range"></p>
+      <p class="ba-print-basis">Cash basis: a month's sales are the invoices paid in it. Amounts include GST.</p>
+      <p id="printDate" class="ba-print-date"></p>
+    </div>
+
+    <div class="ba-head">
+      <h1>BAS sales <span id="fyLabel" class="ba-fy"></span></h1>
+      <span id="fyRange" class="ba-range"></span>
+      <span id="viewOnly" class="hs-badge hs-badge-na" hidden>View only</span>
+      <div class="ba-actions" role="group" aria-label="Financial year">
+        <button id="prevFy" class="hs-btn" type="button" disabled>Previous year</button>
+        <button id="nextFy" class="hs-btn" type="button" disabled>Next year</button>
+        <button id="printBtn" class="hs-btn" type="button">Print</button>
+      </div>
+    </div>
+    <p class="ba-basis">Cash basis: a month's sales are the invoices paid in it. Amounts include GST.</p>
+    <p id="pageStatus" class="ba-status" role="status" aria-live="polite">Loading...</p>
+
+    <section id="yearSection" class="ba-section" aria-labelledby="year-h" hidden>
+      <h2 id="year-h" class="ba-visually-hidden">Sales by month</h2>
+      <div class="ba-wrap">
+        <table class="hs-table ba-table ba-year">
+          <thead>
+            <tr>
+              <th scope="col">Month</th>
+              <th scope="col" class="num">Sales inc GST (G1)</th>
+              <th scope="col" class="num">GST (1A)</th>
+              <th scope="col" class="num">Ex GST</th>
+              <th scope="col" class="num">Invoices</th>
+              <th scope="col" class="num">Not in MYOB</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody id="yearRows"></tbody>
+          <tfoot id="yearFoot"></tfoot>
+        </table>
+      </div>
+      <p id="dashKey" class="ba-hint" hidden>A dash: imported history has no GST split.</p>
+      <p class="ba-hint ba-screenonly">Choose a month to see its invoices.</p>
+    </section>
+
+    <section id="detail" class="ba-section ba-detail" aria-labelledby="detail-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="detail-h" tabindex="-1"></h2>
+        <div class="ba-barbtns">
+          <button id="prevMonth" class="hs-btn ba-barbtn" type="button">Previous month</button>
+          <button id="nextMonth" class="hs-btn ba-barbtn" type="button">Next month</button>
+          <button id="closeDetail" class="hs-btn hs-btn-quiet ba-barbtn" type="button">Close</button>
+        </div>
+      </div>
+      <p id="detailStatus" class="ba-detail-status" role="status" aria-live="polite"></p>
+      <div id="detailBody" hidden>
+        <div class="ba-detail-top">
+          <div class="ba-figs-box">
+            <table class="hs-table ba-figs">
+              <thead id="figsHead"></thead>
+              <tbody id="figsRows"></tbody>
+            </table>
+            <p id="handNoteLine" class="ba-hint" hidden></p>
+          </div>
+          <div class="ba-detail-side">
+            <div id="changes" class="hs-callout hs-callout-orange ba-changes" hidden>
+              <h3>Changed since lodged</h3>
+              <ul id="changeList" class="ba-change-list"></ul>
+            </div>
+            <div id="monthActs" class="ba-month-acts" hidden>
+              <button id="lodgeBtn" class="hs-btn hs-btn-primary" type="button" hidden>Lodge</button>
+              <button id="reopenBtn" class="hs-btn" type="button" hidden>Reopen</button>
+            </div>
+            <p id="lockedNote" class="ba-hint" hidden>This month is lodged, so its hand amount can't change. An admin can reopen it.</p>
+
+            <form id="handForm" class="hs-card ba-hand" novalidate hidden>
+              <h3 class="ba-h3">Hand amount</h3>
+              <p class="ba-hint ba-hand-help">For months before Crosscuts (one figure from the old workbook, including GST), payments received before the switch-over, or a refund (a negative amount).</p>
+              <div class="ba-hand-grid">
+                <div class="cc-field">
+                  <label class="cc-field-label" for="handAmount">Amount inc GST</label>
+                  <input id="handAmount" class="hs-input ba-num" type="text" inputmode="decimal" autocomplete="off" aria-describedby="handErr">
+                </div>
+                <div class="cc-field">
+                  <label class="cc-field-label" for="handGst">GST (optional)</label>
+                  <input id="handGst" class="hs-input ba-num" type="text" inputmode="decimal" autocomplete="off" placeholder="leave blank if not known" aria-describedby="handErr">
+                </div>
+                <div class="cc-field ba-hand-note">
+                  <label class="cc-field-label" for="handNote">Note</label>
+                  <input id="handNote" class="hs-input" type="text" maxlength="500" autocomplete="off" aria-describedby="handErr">
+                </div>
+              </div>
+              <p id="handErr" class="cc-dialog-error ba-hand-err" role="alert"></p>
+              <div class="ba-hand-acts">
+                <button id="handClear" class="hs-btn hs-btn-stop" type="button" hidden>Clear</button>
+                <button id="handSave" class="hs-btn hs-btn-primary" type="submit">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="ba-invbar">
+          <h3 id="invTitle" class="ba-h3"></h3>
+          <div class="ba-invtools">
+            <button id="listToggle" class="hs-btn" type="button" aria-pressed="false" hidden>Show current list</button>
+            <a id="csvLink" class="hs-btn" href="#" download>Download CSV</a>
+          </div>
+        </div>
+        <p id="csvNote" class="ba-hint ba-csv-note" hidden>The CSV is always the current list.</p>
+        <div class="ba-wrap">
+          <table class="hs-table ba-table ba-inv">
+            <thead>
+              <tr>
+                <th scope="col">Invoice</th>
+                <th scope="col">Client</th>
+                <th scope="col">Job</th>
+                <th scope="col">Issued</th>
+                <th scope="col">Paid</th>
+                <th scope="col" class="num">Total</th>
+                <th scope="col" class="num">GST</th>
+                <th scope="col" class="num">Ex GST</th>
+                <th scope="col">In MYOB</th>
+              </tr>
+            </thead>
+            <tbody id="invRows"></tbody>
+            <tfoot id="invFoot"></tfoot>
+          </table>
+          <div id="invEmpty" class="ba-empty" hidden>No invoices were paid in this month.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="compareSection" class="ba-section ba-compare" aria-labelledby="compare-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="compare-h">Each month, year on year</h2>
+      </div>
+      <p class="ba-hint ba-compare-note">Sales inc GST for the same month in each financial year.</p>
+      <div id="chartBox" class="ba-chart hs-card"></div>
+      <div class="ba-wrap">
+        <table class="hs-table ba-table ba-cmp">
+          <thead id="cmpHead"></thead>
+          <tbody id="cmpRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/periods.js"></script>
+  <script src="bas.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
