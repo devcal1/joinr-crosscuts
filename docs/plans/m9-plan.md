@@ -1,6 +1,6 @@
 # M9 BAS and suppliers: plan
 
-Status: **M9 · 1.2: plan written, questions put to Todd** (section 4). Decisions go in section 5 when answered.
+Status: **M9 · 1.3 done: Todd answered every question (2026-10-12); plan approved** (Decisions in section 5; they replace section 2 where they differ).
 
 Scope (Todd, 2026-10-12, `jobs-master-tabs.md`): two Accounts tabs of the jobs master move into Crosscuts.
 - **BAS-Sales** (tab 25): monthly sales for the BAS, **built from Crosscuts invoices, no typing in**.
@@ -158,3 +158,17 @@ Put to Todd on 2026-10-12. Each has a recommended answer.
 4. **Supplier statement states.** Mirror the form (Have statement / Waiting / N/A, total, note), or also add Reconciled, Paid and Entered in MYOB ticks? Recommended: mirror the form for now.
 5. **Statement PDFs.** Attach each month's statement to its row? Recommended: yes (an additive link table, as task files).
 6. **Waiting statements in the Friday round-up.** Recommended: yes, one line ("3 supplier statements still waiting for September"), as well as the Planner reminder Accounts can set themselves.
+
+## 5. Decisions (Todd, 2026-10-12)
+
+1. **Cash basis: a month's sales are the invoices paid in that month** (`status = 'paid'`, by `paid_date`). No issue-date or Received column. Sales including GST (G1) is the sum of their `total_cents`; GST on sales (1A) is the sum of their frozen `gst_cents`; ex-GST is the difference.
+   - So **Mark paid must refuse a date before the issue date or in the future** (lead's default 5 becomes required).
+   - **No `void_date` is needed.** Only an unpaid invoice can be voided, so a void never moves a paid sale. What can move a past month is **Mark unpaid** or a changed paid date, and the lodged lock (decision 2) catches that.
+2. **Lodged months lock.** **Lodged** (`invoices.edit`) freezes the month's figures and its invoice list; an admin (`users.admin`) can reopen. A later change to a lodged month (an invoice unmarked paid, or its paid date moved in or out) shows as "changed since lodged" beside the frozen figures, never as a silent change.
+3. **History is typed in:** one figure per month from June 2023 up to cutover, marked "imported", typed by Accounts on the page (never in the repo). From cutover on, months are worked out from invoices; the cutover month can take one "added by hand" amount with a note for payments received before the load.
+4. **The workbook's figures include GST**, so an imported month compares with Sales including GST. Imported months have no GST or ex-GST figure (shown blank), and they can be lodged like any other month.
+5. **Supplier rows mirror the form plus three ticks:** Have statement / Waiting / N/A (one of three, Waiting until changed), Total (optional, cents), a note, and **Reconciled**, **Paid** and **Entered in MYOB** ticks, per supplier per month.
+6. **Statements attach to the row:** one file (PDF or photo) per supplier per month, through an additive link table, as task files.
+7. **The Friday round-up gains one line** for statements still waiting for the previous month ("3 supplier statements still waiting for September"), to `invoices.edit` holders. Accounts can also set a monthly Planner reminder.
+
+Section 3's lead's defaults stand, except 5, which decision 1 makes required.
