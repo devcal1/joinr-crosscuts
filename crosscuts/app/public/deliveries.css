@@ -1,0 +1,244 @@
+/* Deliveries (deliveries.html): ordered lines waiting on delivery, by expected date, and the last
+   14 days received (docs/plans/m10-contracts.md section 9.1). Tokens come from tokens.css, hs-
+   components from components.css, the dialogs from orderui.css and the shell's cc-dialog. Page
+   classes here are prefixed dl-. The paper styles (black on white) are in the print block at the end. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.dl-page { max-width: 1320px; margin: 0 auto; padding: 22px 16px 48px; }
+.dl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- header ---------- */
+.dl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 6px; }
+.dl-head h1 { flex: 1 1 auto; margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.dl-head h1:focus { outline: none; }
+.dl-head h1:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.dl-date { margin-left: 8px; color: var(--label); font-size: 15px; font-weight: 400; }
+.dl-intro { margin: 0 0 14px; max-width: 760px; color: var(--label); font-size: 13px; }
+.dl-status { margin: 0 0 12px; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.dl-status:empty { display: none; }
+.dl-status-ok { color: var(--go-tint); }
+.dl-status-err { color: var(--orange-tint); }
+
+/* ---------- groups ---------- */
+.dl-group { margin-bottom: 22px; }
+.dl-bar { margin-bottom: 8px; flex-wrap: wrap; }
+.dl-bar h2 { display: inline-flex; align-items: center; gap: 8px; }
+.dl-bar h2:focus { outline: none; }
+.dl-bar h2:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.dl-bar-note { color: var(--label); font-size: 12px; }
+.dl-count {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--na);
+  border-radius: var(--r-badge);
+  color: var(--white);
+  font-size: 11px;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.dl-count-overdue { border-color: var(--orange); background: var(--orange-16); color: var(--orange-tint); }
+.dl-empty {
+  margin: 0 0 22px;
+  padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  color: var(--label);
+}
+.dl-recent .dl-empty { margin-bottom: 0; }
+
+/* ---------- tables (scroll inside their own box if they must) ---------- */
+.dl-wrap {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.dl-table { width: 100%; min-width: 1000px; border-collapse: collapse; table-layout: fixed; }
+.dl-table th {
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.dl-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.dl-table tbody tr:last-child td { border-bottom: 0; }
+.dl-table tbody tr:hover { background: var(--raised); }
+
+/* Fixed widths for all but the description, which takes the rest (at least ~170px at 1100). */
+.dl-c-date { width: 104px; }
+.dl-c-by { width: 120px; }
+.dl-c-job { width: 160px; }
+.dl-c-sup { width: 140px; }
+.dl-c-desc { width: auto; }
+.dl-c-notes { width: 150px; }
+.dl-c-note { width: 190px; }
+.dl-c-acts { width: 150px; }
+.dl-table-recent .dl-c-acts { width: 88px; }
+.dl-table-recent .dl-c-note { width: 220px; }
+@media (min-width: 1300px) {
+  .dl-c-job { width: 200px; }
+  .dl-c-sup { width: 160px; }
+  .dl-c-notes { width: 190px; }
+  .dl-c-note { width: 230px; }
+  .dl-table-recent .dl-c-note { width: 260px; }
+}
+
+td.dl-c-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.dl-overdue { color: var(--orange-tint); font-weight: 700; }
+td.dl-c-sup { color: var(--white); font-weight: 700; }
+.dl-job { font-weight: 700; }
+span.dl-job { color: var(--white); }
+td.dl-c-notes { color: var(--label); font-size: 13px; white-space: pre-line; }
+.dl-acts { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.dl-acts .hs-btn { padding: 7px 10px; }
+.dl-table-recent .dl-acts { align-items: flex-end; }
+
+/* ---------- narrow screens: each line is a card ---------- */
+@media (max-width: 760px) {
+  .dl-page { padding-top: 16px; }
+  .dl-head h1 { font-size: 20px; }
+  .dl-date { display: block; margin: 2px 0 0; font-size: 14px; }
+  .dl-wrap { overflow: visible; background: none; border: 0; }
+  .dl-table, .dl-table tbody, .dl-table tr, .dl-table td,
+  .dl-table-recent td.dl-c-note, .dl-table-recent td.dl-c-acts { display: block; width: auto; min-width: 0; }
+  .dl-table thead { display: none; }
+  .dl-table tbody tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+  }
+  .dl-table tbody tr:hover { background: var(--surface); }
+  .dl-table td { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; padding: 3px 0; border: 0; }
+  .dl-table td::before {
+    content: attr(data-label);
+    padding-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  .dl-table td.dl-blank { display: none; }
+  .dl-table td.dl-c-note { display: block; padding-top: 6px; }
+  .dl-table td.dl-c-note::before { content: none; }
+  .dl-table td.dl-c-acts { display: block; padding-top: 8px; }
+  .dl-table td.dl-c-acts::before { content: none; }
+  .dl-acts, .dl-table-recent .dl-acts { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .dl-acts .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
+}
+
+/* the checklist is built before printing and only shown on paper */
+.dl-print { display: none; }
+
+/* style-check: print-start (paper colours: pure black on white) */
+.dl-print {
+  font-family: var(--font);
+  font-size: 9.5pt;
+  line-height: 1.3;
+  color: #000;
+}
+.dl-print :where(h1, h2, p) { margin: 0; }
+.dl-p-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10mm;
+  padding-bottom: 3mm;
+  margin-bottom: 5mm;
+  border-bottom: 0.5mm solid #000;
+}
+.dl-p-h1 { font-size: 16pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
+.dl-p-date { margin-top: 1mm; font-size: 11pt; font-weight: 700; }
+.dl-p-sign { display: flex; align-items: flex-end; gap: 3mm; width: 70mm; }
+.dl-p-label { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
+.dl-p-rule { flex: 1 1 auto; height: 6mm; border-bottom: 0.3mm solid #000; }
+.dl-p-empty { font-size: 11pt; }
+.dl-p-group { margin-bottom: 6mm; }
+.dl-p-h2 {
+  margin-bottom: 1.5mm;
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.dl-p-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dl-pc-tick { width: 9mm; }
+.dl-pc-date { width: 22mm; }
+.dl-pc-job { width: 36mm; }
+.dl-pc-sup { width: 32mm; }
+.dl-pc-desc { width: auto; }
+.dl-pc-note { width: 44mm; }
+.dl-p-table th, .dl-p-table td {
+  padding: 1.8mm 1.5mm;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 0.2mm solid #000;
+  overflow-wrap: anywhere;
+}
+.dl-p-table thead th {
+  font-size: 6.5pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: bottom;
+  border-bottom: 0.5mm solid #000;
+}
+.dl-p-table tr { break-inside: avoid; page-break-inside: avoid; }
+.dl-p-tick { padding-left: 0; }
+.dl-p-box { display: block; width: 4.5mm; height: 4.5mm; border: 0.35mm solid #000; }
+.dl-p-nowrap { white-space: nowrap; }
+.dl-p-strong { font-weight: 700; }
+.dl-p-note { white-space: pre-line; font-size: 8.5pt; }
+.dl-p-foot { margin-top: 2mm; font-size: 8.5pt; }
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html, body { background: #fff; color: #000; }
+  body { padding: 0 !important; }
+  body > :not(main) { display: none !important; }
+  .dl-page { max-width: none; margin: 0; padding: 0; }
+  .dl-page > :not(#dlPrintSheet) { display: none !important; }
+  .dl-print { display: block !important; color: #000; }
+  .dl-print * { color: #000; border-color: #000; background: #fff; }
+}
+/* style-check: print-end */
