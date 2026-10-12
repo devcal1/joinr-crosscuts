@@ -1,7 +1,6 @@
-// The BAS sales API (docs/plans/m9-contracts.md section 6). SCAFFOLD (M9 · 2.2): every route is
-// declared with its access; the handlers call lib/bas.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 A fills in
-// both files.
+// The BAS sales API (docs/plans/m9-contracts.md section 6). Every route is declared with its access;
+// the handlers check the path period's shape and pass the database to lib/bas.js, which does the
+// work (range checks included) and throws HttpError for 400 / 404 / 409.
 //
 // accounts.view reads everything; invoices.edit writes; users.admin alone may reopen a lodged
 // month. Logged out: 401 and without the key: 403 {"error":"Forbidden"}, both from the auth layer.
@@ -22,8 +21,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[bas]");
     }
   };
