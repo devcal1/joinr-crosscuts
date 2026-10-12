@@ -31,6 +31,7 @@
   const MAX_BYTES = 25 * 1024 * 1024;
   const MAX_CENTS = 1000000000;
   const CHECK = "✓"; // a check mark character, not an icon (contracts section 9.2)
+  const STATE_PAUSE_MS = 700; // arrow keys in the statement choice: save after this pause
 
   const UNREADABLE_TOTAL = "Can't read the total: type an amount like 1,234.50";
   const TOO_BIG_TOTAL = "The total can be at most $10,000,000.00";
@@ -81,7 +82,10 @@
       throw err;
     }
     if (res.status === 401) {
-      location.href = "/login.html?next=" + encodeURIComponent(location.pathname + location.search);
+      // as shared.js api(): a locked account goes to the login page with locked=1
+      const body401 = await res.json().catch(() => ({}));
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = (body401 && body401.locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
       return new Promise(() => {}); // the page is navigating away
     }
     let data = null;
@@ -212,14 +216,31 @@
     // The statement state: one of three, as radios (arrow keys move and choose).
     R.radioGroup = el("div", { class: "su-seg", role: "radiogroup", "aria-label": `Statement, ${name}` });
     R.radios = {};
+    // A click chooses at once. Arrow keys move through the choices (each step checks one), so the
+    // line saves once the user settles on one: a short pause, Space or Enter, or leaving the choice.
+    R.stKeys = false;
+    R.stTimer = 0;
     for (const [v, label] of STATES) {
       const input = el("input", { type: "radio", name: `su-st-${R.id}`, value: v });
       input.addEventListener("change", () => {
-        if (input.checked) commit(R);
+        if (!input.checked) return;
+        const byKeys = R.stKeys;
+        R.stKeys = false;
+        clearTimeout(R.stTimer);
+        R.stTimer = 0;
+        if (byKeys) R.stTimer = setTimeout(() => flushState(R), STATE_PAUSE_MS);
+        else commit(R);
       });
       R.radios[v] = input;
       R.radioGroup.append(el("label", { class: `su-seg-opt su-seg-${v}` }, input, el("span", { text: label })));
     }
+    R.radioGroup.addEventListener("keydown", (e) => {
+      if (/^Arrow/.test(e.key)) R.stKeys = true;
+      else if (e.key === " " || e.key === "Enter") flushState(R);
+    });
+    R.radioGroup.addEventListener("focusout", (e) => {
+      if (!R.radioGroup.contains(e.relatedTarget)) flushState(R);
+    });
     R.stateTd.replaceChildren(R.radioGroup);
 
     R.totalIn = el("input", {
@@ -451,6 +472,14 @@
     return body.state === l.state && (body.totalCents ?? null) === (l.totalCents ?? null) &&
       body.note === (l.note || "") && body.reconciled === !!l.reconciled &&
       body.paid === !!l.paid && body.myob === !!l.myob;
+  }
+
+  // A statement state chosen with the arrow keys and still waiting for the pause: save it now.
+  function flushState(R) {
+    if (!R.stTimer) return;
+    clearTimeout(R.stTimer);
+    R.stTimer = 0;
+    commit(R);
   }
 
   // Commits the line: queues one save, which reads the values when it runs, so changes made while
@@ -699,7 +728,26 @@
       renderMsg(R);
       const before = baseOf(R.server);
       try {
-        const line = await call("DELETE", `/api/suppliers/months/${period}/${R.id}/file`);
+        // The DELETE removes whatever file the line has, so first make sure it is still the one this
+        // row shows: someone else may have replaced or removed it meanwhile.
+        const now = await lineNow(R);
+        if (R.dead || (now && now.gone)) return;
+        if (!now) throw new Error("Couldn't check the statement first; try again");
+        const saved = now.line.file;
+        if (!saved || saved.id !== f.id) {
+          // Show the file as saved now. The line's updatedAt stays as last seen, so a later change
+          // to the row meets the 409 and its Reload.
+          R.server = Object.assign({}, R.server, { file: saved || null });
+          R.flash = "";
+          R.fileError = saved
+            ? `Not removed: someone else had replaced this statement with ${saved.name}.`
+            : "Not removed: someone else had already removed this statement.";
+          renderFile(R);
+          say(R.fileError);
+          return;
+        }
+        // fileId: the server refuses (409) if the line holds another file by the time this arrives.
+        const line = await call("DELETE", `/api/suppliers/months/${period}/${R.id}/file?fileId=${encodeURIComponent(f.id)}`);
         if (R.dead) return;
         applyServer(R, line, before);
         R.fileError = null;
@@ -708,7 +756,7 @@
       } catch (e) {
         if (R.dead) return;
         R.flash = "";
-        if (e.status === 404) {
+        if (e.status === 404 || e.status === 409) {
           // Removed (or replaced) elsewhere meanwhile, or the supplier was archived: show the file as
           // saved now. The line's updatedAt stays as last seen, so a later change meets the 409.
           const now = await lineNow(R);
@@ -857,6 +905,9 @@
   async function loadMonth(p, opts) {
     const seq = ++loadSeq;
     period = p;
+    // The month object is the old month's until the new one arrives: without it the buttons go
+    // from the month being loaded (within the history and this month).
+    month = null;
     if (!(opts && opts.keepUrl)) syncUrl();
     renderHeader();
     const status = $("suStatus");
@@ -885,6 +936,7 @@
       $("suEmpty").hidden = true;
       status.hidden = false;
       status.textContent = `Couldn't load ${P.longLabel(p)}: ${e.message}`;
+      renderHeader();
     }
   }
 
@@ -1145,6 +1197,9 @@
     ["Notes", "su-fc-notes"],
   ];
   const BLANK_ROWS = 5;
+  // An A4 page is 273 mm high inside its 12 mm margins; the heading takes about 14 mm and the
+  // column titles 11 mm, leaving about 248 mm. The rows get 245 mm of it (borders and rounding).
+  const FORM_ROWS_MM = 245;
 
   function buildForm(names) {
     const sheet = el("article", { class: "su-sheet" });
@@ -1160,12 +1215,17 @@
     }
     const tb = el("tbody");
     const n = names.length + BLANK_ROWS;
-    // Tall rows for handwriting; they shrink a little for a long list (8 mm at least).
-    const h = Math.max(8, Math.min(12, Math.floor((236 / n) * 10) / 10));
+    // Tall rows for handwriting, sized from the space left on an A4 page under the heading and the
+    // column titles (FORM_ROWS_MM), so the paper form's 27 suppliers and 5 blank rows fit on one
+    // page; never under 7 mm (a longer list runs on to a second page, the column titles repeated).
+    const h = Math.max(7, Math.min(12, Math.floor((FORM_ROWS_MM / n) * 10) / 10));
+    if (h < 9) table.classList.add("su-f-tight"); // smaller names, so two lines still fit the row
     for (let i = 0; i < n; i++) {
       const tr = el("tr");
       tr.style.height = `${h}mm`;
-      tr.append(el("td", { class: "su-f-name", text: i < names.length ? names[i] : "" }));
+      // a long name is cut to two lines rather than making its row taller
+      const name = i < names.length ? el("div", { class: "su-f-nm", text: names[i] }) : null;
+      tr.append(el("td", { class: "su-f-name" }, name));
       for (let j = 1; j < FORM_COLS.length; j++) tr.append(el("td"));
       tb.append(tr);
     }
@@ -1234,6 +1294,7 @@
     window.addEventListener("afterprint", afterPrint);
     window.addEventListener("beforeunload", (e) => {
       if (leaving) return;
+      for (const R of rows) flushState(R); // a state chosen by arrow keys starts saving now
       if (dirtyRows().length) {
         e.preventDefault();
         e.returnValue = "";

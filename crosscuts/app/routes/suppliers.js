@@ -85,9 +85,19 @@ r.post("/months/:period/:supplierId/file", EDIT, files.single("file"), async (re
   }
 });
 
+// ?fileId=<id> (optional): the file the caller saw; 409 when the line now has another (review P4).
 r.delete("/months/:period/:supplierId/file", EDIT, handle((req, res) => {
   const period = periodOr404(req.params.period);
-  res.json(suppliers.detach(db, req, period, idOr404(req.params.supplierId)));
+  const supplierId = idOr404(req.params.supplierId);
+  const q = req.query.fileId;
+  let fileId;
+  if (q !== undefined) {
+    if (typeof q !== "string" || !/^[1-9]\d*$/.test(q) || !Number.isSafeInteger(Number(q))) {
+      throw bad("fileId must be a positive whole number");
+    }
+    fileId = Number(q);
+  }
+  res.json(suppliers.detach(db, req, period, supplierId, fileId));
 }));
 
 r.patch("/:id", EDIT, handle((req, res) => {

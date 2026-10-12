@@ -6,7 +6,8 @@
 //
 // Who is listed in month P: every supplier with a supplier_statements row for P, plus every
 // supplier with from_period <= P and (archived_from null or P < archived_from). A listed supplier
-// with no row is Waiting with blanks (saved: false).
+// with no row is Waiting with blanks (saved: false). Restoring skips the gap (Todd, 2026-10-13):
+// see update().
 const { HttpError, bad, notFound, conflict } = require("./httperror");
 const { sydneyToday } = require("./time");
 const audit = require("./audit");
@@ -20,6 +21,7 @@ const STATES = ["have", "waiting", "na"];
 const TICKS = ["reconciled", "paid", "myob"];
 const CLASH = "A supplier with that name already exists";
 const STALE = "Someone else changed this line; reload it";
+const REPLACED = "This statement was replaced meanwhile; reload the line";
 
 // ---------------------------------------------------------------- helpers ---
 
@@ -77,10 +79,23 @@ function supplierOr404(db, id) {
   return row;
 }
 
-// A name clash with another supplier (the column is COLLATE NOCASE, so this is case-blind).
+// A name folded for the clash check: Unicode case-blind (the column's COLLATE NOCASE folds A-Z
+// only), and NFC so a composed and a decomposed accent compare equal.
+function foldName(name) {
+  return String(name).normalize("NFC").toLocaleLowerCase("en-AU");
+}
+
+// A name clash with another supplier: the DB's COLLATE NOCASE, then the folded names of all the
+// others in JS (so "Ébéniste" clashes with "ébéniste"). exceptId is the supplier being renamed,
+// so a case-only rename of itself is allowed.
 function assertNoClash(db, name, exceptId) {
-  const clash = db.prepare("SELECT id FROM suppliers WHERE name = ? AND id IS NOT ?").get(name, exceptId == null ? null : exceptId);
+  const except = exceptId == null ? null : exceptId;
+  const clash = db.prepare("SELECT id FROM suppliers WHERE name = ? AND id IS NOT ?").get(name, except);
   if (clash) throw conflict(CLASH);
+  const folded = foldName(name);
+  for (const r of db.prepare("SELECT id, name FROM suppliers WHERE id IS NOT ?").all(except)) {
+    if (foldName(r.name) === folded) throw conflict(CLASH);
+  }
 }
 
 function isUniqueError(e) {
@@ -246,8 +261,31 @@ function create(db, req, { name, fromPeriod } = {}) {
   return toSupplier(supplierRow(db, id));
 }
 
+// The months from `from` to `to` (inclusive) that have no line for the supplier get a 'waiting'
+// line with blanks, stamped by the user (so they show saved: true). Returns how many.
+function fillWaiting(db, req, supplierId, from, to) {
+  const userId = req && req.user ? req.user.id : null;
+  const has = db.prepare("SELECT 1 AS x FROM supplier_statements WHERE supplier_id = ? AND period = ?");
+  const ins = db.prepare(
+    `INSERT INTO supplier_statements (supplier_id, period, state, updated_by, updated_at, created_at)
+     VALUES (?, ?, 'waiting', ?, ?, ?)`
+  );
+  const now = nowIso();
+  let n = 0;
+  for (let p = from; p <= to; p = Periods.addMonths(p, 1)) {
+    if (has.get(supplierId, p)) continue;
+    ins.run(supplierId, p, userId, now, now);
+    n += 1;
+  }
+  return n;
+}
+
 // {name?, archived?}. Archiving lists the supplier until the current month (archived_from = the
-// current month); unarchiving clears it. A save that changes nothing writes nothing.
+// current month). Restoring skips the gap (contracts §7.1, Todd 2026-10-13): every month from the
+// old from_period to the month before the old archived_from (and before the current month) that
+// has no line gets a 'waiting' line, so the months before the archive keep listing it; then
+// from_period becomes the current month and archived_from is cleared, so the months it was
+// archived gain nothing. A save that changes nothing writes nothing.
 function update(db, req, id, body) {
   const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
   const next = {};
@@ -260,6 +298,7 @@ function update(db, req, id, body) {
       const after = {};
       let name = row.name;
       let archivedFrom = row.archived_from || null;
+      let fromPeriod = row.from_period;
       if ("name" in next && next.name !== row.name) {
         assertNoClash(db, next.name, id);
         before.name = row.name;
@@ -267,13 +306,25 @@ function update(db, req, id, body) {
         name = next.name;
       }
       if ("archived" in next && next.archived !== (row.archived_from != null)) {
-        archivedFrom = next.archived ? Periods.currentPeriod(sydneyToday()) : null;
+        const current = Periods.currentPeriod(sydneyToday());
         before.archivedFrom = row.archived_from || null;
+        if (next.archived) {
+          archivedFrom = current;
+        } else {
+          const lastKept = Periods.addMonths(row.archived_from, -1);
+          const prev = Periods.addMonths(current, -1);
+          fillWaiting(db, req, id, row.from_period, lastKept < prev ? lastKept : prev);
+          before.fromPeriod = row.from_period;
+          fromPeriod = current;
+          after.fromPeriod = fromPeriod;
+          archivedFrom = null;
+        }
         after.archivedFrom = archivedFrom;
       }
       if (!Object.keys(after).length) return;
-      db.prepare("UPDATE suppliers SET name = ?, archived_from = ?, updated_at = ? WHERE id = ?").run(
+      db.prepare("UPDATE suppliers SET name = ?, from_period = ?, archived_from = ?, updated_at = ? WHERE id = ?").run(
         name,
+        fromPeriod,
         archivedFrom,
         nextStamp(row.updated_at),
         id
@@ -392,13 +443,16 @@ function attach(db, req, period, supplierId, accepted) {
   })();
 }
 
-// Soft-removes the line's file. 404 when there is none.
-function detach(db, req, period, supplierId) {
+// Soft-removes the line's file. 404 when there is none. `fileId` (optional, the file the caller saw)
+// closes the Remove race: when given and not the line's current file, 409 with the line, so a
+// statement someone else attached meanwhile isn't removed (M9 · 4.3, review P4).
+function detach(db, req, period, supplierId, fileId) {
   const userId = req && req.user ? req.user.id : null;
   return db.transaction(() => {
     periodOr404(period, sydneyToday());
     const line = lineOr404(db, period, supplierId);
     if (!line.file) throw notFound();
+    if (fileId !== undefined && fileId !== line.file.id) throw conflict(REPLACED, { line });
     files.remove(db, line.file.id, userId);
     upsertLine(db, req, period, supplierId, line, fieldsOf(line), null);
     audit.log(req, {

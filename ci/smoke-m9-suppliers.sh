@@ -1,8 +1,8 @@
 # M9 smoke, Wave 1 B: supplier accounts and the Friday round-up's "statements still waiting" line.
 # Sourced by ci/smoke.sh after the M8 suites, so it shares that script's helpers (step, req, hdr,
 # expect_status, expect_jq, expect_eq, jqr, fail, ok), the cookie jars ($ADMIN $SCHED $ACCT $DPM
-# $SHOW $WSHOP), $BASE, $REQ_ORIGIN, $BODY_FILE, $HDR_FILE and $WORK. No shebang and no `set`: the
-# caller owns both.
+# $SHOW $WSHOP), $BASE, $REQ_ORIGIN, $BODY_FILE, $HDR_FILE, $WORK and $CONTAINER. No shebang and no
+# `set`: the caller owns both.
 # It does not assume a pristine database: its suppliers carry a run tag in their names, it reads
 # counts as differences, and it uses 2024 months (after HISTORY_START, before cutover) plus the
 # previous month (for the round-up). Made-up names only (this repo is public).
@@ -22,6 +22,29 @@ M9S_NEXT=$(date -u -d "${M9S_CUR}-15 +1 month" +%Y-%m)
 M9S_PREV_NAME=$(LC_ALL=C date -u -d "${M9S_PREV}-15" +%B)
 M9S_STALE="Someone else changed this line; reload it"
 M9S_CLASH="A supplier with that name already exists"
+
+# m9s_db_exec SQL: runs SQL against the live database through the container's own better-sqlite3
+# (as smoke-m9-bas.sh), to make a past archive month. Only this suite's own rows are touched.
+m9s_db_exec() {
+  docker exec "$CONTAINER" node -e '
+const D = require("better-sqlite3");
+const d = new D("/data/db/photos.db");
+d.pragma("busy_timeout = 5000");
+d.exec(process.argv[1]);
+d.close();
+' "$1"
+}
+
+# m9s_file_removed FILE_ID: prints 1 when the file row is soft-removed (removed_at set), else 0.
+# Read-only.
+m9s_file_removed() {
+  docker exec "$CONTAINER" node -e '
+const d = new (require("better-sqlite3"))("/data/db/photos.db", { readonly: true });
+const r = d.prepare("SELECT removed_at IS NOT NULL AS r FROM files WHERE id = ?").get(Number(process.argv[1]));
+console.log(r ? r.r : "missing");
+d.close();
+' "$1" | tr -d '\r'
+}
 
 # m9s_month PERIOD [JAR]: GET the month as acct (200 expected).
 m9s_month() {
@@ -59,8 +82,8 @@ echo "--- access ---"
 req GET /api/suppliers "$ACCT"
 expect_status 200 "acct GET /api/suppliers"
 expect_jq '.suppliers | type == "array"' "the list has suppliers"
-for j in "$SCHED" "$DPM" "$SHOW" "$WSHOP"; do
-  req GET /api/suppliers "$j"
+for M9S_J in "$SCHED" "$DPM" "$SHOW" "$WSHOP"; do
+  req GET /api/suppliers "$M9S_J"
   expect_status 403 "GET /api/suppliers without accounts.view"
 done
 req POST /api/suppliers "$SCHED" '{"name":"M9 Sched Supplier"}'
@@ -82,6 +105,16 @@ M9S_B=$(jqr '.id')
 req POST /api/suppliers "$ACCT" "$(jq -nc --arg n "$M9S_NAME_A" '{name:($n | ascii_downcase), fromPeriod:"2024-03"}')"
 expect_status 409 "the same name in other case"
 expect_jq ".error == \"$M9S_CLASH\"" "the name-clash sentence"
+# Case-blind beyond A-Z (the column's NOCASE folds only ASCII). The names go as JSON \u escapes,
+# so the bytes on the wire are ASCII whatever the shell's locale.
+req POST /api/suppliers "$ACCT" "{\"name\":\"M9 Test Supplier \\u00c9cru $M9S_TAG\"}"
+expect_status 201 "create a supplier with an accented name"
+expect_jq ".name == \"M9 Test Supplier \\u00c9cru $M9S_TAG\"" "the accented name is stored as sent"
+M9S_E=$(jqr '.id')
+req POST /api/suppliers "$ACCT" "{\"name\":\"m9 test supplier \\u00e9cru $M9S_TAG\"}"
+expect_status 409 "the accented name in other case"
+req PATCH "/api/suppliers/$M9S_E" "$ACCT" "{\"name\":\"M9 TEST SUPPLIER \\u00c9CRU $M9S_TAG\",\"archived\":true}"
+expect_status 200 "a case-only rename of itself (and archive it: added and archived this month, so listed nowhere)"
 req POST /api/suppliers "$ACCT" '{"name":"   "}'
 expect_status 400 "a blank supplier name"
 req POST /api/suppliers "$ACCT" "$(jq -nc '{name:("x" * 101)}')"
@@ -159,6 +192,48 @@ expect_jq "[.suppliers[] | select(.id == $M9S_A)] | length == 0" "the list leave
 req GET "/api/suppliers?all=1" "$ACCT"
 expect_jq "[.suppliers[] | select(.id == $M9S_A)][0].archived == true" "?all=1 has archived A"
 
+echo "--- a line keeps an archived supplier listed; restore ---"
+m9s_month "$M9S_PREV"
+M9S_PREV_WAITING0=$(jqr '.counts.waiting')
+req PUT "/api/suppliers/months/$M9S_CUR/$M9S_B" "$ACCT" '{"state":"na","updatedAt":null}'
+expect_status 200 "save B's line for this month"
+req PATCH "/api/suppliers/$M9S_B" "$ACCT" '{"archived":true}'
+expect_status 200 "archive supplier B"
+m9s_month "$M9S_CUR"
+m9s_line "$M9S_B" '.state == "na"' "the current month still lists archived B (it has a line there)"
+req PATCH "/api/suppliers/$M9S_B" "$ACCT" '{"archived":false}'
+expect_status 200 "restore supplier B"
+expect_jq ".archived == false and .archivedFrom == null and .fromPeriod == \"$M9S_CUR\"" "B is restored, listed from this month on"
+m9s_month "$M9S_CUR"
+m9s_line "$M9S_B" '.state == "na"' "B's line for this month is kept"
+m9s_month "$M9S_PREV"
+m9s_line "$M9S_B" '.state == "waiting" and .saved == true' "the month before the archive keeps listing B (a waiting line)"
+expect_eq "$(jqr '.counts.waiting')" "$M9S_PREV_WAITING0" "the restore didn't change the previous month's waiting count"
+m9s_month 2024-05
+m9s_line "$M9S_B" '.state == "waiting" and .saved == true' "2024-05 keeps listing B"
+# Restore skips the gap: as if A had been archived in 2024-07 (moved back with SQL).
+m9s_db_exec "UPDATE suppliers SET archived_from = '2024-07' WHERE id = $M9S_A"
+m9s_month 2024-08
+m9s_absent "$M9S_A" "2024-08 doesn't list A (archived from 2024-07)"
+req PATCH "/api/suppliers/$M9S_A" "$ACCT" '{"archived":false}'
+expect_status 200 "restore supplier A"
+expect_jq ".archived == false and .archivedFrom == null and .fromPeriod == \"$M9S_CUR\"" "A is restored, listed from this month on"
+m9s_month 2024-04
+m9s_line "$M9S_A" '.state == "waiting" and .saved == true' "2024-04 (before the archive) keeps listing A"
+m9s_month 2024-05
+m9s_line "$M9S_A" ".state == \"have\" and .updatedAt == \"$M9S_UPD\"" "2024-05 keeps A's own line, untouched"
+m9s_month 2024-07
+m9s_absent "$M9S_A" "the restore added no line to 2024-07 (archived)"
+m9s_month 2024-08
+m9s_absent "$M9S_A" "nor to 2024-08"
+m9s_month "$M9S_PREV"
+m9s_absent "$M9S_A" "nor to the previous month"
+m9s_month "$M9S_CUR"
+m9s_line "$M9S_A" '.state == "waiting" and .saved == false' "the current month lists A again (no line yet)"
+req GET "/api/audit?entityType=supplier&entityId=$M9S_A&limit=100" "$ADMIN"
+expect_status 200 "A's audit"
+expect_jq "[.rows[] | select(.action == \"supplier.update\" and .after.fromPeriod != null)] | length == 1 and (.[0] | .before.fromPeriod == \"2024-03\" and .before.archivedFrom == \"2024-07\" and .after.fromPeriod == \"$M9S_CUR\" and .after.archivedFrom == null)" "the restore's audit has fromPeriod and archivedFrom before and after"
+
 echo "--- file ---"
 printf '%s\n' '%PDF-1.4' '1 0 obj' '<< >>' 'endobj' 'trailer' '<< >>' '%%EOF' > "$WORK/m9s-statement.pdf"
 printf 'M9 plain text\n' > "$WORK/m9s-note.txt"
@@ -177,17 +252,38 @@ expect_jq ".file.name == \"M9 statement 2.pdf\" and .file.id != $M9S_F1" "the li
 M9S_F2=$(jqr '.file.id')
 req GET "/api/files/$M9S_F1" "$ACCT"
 expect_status 404 "the replaced file is gone"
+expect_eq "$(m9s_file_removed "$M9S_F1")" 1 "the replaced file is soft-removed (removed_at set)"
 m9s_upload "$ACCT" 2024-05 "$M9S_A" "$WORK/m9s-note.txt" "M9 note.txt" text/plain
 expect_status 400 "a .txt statement"
 m9s_upload "$SCHED" 2024-05 "$M9S_A" "$WORK/m9s-statement.pdf" "M9 sched.pdf" application/pdf
 expect_status 403 "sched attaches a statement"
 m9s_upload "$ACCT" 2024-04 "$M9S_B" "$WORK/m9s-statement.pdf" "M9 unlisted.pdf" application/pdf
 expect_status 404 "attach to a supplier not listed that month"
-req DELETE "/api/suppliers/months/2024-05/$M9S_A/file" "$ACCT"
-expect_status 200 "remove the statement"
+# Remove names the file the caller saw (?fileId): the replaced one is refused and nothing goes.
+req DELETE "/api/suppliers/months/2024-05/$M9S_A/file?fileId=$M9S_F1" "$ACCT"
+expect_status 409 "remove the statement that was replaced meanwhile"
+expect_jq ".error == \"This statement was replaced meanwhile; reload the line\" and .line.file.id == $M9S_F2" "the replaced sentence and the line with the current file"
+req GET "/api/files/$M9S_F2" "$ACCT"
+expect_status 200 "the current statement is still there"
+expect_eq "$(m9s_file_removed "$M9S_F2")" 0 "the current statement isn't removed"
+req DELETE "/api/suppliers/months/2024-05/$M9S_A/file?fileId=x1" "$ACCT"
+expect_status 400 "a fileId that isn't a positive whole number"
+req DELETE "/api/suppliers/months/2024-05/$M9S_A/file?fileId=$M9S_F2" "$ACCT"
+expect_status 200 "remove the statement (with its fileId)"
 expect_jq '.file == null and .state == "have"' "the line has no file"
 req GET "/api/files/$M9S_F2" "$ACCT"
 expect_status 404 "the removed file is gone"
+expect_eq "$(m9s_file_removed "$M9S_F2")" 1 "the removed file is soft-removed (removed_at set)"
+req DELETE "/api/suppliers/months/2024-05/$M9S_A/file?fileId=$M9S_F2" "$ACCT"
+expect_status 404 "remove with a fileId when there is no file"
+# Without ?fileId, Remove removes whatever is there (as before).
+m9s_upload "$ACCT" 2024-05 "$M9S_A" "$WORK/m9s-statement.pdf" "M9 statement 3.pdf" application/pdf
+expect_status 201 "attach a third PDF"
+M9S_F3=$(jqr '.file.id')
+req DELETE "/api/suppliers/months/2024-05/$M9S_A/file" "$ACCT"
+expect_status 200 "remove the statement without a fileId"
+expect_jq '.file == null' "the line has no file"
+expect_eq "$(m9s_file_removed "$M9S_F3")" 1 "the third file is soft-removed"
 req DELETE "/api/suppliers/months/2024-05/$M9S_A/file" "$ACCT"
 expect_status 404 "remove when there is no file"
 
@@ -211,11 +307,11 @@ M9S_RU1_ID=$(printf '%s' "$M9S_RU1" | jq -r '.id')
 # Every line still waiting in the previous month becomes Have, so the count is 0.
 m9s_month "$M9S_PREV"
 M9S_WAITING=$(jqr '.lines[] | select(.state == "waiting") | "\(.supplier.id) \(.updatedAt // "null")"')
-while read -r m9s_sid m9s_upd; do
-  [ -n "$m9s_sid" ] || continue
-  if [ "$m9s_upd" = null ]; then m9s_u=null; else m9s_u="\"$m9s_upd\""; fi
-  req PUT "/api/suppliers/months/$M9S_PREV/$m9s_sid" "$ACCT" "{\"state\":\"have\",\"updatedAt\":$m9s_u}"
-  expect_status 200 "mark supplier $m9s_sid Have for $M9S_PREV"
+while read -r M9S_SID M9S_SUPD; do
+  [ -n "$M9S_SID" ] || continue
+  if [ "$M9S_SUPD" = null ]; then M9S_U=null; else M9S_U="\"$M9S_SUPD\""; fi
+  req PUT "/api/suppliers/months/$M9S_PREV/$M9S_SID" "$ACCT" "{\"state\":\"have\",\"updatedAt\":$M9S_U}"
+  expect_status 200 "mark supplier $M9S_SID Have for $M9S_PREV"
 done <<<"$M9S_WAITING"
 m9s_month "$M9S_PREV"
 expect_jq '.counts.waiting == 0' "nothing waiting in the previous month"

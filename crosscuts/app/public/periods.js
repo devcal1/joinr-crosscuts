@@ -117,15 +117,16 @@
     return (neg ? "-" : "") + "$" + whole + "." + pad2(abs % 100);
   }
 
-  // What Accounts types: '12,345.67', '$12345.6', '12345', '-50' -> cents; '' -> null;
-  // anything else NaN. At most two decimals; commas only as thousands separators.
+  // What Accounts types: '12,345.67', '$12345.6', '12345', '-50', '5.' -> cents; '' -> null;
+  // anything else NaN. At most two decimals (a trailing dot is allowed); commas only as
+  // thousands separators.
   function parseDollars(text) {
     var s = String(text === null || text === undefined ? "" : text).trim();
     if (s === "") return null;
-    var m = /^(-)?\$?(\d{1,3}(?:,\d{3})+|\d+)?(?:\.(\d{1,2}))?$/.exec(s);
-    if (!m || (m[2] === undefined && m[3] === undefined)) return NaN;
+    var m = /^(-)?\$?(\d{1,3}(?:,\d{3})+|\d+)?(?:\.(\d{0,2}))?$/.exec(s);
+    if (!m || (m[2] === undefined && !m[3])) return NaN;
     var whole = m[2] === undefined ? 0 : Number(m[2].replace(/,/g, ""));
-    var frac = m[3] === undefined ? 0 : Number(m[3].length === 1 ? m[3] + "0" : m[3]);
+    var frac = !m[3] ? 0 : Number(m[3].length === 1 ? m[3] + "0" : m[3]);
     var cents = whole * 100 + frac;
     if (!Number.isSafeInteger(cents)) return NaN;
     return m[1] ? -cents : cents;

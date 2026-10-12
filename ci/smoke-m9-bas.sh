@@ -16,8 +16,6 @@ step "m9-bas. BAS sales by month"
 M9B_TODAY=$(TZ=Australia/Sydney date +%F)
 M9B_CUR=${M9B_TODAY:0:7}
 M9B_NEXT=$(date -u -d "$M9B_CUR-01 + 1 month" +%Y-%m)
-M9B_TOMORROW=$(date -u -d "$M9B_TODAY + 1 day" +%F)
-M9B_YESTERDAY=$(date -u -d "$M9B_TODAY - 1 day" +%F)
 M9B_YEAR=$((10#${M9B_TODAY:0:4}))
 M9B_MON=$((10#${M9B_TODAY:5:2}))
 if [ "$M9B_MON" -ge 7 ]; then M9B_FY=$((M9B_YEAR + 1)); else M9B_FY=$M9B_YEAR; fi
@@ -46,7 +44,8 @@ m9b_hand() { # PERIOD JSON
   req PUT "/api/bas/months/$1/hand" "$ACCT" "$2"
 }
 
-# Issue as acct; sets the business details first if no earlier suite has. -> M9B_NUM, M9B_GST
+# Issue as acct; sets the business details first if no earlier suite has. -> M9B_NUM, M9B_GST,
+# M9B_ISSUED (the server's issue date: today in Sydney as the server saw it)
 m9b_issue() { # INVOICE_ID
   req POST "/api/invoices/$1/issue" "$ACCT" '{}'
   if [ "$STATUS" = 409 ] && [[ $BODY == *"Business details"* ]]; then
@@ -58,13 +57,15 @@ m9b_issue() { # INVOICE_ID
   expect_status 200 "issue invoice $1"
   M9B_NUM=$(jqr '.number')
   M9B_GST=$(jqr '.gstCents')
+  M9B_ISSUED=$(jqr '.issueDate')
 }
 
-# The number of audit rows of one action on one BAS month.
+# The number of audit rows of one action on one BAS month -> M9B_AUDITS. Not run in a subshell,
+# so the helpers' counters and fail keep working.
 m9b_audits() { # ACTION PERIOD
   req GET "/api/audit?action=$1&entityType=bas_month&entityId=$2&limit=1" "$ADMIN"
   expect_status 200 "GET /api/audit?action=$1"
-  jqr '.total'
+  M9B_AUDITS=$(jqr '.total')
 }
 
 echo "--- access ---"
@@ -72,8 +73,8 @@ req GET /api/bas "$ACCT"
 expect_status 200 "acct GET /api/bas"
 req GET /api/bas "$ADMIN"
 expect_status 200 "admin GET /api/bas"
-for j in "$SCHED" "$DPM" "$SHOW" "$WSHOP"; do
-  req GET /api/bas "$j"
+for M9B_J in "$SCHED" "$DPM" "$SHOW" "$WSHOP"; do
+  req GET /api/bas "$M9B_J"
   expect_status 403 "GET /api/bas without accounts.view"
 done
 req PUT /api/bas/months/2024-09/hand "$SCHED" '{"handCents":100,"handGstCents":null,"handNote":""}'
@@ -95,6 +96,12 @@ expect_status 200 "GET /api/bas?fy=2025"
 expect_jq '.fy == 2025 and .label == "FY 2025" and (.months | length == 12) and .months[0].period == "2024-07" and .months[11].period == "2025-06"' "FY 2025 runs 2024-07 to 2025-06"
 expect_jq '(.quarters | length == 4) and ([.quarters[].q] == [1,2,3,4]) and (.total | has("salesCents") and has("gstCents") and has("exGstCents") and has("invoiceCount") and has("lodgedCount"))' "four quarters and a total"
 expect_jq '.months[2] | .period == "2024-09" and .label == "Sep 2024" and .quarter == 1 and .future == false and (.figures | has("kind") and has("salesCents") and has("notInMyobCount")) and (.live | has("kind")) and has("lodged") and has("changed")' "the month row shape"
+# A hand row before HISTORY_START can't be made through the API; made with SQL, then removed.
+m9b_db_exec "DELETE FROM bas_months WHERE period = '2023-02'; INSERT INTO bas_months (period, hand_cents, hand_gst_cents, hand_note) VALUES ('2023-02', 77700, NULL, 'M9 pre-history')"
+req GET "/api/bas?fy=2023" "$ACCT"
+expect_status 200 "GET /api/bas?fy=2023"
+expect_jq '([.months[] | select(.period < "2023-06")] | length == 11 and all(.future == false and .figures.kind == "empty" and .figures.salesCents == 0)) and .quarters[2].salesCents == 0 and .quarters[2].gstCents == 0 and .total.salesCents == .months[11].figures.salesCents and .total.invoiceCount == .months[11].figures.invoiceCount' "FY 2023: the months before Jun 2023 are empty and left out of the sums"
+m9b_db_exec "DELETE FROM bas_months WHERE period = '2023-02'"
 req GET "/api/bas?fy=2022" "$ACCT"
 expect_status 400 "FY 2022 is before the history starts"
 expect_jq '.error == "Choose a financial year from FY 2023"' "the from-FY-2023 sentence"
@@ -130,21 +137,26 @@ M9B_I2=$(jqr '.id')
 m9b_issue "$M9B_I1"
 M9B_N1=$M9B_NUM
 M9B_G1=$M9B_GST
+M9B_ISSUED1=$M9B_ISSUED
 m9b_issue "$M9B_I2"
 M9B_N2=$M9B_NUM
 req GET "/api/invoices/$M9B_I1" "$ACCT"
 expect_jq '.invoice.totalCents == 100000' "the deposit is 10% of the value"
 
 echo "--- the paid-date rule (section 3) ---"
+# From the deposit's issue date as the server stamped it, so a run that crosses Sydney midnight
+# after the top of this file still sends a date that is tomorrow for the server.
+M9B_TOMORROW=$(date -u -d "$M9B_ISSUED1 + 1 day" +%F)
+M9B_YESTERDAY=$(date -u -d "$M9B_ISSUED1 - 1 day" +%F)
 req POST "/api/invoices/$M9B_I1/paid" "$ACCT" "{\"paidDate\":\"$M9B_TOMORROW\"}"
 expect_status 400 "a paid date in the future"
 expect_jq ".error == \"The paid date can't be in the future\"" "the future sentence"
 req POST "/api/invoices/$M9B_I1/paid" "$ACCT" "{\"paidDate\":\"$M9B_YESTERDAY\"}"
 expect_status 400 "a paid date before the issue date"
 expect_jq ".error | startswith(\"The paid date can't be before the invoice was issued (\")" "the before-issue sentence"
-req POST "/api/invoices/$M9B_I1/paid" "$ACCT" "{\"paidDate\":\"$M9B_TODAY\"}"
-expect_status 200 "mark the deposit paid today"
-expect_jq ".paidDate == \"$M9B_TODAY\"" "paid today"
+req POST "/api/invoices/$M9B_I1/paid" "$ACCT" "{\"paidDate\":\"$M9B_ISSUED1\"}"
+expect_status 200 "mark the deposit paid on its issue date (today)"
+expect_jq ".paidDate == \"$M9B_ISSUED1\"" "paid on its issue date"
 
 m9b_month "$M9B_CUR"
 expect_jq ".month.live.invoiceCount == ($M9B_C_CNT + 1)" "the current month has one more invoice"
@@ -174,6 +186,9 @@ expect_jq '.error == "Enter an amount, or clear it"' "the zero sentence"
 m9b_hand 2024-09 '{"handCents":110000,"handGstCents":10001,"handNote":""}'
 expect_status 400 "GST more than a tenth"
 expect_jq ".error == \"GST can't be more than a tenth of the amount before GST\"" "the GST sentence"
+m9b_hand 2024-09 '{"handCents":-110000,"handGstCents":10000,"handNote":""}'
+expect_status 400 "a refund with positive GST"
+expect_jq '.error == "GST must have the same sign as the amount"' "the GST sign sentence"
 m9b_hand 2023-05 '{"handCents":100,"handGstCents":null,"handNote":""}'
 expect_status 400 "a hand amount before Jun 2023"
 expect_jq '.error == "Hand amounts go from Jun 2023 to this month"' "the range sentence"
@@ -190,11 +205,12 @@ expect_jq ".month.figures.kind == \"mixed\" and .month.figures.salesCents == ($M
 m9b_hand 2024-08 '{"handCents":null,"handGstCents":null,"handNote":""}'
 expect_status 200 "clear the 2024-08 hand amount"
 expect_jq ".month.figures.kind == \"invoices\" and .month.figures.handCents == null and .month.figures.salesCents == ($M9B_A_SALES + 100000)" "2024-08 is back to invoices"
-M9B_HANDS=$(m9b_audits bas.hand 2024-08)
+m9b_audits bas.hand 2024-08
+M9B_HANDS=$M9B_AUDITS
 m9b_hand 2024-08 '{"handCents":null,"handGstCents":null,"handNote":""}'
 expect_status 200 "clear it again"
-M9B_HANDS2=$(m9b_audits bas.hand 2024-08)
-expect_eq "$M9B_HANDS2" "$M9B_HANDS" "nothing changed, so no audit row"
+m9b_audits bas.hand 2024-08
+expect_eq "$M9B_AUDITS" "$M9B_HANDS" "nothing changed, so no audit row"
 
 echo "--- lodging ---"
 req POST "/api/bas/months/$M9B_CUR/lodge" "$ACCT" '{}'
@@ -216,8 +232,16 @@ m9b_month 2024-08
 expect_jq ".month.figures.salesCents == ($M9B_A_SALES + 100000) and .month.live.salesCents == $M9B_A_SALES" "2024-08 keeps its frozen figures, the live ones beside them"
 expect_jq ".month.changed == true and ([.changes[] | select(contains(\"$M9B_N1\"))] | length >= 1)" "changed since lodged, naming the invoice"
 expect_jq "([.lodgedInvoices[] | select(.id == $M9B_I1)] | length == 1) and ([.invoices[] | select(.id == $M9B_I1)] | length == 0)" "the frozen list still has it, the live one doesn't"
+req POST "/api/invoices/$M9B_I1/myob" "$ACCT" '{"entered":true}'
+expect_status 200 "enter the moved invoice in MYOB"
+M9B_MYOB=$(jqr '.myobEnteredDate')
+m9b_month 2024-08
+expect_jq "[.lodgedInvoices[] | select(.id == $M9B_I1)][0] | .myobEnteredDate == \"$M9B_MYOB\" and .paidDate == \"2024-08-10\"" "the as-lodged row has its current MYOB date (Not in MYOB is live), the rest frozen"
 req GET "/api/bas?fy=2025" "$ACCT"
 expect_jq ".months[1].changed == true and .months[1].figures.salesCents == ($M9B_A_SALES + 100000) and .quarters[0].lodgedCount >= 1" "the year shows the lodged month's frozen figures"
+req GET /api/bas/compare "$ACCT"
+expect_status 200 "GET /api/bas/compare with 2024-08 lodged and changed"
+expect_jq ".rows[1].label == \"Aug\" and .rows[1].values[\"2025\"] == ($M9B_A_SALES + 100000)" "the comparison shows lodged 2024-08's frozen figure"
 m9b_month 2024-10
 expect_jq ".month.live.invoiceCount == ($M9B_O_CNT + 1) and ([.invoices[] | select(.id == $M9B_I1)] | length == 1)" "2024-10 shows it live"
 req POST /api/bas/months/2024-08/reopen "$ACCT" '{}'
@@ -263,8 +287,8 @@ ok
 echo "--- audit ---"
 req GET "/api/audit?entityType=bas_month&entityId=2024-08&limit=100" "$ADMIN"
 expect_status 200 "GET 2024-08's audit"
-for a in bas.hand bas.lodge bas.reopen; do
-  expect_jq "[.rows[] | .action] | index(\"$a\") != null" "audit has $a"
+for M9B_ACT in bas.hand bas.lodge bas.reopen; do
+  expect_jq "[.rows[] | .action] | index(\"$M9B_ACT\") != null" "audit has $M9B_ACT"
 done
 
 echo "--- tidy ---"

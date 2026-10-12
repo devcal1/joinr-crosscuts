@@ -11,7 +11,7 @@ Open **Accounts**, then **Supplier accounts**. It opens on **last month**, becau
 Under **Suppliers**, below the list:
 - **Add supplier** adds a name. It's listed from the month on screen onwards, so add suppliers while looking at the first month you want them in.
 - **Rename** changes the name everywhere, past months included.
-- **Archive** stops a supplier being listed from this month on. Archived suppliers stay on the months they already have lines in. Tick **Show archived** to see them and **Restore** one.
+- **Archive** stops a supplier being listed from this month on. Archived suppliers stay on the months they already have lines in. Tick **Show archived** to see them and **Restore** one: it's listed again from this month on, and the months it was archived stay as they were. (The months before it was archived keep their lines; any that were never filled in show as Waiting, saved by whoever restored it.)
 
 Suppliers are never deleted, so their history stays.
 

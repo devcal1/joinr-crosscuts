@@ -68,7 +68,8 @@
     toast(`Error: ${e && e.message ? e.message : e}`);
   }
 
-  // A button that can't be pressed twice while its request runs.
+  // A button that can't be pressed twice while its request runs. Disabling it drops the focus, so
+  // afterwards the focus goes back to it, or to the month's heading when it has gone (never body).
   function once(ctrl, fn) {
     return async (...args) => {
       if (ctrl.disabled) return;
@@ -79,8 +80,18 @@
         showError(e);
       } finally {
         ctrl.disabled = false;
+        const a = document.activeElement;
+        if (!a || a === document.body) {
+          if (ctrl.offsetParent) ctrl.focus();
+          else focusDetail();
+        }
       }
     };
+  }
+
+  // The month's heading (it names the month; the status line under it says where it stands).
+  function focusDetail() {
+    if (!$("detail").hidden) $("detail-h").focus({ preventScroll: true });
   }
 
   // --- state -----------------------------------------------------------------------------
@@ -91,6 +102,8 @@
   let compareData = null;
   let yearSeq = 0;
   let detailSeq = 0;
+  let navPrev = null; // where the detail's Previous / Next month buttons go
+  let navNext = null;
 
   // --- URL: ?fy= and #YYYY-MM ---------------------------------------------------------------
   function hashPeriod() {
@@ -170,7 +183,8 @@
     y.months.forEach((m, i) => {
       const blank = m.future || beforeHistory(m.period);
       const f = m.figures || {};
-      if (!blank && f.salesCents && (f.gstCents === null || f.exGstCents === null)) dash = true;
+      // GST unknown, even when the month's sales net to $0 (a hand amount and a refund)
+      if (!blank && (f.gstCents === null || f.exGstCents === null)) dash = true;
       const tr = el("tr", { class: "ba-mrow" + (m.future ? " ba-future" : "") + (m.period === openPeriod ? " ba-open" : "") });
       tr.dataset.period = m.period;
       const th = el("th", { scope: "row", class: "ba-mcell" });
@@ -200,7 +214,8 @@
     const foot = $("yearFoot");
     foot.replaceChildren();
     if (y.total) foot.append(sumRow("ba-yrow", "Year total", y.total, y.months, 12));
-    if ((y.total && y.total.salesCents && y.total.gstCents === null) || quarters.some((q) => q.salesCents && q.gstCents === null)) dash = true;
+    const shownSum = (s, months) => s && s.gstCents === null && !months.every((m) => m.future || beforeHistory(m.period));
+    if (shownSum(y.total, y.months) || quarters.some((q, i) => shownSum(q, y.months.slice(i * 3, i * 3 + 3)))) dash = true;
     $("dashKey").hidden = !dash;
     $("yearSection").hidden = false;
   }
@@ -249,14 +264,61 @@
     if (!year) return;
     const fy = year.fy + step;
     if (fy < year.firstFy || fy > year.currentFy) return;
+    if (!okToLeave()) return;
     closeDetail(false);
     await loadYear(fy);
   }
 
+  // --- the hand amount typed but not saved ------------------------------------------------
+  function handValues() {
+    return [$("handAmount").value, $("handGst").value, $("handNote").value];
+  }
+  // True when the hand form on screen differs from the month's saved hand amount.
+  function handDirty() {
+    if (!detail || $("detail").hidden || $("detailBody").hidden || $("handForm").hidden) return false;
+    const f = detail.month.figures || {};
+    const [a, g, n] = handValues();
+    return !(
+      P.parseDollars(a) === (f.handCents ?? null) &&
+      P.parseDollars(g) === (f.handGstCents ?? null) &&
+      n.trim() === (f.handNote || "").trim()
+    );
+  }
+  // Before the month on screen goes (another month, Close, another year, the hash): ask first
+  // when the hand form has typing that isn't saved.
+  function okToLeave() {
+    if (!handDirty()) return true;
+    return confirm(`The hand amount you typed for ${P.longLabel(detail.month.period)} isn't saved. Leave it unsaved?`);
+  }
+
   // --- a month's detail -------------------------------------------------------------------
   function toggleMonth(period) {
+    if (!okToLeave()) return;
     if (period === openPeriod) closeDetail(true);
     else openMonth(period, true);
+  }
+
+  // The detail's Previous / Next month buttons.
+  function setMonthNav(prev, next) {
+    navPrev = prev || null;
+    navNext = next || null;
+    const pb = $("prevMonth"), nb = $("nextMonth");
+    pb.disabled = !navPrev;
+    nb.disabled = !navNext;
+    pb.setAttribute("aria-label", navPrev ? `Previous month, ${P.longLabel(navPrev)}` : "Previous month");
+    nb.setAttribute("aria-label", navNext ? `Next month, ${P.longLabel(navNext)}` : "Next month");
+  }
+  // Without the server's answer (a failed load): the months either side, within the history and
+  // up to the current month as the year table knows it.
+  function fallbackNav(period) {
+    const prev = P.compare(period, P.HISTORY_START) > 0 ? P.addMonths(period, -1) : null;
+    const cur = currentPeriodOf(year);
+    const later = cur ? P.compare(period, cur) < 0 : !!year && P.fyOf(period) < year.currentFy;
+    return [prev, later ? P.addMonths(period, 1) : null];
+  }
+  function goMonth(to) {
+    if (!to || !okToLeave()) return;
+    openMonth(to, true);
   }
 
   function markOpenRow() {
@@ -281,11 +343,22 @@
     }
   }
 
+  // Opens a month's detail. A month before the history, or after the current month, has none: it
+  // opens nothing, closes any open detail and puts the URL right (the year table's guard).
   async function openMonth(period, focus) {
+    if (!year || !P.validPeriod(period) || beforeHistory(period) || P.fyOf(period) > year.currentFy) {
+      closeDetail(false);
+      return;
+    }
     // A month in another financial year brings that year's table with it.
-    if (year && P.fyOf(period) !== year.fy) {
+    if (P.fyOf(period) !== year.fy) {
       const ok = await loadYear(P.fyOf(period));
       if (!ok) return;
+    }
+    const row = year.months.find((m) => m.period === period);
+    if (!row || !hasDetail(row)) {
+      closeDetail(false);
+      return;
     }
     const seq = ++detailSeq;
     if (openPeriod !== period) showLive = false;
@@ -297,7 +370,7 @@
     $("detail-h").textContent = P.longLabel(period);
     $("detailStatus").textContent = "Loading...";
     $("detailBody").hidden = true;
-    for (const id of ["prevMonth", "nextMonth"]) $(id).disabled = true;
+    setMonthNav(null, null);
     try {
       const d = await api(`${API}/months/${encodeURIComponent(period)}`);
       if (seq !== detailSeq) return;
@@ -306,7 +379,9 @@
       renderDetail();
     } catch (e) {
       if (seq !== detailSeq) return;
+      detail = null;
       $("detailStatus").textContent = e.message;
+      setMonthNav(...fallbackNav(period));
     }
     if (focus) {
       $("detail-h").focus({ preventScroll: true });
@@ -335,11 +410,7 @@
     const edit = canEdit();
 
     $("detail-h").textContent = P.longLabel(m.period);
-    const prev = $("prevMonth"), next = $("nextMonth");
-    prev.disabled = !d.prev;
-    next.disabled = !d.next;
-    prev.setAttribute("aria-label", d.prev ? `Previous month, ${P.longLabel(d.prev)}` : "Previous month");
-    next.setAttribute("aria-label", d.next ? `Next month, ${P.longLabel(d.next)}` : "Next month");
+    setMonthNav(d.prev, d.next);
 
     // where the month stands
     let st = "";
@@ -365,7 +436,16 @@
     const rows = $("figsRows");
     rows.replaceChildren();
     for (const [label, show, key] of FIG_ROWS) {
-      const tr = el("tr", {}, el("th", { scope: "row", class: "ba-fig-k", text: label }), el("td", { class: "num", text: show(f) }));
+      const tr = el("tr", {}, el("th", { scope: "row", class: "ba-fig-k", text: label }));
+      if (key === "notInMyobCount") {
+        // A to-do count, not a BAS figure: always the live count, in one cell, so it never looks
+        // like a change since lodging (contracts section 12 point 11).
+        const n = live.notInMyobCount || 0;
+        tr.append(el("td", { class: "num" + (n > 0 ? " ba-attend" : ""), colspan: both ? "2" : null, text: String(n) }));
+        rows.append(tr);
+        continue;
+      }
+      tr.append(el("td", { class: "num", text: show(f) }));
       if (both) {
         const differs = f[key] !== live[key] || (key === "handCents" && f.handGstCents !== live.handGstCents) || (key === "invoiceCents" && f.invoiceCount !== live.invoiceCount);
         tr.append(el("td", { class: "num" + (differs ? " ba-attend" : ""), text: show(live) }));
@@ -414,8 +494,7 @@
 
     const toggle = $("listToggle");
     toggle.hidden = !lodged;
-    toggle.textContent = "Show current list";
-    toggle.setAttribute("aria-pressed", showLive ? "true" : "false");
+    toggle.textContent = showLive ? "Show lodged list" : "Show current list";
     $("invTitle").textContent = lodged
       ? showLive ? "Invoices paid in this month now" : "Invoices paid in this month, as lodged"
       : "Invoices paid in this month";
@@ -501,19 +580,66 @@
     await loadYear(year ? year.fy : null);
   }
 
-  async function lodge() {
-    const m = detail.month;
+  // What a lodge freezes: whether the month is lodged, its BAS figures and its invoice list. Not in
+  // MYOB is left out (a live to-do count, section 12 point 11).
+  const FROZEN_KEYS = ["salesCents", "gstCents", "exGstCents", "invoiceCount", "invoiceCents", "invoiceGstCents", "handCents", "handGstCents", "handNote"];
+  function lodgeKey(d) {
+    const m = d.month;
     const f = m.figures || {};
-    const q = `Lodge ${P.longLabel(m.period)}? Sales inc GST ${P.dollars(f.salesCents || 0)}.\n\nIts figures and invoice list are frozen as they are now. Only an admin can reopen it.`;
+    return JSON.stringify([
+      !!m.lodged,
+      FROZEN_KEYS.map((k) => f[k] ?? null),
+      (d.invoices || []).map((i) => [i.id, i.totalCents, i.gstCents, i.paidDate]),
+    ]);
+  }
+
+  // Shows a fresh detail; typing in the hand form that isn't saved stays in it.
+  function showDetailKeepingTyping(d) {
+    const typed = handDirty() ? handValues() : null;
+    detail = d;
+    renderDetail();
+    if (typed && !$("handForm").hidden) {
+      $("handAmount").value = typed[0];
+      $("handGst").value = typed[1];
+      $("handNote").value = typed[2];
+    }
+  }
+
+  // The confirm names the figure that will be frozen: the month is fetched again first, and if it
+  // has changed since it was shown, the page shows it as it is now and doesn't lodge.
+  async function lodge() {
+    const period = detail.month.period;
+    const shown = lodgeKey(detail);
+    let fresh;
+    try {
+      fresh = await api(`${API}/months/${encodeURIComponent(period)}`);
+    } catch (e) {
+      showError(e);
+      return;
+    }
+    if (period !== openPeriod) return;
+    if (lodgeKey(fresh) !== shown) {
+      showDetailKeepingTyping(fresh);
+      toast(`${P.longLabel(period)} changed since you opened it; check the figures`);
+      focusDetail();
+      await loadYear(year ? year.fy : null);
+      return;
+    }
+    const f = fresh.month.figures || {};
+    const unsaved = handDirty() ? "\n\nThe hand amount you typed isn't saved; it is left out." : "";
+    const q = `Lodge ${P.longLabel(period)}? Sales inc GST ${P.dollars(f.salesCents || 0)}.\n\nIts figures and invoice list are frozen as they are now. Only an admin can reopen it.${unsaved}`;
     if (!confirm(q)) return;
     let d;
     try {
-      d = await api(`${API}/months/${encodeURIComponent(m.period)}/lodge`, { method: "POST", body: "{}" });
+      d = await api(`${API}/months/${encodeURIComponent(period)}/lodge`, { method: "POST", body: "{}" });
     } catch (e) {
-      return refusedRefresh(e, m.period);
+      await refusedRefresh(e, period);
+      focusDetail();
+      return;
     }
-    toast(`${P.longLabel(m.period)} lodged`);
+    toast(`${P.longLabel(period)} lodged`);
     await afterChange(d);
+    focusDetail();
   }
 
   async function reopen() {
@@ -523,10 +649,13 @@
     try {
       d = await api(`${API}/months/${encodeURIComponent(m.period)}/reopen`, { method: "POST", body: "{}" });
     } catch (e) {
-      return refusedRefresh(e, m.period);
+      await refusedRefresh(e, m.period);
+      focusDetail();
+      return;
     }
     toast(`${P.longLabel(m.period)} reopened`);
     await afterChange(d);
+    focusDetail();
   }
 
   async function putHand(body) {
@@ -563,9 +692,16 @@
     if (amount === null && gst !== null) return fail("handAmount", "Enter an amount for the GST to go with");
     if (amount === null && note) return fail("handAmount", "Enter an amount for the note, or clear it");
     const d = await putHand({ handCents: amount, handGstCents: gst, handNote: note });
-    if (!d) return;
+    if (!d) {
+      // refused: back to the amount, with the sentence under the form (lodged meanwhile: the form
+      // has gone, so the month's heading)
+      if (!$("handForm").hidden) $("handAmount").focus();
+      else focusDetail();
+      return;
+    }
     toast(amount === null ? "Hand amount cleared" : "Hand amount saved");
     await afterChange(d);
+    focusDetail();
     function fail(id, msg) {
       err.textContent = msg;
       $(id).focus();
@@ -578,9 +714,10 @@
     if (!confirm(`Clear the hand amount of ${P.dollars(f.handCents)} from ${P.longLabel(m.period)}?`)) return;
     $("handErr").textContent = "";
     const d = await putHand({ handCents: null, handGstCents: null, handNote: "" });
-    if (!d) return;
+    if (!d) return; // once() puts the focus back on Clear, or on the heading if the form has gone
     toast("Hand amount cleared");
     await afterChange(d);
+    focusDetail();
   }
 
   // --- the comparison ----------------------------------------------------------------------
@@ -759,9 +896,9 @@
     $("prevFy").addEventListener("click", () => changeFy(-1));
     $("nextFy").addEventListener("click", () => changeFy(1));
     $("printBtn").addEventListener("click", print);
-    $("closeDetail").addEventListener("click", () => closeDetail(true));
-    $("prevMonth").addEventListener("click", () => detail && detail.prev && openMonth(detail.prev, true));
-    $("nextMonth").addEventListener("click", () => detail && detail.next && openMonth(detail.next, true));
+    $("closeDetail").addEventListener("click", () => okToLeave() && closeDetail(true));
+    $("prevMonth").addEventListener("click", () => goMonth(navPrev));
+    $("nextMonth").addEventListener("click", () => goMonth(navNext));
     $("lodgeBtn").addEventListener("click", once($("lodgeBtn"), lodge));
     $("reopenBtn").addEventListener("click", once($("reopenBtn"), reopen));
     $("handForm").addEventListener("submit", once($("handSave"), saveHand));
@@ -770,24 +907,40 @@
       showLive = !showLive;
       if (detail) renderInvoices();
     });
+    // A hand-edited hash: a month with a detail opens it; anything else (not a month, before Jun
+    // 2023, after this month) opens nothing, closes the detail and puts the URL right. Unsaved
+    // typing in the hand form is asked about first (Cancel puts the hash back).
     window.addEventListener("hashchange", () => {
       const p = hashPeriod();
-      if (p && p !== openPeriod) openMonth(p, true);
-      else if (!p && openPeriod) closeDetail(false);
+      if (p && p === openPeriod) return;
+      if (!openPeriod && !p) {
+        writeUrl();
+        return;
+      }
+      if (!okToLeave()) {
+        writeUrl();
+        return;
+      }
+      if (p) openMonth(p, true);
+      else closeDetail(false);
+    });
+    window.addEventListener("beforeunload", (e) => {
+      if (handDirty()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
     });
 
     // A month in the hash brings its own financial year; otherwise ?fy=, else the current one.
     const h0 = hashPeriod();
-    const hp = h0 && P.compare(h0, P.HISTORY_START) >= 0 ? h0 : null;
+    const hp = h0 && !beforeHistory(h0) ? h0 : null;
     const qfy = new URL(location.href).searchParams.get("fy");
-    const fy = hp ? P.fyOf(hp) : qfy && /^\d{4}$/.test(qfy) ? Number(qfy) : null;
-    const [ok] = await Promise.all([loadYear(fy), loadCompare()]);
+    const qfyNum = qfy && /^\d{4}$/.test(qfy) ? Number(qfy) : null;
+    let [ok] = await Promise.all([loadYear(hp ? P.fyOf(hp) : qfyNum), loadCompare()]);
+    // a month in a year that hasn't started: the year the page would show without it
+    if (!ok && hp) ok = await loadYear(qfyNum);
     if (!ok) return;
-    if (hp) {
-      const row = year.months.find((m) => m.period === hp);
-      if (row && hasDetail(row)) await openMonth(hp, false);
-      else writeUrl();
-    }
+    if (h0) await openMonth(h0, false);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

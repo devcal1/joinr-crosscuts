@@ -300,6 +300,18 @@ a.hs-btn:hover { text-decoration: none; }
 .su-form thead th:first-child { text-align: left; padding: 0 1.5mm; }
 .su-form tr { break-inside: avoid; page-break-inside: avoid; }
 .su-f-name { font-size: 10pt; font-weight: 700; overflow-wrap: anywhere; }
+/* a long name stops at two lines instead of making its row taller */
+.su-f-nm {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-height: 2.3em;
+  line-height: 1.15;
+}
+.su-f-tight .su-f-name { font-size: 8pt; }
+.su-f-tight .su-f-nm { line-height: 1.1; max-height: 2.2em; }
 .su-fc-name { width: 50mm; }
 .su-fc-box { width: 12mm; }
 .su-fc-wide { width: 17mm; }

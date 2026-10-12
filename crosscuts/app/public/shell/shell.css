@@ -476,7 +476,7 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.cc-dialog-error { min-height: 18px; margin: 0; color: var(--stop-tint); font-size: 13px; }
+.cc-dialog-error { min-height: 18px; margin: 0; color: var(--orange-tint); font-size: 13px; } /* attend, not red (Todd, 2026-10-13) */
 .cc-dialog-error.cc-dialog-ok { color: var(--go-tint); }
 .cc-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .cc-dialog-actions .hs-btn-quiet { margin-right: auto; }

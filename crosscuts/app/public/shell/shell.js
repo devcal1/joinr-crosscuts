@@ -369,7 +369,7 @@
     var menu = h("div", { class: "cc-menu", id: "cc-user-menu", role: "menu", "aria-label": "Account", hidden: true }, [
       h("div", { class: "cc-menu-head" }, [h("strong", { text: displayName }), "Signed in"]),
       h("hr", { class: "cc-menu-sep" }),
-      menuItem("Change password", openPasswordDialog),
+      menuItem("Change password", function () { openPasswordDialog(); }), // not the click event as its note
       menuItem("Set PIN", openPinDialog),
       menuItem("Lock", doLock),
       h("hr", { class: "cc-menu-sep" }),

@@ -70,16 +70,19 @@ function bmRow(db, period) {
   return db.prepare("SELECT * FROM bas_months WHERE period = ?").get(period) || null;
 }
 
-// The month's paid invoices as invoice rows (section 6.2), by paid date then number.
+// The month's paid invoices as invoice rows (section 6.2), by paid date then number (shorter
+// numbers first, so CC-999 comes before CC-1000), then id. INDEXED BY: without ANALYZE the planner
+// picks idx_invoices_status and sorts the whole status range; the paid-date index is partial
+// (WHERE status = 'paid'), which the query's own status = 'paid' satisfies.
 function liveInvoices(db, period) {
   return db
     .prepare(
       `SELECT i.id, i.number, i.kind, i.bill_to_name, i.issue_date, i.paid_date, i.total_cents, i.gst_cents,
               i.myob_entered_date, i.job_id, j.name AS job_name, j.client_name
-         FROM invoices i
+         FROM invoices i INDEXED BY idx_invoices_paid_date
          LEFT JOIN jobs j ON j.id = i.job_id
         WHERE i.status = 'paid' AND i.paid_date >= ? AND i.paid_date <= ?
-        ORDER BY i.paid_date, i.number, i.id`
+        ORDER BY i.paid_date, length(i.number), i.number, i.id`
     )
     .all(Periods.firstDay(period), Periods.lastDay(period))
     .map((r) => {
@@ -203,15 +206,17 @@ function changesOf(db, frozen, live) {
 }
 
 // Everything about one month: {row (month row), live {figures, invoices}, frozen, changes}.
+// A future month, and a month before HISTORY_START (FY 2023's Jul 2022 to May 2023), has empty
+// figures and is never read from the database; only the future one says future: true.
 function load(db, period, today) {
   const future = period > Periods.currentPeriod(today);
-  if (future) {
+  if (future || period < Periods.HISTORY_START) {
     return {
       row: {
         period,
         label: Periods.label(period),
         quarter: Periods.quarterOf(period),
-        future: true,
+        future,
         figures: emptyFigures(),
         live: emptyFigures(),
         lodged: null,
@@ -244,12 +249,23 @@ function load(db, period, today) {
   };
 }
 
+// The as-lodged invoice rows with each invoice's current myobEnteredDate (section 12 point 11:
+// Not in MYOB stays live on a lodged month), looked up by id even when the invoice has left the
+// month. Only the response changes; lodged_json is never rewritten.
+function withLiveMyob(db, invoices) {
+  const get = db.prepare("SELECT myob_entered_date FROM invoices WHERE id = ?");
+  return invoices.map((i) => {
+    const now = get.get(i.id);
+    return now ? { ...i, myobEnteredDate: now.myob_entered_date || null } : i;
+  });
+}
+
 function detail(db, period, today) {
   const m = load(db, period, today);
   return {
     month: m.row,
     invoices: m.live.invoices,
-    lodgedInvoices: m.frozen ? m.frozen.invoices : null,
+    lodgedInvoices: m.frozen ? withLiveMyob(db, m.frozen.invoices) : null,
     changes: m.changes,
     prev: period <= Periods.HISTORY_START ? null : Periods.addMonths(period, -1),
     next: period >= Periods.currentPeriod(today) ? null : Periods.addMonths(period, 1),
@@ -279,10 +295,12 @@ function year(db, fy, today = sydneyToday()) {
   if (!Number.isInteger(y) || y < first) throw bad(`Choose a financial year from ${Periods.fyLabel(first)}`);
   if (y > current) throw bad(`${Periods.fyLabel(y)} hasn't started yet`);
   const months = Periods.fyMonths(y).map((p) => load(db, p, today).row);
+  // The sums leave out the months before HISTORY_START (as the comparison's null).
+  const counted = months.filter((m) => m.period >= Periods.HISTORY_START);
   const quarters = [1, 2, 3, 4].map((q) => ({
     q,
     label: Periods.quarterLabel(y, q),
-    ...sumOf(months.filter((m) => m.quarter === q)),
+    ...sumOf(counted.filter((m) => m.quarter === q)),
   }));
   return {
     fy: y,
@@ -292,7 +310,7 @@ function year(db, fy, today = sydneyToday()) {
     currentFy: current,
     months,
     quarters,
-    total: sumOf(months),
+    total: sumOf(counted),
   };
 }
 
@@ -407,6 +425,9 @@ function setHand(db, req, period, body) {
   if (handCents === 0) throw bad("Enter an amount, or clear it");
   let handGstCents = centsField(b.handGstCents, "handGstCents");
   if (handCents === null && handGstCents !== null) throw bad("Enter an amount for the GST to go with");
+  if (handGstCents !== null && handGstCents !== 0 && handGstCents < 0 !== handCents < 0) {
+    throw bad("GST must have the same sign as the amount");
+  }
   if (handGstCents !== null && Math.abs(handGstCents) > Math.round(Math.abs(handCents) / 11)) {
     throw bad("GST can't be more than a tenth of the amount before GST");
   }

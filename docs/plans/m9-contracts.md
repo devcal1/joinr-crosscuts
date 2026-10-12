@@ -197,9 +197,9 @@ Validation → 400, not found → 404, rule break → 409. A `:period` that isn'
 
 - **figures:** `{invoiceCount, invoiceCents, invoiceGstCents, handCents, handGstCents, handNote, salesCents, gstCents, exGstCents, notInMyobCount, kind}` (§5).
 - **month row:** `{period, label, quarter, future: bool, figures, live: figures, lodged: {at, by: {id, name}}|null, changed: bool}`. `figures` is the frozen copy when lodged, else the same as `live`. A future month has empty figures and `future: true`.
-- **year object:** `{fy, label, rangeLabel, firstFy, currentFy, months: [twelve month rows], quarters: [four {q, label, salesCents, gstCents, exGstCents, invoiceCount, lodgedCount}], total: {salesCents, gstCents, exGstCents, invoiceCount, lodgedCount}}`. Quarter and year sums add each month's `figures`. A sum's `gstCents` (and `exGstCents`) is null when any month in it with sales has a null `gstCents`.
+- **year object:** `{fy, label, rangeLabel, firstFy, currentFy, months: [twelve month rows], quarters: [four {q, label, salesCents, gstCents, exGstCents, invoiceCount, lodgedCount}], total: {salesCents, gstCents, exGstCents, invoiceCount, lodgedCount}}`. Quarter and year sums add each month's `figures`. A sum's `gstCents` (and `exGstCents`) is null when any month in it with sales has a null `gstCents`. Months before `HISTORY_START` (FY 2023's Jul–May) have empty figures with `future: false` and are left out of the sums (4.3).
 - **invoice row:** `{id, number, kind, client, job: {id, name}, issueDate, paidDate, totalCents, gstCents, exGstCents, myobEnteredDate}`. `client` is the frozen `bill_to_name`, falling back to the job's `client_name`.
-- **month detail:** `{month: month row, invoices: [live invoice rows by paidDate then number], lodgedInvoices: [frozen rows]|null, changes: [sentence], prev: period|null, next: period|null}`. `prev` is null at `HISTORY_START`; `next` is null at the current month.
+- **month detail:** `{month: month row, invoices: [live invoice rows by paidDate, then number length, number and id], lodgedInvoices: [frozen rows, each carrying the invoice's current `myobEnteredDate` (§12.11; `lodged_json` itself is never rewritten)]|null, changes: [sentence], prev: period|null, next: period|null}`. `prev` is null at `HISTORY_START`; `next` is null at the current month.
 - **comparison:** `{fys: [firstFy … currentFy], rows: [twelve {monthIndex: 0..11, label: 'Jul'…'Jun', values: {<fy>: salesCents|null}}]}`. A value is null for a future month or a month before `HISTORY_START`; a past month with nothing is 0. Values are each month's `figures.salesCents` (frozen when lodged).
 
 ### 6.3 Hand amount (`PUT /months/:period/hand`)
@@ -208,13 +208,13 @@ Body: `{handCents: int|null, handGstCents: int|null, handNote: string}`.
 - 409 `"This month is lodged; an admin can reopen it"` when lodged.
 - 400 for a period before `HISTORY_START` or after the current month (`"Hand amounts go from Jun 2023 to this month"`).
 - `handCents`: null (clears the hand amount) or an integer, −1,000,000,000 to 1,000,000,000 and not 0 (400 `"Enter an amount, or clear it"`).
-- `handGstCents`: null or an integer whose absolute value is at most `|handCents| / 11` rounded (400 `"GST can't be more than a tenth of the amount before GST"`); must be null when `handCents` is null.
+- `handGstCents`: null or an integer whose absolute value is at most `|handCents| / 11` rounded (400 `"GST can't be more than a tenth of the amount before GST"`); when not 0, the same sign as `handCents` (400 `"GST must have the same sign as the amount"`, added at 4.3, checked before the tenth rule); must be null when `handCents` is null.
 - `handNote`: at most 500 after trim.
 - Clearing a month with no lodging deletes its row. Nothing is written (no stamp, no audit) when nothing changes. Audit `bas.hand`, entity `bas_month`, entity id the period, before and after the three hand fields.
 
 ### 6.4 CSV
 
-Header row then one row per live invoice: `Invoice,Client,Job,Kind,Issued,Paid,Total inc GST,GST,Ex GST,Entered in MYOB`. Dates `YYYY-MM-DD`; money as plain `1234.56` (no `$`, no commas); `Entered in MYOB` the date or blank; a hand amount, if any, as a last row `,,,Hand amount,,,<amount>,<gst or blank>,<ex or blank>,` with its note in the Client column. RFC 4180 quoting; a text cell starting with `=`, `+`, `-`, `@`, tab or CR gets a leading `'`. CRLF line ends, a UTF-8 BOM first (so Excel reads it).
+Header row then one row per live invoice (in the month detail's order): `Invoice,Client,Job,Kind,Issued,Paid,Total inc GST,GST,Ex GST,Entered in MYOB`. Dates `YYYY-MM-DD`; money as plain `1234.56` (no `$`, no commas); `Entered in MYOB` the date or blank; a hand amount, if any, as a last row `,,,Hand amount,,,<amount>,<gst or blank>,<ex or blank>,` with its note in the Client column. RFC 4180 quoting; a text cell starting with `=`, `+`, `-`, `@`, tab or CR gets a leading `'`. CRLF line ends, a UTF-8 BOM first (so Excel reads it).
 
 ### 6.5 Audit (actor `req.user`)
 
@@ -235,7 +235,7 @@ function detach(db, req, period, supplierId);          // line
 function waitingCount(db, period);                     // number, for the round-up
 ```
 
-**Who is listed in month P:** every supplier with a `supplier_statements` row for P, plus every supplier with `from_period <= P` and (`archived_from` null or `P < archived_from`). Archiving sets `archived_from` to the current month; unarchiving clears it. `create` takes `fromPeriod` (default the current month; the page sends the month on screen, so a supplier added while doing last month's pass shows there).
+**Who is listed in month P:** every supplier with a `supplier_statements` row for P, plus every supplier with `from_period <= P` and (`archived_from` null or `P < archived_from`). Archiving sets `archived_from` to the current month. **Restoring skips the gap** (Todd, 2026-10-13): in one transaction it gives every month from the old `from_period` up to the month before the old `archived_from` that has no row a `waiting` row (so the months before the archive keep listing it), then sets `from_period` to the current month and clears `archived_from`; the months it was archived gain nothing, and the round-up's count doesn't change. `create` takes `fromPeriod` (default the current month; the page sends the month on screen, so a supplier added while doing last month's pass shows there).
 
 ### 7.2 Routes (`routes/suppliers.js`, `defineRoutes('/api/suppliers')`)
 
@@ -244,12 +244,12 @@ Literal paths (`/months`) are registered before `/:id`. A `:period` that isn't v
 | Method & path | Access | Body / query → response |
 |---|---|---|
 | `GET /` | `accounts.view` | `?all=1` → `{suppliers: [supplier]}` |
-| `POST /` | `invoices.edit` | `{name, fromPeriod?}` (name 1–100 after trim) → 201 supplier. 409 `"A supplier with that name already exists"` (case-blind). Audit `supplier.create`. |
+| `POST /` | `invoices.edit` | `{name, fromPeriod?}` (name 1–100 after trim) → 201 supplier. 409 `"A supplier with that name already exists"` (case-blind, Unicode: NFC and `en-AU` lower-case, on create and rename; a case-only rename of itself is allowed). Audit `supplier.create`. |
 | `PATCH /:id` | `invoices.edit` | `{name?, archived?}` → supplier. 409 as above for a clashing name. Audit `supplier.update` (changed fields). |
 | `GET /months/:period` | `accounts.view` | → month object |
 | `PUT /months/:period/:supplierId` | `invoices.edit` | §7.3 → line. 404 when the supplier isn't listed in that month. |
 | `POST /months/:period/:supplierId/file` | `invoices.edit` | multipart, field `file` (`files.single("file")`, `files.accept`, as `routes/tasks.js`) → 201 line. A file already there is replaced (the old one soft-removed with `files.remove`). Audit `supplier_statement.file` (after `{fileId, name}`). |
-| `DELETE /months/:period/:supplierId/file` | `invoices.edit` | → line. 404 when there is no file. Audit `supplier_statement.file` (before `{fileId, name}`, after null). |
+| `DELETE /months/:period/:supplierId/file` | `invoices.edit` | `?fileId=<id>` optional (4.3) → line. 404 when there is no file. With `fileId`: 409 `{error: "This statement was replaced meanwhile; reload the line", line}` when the line holds another file; 400 `"fileId must be a positive whole number"` when it isn't one. The page always sends it. Audit `supplier_statement.file` (before `{fileId, name}`, after null). |
 
 ### 7.3 Shapes and saving
 
@@ -277,7 +277,7 @@ Nothing else in the round-up changes.
 
 ### 7.6 Audit (actor `req.user`)
 
-`supplier.create`, `supplier.update` (entity `supplier`); `supplier_statement.update`, `supplier_statement.file` (entity `supplier_statement`, id `<supplierId>:<period>`).
+`supplier.create`, `supplier.update` (entity `supplier`; a restore records `fromPeriod` and `archivedFrom` before and after, and the waiting lines it fills have no audit rows of their own); `supplier_statement.update`, `supplier_statement.file` (entity `supplier_statement`, id `<supplierId>:<period>`).
 
 ## 8. Pages, menu and access (scaffold)
 
@@ -339,6 +339,7 @@ M-suite rules (sourced, no shebang, no `set`, the shared helpers and jars, prefi
 - **Paid-date rule (§3):** a future date → 400; a date before issue → 400.
 - **Audit:** admin `GET /api/audit?entityType=bas_month&entityId=2024-08` has `bas.hand`, `bas.lodge`, `bas.reopen`.
 - **Tidy:** clears the hand amounts it set and reopens anything it lodged.
+- **Added at 4.3:** GST of the opposite sign → 400; a pre-`HISTORY_START` row made with SQL is ignored and left out of the sums; the as-lodged list carries the live MYOB date; `GET /compare` gives a lodged month's frozen figure; tomorrow and yesterday come from the issue response's `issueDate`.
 
 ### 10.3 `ci/smoke-m9-suppliers.sh` (B), `step "m9-suppliers. supplier accounts and the round-up line"`
 
@@ -350,6 +351,7 @@ M-suite rules, prefix `M9S_`; made-up names (`M9 Test Supplier A` …); periods 
 - **File:** attach a small PDF (`%PDF-` header) → 201 with `file.url`; `GET` it as acct → 200 `application/pdf`; as sched → 404; attach a second → the first file id now 404; a `.txt` → 400; `DELETE …/file` → 200, `file: null`.
 - **Round-up:** with a supplier listed and waiting in the previous month, admin `POST /api/notifications/roundup/run` → the acct user's newest `invoice.roundup` body contains "still waiting for"; mark it `have` and run again → the newest has no such line (or no new round-up when every count is 0).
 - **Audit:** `entityType=supplier_statement&entityId=<A>:2024-05` has `supplier_statement.update` and `supplier_statement.file`.
+- **Added at 4.3:** a line keeps an archived supplier listed in the current month; restore skips the archived months (an SQL-moved `archived_from`; the previous month's waiting count unchanged; the restore audit); the replaced and removed files have `removed_at` set; `DELETE …/file?fileId=` stale → 409 with the file kept, bad → 400, right → 200; the Unicode name clash.
 
 ### 10.4 Screenshots (`tools/screenshots/shoot.js`, scaffold)
 
@@ -390,3 +392,5 @@ One wave: the pages code against §6 and §7 with stubbed responses, then 4.1 ru
 11. **Not in MYOB stays live on a lodged month** (decided at 4.1): it's a to-do signal, not a BAS figure, so entering a lodged month's invoices in MYOB clears it. Every BAS figure and the lodged invoice list stay frozen; MYOB ticks never make a month "changed since lodged".
 12. **Statement files are PDF, JPEG or PNG** (Todd, 4.1): what `lib/files.js` allows; `.webp` and `.heic` were dropped from §9.2.
 13. **Pre-cutover invoices paid after cutover** (issued in MYOB, never in Crosscuts) don't count by themselves under the cash basis; Accounts add them to the hand amount of the month they're paid in (`docs/cutover.md`, `docs/how-to-bas.md`).
+14. **Restore skips the gap** (Todd, 4.3; §7.1): a restored supplier is listed from the current month on; the months it was archived stay as they were.
+15. **Error text is orange app-wide** (Todd, 4.3): `.cc-dialog-error` in the shell uses the orange tint (attend), not red, so dialog and form errors follow the house style's colour roles.
