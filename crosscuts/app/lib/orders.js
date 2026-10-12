@@ -356,8 +356,8 @@ function updateLine(db, orderId, patch, req) {
   const orderedDateIn = has("orderedDate") ? dateOrNull("orderedDate", patch.orderedDate) : undefined;
   const receivedDateIn = has("receivedDate") ? dateOrNull("receivedDate", patch.receivedDate) : undefined;
   const todayStr = sydneyToday();
-  if (orderedDateIn && orderedDateIn > todayStr) throw bad("orderedDate can't be in the future");
-  if (receivedDateIn && receivedDateIn > todayStr) throw bad("receivedDate can't be in the future");
+  if (orderedDateIn && orderedDateIn > todayStr) throw bad("The ordered date can't be in the future");
+  if (receivedDateIn && receivedDateIn > todayStr) throw bad("The received date can't be in the future");
 
   const noteIn = has("deliveryNote") ? deliveryNoteField(patch.deliveryNote) : undefined;
 
