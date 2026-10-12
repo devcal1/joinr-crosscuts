@@ -53,6 +53,8 @@
       items: [
         { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
         { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
+        { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
+        { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
         { label: "Reports", href: "/reports.html", key: "accounts.view" },
       ],
     },

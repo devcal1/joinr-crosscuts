@@ -46,6 +46,13 @@ function validDate(s) {
   return !Number.isNaN(d.getTime()) && formatDateUTC(d) === s; // rejects 2026-02-31
 }
 
+// "2026-10-05" -> "5 Oct 2026".
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function dayLabel(s) {
+  const [y, m, d] = s.split("-").map(Number);
+  return `${d} ${MONTH_NAMES[m - 1]} ${y}`;
+}
+
 // 1234567 -> "$12,345.67" (negative: "-$12.00").
 function money(cents) {
   const neg = cents < 0;
@@ -536,6 +543,11 @@ function markPaid(db, id, paidDate, req) {
     const inv = getInvoice(db, id);
     if (inv.status !== "issued") throw conflict(`Only an issued invoice can be marked paid (this one is ${inv.status})`);
     const date = paidDate || sydneyToday();
+    // BAS sales go by paid date (m9-contracts.md section 3), so it must be a real day of payment.
+    if (inv.issue_date && date < inv.issue_date) {
+      throw bad(`The paid date can't be before the invoice was issued (${dayLabel(inv.issue_date)})`);
+    }
+    if (date > sydneyToday()) throw bad("The paid date can't be in the future");
     db.prepare("UPDATE invoices SET status = 'paid', paid_date = ?, updated_at = ? WHERE id = ?").run(date, nowIso(), id);
     audit.log(req, {
       action: "invoice.paid",

@@ -473,9 +473,16 @@ expect_jq '.status == "issued" and .paidDate == null' "back to issued"
 req POST "/api/invoices/$DEP2/unpaid" "$ACCT" '{}'
 expect_status 409 "unpaid on an unpaid invoice"
 m2a_audit_min invoice.paid "$DEP2" 2
+# Paid dates can't be in the future or before the issue date (m9-contracts.md section 3); smoke
+# invoices are issued today, so today is the only date allowed.
 req POST "/api/invoices/$FIN/paid" "$ACCT" '{"paidDate":"2033-01-05"}'
+expect_status 400 "paid with a future date"
+M2A_YESTERDAY=$(TZ=Australia/Sydney date -d yesterday +%F)
+req POST "/api/invoices/$FIN/paid" "$ACCT" "{\"paidDate\":\"$M2A_YESTERDAY\"}"
+expect_status 400 "paid before the issue date"
+req POST "/api/invoices/$FIN/paid" "$ACCT" "{\"paidDate\":\"$M2A_TODAY\"}"
 expect_status 200 "mark the final paid with a date"
-expect_jq '.status == "paid" and .paidDate == "2033-01-05"' "the given paid date"
+expect_jq ".status == \"paid\" and .paidDate == \"$M2A_TODAY\"" "the given paid date"
 
 req POST "/api/invoices/$FIN/myob" "$ACCT" '{"entered":"yes"}'
 expect_status 400 "myob needs a boolean"

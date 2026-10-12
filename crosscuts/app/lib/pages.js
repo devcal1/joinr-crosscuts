@@ -30,6 +30,8 @@ const PAGE_ACCESS = {
   "/payruns.html": "accounts.view",
   "/payrun.html": "accounts.view",
   "/payprint.html": "accounts.view",
+  "/bas.html": "accounts.view",
+  "/suppliers.html": "accounts.view",
 };
 
 // Any .html page not listed above.

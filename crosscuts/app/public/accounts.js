@@ -723,6 +723,9 @@
       if (inv.status === "issued") {
         const paidOn = el("input", { id: "paid-on", class: "hs-input", type: "date", "aria-label": "Date paid" });
         paidOn.value = todayISO();
+        // Not before issue, not in the future (m9-contracts.md section 3); the server says so too.
+        if (inv.issueDate) paidOn.min = inv.issueDate;
+        paidOn.max = todayISO();
         const paidBtn = el("button", { type: "button", class: "hs-btn hs-btn-primary", text: "Mark paid" });
         paidBtn.addEventListener("click", () =>
           busy(root, err, async () => {

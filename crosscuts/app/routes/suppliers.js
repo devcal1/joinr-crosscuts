@@ -1,0 +1,100 @@
+// The supplier accounts API (docs/plans/m9-contracts.md section 7.2). SCAFFOLD (M9 · 2.2): every
+// route is declared with its access; the handlers call lib/suppliers.js, whose stubs throw
+// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 B fills in
+// both files. Literal paths (/months) are registered before /:id.
+//
+// accounts.view reads everything; invoices.edit writes. Logged out: 401 and without the key:
+// 403 {"error":"Forbidden"}, both from the auth layer.
+const fs = require("fs");
+const db = require("../db");
+const { defineRoutes } = require("../lib/routes");
+const { bad, notFound, sendError } = require("../lib/httperror");
+const files = require("../lib/files");
+const Periods = require("../public/periods");
+const suppliers = require("../lib/suppliers");
+
+const r = defineRoutes("/api/suppliers");
+
+const VIEW = "accounts.view";
+const EDIT = "invoices.edit";
+
+function handle(fn) {
+  return (req, res) => {
+    try {
+      fn(req, res);
+    } catch (e) {
+      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
+      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
+      sendError(res, e, "[suppliers]");
+    }
+  };
+}
+
+// Positive integer path ids only; anything else is a 404.
+function idOr404(v) {
+  if (typeof v !== "string" || !/^[1-9]\d*$/.test(v)) throw notFound();
+  const id = Number(v);
+  if (!Number.isSafeInteger(id)) throw notFound();
+  return id;
+}
+
+// A :period that isn't 'YYYY-MM' is a 404. (Range checks are lib/suppliers.js's, section 7.2.)
+function periodOr404(v) {
+  if (!Periods.validPeriod(v)) throw notFound();
+  return v;
+}
+
+// Bodies that aren't objects are treated as {}.
+function body(req) {
+  const b = req.body;
+  return b && typeof b === "object" && !Array.isArray(b) ? b : {};
+}
+
+r.get("/", VIEW, handle((req, res) => {
+  res.json({ suppliers: suppliers.list(db, { all: req.query.all === "1" }) });
+}));
+
+r.post("/", EDIT, handle((req, res) => {
+  res.status(201).json(suppliers.create(db, req, body(req)));
+}));
+
+r.get("/months/:period", VIEW, handle((req, res) => {
+  res.json(suppliers.month(db, periodOr404(req.params.period)));
+}));
+
+r.put("/months/:period/:supplierId", EDIT, handle((req, res) => {
+  const period = periodOr404(req.params.period);
+  res.json(suppliers.saveLine(db, req, period, idOr404(req.params.supplierId), body(req)));
+}));
+
+// files.single has stored the upload as <uuid>.part; every way out of the handler either
+// renames it (files.accept) or removes it.
+r.post("/months/:period/:supplierId/file", EDIT, files.single("file"), async (req, res) => {
+  let accepted = null;
+  try {
+    const period = periodOr404(req.params.period);
+    const supplierId = idOr404(req.params.supplierId);
+    if (!req.file) throw bad("Choose a file");
+    accepted = await files.accept(req.file);
+    const line = suppliers.attach(db, req, period, supplierId, accepted);
+    accepted = null;
+    res.status(201).json(line);
+  } catch (e) {
+    if (accepted) files.discard(accepted);
+    // Awaited, so the .part file is gone before the reply (as routes/tasks.js).
+    else if (req.file && req.file.path) await fs.promises.rm(req.file.path, { force: true }).catch(() => {});
+    if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
+    sendError(res, e, "[suppliers]");
+  }
+});
+
+r.delete("/months/:period/:supplierId/file", EDIT, handle((req, res) => {
+  const period = periodOr404(req.params.period);
+  res.json(suppliers.detach(db, req, period, idOr404(req.params.supplierId)));
+}));
+
+r.patch("/:id", EDIT, handle((req, res) => {
+  res.json(suppliers.update(db, req, idOr404(req.params.id), body(req)));
+}));
+
+module.exports = r.router;
