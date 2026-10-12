@@ -1,11 +1,12 @@
 // Supplier order lines per job, and the job's materials dates. See
-// docs/plans/m3-contracts.md section 2. markMaterialsOrdered is the scaffold's
-// (the Materials ordered button calls it) and keeps its signature and return
-// values; the rest is Wave 1 B.
+// docs/plans/m3-contracts.md section 2, as changed by docs/plans/m10-contracts.md section 4
+// (receiving deliveries: orders.receive, who received and last changed a line, the delivery note,
+// the Deliveries list). markMaterialsOrdered is the scaffold's (the Materials ordered button calls
+// it) and keeps its signature and return values.
 const audit = require("./audit");
 const invoices = require("./invoices");
 const notify = require("./notify");
-const { HttpError, bad, notFound, conflict, forbidden, can } = require("./httperror");
+const { bad, notFound, conflict, forbidden, can } = require("./httperror");
 const { sydneyToday, addDays } = require("./time");
 
 const STATUSES = ["to_order", "ordered", "received", "cancelled"];
@@ -43,16 +44,39 @@ function markMaterialsOrdered(db, jobId, req, date = sydneyToday()) {
 const SUPPLIER_MAX = 200;
 const DESCRIPTION_MAX = 500;
 const NOTES_MAX = 2000;
+const DELIVERY_NOTE_MAX = 500; // m10-contracts.md section 4.2
+const NOTE_BODY_CUT = 200; // the delivery-note notification's body (section 4.3)
 
-const SELECT_LINE = `SELECT o.*, u.display_name AS created_by_name
-  FROM orders o LEFT JOIN users u ON u.id = o.created_by`;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// The names of who created, received and last changed a line (M10 section 4.1).
+const LINE_COLUMNS = `o.*, u.display_name AS created_by_name,
+  ur.display_name AS received_by_name, uu.display_name AS updated_by_name`;
+const LINE_USERS = `LEFT JOIN users u ON u.id = o.created_by
+  LEFT JOIN users ur ON ur.id = o.received_by
+  LEFT JOIN users uu ON uu.id = o.updated_by`;
+const SELECT_LINE = `SELECT ${LINE_COLUMNS} FROM orders o ${LINE_USERS}`;
 
 function nowIso() {
   return new Date().toISOString();
 }
 
+// "2026-10-03" -> "3 Oct 2026".
+function dayLabel(s) {
+  const [y, m, d] = String(s).split("-").map(Number);
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+function userId(req) {
+  return req && req.user && req.user.id != null ? req.user.id : null;
+}
+
 function loadLine(db, orderId) {
   return db.prepare(`${SELECT_LINE} WHERE o.id = ?`).get(orderId);
+}
+
+function person(id, name) {
+  return id == null ? null : { id, name: name || null };
 }
 
 // The order object. `today` is the Sydney date used for `overdue`.
@@ -71,6 +95,10 @@ function present(row, today = sydneyToday()) {
     updatedAt: row.updated_at,
     createdBy: row.created_by == null ? null : row.created_by,
     createdByName: row.created_by_name || null,
+    receivedBy: person(row.received_by, row.received_by_name),
+    updatedBy: person(row.updated_by, row.updated_by_name),
+    deliveryNote: row.delivery_note || "",
+    deliveryNoteAt: row.delivery_note_at || null,
     overdue:
       (row.status === "to_order" || row.status === "ordered") &&
       !!row.expected_date &&
@@ -131,15 +159,25 @@ function list(db, { status, supplier, jobId } = {}) {
   } else {
     where.push("j.archived = 0");
   }
-  const today = sydneyToday();
+  return listRows(
+    db,
+    where.join(" AND "),
+    params,
+    "(o.expected_date IS NULL), o.expected_date, j.name COLLATE NOCASE, o.id",
+    sydneyToday()
+  );
+}
+
+// list() rows: the order object plus jobName and jobStage.
+function listRows(db, where, params, orderBy, today) {
   return db
     .prepare(
-      `SELECT o.*, u.display_name AS created_by_name, j.name AS job_name, j.stage AS job_stage
+      `SELECT ${LINE_COLUMNS}, j.name AS job_name, j.stage AS job_stage
        FROM orders o
        JOIN jobs j ON j.id = o.job_id
-       LEFT JOIN users u ON u.id = o.created_by
-       WHERE ${where.join(" AND ")}
-       ORDER BY (o.expected_date IS NULL), o.expected_date, j.name COLLATE NOCASE, o.id`
+       ${LINE_USERS}
+       WHERE ${where}
+       ORDER BY ${orderBy}`
     )
     .all(...params)
     .map((r) => ({ ...present(r, today), jobName: r.job_name, jobStage: r.job_stage }));
@@ -188,6 +226,20 @@ function dateOrNull(label, v) {
   return v;
 }
 
+// The delivery note (M10 section 4.2): a string, trimmed, at most 500; "" (or null) clears it.
+function deliveryNoteField(v) {
+  if (v === null) return "";
+  if (typeof v !== "string") throw bad("deliveryNote must be a string");
+  const t = v.trim();
+  if (t.length > DELIVERY_NOTE_MAX) throw bad(`The delivery note must be ${DELIVERY_NOTE_MAX} characters or fewer`);
+  return t;
+}
+
+// The note cut for a notification body: at most NOTE_BODY_CUT characters, "…" when cut.
+function cutNote(t) {
+  return t.length > NOTE_BODY_CUT ? `${t.slice(0, NOTE_BODY_CUT - 1)}…` : t;
+}
+
 // --- the all-ordered and all-in rules ---------------------------------------
 
 // At least one non-cancelled line, and none still to order.
@@ -221,14 +273,15 @@ function refreshMaterialsIn(db, jobId, req) {
         after: { materials_in_date: latest },
       });
       // One materials.in notification per job: toggling lines off and on again
-      // re-sets the date but does not tell scheduling a second time.
+      // re-sets the date but does not tell anyone a second time. M10 (Decision 4): it goes to
+      // Scheduling and Ordering, each user once (admin holds both keys), except the actor.
       const already = db
         .prepare("SELECT 1 AS x FROM notifications WHERE kind = ? AND entity_type = ? AND entity_id = ? LIMIT 1")
         .get("materials.in", "job", String(jobId));
       if (!already) {
-        notify.toKey(
+        notify.toUsers(
           db,
-          "scheduling.view",
+          [...notify.usersWithKey(db, "scheduling.view"), ...notify.usersWithKey(db, "orders.mark_ordered")],
           {
             kind: "materials.in",
             title: `Materials in: ${job.name}`,
@@ -236,7 +289,7 @@ function refreshMaterialsIn(db, jobId, req) {
             entityType: "job",
             entityId: jobId,
           },
-          { exceptUserId: req && req.user ? req.user.id : null }
+          { exceptUserId: userId(req) }
         );
       }
       return "set";
@@ -268,10 +321,10 @@ function createLine(db, jobId, { supplier, description, expectedDate, notes } = 
     const now = nowIso();
     const info = db
       .prepare(
-        `INSERT INTO orders (job_id, supplier, description, status, expected_date, notes, created_at, updated_at, created_by)
-         VALUES (?, ?, ?, 'to_order', ?, ?, ?, ?, ?)`
+        `INSERT INTO orders (job_id, supplier, description, status, expected_date, notes, created_at, updated_at, created_by, updated_by)
+         VALUES (?, ?, ?, 'to_order', ?, ?, ?, ?, ?, ?)`
       )
-      .run(jobId, sup, desc, expected, note, now, now, req && req.user ? req.user.id : null);
+      .run(jobId, sup, desc, expected, note, now, now, userId(req), userId(req));
     const id = Number(info.lastInsertRowid);
     audit.log(req, {
       action: "order.create",
@@ -306,9 +359,12 @@ function updateLine(db, orderId, patch, req) {
   if (orderedDateIn && orderedDateIn > todayStr) throw bad("orderedDate can't be in the future");
   if (receivedDateIn && receivedDateIn > todayStr) throw bad("receivedDate can't be in the future");
 
+  const noteIn = has("deliveryNote") ? deliveryNoteField(patch.deliveryNote) : undefined;
+
   if (line.status === "cancelled") throw conflict("Cancelled lines can't be changed");
 
-  // The permission checks live here, so no caller can bypass them (plan Q1).
+  // The permission checks live here, so no caller can bypass them (plan Q1). The whole PATCH is
+  // checked (every key it needs, every rule) before anything is written (M10 section 4.2).
   const changes = {}; // column -> new value
   for (const [col, v] of Object.entries(text)) {
     if (v !== line[col]) changes[col] = v;
@@ -322,18 +378,23 @@ function updateLine(db, orderId, patch, req) {
     if (key === "to_order>received") throw conflict("Mark it ordered first");
     const needs = {
       "to_order>ordered": "orders.mark_ordered",
-      "ordered>received": "orders.edit",
+      "ordered>received": "orders.receive",
       "ordered>to_order": "orders.mark_ordered",
-      "received>ordered": "orders.edit",
+      "received>ordered": "orders.receive",
     }[key];
     if (!needs) throw conflict(`A line can't go from ${line.status} to ${statusChange}`);
     if (!can(req, needs)) throw forbidden();
     transition = key;
-    const today = sydneyToday();
-    if (key === "to_order>ordered") changes.ordered_date = orderedDateIn || today;
-    else if (key === "ordered>received") changes.received_date = receivedDateIn || today;
-    else if (key === "ordered>to_order") changes.ordered_date = null;
-    else changes.received_date = null; // received>ordered
+    if (key === "to_order>ordered") changes.ordered_date = orderedDateIn || todayStr;
+    else if (key === "ordered>received") {
+      changes.received_date = receivedDateIn || todayStr;
+      changes.received_by = userId(req);
+    } else if (key === "ordered>to_order") changes.ordered_date = null;
+    else {
+      // received>ordered: the delivery note stays.
+      changes.received_date = null;
+      changes.received_by = null;
+    }
     changes.status = statusChange;
   } else {
     // A date edit without a status change.
@@ -346,21 +407,52 @@ function updateLine(db, orderId, patch, req) {
     if (receivedDateIn !== undefined) {
       if (receivedDateIn === null) throw bad("receivedDate must be a valid YYYY-MM-DD date");
       if (line.status !== "received") throw conflict("The line hasn't been received yet");
-      if (!can(req, "orders.edit")) throw forbidden();
+      if (!can(req, "orders.receive")) throw forbidden();
       if (receivedDateIn !== line.received_date) changes.received_date = receivedDateIn;
     }
+  }
+
+  // A received date being set (by the move to received, or alone) can't be before the line was
+  // ordered (as M9's paid date and issue date).
+  const receivedSet =
+    transition === "ordered>received" ? changes.received_date : !transition && receivedDateIn ? receivedDateIn : null;
+  const orderedFinal = "ordered_date" in changes ? changes.ordered_date : line.ordered_date;
+  if (receivedSet && orderedFinal && receivedSet < orderedFinal) {
+    throw bad(`The received date can't be before it was ordered (${dayLabel(orderedFinal)})`);
+  }
+
+  // The delivery note: orders.receive to change it; only on a line that is (after this PATCH)
+  // ordered or received.
+  const noteBefore = line.delivery_note || "";
+  const noteChanged = noteIn !== undefined && noteIn !== noteBefore;
+  if (noteChanged && !can(req, "orders.receive")) throw forbidden();
+  if (noteIn !== undefined) {
+    const statusAfter = changes.status || line.status;
+    if (statusAfter !== "ordered" && statusAfter !== "received") {
+      throw conflict("Only an ordered or received line takes a delivery note");
+    }
+  }
+  const ts = nowIso();
+  if (noteChanged) {
+    changes.delivery_note = noteIn;
+    changes.delivery_note_at = ts;
   }
 
   return db.transaction(() => {
     const cols = Object.keys(changes);
     if (cols.length) {
-      db.prepare(`UPDATE orders SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ? WHERE id = ?`).run(
-        ...cols.map((c) => changes[c]),
-        nowIso(),
-        orderId
+      db.prepare(
+        `UPDATE orders SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ?, updated_by = ? WHERE id = ?`
+      ).run(...cols.map((c) => changes[c]), ts, userId(req), orderId);
+      // order.update: text and date fields and the delivery note; a status change's own dates and
+      // received_by go in order.status.
+      const plain = cols.filter(
+        (c) =>
+          c !== "status" &&
+          c !== "received_by" &&
+          c !== "delivery_note_at" &&
+          !(transition && (c === "ordered_date" || c === "received_date"))
       );
-      // order.update: text and date fields; a status change's own dates go in order.status.
-      const plain = cols.filter((c) => c !== "status" && !(transition && (c === "ordered_date" || c === "received_date")));
       if (plain.length) {
         const before = {};
         const after = {};
@@ -371,15 +463,22 @@ function updateLine(db, orderId, patch, req) {
         audit.log(req, { action: "order.update", entityType: "order", entityId: orderId, before, after });
       }
       if (transition) {
+        const was = (c) => (c in changes ? changes[c] : line[c]);
         audit.log(req, {
           action: "order.status",
           entityType: "order",
           entityId: orderId,
-          before: { status: line.status, ordered_date: line.ordered_date, received_date: line.received_date },
+          before: {
+            status: line.status,
+            ordered_date: line.ordered_date,
+            received_date: line.received_date,
+            received_by: line.received_by,
+          },
           after: {
             status: changes.status,
-            ordered_date: "ordered_date" in changes ? changes.ordered_date : line.ordered_date,
-            received_date: "received_date" in changes ? changes.received_date : line.received_date,
+            ordered_date: was("ordered_date"),
+            received_date: was("received_date"),
+            received_by: was("received_by"),
           },
         });
       }
@@ -387,6 +486,23 @@ function updateLine(db, orderId, patch, req) {
     // The all-ordered rule: the last to_order line has just been ordered.
     if (transition === "to_order>ordered" && allOrdered(db, line.job_id)) {
       markMaterialsOrdered(db, line.job_id, req, changes.ordered_date);
+    }
+    // A new non-empty delivery note tells Ordering straight away, every time (M10 section 4.3).
+    if (noteChanged && noteIn) {
+      const job = db.prepare("SELECT name FROM jobs WHERE id = ?").get(line.job_id);
+      notify.toKey(
+        db,
+        "orders.mark_ordered",
+        {
+          kind: "order.delivery_note",
+          title: `Delivery note: ${job ? job.name : ""}`,
+          body: `${"supplier" in changes ? changes.supplier : line.supplier}: ${cutNote(noteIn)}`,
+          link: `/job.html?id=${line.job_id}#orders`,
+          entityType: "order",
+          entityId: orderId,
+        },
+        { exceptUserId: userId(req) }
+      );
     }
     if (cols.length) refreshMaterialsIn(db, line.job_id, req);
     return { order: present(loadLine(db, orderId)), job: jobState(db, line.job_id) };
@@ -401,7 +517,11 @@ function cancelLine(db, orderId, req) {
   if (!line) throw notFound();
   if (line.status === "cancelled") throw conflict("Already cancelled");
   return db.transaction(() => {
-    db.prepare("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?").run(nowIso(), orderId);
+    db.prepare("UPDATE orders SET status = 'cancelled', updated_at = ?, updated_by = ? WHERE id = ?").run(
+      nowIso(),
+      userId(req),
+      orderId
+    );
     audit.log(req, {
       action: "order.cancel",
       entityType: "order",
@@ -417,11 +537,44 @@ function cancelLine(db, orderId, req) {
   })();
 }
 
-// M10 (docs/plans/m10-contracts.md section 4.4): every ordered line on a live job in five groups
-// by expected date (overdue, today, the next 7 days, later, no date yet), the last 14 days
-// received, and the overdue and today counts. Stub in the scaffold; Wave 1 A.
+// M10 (docs/plans/m10-contracts.md section 4.4): every ordered line on a job that isn't archived,
+// in five groups by expected date (overdue, today, the next 7 days, later, no date yet); the lines
+// received in the last 14 days (today included), newest first; and the overdue and today counts.
 function deliveries(db, today = sydneyToday()) {
-  throw new HttpError(501, "Not built");
+  const weekEnd = addDays(today, 7);
+  const groups = [
+    { id: "overdue", label: "Overdue", lines: [] },
+    { id: "today", label: "Today", lines: [] },
+    { id: "week", label: "Next 7 days", lines: [] },
+    { id: "later", label: "Later", lines: [] },
+    { id: "nodate", label: "No date yet", lines: [] },
+  ];
+  const byId = Object.fromEntries(groups.map((g) => [g.id, g]));
+  const ordered = listRows(
+    db,
+    "o.status = 'ordered' AND j.archived = 0",
+    [],
+    "o.expected_date, j.name COLLATE NOCASE, o.id",
+    today
+  );
+  for (const line of ordered) {
+    const d = line.expectedDate;
+    const id = !d ? "nodate" : d < today ? "overdue" : d === today ? "today" : d <= weekEnd ? "week" : "later";
+    byId[id].lines.push(line);
+  }
+  const recent = listRows(
+    db,
+    "o.status = 'received' AND o.received_date >= ? AND j.archived = 0",
+    [addDays(today, -13)],
+    "o.received_date DESC, o.id DESC",
+    today
+  );
+  return {
+    date: today,
+    groups,
+    recent,
+    counts: { overdue: byId.overdue.lines.length, today: byId.today.lines.length },
+  };
 }
 
 // {materials, materialsIn} for the Scheduling page; `from` is today.
