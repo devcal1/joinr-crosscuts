@@ -1,6 +1,7 @@
-// Supplier order lines: /api/job-records/:id/orders and /api/orders. Wave 1 B.
-// See docs/plans/m3-contracts.md section 4. The rules (who may mark a line
-// ordered, the all-ordered and materials-in rules) live in lib/orders.js.
+// Supplier order lines: /api/job-records/:id/orders and /api/orders.
+// See docs/plans/m3-contracts.md section 4 and docs/plans/m10-contracts.md section 5. The rules
+// (who may mark a line ordered or received, the delivery note, the all-ordered and materials-in
+// rules) live in lib/orders.js.
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const orders = require("../lib/orders");
@@ -61,16 +62,11 @@ r.get("/orders/suppliers", "orders.view", handle((req, res) => {
   res.json(orders.suppliers(db, typeof req.query.q === "string" ? req.query.q : ""));
 }));
 
-// M10 (docs/plans/m10-contracts.md section 4.4): the Deliveries page. Wave 1 A.
-r.get("/orders/deliveries", "orders.receive", (req, res) => {
-  try {
-    res.json(orders.deliveries(db));
-  } catch (e) {
-    // sendError hides anything that isn't a 4xx; the scaffold stub's 501 is answered as it is.
-    if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
-    sendError(res, e, "[orders]");
-  }
-});
+// M10 (docs/plans/m10-contracts.md section 4.4): the Deliveries page. Registered before the
+// /orders/:id routes.
+r.get("/orders/deliveries", "orders.receive", handle((req, res) => {
+  res.json(orders.deliveries(db));
+}));
 
 r.get("/orders", "orders.view", handle((req, res) => {
   const q = req.query;
