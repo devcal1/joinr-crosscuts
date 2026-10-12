@@ -83,4 +83,6 @@ Releasing takes two repos. Umbrel only offers an update when `version:` in the m
 6. In tenon-umbrel-store, paste that line over the `image:` line in `tenon-joinr-crosscuts/docker-compose.yml`, then bump `version:` (the same number as `package.json`) and `releaseNotes:` in `tenon-joinr-crosscuts/umbrel-app.yml`. Push that repo only when Todd says so.
 7. Todd clicks **Update** in umbrelOS.
 
+After every push (to either repo), rewrite `G:\My Drive\context\projects\crosscuts\status.md` in place. It is the plain-English project summary Todd's assistant reads aloud: what it is, status (complete, in progress, blocked), key design decisions, recent changes, next steps, and links. Never put secrets in it.
+
 The version guard runs first and fails the build if app code changed without a version bump.
