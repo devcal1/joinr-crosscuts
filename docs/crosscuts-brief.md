@@ -100,7 +100,7 @@ reachable from home over Tailscale.
 
 | Person | Role preset(s) | Notes |
 |---|---|---|
-| Todd | Admin | Everything. Creates users, resets passwords, flips overrides. The only "orderer" (flags materials ordered). |
+| Todd | Admin | Everything. Creates users, resets passwords, flips overrides. |
 | Chloe | Accounts | Day-to-day bookkeeping. |
 | Tracy | Accounts | Monthly reconciliation. |
 | Jill | Accounts | Debt chasing / overdue invoices. |
@@ -109,7 +109,9 @@ reachable from home over Tailscale.
 | Sam | Scheduling | The organiser. His Chromebook drives the workshop TV. |
 | Michael | Scheduling | Same permissions as Sam. |
 | Showroom | Showroom (view photos only) | A shared account for the showroom device, since the photo search is now behind login. |
-| Floor crew | — | No login. They watch the TV. |
+| Ordering (M10) | Ordering | Places orders and marks order lines ordered; marking a job's last line ordered makes its progress invoice due (Todd, 2026-10-13; M10). Before M10, Todd was the only orderer. |
+| Workshop Manager (M10) | Workshop Manager | Runs the workshop floor, a different person from the Scheduler. Views the board, receives deliveries (Todd, 2026-10-13; M10). |
+| Floor crew | Workshop (optional) | They watch the TV, which runs on Sam's login (Todd, 2026-10-13). A floor login, if wanted, gets the Workshop role: the board and Planner to view (M7). |
 
 Nobody outside the business gets a login. All users are on laptops or
 Chromebooks (Chrome). No touch input is required.
@@ -117,7 +119,8 @@ Chromebooks (Chrome). No touch input is required.
 ### 3.2 Permission model
 
 - A small set of **role presets**: `admin`, `accounts`, `design_pm`,
-  `scheduling`, `showroom`. A user can hold more than one.
+  `scheduling`, `showroom`, `workshop` (M7), `ordering` and
+  `workshop_manager` (M10). A user can hold more than one.
 - A flat list of **feature keys** (e.g. `jobs.view`, `jobs.edit`,
   `invoices.view`, `invoices.mark_paid`, `orders.edit`, `board.edit`,
   `photos.admin`, `users.admin`, `audit.view`, …). Each preset maps to a set

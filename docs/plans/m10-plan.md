@@ -1,6 +1,6 @@
 # M10 New roles: plan
 
-Status: **M10 · 1.1 audit and 1.2 plan done (2026-10-13); questions put to Todd** (section 4).
+Status: **M10 · 1.3 done: Todd answered every question (2026-10-13); plan approved** (Decisions in section 5; they replace section 2 where they differ).
 
 Scope (Todd, 2026-10-12, `jobs-master-tabs.md`): two new roles, **Ordering** and **Workshop Manager** (a different person from the Scheduler), added together in one `user_roles` rebuild migration as M7's 017 did for `workshop`, with their keys and menus, and **receiving deliveries**: Ordering places orders, the Workshop Manager receives them. The ordering pages themselves (drawer, stock, paint orders, board stocktake) are M11.
 
@@ -91,6 +91,13 @@ This repo is public: no names of suppliers or clients, no account details.
 5. **Sign-off:** migration 021 rebuilds the roles table (as 017 did), and the brief's §3 is updated with the new roles. Approve?
 6. **The workshop TV:** does it sign in with Sam's own login or a separate account? (The docs say both.)
 
-## 5. Decisions
+## 5. Decisions (Todd, 2026-10-13)
 
-(To be filled in at M10 · 1.3.)
+1. **The Ordering role marks lines ordered**, and the progress-invoice trigger goes with it: when a job's last line is marked ordered, its 50% progress invoice falls due, whoever marks it. Ordering gets `orders.mark_ordered`. The brief's "Todd is the only orderer" is updated.
+2. **The Workshop Manager's reach** is as section 2.1: the board to view (editing stays the Scheduler's), order lines to view and receive, the Planner (posting on Workshop), tasks and messages. **Not** the job pages (no client details).
+3. **Short or damaged deliveries:** the line stays **ordered** with a **delivery note** until it's all in; no new status (no `orders` rebuild). A delivery note tells Ordering straight away.
+4. **Who is told:** when all of a job's materials are in, Scheduling (as now) and Ordering; a delivery note tells Ordering straight away.
+5. **Signed off:** migration 021 rebuilds `user_roles` as 017 did, and the brief's §3 is updated with the Workshop, Ordering and Workshop Manager roles.
+6. **The workshop TV signs in with Sam's own login** (Scheduling). The docs' advice to switch "the TV account" to Workshop is removed; the Workshop role stays for floor logins.
+
+Section 3's lead's defaults stand; default 7 is settled by decision 6.
