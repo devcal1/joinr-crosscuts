@@ -115,6 +115,7 @@
 }
 .cc-dept-scheduling { --cc-dept-rule: var(--layer-scheduling); }
 .cc-dept-design { --cc-dept-rule: var(--layer-design); }
+.cc-dept-ordering { --cc-dept-rule: var(--layer-install); }
 .cc-dept-accounts { --cc-dept-rule: var(--layer-accounts); }
 .cc-dept-btn {
   position: relative;
@@ -169,6 +170,7 @@
 .cc-dept-panel.cc-open { display: block; }
 .cc-dept-scheduling > .cc-dept-panel::before,
 .cc-dept-design > .cc-dept-panel::before,
+.cc-dept-ordering > .cc-dept-panel::before,
 .cc-dept-accounts > .cc-dept-panel::before {
   content: "";
   position: absolute;
@@ -357,9 +359,9 @@
 .cc-menu-item:focus-visible { background: var(--raised); color: var(--white); }
 .cc-menu-sep { height: 1px; margin: 6px 4px; background: var(--hairline); border: 0; }
 
-/* Below 1400 px the app name beside the wordmark goes and the right-hand buttons tighten
+/* Below 1480 px the app name beside the wordmark goes and the right-hand buttons tighten
    (measured with the full admin set, a long name and 99+ on every badge). */
-@media (max-width: 1399px) {
+@media (max-width: 1479px) {
   .cc-brand-app { display: none; }
   .cc-right { gap: 2px; }
   .cc-right .cc-btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.04em; }
@@ -369,7 +371,7 @@
 /* Narrow screens: Dashboard and the departments collapse into the Menu panel as a flat list
    (no nested dropdowns): each department is a heading over its pages, with its colour rule as
    a left edge. */
-@media (max-width: 1199px) {
+@media (max-width: 1259px) {
   .cc-menu-btn { display: inline-flex; margin-left: 4px; }
   .cc-brand { margin-right: 0; }
   .cc-nav {
@@ -426,6 +428,7 @@
   }
   .cc-dept-scheduling > .cc-dept-panel::before,
   .cc-dept-design > .cc-dept-panel::before,
+  .cc-dept-ordering > .cc-dept-panel::before,
   .cc-dept-accounts > .cc-dept-panel::before { display: none; }
   .cc-dept-link { padding: 10px 12px; font-size: 14px; border-radius: 0; background: none; border-left: 2px solid transparent; }
   .cc-dept-link[aria-current="page"] { background: none; border-left-color: var(--teal); }

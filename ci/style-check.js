@@ -16,7 +16,8 @@
 //   - board icons: Phosphor in schedule.html and schedule.js
 //   - planner layer markers: the --layer-* tokens, only in planner.html, planner.css and
 //     planner.js (approved by Todd on 2026-10-11)
-//   - menu department rules: --layer-scheduling, --layer-design and --layer-accounts, only in
+//   - menu department rules: --layer-scheduling, --layer-design, --layer-install (Ordering) and
+//     --layer-accounts, only in
 //     shell/shell.css (approved by Todd on 2026-10-12)
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"
@@ -31,7 +32,7 @@ const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js"]);
 const OKLCH_OK = new Set(["shared.js"]);
 const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.js"]);
 const DEPT_FILE = "shell/shell.css";
-const DEPT_LAYERS = new Set(["--layer-scheduling", "--layer-design", "--layer-accounts"]);
+const DEPT_LAYERS = new Set(["--layer-scheduling", "--layer-design", "--layer-install", "--layer-accounts"]);
 
 const HEX = "(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})";
 const NAMED = "white|black|red|green|blue|orange|purple|violet|gray|grey|yellow|pink|teal|navy|maroon|silver|gold|cyan|magenta|lime|olive|brown";

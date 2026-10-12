@@ -66,6 +66,10 @@ Ships as 0.1.10. The board's own bar (`.nav`, `--nav-h`, rule 7) is not touched;
 3. The dashboard keeps its Accounts due/overdue line.
 4. The brief section 4 is updated: the dashboard shows working tiles; departments are reached from the menu bar.
 
+## 3c. Ordering department (Todd, 2026-10-12)
+
+From the jobs master review (`docs/plans/jobs-master-tabs.md`): Ordering is its own department. Added to the menu before release: an **Ordering** menu after Design/PM holding **Orders** (moved out of Design/PM); the drawer, stock and paint orders and an Ordering role come later. Its rule is **orange** (`--layer-install`, the Planner's Install & hardware colour), added to the fourth named exception in CLAUDE.md and `ci/style-check.js`. Order: Scheduling, Design/PM, Ordering, Accounts, Photos, Admin.
+
 ## 4. Build outline (after the answers)
 
 - Scaffold: bump 0.1.10; the colour exception in CLAUDE.md and `style-check.js` if approved.

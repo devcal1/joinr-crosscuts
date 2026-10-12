@@ -9,7 +9,7 @@ This repo is public. No figures, codes, names or balances from the workbook are 
 | # | Tab | What it is | Owner | Notes |
 |---|---|---|---|---|
 | 1 | Main | Front page of buttons to the other tabs | **Redundant** | The menu bar and dashboard replace it. |
-| 2 | Timesheet | Weekly employee timesheet: start, finish, lunch, hours, public holiday, sick, annual leave, job, overtime, double time | **Accounts** | There is a newer version; Todd will attach it. Timesheets are printed and filled in by hand, then Accounts types them in. Needs tables for **fortnightly pay runs** and easy summaries for entering a pay run into **MYOB**. |
+| 2 | Timesheet | Weekly employee timesheet: start, finish, lunch, hours, public holiday, sick, annual leave, job, overtime, double time | **Accounts** | Superseded by the newer **Fortnightly Timesheet** (see below). Timesheets are printed and filled in by hand, then Accounts types them in. Needs tables for **fortnightly pay runs** and easy summaries for entering a pay run into **MYOB**. |
 | 3 | Timetable-Todd | Todd's weekly hour-by-hour timetable | **Redundant** | The Planner (Personal layer, repeating events). |
 | 4 | Timetable-Admin | The admin role's weekly timetable | **Redundant** | The Planner. |
 | 5 | Loan Balances | Loan repayments, interest and balances | **Accounts** | Sensitive: needs its own key, not given to every Accounts login by default (to settle at planning). |
@@ -42,11 +42,23 @@ This repo is public. No figures, codes, names or balances from the workbook are 
 ## By department
 
 - **Accounts:** Timesheet and Overtime (fortnightly pay runs, MYOB summaries), Payroll (in the pay run), Loan Balances, BAS-Sales, Supplier Accounts.
-- **Ordering (a new department, its own menu and role):** one drawer order (EDGE and DTC), the Stock order, the Paint order. Orders moves here from Design/PM (to confirm at planning).
+- **Ordering (a new department, its own menu and role):** one drawer order (EDGE and DTC), the Stock order, the Paint order. Orders moved here from Design/PM in the menu reorganisation (Todd, 2026-10-12; menu rule orange).
 - **Design/PM:** Stone Order, Benchtop Letterhead, Calc-Batons.
 - **Workshop Manager (a new role, separate from Scheduling):** Board Stocktake; receives incoming orders.
 - **Admin (owner only):** Bonuses, Alarms.
 - **Redundant (14):** Main, Timetable-Todd, Timetable-Admin, Project-LP, Running Costs, Material Costs, 2pac Calc, Bathroom, Petty Cash Log, Quick Quote, Project, Timber Calc, Waste, Schedule. (Running Costs, Material Costs, 2pac Calc, Quick Quote and Timber Calc are now in Joinr; the board and Planner replace the schedule and timetables.)
+
+## The fortnightly timesheet (Todd's current form, received 2026-10-12)
+
+The paper form staff fill in by hand. One sheet per employee per fortnight:
+
+- Header: Employee, From, To.
+- Ten day rows: Monday to Friday, two weeks (no weekend rows).
+- Columns: Date, Day, Start Time, Finish Time, Lunch, P HOL (public holiday), SICK, ARL (annual leave), OFF SITE, JOB, Total Daily Hours, OT (overtime), DT (double time).
+- A TOTALS row, then NOTES and SIGNATURE.
+- A summary block: Normal Time, Over Time, Double Time, Annual Leave, Personal Leave (the SICK column totals as Personal Leave).
+
+Changes from the old weekly tab: a fortnight instead of a Friday-to-Thursday week, OFF SITE added, the separate Hours column dropped, and the leave totals named as MYOB's categories. The Crosscuts entry screen should mirror this form row for row, so Accounts can type straight from the paper, and its pay-run summary should match the summary block (per employee, per fortnight) for entry into MYOB.
 
 ## Who does what
 
@@ -54,8 +66,8 @@ This repo is public. No figures, codes, names or balances from the workbook are 
 
 ## Open points for the planning step
 
-1. **The newer timesheet:** Todd will attach it; it shapes the pay-run tables.
-2. **Ordering department:** the role name and its keys; whether Orders moves out of Design/PM into the Ordering menu; its menu colour (orange is the Planner's Install & hardware colour, or plain). This changes the menu reorganisation (local, not yet released).
+1. **The newer timesheet:** received (see "The fortnightly timesheet" below); it shapes the pay-run tables.
+2. **Ordering department:** the menu is settled (after Design/PM, holding Orders, orange rule; in 0.1.10). Still to settle: the Ordering role and its keys.
 3. **Workshop Manager role:** its keys (board, incoming orders, stocktake, Planner?) and its menu.
 4. **Alarm codes:** storing security codes in a web app, and so in its backups and NAS copies, is a risk. A safer option is to record only who holds a code, and to keep the codes themselves in a password manager or the alarm company's portal. To confirm with Todd.
 5. **Loan Balances and Bonuses:** the keys for these (a key only Todd holds by default).
