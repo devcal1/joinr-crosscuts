@@ -1,26 +1,432 @@
 // Supplier accounts: the suppliers Accounts keep and each month's statement lines
-// (docs/plans/m9-contracts.md section 7.1). SCAFFOLD STUB (M9 · 2.2): the signatures are binding;
-// every function throws HttpError(501, "Not built"), which routes/suppliers.js answers as 501 until
-// Wave 1 B replaces this file.
+// (docs/plans/m9-contracts.md section 7). Wave 1 B.
 //
 // Every function takes db first and nothing here requires ../db. All month arithmetic comes from
 // ../public/periods. Every write runs in one db.transaction with its audit row.
-const { HttpError } = require("./httperror");
+//
+// Who is listed in month P: every supplier with a supplier_statements row for P, plus every
+// supplier with from_period <= P and (archived_from null or P < archived_from). A listed supplier
+// with no row is Waiting with blanks (saved: false).
+const { HttpError, bad, notFound, conflict } = require("./httperror");
 const { sydneyToday } = require("./time");
+const audit = require("./audit");
+const files = require("./files");
+const Periods = require("../public/periods");
 
-function notBuilt() {
-  throw new HttpError(501, "Not built");
+const NAME_MAX = 100;
+const NOTE_MAX = 500;
+const TOTAL_LIMIT = 1000000000;
+const STATES = ["have", "waiting", "na"];
+const TICKS = ["reconciled", "paid", "myob"];
+const CLASH = "A supplier with that name already exists";
+const STALE = "Someone else changed this line; reload it";
+
+// ---------------------------------------------------------------- helpers ---
+
+// A timestamp strictly after `prev` (an ISO string or null), so a save in the same millisecond
+// still moves updated_at and the stale-line check keeps working (as lib/payroll.js).
+function nextStamp(prev) {
+  const now = Date.now();
+  const p = prev ? Date.parse(prev) : NaN;
+  return new Date(Number.isFinite(p) && now <= p ? p + 1 : now).toISOString();
 }
 
-function list(db, { all = false } = {}) { return notBuilt(); }                       // [supplier]
-function create(db, req, { name, fromPeriod } = {}) { return notBuilt(); }           // supplier
-function update(db, req, id, body) { return notBuilt(); }                            // supplier
-function month(db, period, today = sydneyToday()) { return notBuilt(); }             // month object
-function saveLine(db, req, period, supplierId, body) { return notBuilt(); }          // line
-// Links an accepted file (lib/files accept()) to the line; the caller discards it when this throws.
-function attach(db, req, period, supplierId, accepted) { return notBuilt(); }        // line
-function detach(db, req, period, supplierId) { return notBuilt(); }                  // line
-// How many suppliers listed in `period` are still Waiting (for the Friday round-up).
-function waitingCount(db, period) { return notBuilt(); }                             // number
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function bool(v) {
+  return v === 1 || v === true;
+}
+
+function boolField(name, v) {
+  if (typeof v !== "boolean") throw bad(`${name} must be true or false`);
+  return v;
+}
+
+function supplierName(v) {
+  const t = typeof v === "string" ? v.trim() : "";
+  if (!t || t.length > NAME_MAX) throw bad(`Give a name of 1 to ${NAME_MAX} characters`);
+  return t;
+}
+
+// A :period outside HISTORY_START .. the current month is a 404 (section 7.2).
+function periodOr404(period, today) {
+  if (!Periods.validPeriod(period)) throw notFound();
+  if (period < Periods.HISTORY_START || period > Periods.currentPeriod(today)) throw notFound();
+  return period;
+}
+
+function toSupplier(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    fromPeriod: row.from_period,
+    archivedFrom: row.archived_from || null,
+    archived: row.archived_from != null,
+  };
+}
+
+function supplierRow(db, id) {
+  return db.prepare("SELECT * FROM suppliers WHERE id = ?").get(id);
+}
+
+function supplierOr404(db, id) {
+  const row = supplierRow(db, id);
+  if (!row) throw notFound();
+  return row;
+}
+
+// A name clash with another supplier (the column is COLLATE NOCASE, so this is case-blind).
+function assertNoClash(db, name, exceptId) {
+  const clash = db.prepare("SELECT id FROM suppliers WHERE name = ? AND id IS NOT ?").get(name, exceptId == null ? null : exceptId);
+  if (clash) throw conflict(CLASH);
+}
+
+function isUniqueError(e) {
+  return /UNIQUE/i.test(String(e && e.message));
+}
+
+// The suppliers listed in `period`, by name: [{supplier row, statement row|null}].
+// The statement columns are prefixed st_; the file and user columns are joined in.
+const LISTED_SQL = `
+  SELECT s.id, s.name, s.from_period, s.archived_from,
+         st.period AS st_period, st.state AS st_state, st.total_cents AS st_total_cents, st.note AS st_note,
+         st.reconciled AS st_reconciled, st.paid AS st_paid, st.myob AS st_myob, st.file_id AS st_file_id,
+         st.updated_by AS st_updated_by, st.updated_at AS st_updated_at,
+         uu.display_name AS st_updated_by_name,
+         f.id AS f_id, f.original_name AS f_original_name, f.size AS f_size, f.mime AS f_mime,
+         f.uploaded_at AS f_uploaded_at, f.uploaded_by AS f_uploaded_by, fu.display_name AS f_uploaded_by_name
+    FROM suppliers s
+    LEFT JOIN supplier_statements st ON st.supplier_id = s.id AND st.period = @period
+    LEFT JOIN users uu ON uu.id = st.updated_by
+    LEFT JOIN files f ON f.id = st.file_id AND f.removed_at IS NULL
+    LEFT JOIN users fu ON fu.id = f.uploaded_by
+   WHERE (st.supplier_id IS NOT NULL
+          OR (s.from_period <= @period AND (s.archived_from IS NULL OR @period < s.archived_from)))`;
+
+function listedRows(db, period) {
+  return db.prepare(`${LISTED_SQL} ORDER BY s.name, s.id`).all({ period });
+}
+
+function listedRow(db, period, supplierId) {
+  return db.prepare(`${LISTED_SQL} AND s.id = @id`).get({ period, id: supplierId }) || null;
+}
+
+// A joined row (LISTED_SQL) -> line (section 7.3).
+function toLine(r, period) {
+  const saved = r.st_period != null;
+  const file =
+    r.f_id == null
+      ? null
+      : files.toFile({
+          id: r.f_id,
+          original_name: r.f_original_name,
+          size: r.f_size,
+          mime: r.f_mime,
+          uploaded_at: r.f_uploaded_at,
+          uploaded_by: r.f_uploaded_by,
+          uploaded_by_name: r.f_uploaded_by_name,
+        });
+  return {
+    supplier: { id: r.id, name: r.name },
+    period,
+    state: saved ? r.st_state : "waiting",
+    totalCents: saved && r.st_total_cents != null ? Number(r.st_total_cents) : null,
+    note: saved ? r.st_note || "" : "",
+    reconciled: saved ? bool(r.st_reconciled) : false,
+    paid: saved ? bool(r.st_paid) : false,
+    myob: saved ? bool(r.st_myob) : false,
+    file,
+    saved,
+    updatedAt: saved ? r.st_updated_at : null,
+    updatedBy:
+      saved && r.st_updated_by != null ? { id: r.st_updated_by, name: r.st_updated_by_name || "Unknown" } : null,
+  };
+}
+
+// The line of a listed supplier, or 404 (no such supplier, or not listed in that month).
+function lineOr404(db, period, supplierId) {
+  const r = listedRow(db, period, supplierId);
+  if (!r) throw notFound();
+  return toLine(r, period);
+}
+
+// The editable fields of a line, as stored.
+function fieldsOf(line) {
+  return {
+    state: line.state,
+    totalCents: line.totalCents,
+    note: line.note,
+    reconciled: line.reconciled,
+    paid: line.paid,
+    myob: line.myob,
+  };
+}
+
+// Writes the line's row: an insert for a never-saved line, else an update. `fields` are the
+// editable fields; `fileId` the file to link (undefined keeps the current one).
+function upsertLine(db, req, period, supplierId, line, fields, fileId) {
+  const stamp = nextStamp(line.updatedAt);
+  const userId = req && req.user ? req.user.id : null;
+  const fid = fileId === undefined ? (line.file ? line.file.id : null) : fileId;
+  const values = [
+    fields.state,
+    fields.totalCents,
+    fields.note,
+    fields.reconciled ? 1 : 0,
+    fields.paid ? 1 : 0,
+    fields.myob ? 1 : 0,
+    fid,
+    userId,
+    stamp,
+  ];
+  if (line.saved) {
+    db.prepare(
+      `UPDATE supplier_statements
+          SET state = ?, total_cents = ?, note = ?, reconciled = ?, paid = ?, myob = ?, file_id = ?,
+              updated_by = ?, updated_at = ?
+        WHERE supplier_id = ? AND period = ?`
+    ).run(...values, supplierId, period);
+  } else {
+    db.prepare(
+      `INSERT INTO supplier_statements
+         (state, total_cents, note, reconciled, paid, myob, file_id, updated_by, updated_at, created_at,
+          supplier_id, period)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(...values, stamp, supplierId, period);
+  }
+}
+
+// -------------------------------------------------------------- suppliers ---
+
+function list(db, { all = false } = {}) {
+  const sql = all
+    ? "SELECT * FROM suppliers ORDER BY name, id"
+    : "SELECT * FROM suppliers WHERE archived_from IS NULL ORDER BY name, id";
+  return db.prepare(sql).all().map(toSupplier);
+}
+
+function create(db, req, { name, fromPeriod } = {}) {
+  const n = supplierName(name);
+  const current = Periods.currentPeriod(sydneyToday());
+  let from = current;
+  if (fromPeriod !== undefined && fromPeriod !== null) {
+    if (
+      typeof fromPeriod !== "string" ||
+      !Periods.validPeriod(fromPeriod) ||
+      fromPeriod < Periods.HISTORY_START ||
+      fromPeriod > current
+    ) {
+      throw bad(`Choose a month from ${Periods.label(Periods.HISTORY_START)} to this month`);
+    }
+    from = fromPeriod;
+  }
+  let id;
+  try {
+    id = db.transaction(() => {
+      assertNoClash(db, n, null);
+      const now = nowIso();
+      const info = db
+        .prepare("INSERT INTO suppliers (name, from_period, created_at, updated_at) VALUES (?, ?, ?, ?)")
+        .run(n, from, now, now);
+      const newId = Number(info.lastInsertRowid);
+      audit.log(req, {
+        action: "supplier.create",
+        entityType: "supplier",
+        entityId: newId,
+        after: { name: n, fromPeriod: from },
+      });
+      return newId;
+    })();
+  } catch (e) {
+    if (!(e instanceof HttpError) && isUniqueError(e)) throw conflict(CLASH);
+    throw e;
+  }
+  return toSupplier(supplierRow(db, id));
+}
+
+// {name?, archived?}. Archiving lists the supplier until the current month (archived_from = the
+// current month); unarchiving clears it. A save that changes nothing writes nothing.
+function update(db, req, id, body) {
+  const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  const next = {};
+  if (b.name !== undefined) next.name = supplierName(b.name);
+  if (b.archived !== undefined) next.archived = boolField("archived", b.archived);
+  try {
+    db.transaction(() => {
+      const row = supplierOr404(db, id);
+      const before = {};
+      const after = {};
+      let name = row.name;
+      let archivedFrom = row.archived_from || null;
+      if ("name" in next && next.name !== row.name) {
+        assertNoClash(db, next.name, id);
+        before.name = row.name;
+        after.name = next.name;
+        name = next.name;
+      }
+      if ("archived" in next && next.archived !== (row.archived_from != null)) {
+        archivedFrom = next.archived ? Periods.currentPeriod(sydneyToday()) : null;
+        before.archivedFrom = row.archived_from || null;
+        after.archivedFrom = archivedFrom;
+      }
+      if (!Object.keys(after).length) return;
+      db.prepare("UPDATE suppliers SET name = ?, archived_from = ?, updated_at = ? WHERE id = ?").run(
+        name,
+        archivedFrom,
+        nextStamp(row.updated_at),
+        id
+      );
+      audit.log(req, { action: "supplier.update", entityType: "supplier", entityId: id, before, after });
+    })();
+  } catch (e) {
+    if (!(e instanceof HttpError) && isUniqueError(e)) throw conflict(CLASH);
+    throw e;
+  }
+  return toSupplier(supplierRow(db, id));
+}
+
+// ------------------------------------------------------------------ months ---
+
+function month(db, period, today = sydneyToday()) {
+  periodOr404(period, today);
+  const lines = listedRows(db, period).map((r) => toLine(r, period));
+  const counts = { have: 0, waiting: 0, na: 0, listed: lines.length };
+  const ticks = { reconciled: 0, paid: 0, myob: 0 };
+  let totalCents = 0;
+  for (const l of lines) {
+    counts[l.state] += 1;
+    if (l.totalCents != null) totalCents += l.totalCents;
+    for (const t of TICKS) if (l[t]) ticks[t] += 1;
+  }
+  const current = Periods.currentPeriod(today);
+  return {
+    period,
+    label: Periods.longLabel(period),
+    prev: period > Periods.HISTORY_START ? Periods.addMonths(period, -1) : null,
+    next: period < current ? Periods.addMonths(period, 1) : null,
+    lines,
+    counts,
+    totalCents,
+    ticks,
+  };
+}
+
+// PUT body {state, totalCents, note, reconciled, paid, myob, updatedAt}. A field left out keeps
+// its value. updatedAt must equal the line's (null for a never-saved line), else 409 with the
+// line. Nothing is written when nothing changes.
+function saveLine(db, req, period, supplierId, body) {
+  const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  return db.transaction(() => {
+    periodOr404(period, sydneyToday());
+    const line = lineOr404(db, period, supplierId);
+    const sentStamp = b.updatedAt === undefined ? null : b.updatedAt;
+    if (sentStamp !== line.updatedAt) throw conflict(STALE, { line });
+
+    // Validate everything before writing anything.
+    const was = fieldsOf(line);
+    const next = { ...was };
+    if (b.state !== undefined) {
+      if (typeof b.state !== "string" || !STATES.includes(b.state)) {
+        throw bad("The state must be have, waiting or na");
+      }
+      next.state = b.state;
+    }
+    if (b.totalCents !== undefined) {
+      const t = b.totalCents;
+      if (t !== null && !Number.isInteger(t)) throw bad("The total must be a whole number of cents, or null");
+      if (t !== null && (t < -TOTAL_LIMIT || t > TOTAL_LIMIT)) throw bad("The total is too large");
+      next.totalCents = t;
+    }
+    if (b.note !== undefined) {
+      if (b.note !== null && typeof b.note !== "string") throw bad("The note must be text");
+      const n = b.note == null ? "" : b.note.trim();
+      if (n.length > NOTE_MAX) throw bad(`The note must be ${NOTE_MAX} characters or fewer`);
+      next.note = n;
+    }
+    for (const t of TICKS) if (b[t] !== undefined) next[t] = boolField(t, b[t]);
+
+    const before = {};
+    const after = {};
+    for (const k of Object.keys(next)) {
+      if (next[k] !== was[k]) {
+        before[k] = was[k];
+        after[k] = next[k];
+      }
+    }
+    if (!Object.keys(after).length) return line;
+
+    upsertLine(db, req, period, supplierId, line, next, undefined);
+    audit.log(req, {
+      action: "supplier_statement.update",
+      entityType: "supplier_statement",
+      entityId: `${supplierId}:${period}`,
+      before,
+      after,
+    });
+    return lineOr404(db, period, supplierId);
+  })();
+}
+
+// Links an accepted file (lib/files accept()) to the line, replacing (soft-removing) any file
+// already there. The caller discards the accepted file when this throws.
+function attach(db, req, period, supplierId, accepted) {
+  const userId = req && req.user ? req.user.id : null;
+  return db.transaction(() => {
+    periodOr404(period, sydneyToday());
+    const line = lineOr404(db, period, supplierId);
+    const old = line.file;
+    const fileId = files.insert(db, accepted, userId);
+    if (old) files.remove(db, old.id, userId);
+    // The old link goes first: file_id is UNIQUE, and the new id is different anyway.
+    upsertLine(db, req, period, supplierId, line, fieldsOf(line), fileId);
+    audit.log(req, {
+      action: "supplier_statement.file",
+      entityType: "supplier_statement",
+      entityId: `${supplierId}:${period}`,
+      before: old ? { fileId: old.id, name: old.name } : null,
+      after: { fileId, name: accepted.originalName },
+    });
+    return lineOr404(db, period, supplierId);
+  })();
+}
+
+// Soft-removes the line's file. 404 when there is none.
+function detach(db, req, period, supplierId) {
+  const userId = req && req.user ? req.user.id : null;
+  return db.transaction(() => {
+    periodOr404(period, sydneyToday());
+    const line = lineOr404(db, period, supplierId);
+    if (!line.file) throw notFound();
+    files.remove(db, line.file.id, userId);
+    upsertLine(db, req, period, supplierId, line, fieldsOf(line), null);
+    audit.log(req, {
+      action: "supplier_statement.file",
+      entityType: "supplier_statement",
+      entityId: `${supplierId}:${period}`,
+      before: { fileId: line.file.id, name: line.file.name },
+      after: null,
+    });
+    return lineOr404(db, period, supplierId);
+  })();
+}
+
+// How many suppliers listed in `period` are still Waiting (a listed supplier with no row is
+// Waiting). For the Friday round-up.
+function waitingCount(db, period) {
+  if (!Periods.validPeriod(period)) return 0;
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n
+         FROM suppliers s
+         LEFT JOIN supplier_statements st ON st.supplier_id = s.id AND st.period = @period
+        WHERE (st.supplier_id IS NOT NULL
+               OR (s.from_period <= @period AND (s.archived_from IS NULL OR @period < s.archived_from)))
+          AND COALESCE(st.state, 'waiting') = 'waiting'`
+    )
+    .get({ period });
+  return Number(row.n);
+}
 
 module.exports = { list, create, update, month, saveLine, attach, detach, waitingCount };

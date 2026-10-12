@@ -1,7 +1,6 @@
-// The supplier accounts API (docs/plans/m9-contracts.md section 7.2). SCAFFOLD (M9 · 2.2): every
-// route is declared with its access; the handlers call lib/suppliers.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 B fills in
-// both files. Literal paths (/months) are registered before /:id.
+// The supplier accounts API (docs/plans/m9-contracts.md section 7.2). Every route is declared with
+// its access (M9 · 2.2 scaffold); the rules live in lib/suppliers.js (Wave 1 B). Literal paths
+// (/months) are registered before /:id.
 //
 // accounts.view reads everything; invoices.edit writes. Logged out: 401 and without the key:
 // 403 {"error":"Forbidden"}, both from the auth layer.
@@ -23,8 +22,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[suppliers]");
     }
   };
@@ -38,7 +35,8 @@ function idOr404(v) {
   return id;
 }
 
-// A :period that isn't 'YYYY-MM' is a 404. (Range checks are lib/suppliers.js's, section 7.2.)
+// A :period that isn't 'YYYY-MM' is a 404. (The range check, HISTORY_START to the current month,
+// is lib/suppliers.js's, section 7.2.)
 function periodOr404(v) {
   if (!Periods.validPeriod(v)) throw notFound();
   return v;
@@ -83,7 +81,6 @@ r.post("/months/:period/:supplierId/file", EDIT, files.single("file"), async (re
     if (accepted) files.discard(accepted);
     // Awaited, so the .part file is gone before the reply (as routes/tasks.js).
     else if (req.file && req.file.path) await fs.promises.rm(req.file.path, { force: true }).catch(() => {});
-    if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
     sendError(res, e, "[suppliers]");
   }
 });
