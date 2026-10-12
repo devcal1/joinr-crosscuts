@@ -27,6 +27,9 @@ const PAGE_ACCESS = {
   "/lookahead.html": "scheduling.view",
   "/intake.html": "design.view",
   "/planner.html": "planner.view",
+  "/payruns.html": "accounts.view",
+  "/payrun.html": "accounts.view",
+  "/payprint.html": "accounts.view",
 };
 
 // Any .html page not listed above.

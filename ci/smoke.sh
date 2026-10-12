@@ -1211,6 +1211,8 @@ req GET /api/auth/me "$WSHOP"
 expect_status 200 "me as wshop"
 expect_jq '.user.roles == ["workshop"]' "wshop holds the workshop role (migration 017 allows it)"
 for f in "$(dirname "$0")"/smoke-m7-*.sh; do [ -f "$f" ] && source "$f"; done
+# M8 suites (ci/smoke-m8-*.sh, docs/plans/m8-contracts.md section 9): same rules.
+for f in "$(dirname "$0")"/smoke-m8-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

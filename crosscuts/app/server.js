@@ -66,6 +66,7 @@ const routers = [
   require("./routes/joinr"),
   require("./routes/backup"),
   require("./routes/planner"),
+  require("./routes/payruns"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

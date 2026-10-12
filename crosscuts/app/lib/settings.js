@@ -30,6 +30,12 @@ const DEFAULTS = {
   // The planner reminder sweep's mark (docs/plans/m7-contracts.md section 10), written with
   // {audit: false}.
   "planner.reminder_swept_to": null,
+  // Pay runs (docs/plans/m8-contracts.md section 4): read by lib/payroll.js, changed through
+  // PUT /api/payruns/settings only (never /api/settings).
+  "pay.anchor": "2026-10-05",
+  "pay.ordinary_mon_thu_min": "480",
+  "pay.ordinary_fri_min": "360",
+  "pay.ot_band_min": "120",
 };
 const KEYS = Object.keys(DEFAULTS);
 

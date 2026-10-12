@@ -52,6 +52,7 @@
       dept: "accounts",
       items: [
         { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
+        { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
         { label: "Reports", href: "/reports.html", key: "accounts.view" },
       ],
     },
@@ -74,7 +75,13 @@
   ];
 
   // Pages that belong to a nav link but have a different path.
-  var PAGE_ALIASES = { "/job.html": "/jobs.html", "/invoice.html": "/accounts.html", "/index.html": "/" };
+  var PAGE_ALIASES = {
+    "/job.html": "/jobs.html",
+    "/invoice.html": "/accounts.html",
+    "/payrun.html": "/payruns.html",
+    "/payprint.html": "/payruns.html",
+    "/index.html": "/",
+  };
 
   var path = location.pathname;
   var onAuthPage = /^\/(login|setup)\.html$/.test(path);
