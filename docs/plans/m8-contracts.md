@@ -303,7 +303,7 @@ Body: `{days: [{date, startMin, finishMin, lunchMin, pholMin, sickMin, arlMin, o
 - `updatedAt` must equal the sheet's: else 409 `{error: "Someone else saved this sheet; reload it", timesheet}`.
 - 409 `"This pay run is finalised"` when finalised.
 - `days` replaces every stored row: a date not sent is cleared; a day sent with every field null and `job` `''` stores nothing.
-- Each day: `date` one of the run's ten (else 400 `"<date> isn't in this pay run"`; a repeated date → 400); hour fields null or integers, `0 ≤ startMin < finishMin ≤ 1440` and each other field `0–1440` (else 400 `"<Mon 5 Oct>: hours out of range"`); then `PayMaths.dayProblem` → 400 `"<Mon 5 Oct>: <sentence>"`; `job` a string of at most 200 after trim.
+- Each day: `date` one of the run's ten (else 400 `"<date> isn't in this pay run"`; a repeated date → 400); hour fields null or integers, each one `0–1440` on its own (else 400 `"<Mon 5 Oct>: hours out of range"`); then `PayMaths.dayProblem`, which checks start before finish (`"Finish must be after start"`) and the other cross-field rules → 400 `"<Mon 5 Oct>: <sentence>"`; `job` a string of at most 200 after trim.
 - `notes` at most 2,000; `signed`, `entered` booleans.
 - On success: sets `saved_at` (first time) and `updated_at`; audit `timesheet.update`, entity `timesheet`, before and after holding only the days that changed (by date) and any changed `notes`, `signed`, `entered`.
 - Nothing is written when any check fails.
@@ -424,3 +424,5 @@ One wave: the pages code against §6 with stubbed responses, then 4.1 runs them 
 7. **A pay run can be deleted** only while open and before any sheet is saved (a fortnight started by mistake).
 8. **Leave of kind "other"** gives no hours, only an "Away" hint.
 9. **Display:** each day shows to two decimals; totals are summed in minutes and only then shown, so they never drift from rounding.
+10. **(4.1) The run object stays without `rules`.** The pay-run page takes them from `GET /:id/summary` (frozen when finalised, live when open), falling back to `GET /`; the prints do the same.
+11. **(4.1) The pay-run page's sheet save uses its own `fetch`**, because `shared.js` `api()` drops a 409's body and the stale-sheet 409 carries the newer `timesheet`. `shared.js` stays untouched in M8.

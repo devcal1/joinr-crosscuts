@@ -63,5 +63,25 @@ async function api(method, path, body) {
     await api("POST", "/api/availability/leave", { workerId: id(1), from: tue, to: tue, kind: "sick" });
     await api("PATCH", `/api/availability/workers/${id(0)}`, { daysPerWeek: 3 });
   }
+
+  // M8: this fortnight's pay run (id 1 on a fresh database) with a pay-only person and two sheets
+  // typed in, one ticked as typed in. Made-up hours only.
+  if (!(await api("GET", "/api/payruns")).payRuns.length) {
+    await api("POST", "/api/payruns/people", { name: "Casey (office)" });
+    const run = await api("POST", "/api/payruns", {});
+    const typed = [[420, 1020, 30], [420, 1080, 30], [420, 1110, 30], [420, 990, 30], [420, 840, 30]];
+    const sheets = [];
+    for (const s of run.timesheets) sheets.push(await api("GET", `/api/payruns/${run.id}/timesheets/${s.id}`));
+    const onBoard = sheets.find(ts => ts !== sheets[0] && Object.values(ts.suggestions).some(g => g.job)) || sheets[1];
+    for (const [n, ts] of [sheets[0], onBoard].entries()) {
+      const days = ts.days.map((d, k) => {
+        const g = ts.suggestions[d.date] || {};
+        if (g.sickMin || g.arlMin || g.pholMin) return { date: d.date, sickMin: g.sickMin, arlMin: g.arlMin, pholMin: g.pholMin, job: "" };
+        const [startMin, finishMin, lunchMin] = typed[(k + n) % typed.length];
+        return { date: d.date, startMin, finishMin, lunchMin, onsiteMin: k === 2 ? 180 : null, job: g.job || "" };
+      });
+      await api("PUT", `/api/payruns/${run.id}/timesheets/${ts.id}`, { days, notes: n ? "" : "Sat 3 h at Smith kitchen", signed: true, entered: n === 0, updatedAt: ts.updatedAt });
+    }
+  }
   console.log("seeded; week", wk, "workers", workers.length);
 })().catch(e => { console.error(e.message); process.exit(1); });

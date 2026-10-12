@@ -301,9 +301,13 @@
   }
 
   // --- public holidays ---------------------------------------------------------------------
+  // From the current fortnight's start (so a holiday earlier this fortnight still shows), or the
+  // last year with Show past.
   function holRange() {
     const today = todayISO();
-    return { from: $("showPast").checked ? PM.addDays(today, -365) : today, to: PM.addDays(today, 365) };
+    const cur = overview && fortnights(overview)[0];
+    const from = cur && cur.startDate < today ? cur.startDate : today;
+    return { from: $("showPast").checked ? PM.addDays(today, -365) : from, to: PM.addDays(today, 365) };
   }
 
   function renderHolidays() {
@@ -628,7 +632,8 @@
     $("showRemoved").addEventListener("change", loadPeople);
     $("showPast").addEventListener("change", loadHolidays);
     $("rulesForm").addEventListener("submit", saveRules);
-    await Promise.all([loadOverview(), loadPeople(), loadHolidays(), loadSettings()]);
+    const ov = loadOverview(); // the holiday list starts at the current fortnight, so it waits for this
+    await Promise.all([ov, loadPeople(), ov.then(loadHolidays), loadSettings()]);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

@@ -656,7 +656,9 @@
       $("saveStatus").textContent = `Saved ${sheet.name}'s sheet. That was the last sheet.`;
       return;
     }
+    const saved = sheet.name;
     await selectSheet(next, { skipGuard: true });
+    if (!$("saveStatus").textContent) $("saveStatus").textContent = `Saved ${saved}'s sheet.`;
     focusCell(0, "start");
   }
 
@@ -790,7 +792,8 @@
 
   async function removeSheet() {
     if (!sheet) return;
-    if (!confirm(`Remove ${sheet.name}'s sheet from this pay run?`)) return;
+    const typed = isDirty() ? " What you've typed on it isn't saved and will be lost." : "";
+    if (!confirm(`Remove ${sheet.name}'s sheet from this pay run?${typed}`)) return;
     const sheets = run.timesheets || [];
     const i = sheets.findIndex((t) => t.id === sheet.id);
     await api(`/api/payruns/${runId}/timesheets/${sheet.id}`, { method: "DELETE" });

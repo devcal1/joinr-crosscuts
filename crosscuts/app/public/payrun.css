@@ -251,6 +251,7 @@ td.pr-col-hint { font-size: 12px; line-height: 1.3; padding-left: 8px; padding-r
   border-bottom: 1px solid var(--hairline);
   white-space: normal;
   overflow-wrap: anywhere;
+  vertical-align: top;
 }
 .pr-sumtable td.num { color: var(--white); }
 .pr-sumtable td.pr-zero { color: var(--muted); }

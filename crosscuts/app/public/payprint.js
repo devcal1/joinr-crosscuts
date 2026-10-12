@@ -392,7 +392,7 @@
     var foot = el("footer", "pp-sum-foot");
     add(foot,
       el("p", null, "Worked out with: " + rulesLine(sum.rules) + "."),
-      el("p", null, "Hours in decimal hours, as MYOB takes them. Normal Time is hours actually worked."));
+      el("p", null, "Hours in decimal hours, as MYOB takes them. Normal Time is ordinary hours worked; leave and public holidays are listed separately."));
     page.appendChild(foot);
     return page;
   }

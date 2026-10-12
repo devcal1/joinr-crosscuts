@@ -306,5 +306,6 @@ body {
   .pp-form, .pp-otlog { break-inside: avoid; page-break-inside: avoid; }
   .pp-sheet * { color: #000; border-color: #000; }
   .pp-grid tfoot .pp-nil { border-left-color: transparent; border-right-color: transparent; border-bottom-color: transparent; }
+  .pp-sum tfoot { display: table-row-group; } /* totals print once, at the end, not under every page */
 }
 /* style-check: print-end */
