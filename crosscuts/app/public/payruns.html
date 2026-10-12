@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pay runs - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="payruns.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="py-page">
+    <div class="py-head">
+      <h1>Pay runs</h1>
+      <span id="viewOnly" class="hs-badge hs-badge-na" hidden>View only</span>
+    </div>
+
+    <section class="py-section" aria-labelledby="now-h">
+      <h2 id="now-h" class="py-visually-hidden">This fortnight and next</h2>
+      <div id="fortnights" class="py-cards">
+        <p class="py-loading">Loading...</p>
+      </div>
+    </section>
+
+    <section class="py-section" aria-labelledby="runs-h">
+      <div class="hs-sectionbar">
+        <h2 id="runs-h">Pay runs</h2>
+        <span id="runsCount" class="py-n"></span>
+      </div>
+      <div class="py-wrap">
+        <table class="hs-table py-table py-runs">
+          <thead>
+            <tr><th>Fortnight</th><th>Status</th><th class="num">Sheets typed in</th></tr>
+          </thead>
+          <tbody id="runs"></tbody>
+        </table>
+        <div id="runsEmpty" class="py-empty" hidden></div>
+      </div>
+    </section>
+
+    <section class="py-section" aria-labelledby="people-h">
+      <div class="hs-sectionbar">
+        <h2 id="people-h">Who's on the pay run</h2>
+        <button id="addPerson" class="hs-btn hs-btn-primary py-barbtn" type="button" hidden>Add person</button>
+      </div>
+      <div class="py-tools">
+        <label class="py-check"><input id="showRemoved" type="checkbox"> Show removed people</label>
+        <span id="peopleCount" class="py-n"></span>
+      </div>
+      <div class="py-wrap">
+        <table class="hs-table py-table py-people">
+          <thead>
+            <tr><th>Name</th><th>On the pay run</th><th>Kind</th><th class="py-acts-h"><span class="py-visually-hidden">Actions</span></th></tr>
+          </thead>
+          <tbody id="people"></tbody>
+        </table>
+        <div id="peopleEmpty" class="py-empty" hidden></div>
+      </div>
+      <p class="py-hint">Board workers are added and renamed on the Workers page. Switching someone on or off changes pay runs started afterwards; an open pay run is changed on its own page.</p>
+    </section>
+
+    <section class="py-section" aria-labelledby="hol-h">
+      <div class="hs-sectionbar">
+        <h2 id="hol-h">Public holidays</h2>
+        <button id="addHoliday" class="hs-btn hs-btn-primary py-barbtn" type="button" hidden>Add holiday</button>
+      </div>
+      <div class="py-tools">
+        <label class="py-check"><input id="showPast" type="checkbox"> Show past (the last year)</label>
+        <span id="holCount" class="py-n"></span>
+      </div>
+      <div class="py-wrap">
+        <table class="hs-table py-table py-hols">
+          <thead>
+            <tr><th>Date</th><th>Day</th><th>Name</th><th class="py-acts-h"><span class="py-visually-hidden">Actions</span></th></tr>
+          </thead>
+          <tbody id="hols"></tbody>
+        </table>
+        <div id="holsEmpty" class="py-empty" hidden></div>
+      </div>
+      <p class="py-hint">Victorian public holidays. Add local days (such as a show day or cup day) by hand.</p>
+    </section>
+
+    <section class="py-section" aria-labelledby="rules-h">
+      <div class="hs-sectionbar">
+        <h2 id="rules-h">Pay rules</h2>
+      </div>
+      <form id="rulesForm" class="hs-card py-rules" novalidate>
+        <div class="py-rules-grid">
+          <div class="cc-field">
+            <label class="cc-field-label" for="rMonThu">Ordinary hours Mon–Thu</label>
+            <input id="rMonThu" class="hs-input py-num" type="text" inputmode="decimal" autocomplete="off" aria-describedby="rulesErr">
+          </div>
+          <div class="cc-field">
+            <label class="cc-field-label" for="rFri">Ordinary hours Fri</label>
+            <input id="rFri" class="hs-input py-num" type="text" inputmode="decimal" autocomplete="off" aria-describedby="rulesErr">
+          </div>
+          <div class="cc-field">
+            <label class="cc-field-label" for="rOt">Overtime hours before double time</label>
+            <input id="rOt" class="hs-input py-num" type="text" inputmode="decimal" autocomplete="off" aria-describedby="rulesErr">
+          </div>
+          <div class="cc-field">
+            <label class="cc-field-label" for="rAnchor">Fortnight start date</label>
+            <input id="rAnchor" class="hs-input" type="date" aria-describedby="anchorWhy rulesErr">
+            <span id="anchorWhy" class="py-why" hidden></span>
+          </div>
+        </div>
+        <p id="rulesErr" class="cc-dialog-error py-rules-err" role="alert"></p>
+        <div class="py-rules-foot">
+          <p class="py-hint py-rules-note">Changes apply to open pay runs; finalised ones keep their numbers.</p>
+          <button id="rulesSave" class="hs-btn hs-btn-primary" type="submit" hidden>Save</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <dialog id="dlg" class="cc-dialog py-dialog" aria-labelledby="dlgTitle"></dialog>
+
+  <script src="shared.js"></script>
+  <script src="/paymaths.js"></script>
+  <script src="payruns.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>

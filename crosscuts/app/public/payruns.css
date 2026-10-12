@@ -1,0 +1,149 @@
+/* Pay runs (payruns.html): this fortnight and next, the pay runs list, who's on the pay run,
+   public holidays and the pay rules. Tokens come from tokens.css, hs- components from
+   components.css, and the dialog frame from the shell's cc-dialog. Page classes here are
+   prefixed py-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[hidden] { display: none !important; }
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.py-visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.py-page { max-width: 1100px; margin: 0 auto; padding: 22px 16px 48px; }
+.py-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.py-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+
+.py-section { margin-bottom: 26px; }
+.py-section > .hs-sectionbar { margin-bottom: 8px; }
+.hs-sectionbar .py-barbtn { padding: 6px 10px; }
+.py-n { font-size: 12px; color: var(--label); }
+.py-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.py-muted { color: var(--label); }
+.py-loading { margin: 0; color: var(--label); }
+
+/* this fortnight and next */
+.py-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.py-card {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-left: var(--accent-border) solid var(--na);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+}
+.py-card.st-open { border-left-color: var(--orange); }
+.py-card.st-final { border-left-color: var(--label); }
+.py-card.st-myob { border-left-color: var(--teal); }
+.py-card-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
+.py-card-status { margin: 0 0 8px; color: var(--body); }
+.py-card.st-none .py-card-status { color: var(--label); }
+.py-card.st-open .py-card-status { color: var(--orange-tint); }
+.py-card.st-myob .py-card-status { color: var(--teal-tint); }
+.py-card-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+
+/* tables */
+.py-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.py-check { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--body); cursor: pointer; }
+.py-check input { accent-color: var(--teal); width: 16px; height: 16px; flex: none; margin: 0; }
+
+.py-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.py-table th { padding: 10px 12px; }
+.py-table td { padding: 10px 12px; vertical-align: middle; overflow-wrap: anywhere; }
+.py-table tbody tr:last-child td { border-bottom: 0; }
+.py-table tbody tr:hover { background: var(--raised); }
+.py-table th.num, .py-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.py-table td.py-fn a { font-weight: 700; }
+.py-table td.py-name { color: var(--white); font-weight: 700; }
+.py-table td.py-when { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.py-table td.py-acts { white-space: nowrap; text-align: right; width: 1%; }
+.py-table td.py-acts .hs-btn { padding: 6px 10px; }
+.py-table td.py-acts .hs-btn + .hs-btn { margin-left: 6px; }
+.py-table tr.py-removed td.py-name { color: var(--label); }
+.py-table tr.py-past td { color: var(--muted); }
+.py-tag { margin-left: 8px; }
+.py-empty { padding: 22px 14px; text-align: center; color: var(--label); }
+
+/* pay rules */
+.py-rules { display: grid; gap: 4px; padding: 16px; }
+.py-rules-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 16px; align-items: start; }
+.py-rules .hs-input { color-scheme: dark; min-height: 36px; }
+.py-rules .py-num { font-variant-numeric: tabular-nums; }
+.py-rules .hs-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.py-rules .hs-input[readonly] { border-color: var(--hairline); }
+.py-why { font-size: 12px; color: var(--label); }
+.py-rules-err:empty { min-height: 0; }
+.py-rules-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.py-rules-note { margin: 0; }
+
+/* dialogs */
+.cc-dialog.py-dialog { width: min(94vw, 460px); max-height: 92vh; overflow-y: auto; }
+.py-dialog .hs-input { color-scheme: dark; min-height: 36px; }
+.py-dialog .cc-dialog-title { overflow-wrap: anywhere; }
+.py-dialog .cc-dialog-actions { align-items: center; }
+.py-two { display: grid; grid-template-columns: minmax(0, 170px) minmax(0, 1fr); gap: 12px; }
+
+/* four across: room for a two-line label, so the inputs line up */
+@media (min-width: 901px) {
+  .py-rules-grid .cc-field-label { min-height: 30px; }
+}
+
+@media (max-width: 900px) {
+  .py-rules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .py-cards { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .py-head h1 { font-size: 20px; }
+  .py-rules-grid { grid-template-columns: minmax(0, 1fr); }
+  .py-two { grid-template-columns: minmax(0, 1fr); }
+
+  /* the pay runs table fits the phone: the header may wrap */
+  .py-runs th, .py-runs td { padding: 8px 10px; }
+  .py-runs th { white-space: normal; }
+  .py-runs td.num { white-space: nowrap; }
+
+  /* people and holiday rows become two-line cards, so the buttons are never off-screen */
+  .py-people thead, .py-hols thead { display: none; }
+  .py-people, .py-people tbody, .py-hols, .py-hols tbody { display: block; }
+  .py-people tr, .py-hols tr {
+    display: grid; align-items: center; gap: 2px 10px;
+    padding: 10px 12px; border-bottom: 1px solid var(--hairline);
+  }
+  .py-people tbody tr:last-child, .py-hols tbody tr:last-child { border-bottom: 0; }
+  .py-people td, .py-hols td { display: block; padding: 0; border: 0; min-width: 0; }
+
+  .py-people tr { grid-template-columns: minmax(0, 1fr) auto; }
+  .py-people td.py-name { grid-row: 1; grid-column: 1; }
+  .py-people td.py-kind { grid-row: 1; grid-column: 2; text-align: right; font-size: 12px; }
+  .py-people td.py-on { grid-row: 2; grid-column: 1 / -1; white-space: nowrap; }
+  .py-people td.py-acts { grid-row: 3; grid-column: 1 / -1; width: auto; margin-top: 6px; text-align: left; }
+  .py-people td.py-on::before {
+    content: "On the pay run";
+    display: inline-block; margin-right: 10px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+  }
+  .py-people td.py-on .py-check { min-height: 28px; }
+
+  .py-hols tr { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .py-hols td.py-holname { grid-row: 1; grid-column: 1 / 3; color: var(--white); font-weight: 700; }
+  .py-hols td.py-day { grid-row: 2; grid-column: 1; }
+  .py-hols td.py-when { grid-row: 2; grid-column: 2; }
+  .py-hols td.py-acts { grid-row: 1 / 3; grid-column: 3; width: auto; }
+  .py-hols tr.py-past td.py-holname { color: var(--muted); }
+  .py-people td.py-acts:empty, .py-hols td.py-acts:empty { display: none; }
+}
