@@ -1,7 +1,7 @@
-// The pay-runs API (docs/plans/m8-contracts.md section 6). SCAFFOLD (M8 · 2.2): every route is
-// declared with its access; the handlers call lib/payroll.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 A fills in
-// both files. Literal paths (/people, /holidays, /settings) are registered before /:id.
+// The pay-runs API (docs/plans/m8-contracts.md section 6). Every route is declared with its access;
+// the handlers check path ids and pass the database to lib/payroll.js, which does the work and
+// throws HttpError for 400 / 404 / 409. Literal paths (/people, /holidays, /settings) are
+// registered before /:id.
 //
 // accounts.view reads everything; invoices.edit writes; users.admin alone may reopen a finalised
 // pay run. Logged out: 401 and without the key: 403 {"error":"Forbidden"}, both from the auth layer.
@@ -9,6 +9,7 @@ const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const { notFound, sendError } = require("../lib/httperror");
 const payroll = require("../lib/payroll");
+const PayMaths = require("../public/paymaths");
 
 const r = defineRoutes("/api/payruns");
 
@@ -21,8 +22,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[payruns]");
     }
   };
@@ -44,8 +43,26 @@ function body(req) {
 
 // ------------------------------------------------------------ pay runs ---
 
+// {startDate, endDate, label, payRunId} for one grid Monday.
+function fortnight(start, payRuns) {
+  const run = payRuns.find((p) => p.startDate === start);
+  return {
+    startDate: start,
+    endDate: PayMaths.endOf(start),
+    label: PayMaths.fortnightLabel(start),
+    payRunId: run ? run.id : null,
+  };
+}
+
 r.get("/", VIEW, handle((req, res) => {
-  res.json({ payRuns: payroll.listRuns(db), rules: payroll.rules(db), start: payroll.currentStart(db) });
+  const payRuns = payroll.listRuns(db);
+  const current = payroll.currentStart(db);
+  res.json({
+    payRuns,
+    current: fortnight(current, payRuns),
+    next: fortnight(PayMaths.addDays(current, 14), payRuns),
+    rules: payroll.rules(db),
+  });
 }));
 
 r.post("/", EDIT, handle((req, res) => {
