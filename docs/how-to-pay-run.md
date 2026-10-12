@@ -19,7 +19,7 @@ Open **Accounts**, then **Pay runs**.
 3. **Type in each sheet.** Open the pay run and pick a person on the left. The screen is laid out like the paper:
    - Type **Start** and **Finish** on the 24-hour clock (`7`, `730`, `7:30` or `7.30`; half past three in the afternoon is `15:30` or `1530`), **Lunch** in minutes (`30`) or as `1:00`, and **P HOL**, **SICK**, **ARL** and **ON SITE** in hours (`7.5` or `7:30`). **Tab** moves across, **Enter** moves down.
    - **Total**, **OT** and **DT** work themselves out as you type, as do the totals and the summary block.
-   - Grey values are suggestions from the board (the job), leave and public holidays. Check them against the paper; what you type wins. **Fill suggestions** fills only blank cells on a sheet already saved.
+   - Grey values are suggestions from the board (the job), leave and public holidays. Check them against the paper; what you type wins. On a worker's regular day off nothing is suggested and the row says "Regular day off". **Fill suggestions** fills only blank cells on a sheet already saved.
    - A cell outlined in orange has a problem (for example a finish before the start); the reason shows beside the row and the sheet won't save until it's fixed.
    - Weekend work has no row: write it in **Notes**, which print on the summary.
    - Tick **Signed** if the paper is signed and **Typed in** when you're done, then **Save** (or **Save and next**, or Ctrl+S).

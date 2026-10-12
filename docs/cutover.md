@@ -19,9 +19,11 @@ The live snapshot **replaces** Crosscuts' database. That is the design: Crosscut
 | Workers, jobs, board rows, chips, day flags, backlog | Users, roles, overrides, PINs and remembered devices |
 | Photos and their tags (`uploads/`) | Business details, bank details and the invoice prefix and start number |
 | The Gemini key (`config/`) | Test jobs, test invoices and test alerts |
+| | Pay runs and timesheets, pay-only people, public-holiday edits and the pay rules (the holiday list is re-seeded by migration 019) |
 
 So:
 - **Don't issue real invoices in Crosscuts before cutover.** Before then its jobs are test jobs.
+- **Don't type real pay runs into Crosscuts before cutover** (they would be lost). The first real pay run is the first fortnight after the load; any holiday edits and pay-rule changes are made again then.
 - **Users and settings must be put back after the load.** Two ways to do it; Todd picks one (Q1 at the end):
   - **A. Re-create them by hand** (recommended). About 15 minutes: run setup, add the nine logins, re-enter the business details. No new code.
   - **B. Carry them across with a small tool.** It copies users, roles, overrides and settings from the pre-cutover Crosscuts database into the loaded one. That is new code that writes to the live database, so it needs Todd's sign-off and must pass the rehearsal first.
@@ -132,7 +134,7 @@ ls -la $SNAP; du -sh $SNAP/uploads $OLD/uploads
 
    The config copy only adds the old app's files, so the backup files already in `$CC/config` (`backup-passphrase`, `nas-url`, `nas-password`) stay in place.
 
-   Everything made in Crosscuts while testing goes aside with it and does not carry over: tasks, comments, chat messages, and the report library and task attachments (their files are in `uploads/files/`, so they land in `crosscuts-before/uploads/files/`). The old app has none of these, so the loaded data starts with empty task, chat and report lists.
+   Everything made in Crosscuts while testing goes aside with it and does not carry over: tasks, comments, chat messages, pay runs and timesheets, and the report library and task attachments (their files are in `uploads/files/`, so they land in `crosscuts-before/uploads/files/`). The old app has none of these, so the loaded data starts with empty task, chat and report lists.
 3. **[Umbrel web UI]** Start Crosscuts. Then read the migration log:
    ```
    sudo docker logs tenon-joinr-crosscuts_web_1 2>&1 | grep -E 'migrate|foreign_key|roundup'

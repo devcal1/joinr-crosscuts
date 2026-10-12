@@ -43,14 +43,14 @@ a.hs-btn:hover { text-decoration: none; }
   border-radius: var(--r-card);
   padding: 14px 16px;
 }
-.py-card.st-open { border-left-color: var(--orange); }
-.py-card.st-final { border-left-color: var(--label); }
-.py-card.st-myob { border-left-color: var(--teal); }
+.py-card.py-st-open { border-left-color: var(--orange); }
+.py-card.py-st-final { border-left-color: var(--label); }
+.py-card.py-st-myob { border-left-color: var(--teal); }
 .py-card-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
 .py-card-status { margin: 0 0 8px; color: var(--body); }
-.py-card.st-none .py-card-status { color: var(--label); }
-.py-card.st-open .py-card-status { color: var(--orange-tint); }
-.py-card.st-myob .py-card-status { color: var(--teal-tint); }
+.py-card.py-st-none .py-card-status { color: var(--label); }
+.py-card.py-st-open .py-card-status { color: var(--orange-tint); }
+.py-card.py-st-myob .py-card-status { color: var(--teal-tint); }
 .py-card-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
 /* tables */

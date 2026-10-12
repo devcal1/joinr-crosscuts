@@ -251,11 +251,12 @@ function putSettings(db, req, body);                   // §6.6
 
 **Suggestions** (Decision 5; the server works them out, so Accounts needs no `scheduling.view`). For each of the ten dates, for a worker's sheet:
 - **job:** the jobs the worker is assigned to that day (`assignments` on `week_rows` with `week_start = mondayOf(date)` and that `day`), each as `"<job name> (<quote number>)"` or just the name when there is no quote number, in panel then `sort_order` order, distinct, joined with `" / "`; `''` when none.
+- **regular day off** (Todd, 2026-10-12, at 4.3): a weekday in the worker's `regular_days_off` → no hours, `reason: 'dayoff'` (the page shows "Regular day off"); it beats a holiday and leave. The job suggestion still applies.
 - **holiday:** a `public_holidays` row on that date → `pholMin` = that weekday's ordinary minutes, `reason: 'holiday'`, `holidayName`.
-- **leave** (only when there is no holiday; not removed): kind `leave` → `arlMin` = ordinary, `reason: 'leave'`; `sick` → `sickMin` = ordinary, `reason: 'sick'`; `other` → no hours, `reason: 'other'`.
+- **leave** (only when there is no holiday; not removed): kind `leave` → `arlMin` = ordinary, `reason: 'leave'`; `sick` → `sickMin` = ordinary, `reason: 'sick'`; `other` → no hours, `reason: 'other'`. Where leave rows overlap, `leave` or `sick` beats `other`.
 - A pay-only person gets the holidays only.
 
-The suggestion object: `{job, pholMin, sickMin, arlMin, reason: 'holiday'|'leave'|'sick'|'other'|null, holidayName: string|null}` (hour fields null when not suggested). Suggestions are never stored.
+The suggestion object: `{job, pholMin, sickMin, arlMin, reason: 'dayoff'|'holiday'|'leave'|'sick'|'other'|null, holidayName: string|null}` (hour fields null when not suggested). Suggestions are never stored.
 
 ## 6. API (`routes/payruns.js`, `defineRoutes('/api/payruns')`)
 
@@ -306,7 +307,7 @@ Body: `{days: [{date, startMin, finishMin, lunchMin, pholMin, sickMin, arlMin, o
 - Each day: `date` one of the run's ten (else 400 `"<date> isn't in this pay run"`; a repeated date → 400); hour fields null or integers, each one `0–1440` on its own (else 400 `"<Mon 5 Oct>: hours out of range"`); then `PayMaths.dayProblem`, which checks start before finish (`"Finish must be after start"`) and the other cross-field rules → 400 `"<Mon 5 Oct>: <sentence>"`; `job` a string of at most 200 after trim.
 - `notes` at most 2,000; `signed`, `entered` booleans.
 - On success: sets `saved_at` (first time) and `updated_at`; audit `timesheet.update`, entity `timesheet`, before and after holding only the days that changed (by date) and any changed `notes`, `signed`, `entered`.
-- Nothing is written when any check fails.
+- Nothing is written when any check fails, and nothing (no stamp, no `saved_at`, no audit row) when the save changes nothing. A day without a string date → 400 `"Each day needs a date"`.
 
 ### 6.4 Summary (`GET /:id/summary`)
 

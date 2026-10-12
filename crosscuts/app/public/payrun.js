@@ -102,7 +102,7 @@
   let sheet = null; // the timesheet as last loaded or saved (section 6.2)
   let rows = []; // per day: {date, key, cells: {field: {text, sug, input}}, tr, hint, problem}
   let baseline = ""; // snapshot() at load, for the unsaved-changes guard
-  let saving = false;
+  let savePromise = null; // the save in flight, if any
   let loadSeq = 0;
 
   const editable = () => canEdit && run && run.status === "open";
@@ -225,8 +225,11 @@
   }
 
   async function selectSheet(id, opts) {
-    if (!(opts && opts.skipGuard) && sheet && sheet.id === id) return;
-    if (!(opts && opts.skipGuard) && !confirmDiscard()) return;
+    const skip = !!(opts && opts.skipGuard);
+    // A switch asked for while a save is in flight waits for it, so the save can't land on the next sheet.
+    if (!skip && savePromise) await savePromise;
+    if (!skip && sheet && sheet.id === id) return;
+    if (!skip && !confirmDiscard()) return;
     const seq = ++loadSeq;
     $("saveStatus").textContent = "";
     try {
@@ -265,7 +268,6 @@
     $("saveBar").hidden = !ed;
     // A sheet never saved opens with the suggestions filled in; a saved one offers the button.
     if (ed && !ts.saved) fillSuggestions(true);
-    $("fillBtn").hidden = !(ed && ts.saved && hasSuggestions());
     baseline = snapshot();
     recomputeAll();
     syncUrl();
@@ -275,11 +277,6 @@
   function suggestionFor(date) {
     return (sheet && sheet.suggestions && sheet.suggestions[date]) || null;
   }
-  function hasSuggestions() {
-    return Object.values((sheet && sheet.suggestions) || {}).some(
-      (s) => s && ((s.job || "") !== "" || s.pholMin != null || s.sickMin != null || s.arlMin != null)
-    );
-  }
   function hintFor(date) {
     const s = suggestionFor(date);
     if (!s) return "";
@@ -287,6 +284,7 @@
     if (s.reason === "leave") return "Leave on the board";
     if (s.reason === "sick") return "Sick on the board";
     if (s.reason === "other") return "Away";
+    if (s.reason === "dayoff") return "Regular day off";
     return "";
   }
 
@@ -333,7 +331,7 @@
       row.totalTd = el("td", { class: "num pr-calc" });
       row.otTd = el("td", { class: "num pr-calc" });
       row.dtTd = el("td", { class: "num pr-calc" });
-      row.hintTd = el("td", { class: "pr-col-hint" });
+      row.hintTd = el("td", { class: "pr-col-hint", id: `pr-hint-${i}` });
       tr.append(row.totalTd, row.otTd, row.dtTd, row.hintTd);
       body.append(tr);
       rows.push(row);
@@ -352,24 +350,25 @@
     }
   }
 
-  // Fills the blank cells from the suggestions (job, P HOL, SICK, ARL), marked as suggestions.
-  // Returns how many cells were filled.
-  function fillSuggestions(quiet) {
-    let n = 0;
+  // The blank cells a suggestion would fill (job, P HOL, SICK, ARL), as [row, field, text].
+  function fillable() {
+    const out = [];
     rows.forEach((row, i) => {
       const s = suggestionFor(row.date);
       if (!s) return;
-      if ((s.job || "") !== "" && row.cells.job.text.trim() === "") {
-        setCellText(i, "job", s.job, true);
-        n++;
-      }
+      if ((s.job || "") !== "" && row.cells.job.text.trim() === "") out.push([i, "job", s.job]);
       for (const [f, k] of [["phol", "pholMin"], ["sick", "sickMin"], ["arl", "arlMin"]]) {
-        if (s[k] != null && row.cells[f].text.trim() === "") {
-          setCellText(i, f, tidy(f, s[k]), true);
-          n++;
-        }
+        if (s[k] != null && row.cells[f].text.trim() === "") out.push([i, f, tidy(f, s[k])]);
       }
     });
+    return out;
+  }
+
+  // Fills the blank cells from the suggestions, marked as suggestions. Returns how many were filled.
+  function fillSuggestions(quiet) {
+    const cells = fillable();
+    for (const [i, f, text] of cells) setCellText(i, f, text, true);
+    const n = cells.length;
     if (!quiet) {
       recomputeAll();
       $("saveStatus").textContent = n
@@ -402,8 +401,13 @@
       const c = row.cells[f];
       const bad = st.bad.includes(f);
       c.input.classList.toggle("pr-bad", bad);
-      if (bad) c.input.setAttribute("aria-invalid", "true");
-      else c.input.removeAttribute("aria-invalid");
+      if (bad) {
+        c.input.setAttribute("aria-invalid", "true");
+        c.input.setAttribute("aria-describedby", row.hintTd.id);
+      } else {
+        c.input.removeAttribute("aria-invalid");
+        c.input.removeAttribute("aria-describedby");
+      }
     }
     row.tr.classList.toggle("pr-row-bad", !!st.sentence);
     const sp = st.split;
@@ -446,6 +450,8 @@
     }
     renderTotals(tot);
     $("keyLine").hidden = !rows.some((r) => FIELDS.some((f) => r.cells[f].sug));
+    // Fill suggestions shows on a saved sheet only while a blank cell is left for it to fill.
+    $("fillBtn").hidden = !(editable() && sheet.saved && fillable().length);
   }
 
   function renderTotals(t) {
@@ -542,8 +548,20 @@
 
   // ------------------------------------------------------------------ saving ---
 
-  async function save() {
-    if (!editable() || !sheet || saving) return false;
+  // One save at a time; a second Save while one is in flight does nothing.
+  function save() {
+    if (savePromise) return Promise.resolve(false);
+    savePromise = doSave().finally(() => {
+      savePromise = null;
+    });
+    return savePromise;
+  }
+
+  const FINALISED_MEANWHILE = "Not saved: this pay run was finalised meanwhile, so what you typed was not kept. " +
+    "It stays on screen, read-only, until you reload the sheet.";
+
+  async function doSave() {
+    if (!editable() || !sheet) return false;
     for (let i = 0; i < rows.length; i++) {
       const st = rowState(rows[i]);
       if (st.sentence) {
@@ -565,7 +583,8 @@
       entered: $("enteredTick").checked,
       updatedAt: sheet.updatedAt,
     };
-    saving = true;
+    const sent = snapshot(); // what this save stores, to tell typing done while it is in flight
+    const seq = loadSeq;
     setSaveBusy(true);
     $("saveStatus").textContent = "Saving...";
     try {
@@ -581,10 +600,23 @@
       }
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const at = document.activeElement;
-        const back = at && at.dataset && at.dataset.field ? [Number(at.dataset.row), at.dataset.field] : null;
         updateListRow(data);
         summaryStale = true;
+        if (seq !== loadSeq) return true; // another sheet is on screen now
+        if (snapshot() !== sent) {
+          // Typed into while the save was in flight: keep the grid as it is, still unsaved, and
+          // take the stored sheet's version and figures.
+          Object.assign(sheet, { updatedAt: data.updatedAt, saved: data.saved, totals: data.totals, days: data.days, notes: data.notes });
+          baseline = sent;
+          $("sheetState").textContent = data.updatedAt ? `Last saved ${sydneyDate(data.updatedAt)}` : "Saved";
+          lastDirty = false;
+          markDirty();
+          recomputeAll();
+          $("saveStatus").textContent = `Saved ${data.name}'s sheet as it was when you pressed Save. What you typed since isn't saved yet.`;
+          return true;
+        }
+        const at = document.activeElement;
+        const back = at && at.dataset && at.dataset.field ? [Number(at.dataset.row), at.dataset.field] : null;
         showSheet(data);
         if (back) focusCell(back[0], back[1]);
         $("saveStatus").textContent = `Saved ${data.name}'s sheet.`;
@@ -595,16 +627,56 @@
         showStale(data.error || "Someone else saved this sheet; reload it", data.timesheet);
         return false;
       }
+      if ((res.status === 409 || res.status === 404) && seq === loadSeq) {
+        // Finalised or the sheet removed meanwhile: show the run as it now is, but keep what was
+        // typed on screen while the sheet is still there.
+        const id = sheet.id;
+        const name = sheet.name;
+        try {
+          await reloadRun({ keepSheet: true });
+        } catch (e) {
+          /* the sentence below still stands */
+        }
+        if (!sheet || sheet.id !== id) {
+          $("saveStatus").textContent = `Not saved: ${name}'s sheet was removed from this pay run meanwhile.`;
+          return false;
+        }
+        if (!editable()) {
+          freezeGrid();
+          $("saveStatus").textContent = "";
+          showStale(FINALISED_MEANWHILE, null);
+          return false;
+        }
+      }
       $("saveStatus").textContent = `Not saved. ${data.error || `Request failed (${res.status})`}`;
-      if (res.status === 409) await reloadRun(); // finalised meanwhile: show it as it now is
       return false;
     } catch (e) {
       $("saveStatus").textContent = "Not saved. Couldn't reach the server; try again.";
       return false;
     } finally {
-      saving = false;
       setSaveBusy(false);
     }
+  }
+
+  // The grid as typed, turned read-only in place (the run was finalised under it).
+  function freezeGrid() {
+    for (const row of rows) {
+      for (const f of FIELDS) {
+        const c = row.cells[f];
+        if (!c.input) continue;
+        c.input = null;
+        c.td.textContent = c.text;
+        c.td.classList.add("pr-ro");
+      }
+    }
+    const notes = $("notes").value;
+    $("notes").hidden = true;
+    $("notesRo").hidden = false;
+    $("notesRo").textContent = notes || "No notes.";
+    $("notesRo").classList.toggle("pr-none", !notes);
+    $("signedTick").disabled = true;
+    $("enteredTick").disabled = true;
+    $("saveBar").hidden = true;
   }
 
   function setSaveBusy(on) {
@@ -651,7 +723,7 @@
   async function saveAndNext() {
     const next = nextSheetId();
     const ok = await save();
-    if (!ok) return;
+    if (!ok || isDirty()) return; // typed into during the save: stay, its sentence says so
     if (next == null) {
       $("saveStatus").textContent = `Saved ${sheet.name}'s sheet. That was the last sheet.`;
       return;
@@ -664,22 +736,66 @@
 
   // ------------------------------------------------------- run-level actions ---
 
-  async function reloadRun() {
+  // The run as it now is. The sheet on screen is loaded again (or, with keepSheet, left as it is);
+  // if it was removed meanwhile, another sheet is shown and the page says so.
+  async function reloadRun(opts) {
     run = await api(`/api/payruns/${runId}`);
     summaryStale = true;
+    if (run.status === "open") await refreshRules();
     renderHeader();
     renderList();
     if (sheet) {
-      const still = (run.timesheets || []).some((t) => t.id === sheet.id);
-      if (still) await selectSheet(sheet.id, { skipGuard: true });
+      const sheets = run.timesheets || [];
+      if (sheets.some((t) => t.id === sheet.id)) {
+        if (!(opts && opts.keepSheet)) await selectSheet(sheet.id, { skipGuard: true });
+      } else {
+        const gone = `${sheet.name}'s sheet was removed from this pay run.`;
+        sheet = null;
+        lastDirty = false;
+        if (sheets.length) {
+          await selectSheet(sheets[0].id, { skipGuard: true });
+          $("saveStatus").textContent = gone;
+        } else {
+          $("entry").hidden = true;
+          syncUrl();
+          renderList();
+          toast(gone);
+        }
+      }
     }
     if (tab === "summary") loadSummary();
   }
 
+  // An open run follows the current pay rules, which its summary reports (Reopen drops the frozen ones).
+  async function refreshRules() {
+    try {
+      const s = await api(`/api/payruns/${runId}/summary`);
+      summary = s;
+      summaryStale = false;
+      if (s.rules) rules = s.rules;
+    } catch (e) {
+      summaryStale = true;
+    }
+  }
+
+  // Runs a run-level action with its control disabled until it finishes, so a double click
+  // can't send it twice.
+  function once(ctrl, fn) {
+    return guarded(async (...args) => {
+      if (ctrl.disabled) return;
+      ctrl.disabled = true;
+      try {
+        await fn(...args);
+      } finally {
+        ctrl.disabled = false;
+      }
+    });
+  }
+
   async function finalise() {
     if (isDirty()) {
-      if (!confirm(`Save the changes to ${sheet.name}'s sheet before finalising?`)) return;
-      if (!(await save())) return;
+      if (!confirm(`Save the changes to ${sheet.name}'s sheet, then finalise?\n\nCancel stops both: nothing is saved and the pay run isn't finalised.`)) return;
+      if (!(await save()) || isDirty()) return;
     }
     const unticked = (run.timesheets || []).filter((t) => !t.entered).map((t) => t.name);
     let q = `Finalise the pay run for ${run.label}? This freezes every sheet and the summary.`;
@@ -725,6 +841,7 @@
   }
 
   async function afterRunChange() {
+    if (run.status === "open") await refreshRules();
     renderHeader();
     renderList();
     if (sheet) await selectSheet(sheet.id, { skipGuard: true });
@@ -772,7 +889,7 @@
   async function submitAdd(e) {
     e.preventDefault();
     const p = addPeople[Number($("addPerson").value)];
-    if (!p) return;
+    if (!p || $("addOk").disabled) return;
     $("addOk").disabled = true;
     $("addError").textContent = "";
     try {
@@ -780,10 +897,16 @@
       const ts = await api(`/api/payruns/${runId}/timesheets`, { method: "POST", body: JSON.stringify(body) });
       $("addDlg").close();
       run = await api(`/api/payruns/${runId}`);
+      summaryStale = true;
       renderHeader();
       renderList();
       toast(`Added ${ts.name}'s sheet.`);
       await selectSheet(ts.id);
+      // Focus the new sheet's first cell, or its place in the list.
+      if (!(sheet && sheet.id === ts.id && focusCell(0, "start"))) {
+        const item = $("sheetList").querySelector(`.pr-item[data-id="${ts.id}"]`);
+        if (item) item.focus();
+      }
     } catch (err) {
       $("addError").textContent = err.message;
       $("addOk").disabled = false;
@@ -810,6 +933,9 @@
       $("entry").hidden = true;
       syncUrl();
     }
+    // The Remove button may have gone: focus the sheet now shown in the list, or Add sheet.
+    const item = sheet && $("sheetList").querySelector(`.pr-item[data-id="${sheet.id}"]`);
+    (item || $("addSheetBtn")).focus();
     toast(`Removed ${name}'s sheet.`);
   }
 
@@ -885,13 +1011,13 @@
     });
     window.addEventListener("hashchange", () => setTab(location.hash === "#summary" ? "summary" : "sheets"));
 
-    $("finaliseBtn").addEventListener("click", guarded(finalise));
-    $("reopenBtn").addEventListener("click", guarded(reopen));
-    $("deleteBtn").addEventListener("click", guarded(deleteRun));
+    $("finaliseBtn").addEventListener("click", once($("finaliseBtn"), finalise));
+    $("reopenBtn").addEventListener("click", once($("reopenBtn"), reopen));
+    $("deleteBtn").addEventListener("click", once($("deleteBtn"), deleteRun));
     $("myobTick").addEventListener("change", setMyob);
 
-    $("addSheetBtn").addEventListener("click", guarded(openAdd));
-    $("removeSheetBtn").addEventListener("click", guarded(removeSheet));
+    $("addSheetBtn").addEventListener("click", once($("addSheetBtn"), openAdd));
+    $("removeSheetBtn").addEventListener("click", once($("removeSheetBtn"), removeSheet));
     $("addForm").addEventListener("submit", submitAdd);
     $("addCancel").addEventListener("click", () => $("addDlg").close());
     $("addDlg").addEventListener("mousedown", (e) => {
@@ -903,6 +1029,7 @@
     $("fillBtn").addEventListener("click", () => {
       fillSuggestions(false);
       markDirty();
+      if ($("fillBtn").hidden) $("saveBtn").focus(); // nothing left to fill: the button went away
     });
     $("reloadSheetBtn").addEventListener("click", reloadSheet);
     $("notes").addEventListener("input", markDirty);

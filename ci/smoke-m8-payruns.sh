@@ -140,8 +140,19 @@ expect_jq '.suggestions["2035-01-04"].pholMin == 480 and .suggestions["2035-01-0
 expect_jq '.suggestions["2035-01-02"].job == "" and .suggestions["2035-01-02"].reason == null' "no suggestion on Tuesday"
 req GET "/api/payruns/$M8_RUN/timesheets/$M8_TSO" "$ACCT"
 expect_status 200 "GET the office person's sheet"
-expect_jq '[.suggestions[] | .job] | all(. == "")' "the office person has no job suggestions"
+expect_jq '(.suggestions | length == 10) and ([.suggestions[] | .job] | all(. == ""))' "the office person has no job suggestions"
 expect_jq '.suggestions["2035-01-04"].pholMin == 480' "the office person gets the holiday"
+req PATCH "/api/availability/workers/$M8_OFF" "$SCHED" '{"regularDaysOff":["thu"]}'
+expect_status 200 "the off worker has Thursdays off"
+req POST "/api/payruns/$M8_RUN/timesheets" "$ACCT" "{\"workerId\":$M8_OFF}"
+expect_status 201 "add a sheet for the off worker"
+M8_TSD=$(jqr '.id')
+expect_jq '.suggestions["2035-01-04"].reason == "dayoff" and .suggestions["2035-01-04"].pholMin == null' "no holiday hours on a regular day off"
+expect_jq '.suggestions["2035-01-11"].reason == "dayoff" and .suggestions["2035-01-03"].reason == null' "only Thursdays are days off"
+req DELETE "/api/payruns/$M8_RUN/timesheets/$M8_TSD" "$ACCT"
+expect_status 204 "remove the off worker's empty sheet"
+req PATCH "/api/availability/workers/$M8_OFF" "$SCHED" '{"regularDaysOff":[]}'
+expect_status 200 "the off worker's days off cleared"
 req GET "/api/payruns/$M8_RUN/timesheets/999999999" "$ACCT"
 expect_status 404 "a sheet that isn't in the run"
 
@@ -168,6 +179,8 @@ m8_day 2035-01-10 '.workedMin == 240 and .normalMin == 240 and .otMin == 0 and .
 m8_day 2035-01-04 '.workedMin == 0 and .normalMin == 0 and .otMin == 0 and .dtMin == 0 and .pholMin == 480 and .startMin == null'
 m8_day 2035-01-08 '.startMin == null and .job == "" and .workedMin == 0' "an all-blank day stores nothing"
 expect_jq '.totals == {workedMin:2610, normalMin:1920, otMin:420, dtMin:270, pholMin:480, sickMin:0, arlMin:240, onsiteMin:120}' "the sheet totals"
+M8_NDAYS=$(docker exec "$CONTAINER" node -e "console.log(require('better-sqlite3')('/data/db/photos.db').prepare('SELECT COUNT(*) AS n FROM pay_days WHERE timesheet_id = $M8_TS').get().n)")
+expect_eq "$M8_NDAYS" 6 "only the six typed days are stored"
 M8_UPD=$(jqr '.updatedAt')
 req GET "/api/payruns/$M8_RUN/summary" "$ACCT"
 expect_status 200 "GET the summary"
@@ -202,6 +215,7 @@ expect_jq ".error == \"2035-01-06 isn't in this pay run\"" "the outside-date sen
 m8_unchanged "a date outside the run"
 m8_put '[{"date":"2035-01-01","startMin":420,"finishMin":480},{"date":"2035-01-01","startMin":420,"finishMin":500}]'
 expect_status 400 "a repeated date"
+expect_jq '.error == "Mon 1 Jan: this day is in the sheet twice"' "the repeated-date sentence"
 m8_unchanged "a repeated date"
 m8_put '[{"date":"2035-01-01","startMin":1500,"finishMin":1510}]'
 expect_status 400 "startMin 1500"

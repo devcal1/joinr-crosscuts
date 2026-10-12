@@ -10,6 +10,7 @@ const settings = require("./settings");
 const PayMaths = require("../public/paymaths");
 const { bad, notFound, conflict } = require("./httperror");
 const { DATE_RE, parseDateUTC, formatDateUTC, addDays, mondayOf, sydneyToday } = require("./time");
+const { parseDaysOff } = require("./availability");
 
 const PERSON_NAME_MAX = 100;
 const HOLIDAY_NAME_MAX = 80;
@@ -698,7 +699,8 @@ function saveTimesheet(db, req, runId, tsId, body) {
     const sent = {};
     for (const raw of b.days) {
       const date = raw && typeof raw === "object" ? raw.date : undefined;
-      if (typeof date !== "string" || !dates.has(date)) throw bad(`${String(date)} isn't in this pay run`);
+      if (typeof date !== "string" || !DATE_RE.test(date)) throw bad("Each day needs a date");
+      if (!dates.has(date)) throw bad(`${date} isn't in this pay run`);
       const label = dayLabel(date);
       if (sent[date]) throw bad(`${label}: this day is in the sheet twice`);
       sent[date] = parseDay(raw, label);
@@ -738,6 +740,9 @@ function saveTimesheet(db, req, runId, tsId, body) {
       before.entered = bool(t.entered);
       after.entered = entered;
     }
+
+    // A save that changes nothing writes nothing: no stamp, no "saved", no audit row.
+    if (Object.keys(before.days).length === 0 && Object.keys(before).length === 1) return;
 
     db.prepare("DELETE FROM pay_days WHERE timesheet_id = ?").run(tsId);
     const ins = db.prepare(
@@ -785,7 +790,10 @@ function suggestionsFor(db, run, person) {
   const workerId = person && person.workerId;
   const jobsOn = {};
   const leaveOn = {};
+  let daysOff = [];
   if (workerId) {
+    const w = db.prepare("SELECT regular_days_off FROM workers WHERE id = ?").get(workerId);
+    daysOff = parseDaysOff(w && w.regular_days_off);
     const weeks = [mondayOf(start), mondayOf(addDays(start, 7))];
     const rows = db
       .prepare(
@@ -815,7 +823,7 @@ function suggestionsFor(db, run, person) {
       .all(workerId, end, start);
     for (const l of leave) {
       for (const date of dates) {
-        if (date >= l.date_from && date <= l.date_to && !leaveOn[date]) leaveOn[date] = l.kind;
+        if (date >= l.date_from && date <= l.date_to && (!leaveOn[date] || leaveOn[date] === "other")) leaveOn[date] = l.kind;
       }
     }
   }
@@ -824,7 +832,9 @@ function suggestionsFor(db, run, person) {
     const s = out[date];
     const ordinary = PayMaths.ordinaryFor(PayMaths.dayKeyOf(date), r);
     if (jobsOn[date]) s.job = jobsOn[date].join(" / ");
-    if (holidayOn[date] !== undefined) {
+    if (daysOff.includes(PayMaths.dayKeyOf(date))) {
+      s.reason = "dayoff"; // a regular day off: no leave or holiday hours (Todd, 2026-10-12)
+    } else if (holidayOn[date] !== undefined) {
       s.pholMin = ordinary;
       s.reason = "holiday";
       s.holidayName = holidayOn[date];

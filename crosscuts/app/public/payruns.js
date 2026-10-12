@@ -112,7 +112,7 @@
       const run = runFor(f, runs);
       const [state, sentence] = runStatus(run);
       const headId = `fn-${i}`;
-      const card = el("article", { class: `py-card st-${state}`, "aria-labelledby": headId });
+      const card = el("article", { class: `py-card py-st-${state}`, "aria-labelledby": headId });
       card.append(
         el("span", { class: "hs-label", text: titles[i] }),
         el("h3", { class: "py-card-title", id: headId, text: f.label || PM.fortnightLabel(f.startDate) }),
@@ -208,7 +208,7 @@
 
       const on = el("td", { class: "py-on", "data-label": "On the pay run" });
       if (edit && !p.archived) {
-        const box = el("input", { type: "checkbox", "aria-label": `${p.name} is on the pay run` });
+        const box = el("input", { type: "checkbox", "aria-label": `${p.name} is on the pay run`, "data-person": personKey(p), "data-act": "on" });
         box.checked = !!p.onPayRun;
         const word = el("span", { text: p.onPayRun ? "Yes" : "No" });
         box.addEventListener("change", () => {
@@ -227,15 +227,15 @@
       const acts = el("td", { class: "py-acts" });
       if (edit && !worker) {
         if (p.archived) {
-          const back = el("button", { type: "button", class: "hs-btn", text: "Restore" });
+          const back = el("button", { type: "button", class: "hs-btn", text: "Restore", "data-person": personKey(p), "data-act": "restore" });
           back.setAttribute("aria-label", `Restore ${p.name}`);
           back.addEventListener("click", () => restorePerson(p, back));
           acts.append(back);
         } else {
-          const ren = el("button", { type: "button", class: "hs-btn", text: "Rename" });
+          const ren = el("button", { type: "button", class: "hs-btn", text: "Rename", "data-person": personKey(p), "data-act": "rename" });
           ren.setAttribute("aria-label", `Rename ${p.name}`);
           ren.addEventListener("click", () => openRename(p));
-          const rm = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Remove" });
+          const rm = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Remove", "data-person": personKey(p), "data-act": "remove" });
           rm.setAttribute("aria-label", `Remove ${p.name}`);
           rm.addEventListener("click", () => openRemovePerson(p));
           acts.append(ren, rm);
@@ -272,6 +272,24 @@
     }
   }
 
+  function personKey(p) {
+    return p.kind === "worker" ? `w${p.workerId}` : `p${p.id}`;
+  }
+
+  // After the list is drawn again, focus the person's control (`acts` in order of preference), or
+  // Add person (or the section heading) when they have gone from the list.
+  function focusPerson(p, ...acts) {
+    for (const act of acts) {
+      const node = $("people").querySelector(`[data-person="${personKey(p)}"][data-act="${act}"]`);
+      if (node && !node.disabled) return node.focus();
+    }
+    const add = $("addPerson");
+    if (!add.hidden) return add.focus();
+    const head = $("people-h");
+    head.tabIndex = -1;
+    head.focus();
+  }
+
   function personUrl(p) {
     return p.kind === "worker" ? `${API}/people/worker/${p.workerId}` : `${API}/people/${p.id}`;
   }
@@ -286,7 +304,8 @@
     } catch (e) {
       showError(e);
     }
-    loadPeople();
+    await loadPeople();
+    focusPerson(p, "on");
   }
 
   async function restorePerson(p, btn) {
@@ -297,7 +316,8 @@
     } catch (e) {
       showError(e);
     }
-    loadPeople();
+    await loadPeople();
+    focusPerson(p, "rename", "restore");
   }
 
   // --- public holidays ---------------------------------------------------------------------
@@ -504,8 +524,8 @@
   }
 
   // A small form dialog: title, optional note, fields, an action button. `run` gets nothing and
-  // throws a sentence on failure; on success the dialog closes.
-  function formDialog({ title, note, fields, action, actionClass, run, focus }) {
+  // throws a sentence on failure; on success the dialog closes, then `after` runs (to place focus).
+  function formDialog({ title, note, fields, action, actionClass, run, focus, after }) {
     const root = el("form", { class: "cc-dialog-form", method: "dialog", novalidate: true });
     root.append(el("h2", { class: "cc-dialog-title", id: "dlgTitle", text: title }));
     if (note) root.append(el("p", { class: "cc-dialog-note", text: note }));
@@ -518,6 +538,7 @@
       busy(root, err, async () => {
         await run();
         dlg.close();
+        if (after) await after();
       });
     });
     dlg.replaceChildren(root);
@@ -562,7 +583,10 @@
         if (n === p.name) return;
         await api(personUrl(p), { method: "PATCH", body: JSON.stringify({ name: n }) });
         toast("Renamed");
-        loadPeople();
+      },
+      after: async () => {
+        await loadPeople();
+        focusPerson(p, "rename");
       },
     });
     name.select();
@@ -577,7 +601,10 @@
       run: async () => {
         await api(personUrl(p), { method: "PATCH", body: JSON.stringify({ archived: true }) });
         toast(`${p.name} removed`);
-        loadPeople();
+      },
+      after: async () => {
+        await loadPeople();
+        focusPerson(p, "restore");
       },
     });
   }
