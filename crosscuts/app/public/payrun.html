@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pay run - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="payrun.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="pr-page">
+    <div class="pr-head">
+      <h1><span class="pr-h-kicker">Pay run</span> <span id="runLabel"></span></h1>
+      <span id="runBadge" class="hs-badge hs-badge-na" hidden></span>
+      <div class="pr-actions" role="group" aria-label="Pay run actions">
+        <button id="finaliseBtn" class="hs-btn hs-btn-primary" type="button" hidden>Finalise</button>
+        <label id="myobWrap" class="pr-check pr-myob" hidden><input id="myobTick" type="checkbox"> Entered in MYOB</label>
+        <button id="reopenBtn" class="hs-btn" type="button" hidden>Reopen</button>
+        <button id="deleteBtn" class="hs-btn hs-btn-stop" type="button" hidden>Delete</button>
+        <a id="printSummary" class="hs-btn" href="/payprint.html" hidden>Print summary</a>
+        <a id="printSheets" class="hs-btn" href="/payprint.html" hidden>Print timesheets</a>
+        <a class="hs-btn hs-btn-quiet" href="/payruns.html">Back</a>
+      </div>
+    </div>
+    <p id="runMeta" class="pr-meta"></p>
+    <p id="pageStatus" class="pr-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="tabs" class="pr-tabs" role="tablist" aria-label="Pay run views" hidden>
+      <button id="tabSheets" class="pr-tab" type="button" role="tab" aria-selected="true" aria-controls="panelSheets">Timesheets</button>
+      <button id="tabSummary" class="pr-tab" type="button" role="tab" aria-selected="false" aria-controls="panelSummary" tabindex="-1">Summary</button>
+    </div>
+
+    <section id="panelSheets" class="pr-sheets" role="tabpanel" aria-labelledby="tabSheets" hidden>
+      <aside class="pr-side" aria-label="Sheets">
+        <div class="pr-side-head">
+          <span class="hs-label">Sheets</span>
+          <span id="sheetCount" class="pr-side-count"></span>
+        </div>
+        <ul id="sheetList" class="pr-list"></ul>
+        <p id="noSheets" class="pr-none" hidden>No sheets in this pay run yet.</p>
+        <div id="sideTools" class="pr-side-tools" hidden>
+          <button id="addSheetBtn" class="hs-btn" type="button">Add sheet</button>
+          <button id="removeSheetBtn" class="hs-btn hs-btn-stop" type="button" hidden>Remove</button>
+        </div>
+      </aside>
+
+      <div id="entry" class="pr-entry" hidden>
+        <div class="pr-form-head">
+          <div class="pr-kv"><span class="hs-label">Employee</span><span id="empName" class="pr-kv-v"></span></div>
+          <div class="pr-kv"><span class="hs-label">From</span><span id="fromDate" class="pr-kv-v"></span></div>
+          <div class="pr-kv"><span class="hs-label">To</span><span id="toDate" class="pr-kv-v"></span></div>
+          <span id="sheetState" class="pr-sheet-state"></span>
+        </div>
+
+        <div id="stale" class="hs-callout hs-callout-orange pr-stale" hidden>
+          <p id="staleText"></p>
+          <button id="reloadSheetBtn" class="hs-btn hs-btn-check" type="button">Reload sheet</button>
+        </div>
+
+        <p id="keyLine" class="pr-keyline" hidden>Grey values are suggestions from the board, leave and public holidays; check them against the paper.</p>
+
+        <div class="pr-gridwrap">
+          <table class="pr-grid" id="grid">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Day</th>
+                <th scope="col">Start</th>
+                <th scope="col">Finish</th>
+                <th scope="col">Lunch</th>
+                <th scope="col">P HOL</th>
+                <th scope="col">SICK</th>
+                <th scope="col">ARL</th>
+                <th scope="col">ON SITE</th>
+                <th scope="col" class="pr-col-job">JOB</th>
+                <th scope="col" class="num">Total</th>
+                <th scope="col" class="num">OT</th>
+                <th scope="col" class="num">DT</th>
+                <th scope="col" class="pr-col-hint"><span class="pr-sr">Check</span></th>
+              </tr>
+            </thead>
+            <tbody id="gridBody"></tbody>
+            <tfoot>
+              <tr id="totalsRow"></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="pr-lower">
+          <div class="pr-notes">
+            <label class="hs-label" for="notes">Notes</label>
+            <textarea id="notes" class="hs-input pr-notes-in" maxlength="2000" rows="3"></textarea>
+            <p id="notesRo" class="pr-notes-ro" hidden></p>
+            <div class="pr-ticks">
+              <label class="pr-check"><input id="signedTick" type="checkbox"> Signed</label>
+              <label class="pr-check"><input id="enteredTick" type="checkbox"> Typed in</label>
+            </div>
+          </div>
+          <div class="pr-sumblock" aria-label="Summary for this sheet">
+            <div class="pr-sum-k">Normal Time</div><div class="pr-sum-v" id="sNormal"></div>
+            <div class="pr-sum-k">Over Time</div><div class="pr-sum-v" id="sOt"></div>
+            <div class="pr-sum-k">Double Time</div><div class="pr-sum-v" id="sDt"></div>
+            <div class="pr-sum-k">Public Holiday</div><div class="pr-sum-v" id="sPhol"></div>
+            <div class="pr-sum-k">Annual Leave</div><div class="pr-sum-v" id="sArl"></div>
+            <div class="pr-sum-k">Personal Leave</div><div class="pr-sum-v" id="sSick"></div>
+            <div class="pr-sum-k">On Site</div><div class="pr-sum-v" id="sOnsite"></div>
+          </div>
+        </div>
+
+        <div id="saveBar" class="pr-savebar" hidden>
+          <button id="saveBtn" class="hs-btn hs-btn-primary" type="button">Save</button>
+          <button id="saveNextBtn" class="hs-btn" type="button">Save and next</button>
+          <button id="fillBtn" class="hs-btn" type="button" hidden>Fill suggestions</button>
+          <span class="pr-hint-keys">Ctrl+S saves. Enter moves down a column.</span>
+        </div>
+        <p id="saveStatus" class="pr-save-status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="panelSummary" class="pr-summary" role="tabpanel" aria-labelledby="tabSummary" hidden>
+      <div id="sumDraft" class="hs-callout hs-callout-orange pr-draft" hidden>
+        <p>Not finalised: numbers can still change</p>
+      </div>
+      <p id="sumRules" class="pr-rules"></p>
+      <p id="sumStatus" class="pr-status" role="status" aria-live="polite"></p>
+      <div class="pr-sumwrap">
+        <table class="hs-table pr-sumtable">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col" class="num">Normal Time</th>
+              <th scope="col" class="num">Over Time</th>
+              <th scope="col" class="num">Double Time</th>
+              <th scope="col" class="num">Public Holiday</th>
+              <th scope="col" class="num">Annual Leave</th>
+              <th scope="col" class="num">Personal Leave</th>
+              <th scope="col" class="num">On Site</th>
+              <th scope="col">Notes</th>
+            </tr>
+          </thead>
+          <tbody id="sumRows"></tbody>
+          <tfoot id="sumFoot"></tfoot>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="addDlg" class="cc-dialog pr-dialog" aria-labelledby="addTitle">
+    <form id="addForm" class="cc-dialog-form" method="dialog">
+      <h2 id="addTitle" class="cc-dialog-title">Add sheet</h2>
+      <p class="cc-dialog-note">Someone not yet in this pay run. People are added to the list on the Pay runs page.</p>
+      <div class="cc-field">
+        <label class="cc-field-label" for="addPerson">Person</label>
+        <select id="addPerson" class="hs-input pr-select" required></select>
+      </div>
+      <p id="addError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="addCancel" class="hs-btn" type="button">Cancel</button>
+        <button id="addOk" class="hs-btn hs-btn-primary" type="submit">Add sheet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="shared.js"></script>
+  <script src="/paymaths.js"></script>
+  <script src="payrun.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>

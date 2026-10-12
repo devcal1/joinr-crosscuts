@@ -1,0 +1,305 @@
+/* One pay run (payrun.html): the header, the Timesheets and Summary tabs, the sheet list and the
+   entry grid that mirrors the paper timesheet (docs/plans/m8-contracts.md section 8.2).
+   Tokens come from tokens.css, hs- components from components.css, and the dialog frame from the
+   shell's cc-dialog. Page classes here are prefixed pr-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.pr-page { max-width: 1480px; margin: 0 auto; padding: 22px 16px 48px; }
+
+/* ---------- header ---------- */
+.pr-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.pr-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.pr-h-kicker {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.pr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.pr-meta { margin: 6px 0 14px; color: var(--label); font-size: 13px; }
+.pr-meta:empty { display: none; }
+.pr-status { margin: 0 0 12px; color: var(--label); }
+.pr-status:empty { display: none; }
+.pr-none { margin: 0; color: var(--muted); font-size: 13px; }
+
+.pr-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--body); cursor: pointer; }
+.pr-check input { accent-color: var(--teal); width: 16px; height: 16px; margin: 0; flex: none; }
+.pr-check:has(input:disabled) { cursor: default; color: var(--label); }
+.pr-myob {
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  min-height: 27px;
+}
+.pr-myob:has(input:checked) { border-color: var(--teal); color: var(--teal-tint); }
+
+/* ---------- tabs ---------- */
+.pr-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline); margin-bottom: 16px; }
+.pr-tab {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 14px;
+  color: var(--label);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.pr-tab:hover { color: var(--white); }
+.pr-tab[aria-selected="true"] { color: var(--white); border-bottom-color: var(--teal); }
+
+/* ---------- timesheets: list on the left, the entry screen on the right ---------- */
+.pr-sheets { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; align-items: start; }
+
+.pr-side {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 10px;
+  min-width: 0;
+}
+.pr-side-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 4px 8px; }
+.pr-side-count { font-size: 12px; color: var(--muted); }
+.pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pr-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-left: 3px solid transparent;
+  border-radius: var(--r-control);
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--body);
+  cursor: pointer;
+}
+.pr-item:hover { background: var(--raised); }
+.pr-item-on { background: var(--raised); border-left-color: var(--teal); }
+.pr-item-name { display: block; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
+.pr-item-sub { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.pr-item-state { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; line-height: 18px; }
+.pr-st-typed { color: var(--teal-tint); }
+.pr-st-saved { color: var(--label); }
+.pr-st-new { color: var(--muted); }
+.pr-st-unsaved { color: var(--orange-tint); }
+.pr-item-hrs { color: var(--label); font-variant-numeric: tabular-nums; }
+.pr-side-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+
+.pr-entry { min-width: 0; }
+.pr-form-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 28px;
+  margin-bottom: 12px;
+}
+.pr-kv { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pr-kv-v { color: var(--white); font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.pr-sheet-state { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+.pr-stale { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 12px; }
+.pr-stale p { margin: 0; flex: 1 1 240px; color: var(--white); }
+.pr-keyline { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+
+/* ---------- the grid (scrolls inside its own box on narrow screens) ---------- */
+.pr-gridwrap {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.pr-grid { width: 100%; min-width: 1110px; border-collapse: collapse; table-layout: fixed; }
+.pr-grid th {
+  padding: 8px 4px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: center;
+  white-space: nowrap;
+}
+.pr-grid td { padding: 3px; height: 36px; vertical-align: middle; }
+/* the two weeks of the paper, with a line between them */
+.pr-grid tr.pr-week2 td { border-top: 1px solid var(--na); }
+
+/* column widths: Date, Day, Start, Finish, Lunch, P HOL, SICK, ARL, ON SITE, JOB, Total, OT, DT, check */
+.pr-grid th:nth-child(1) { width: 62px; }
+.pr-grid th:nth-child(2) { width: 46px; }
+.pr-grid th:nth-child(3), .pr-grid th:nth-child(4) { width: 72px; }
+.pr-grid th:nth-child(n+5):nth-child(-n+9) { width: 66px; }
+.pr-grid th.pr-col-job { width: auto; min-width: 180px; text-align: left; padding-left: 8px; }
+.pr-grid th:nth-child(n+11):nth-child(-n+13) { width: 58px; }
+.pr-grid th.pr-col-hint { width: 170px; }
+
+.pr-date { padding-left: 10px !important; color: var(--white); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pr-day { color: var(--label); text-align: center; }
+.pr-grid .num { text-align: right; padding-right: 10px; font-variant-numeric: tabular-nums; }
+.pr-calc { color: var(--white); }
+.pr-ro { text-align: center; color: var(--white); font-variant-numeric: tabular-nums; }
+td.pr-col-job.pr-ro { text-align: left; padding-left: 8px; color: var(--body); overflow-wrap: anywhere; }
+
+.pr-in {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 13px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 4px;
+}
+.pr-in-job { text-align: left; padding: 4px 8px; }
+.pr-in:hover { border-color: var(--label); }
+.pr-in:focus { outline: none; border-color: var(--teal); }
+.pr-in:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.pr-in.pr-sug { color: var(--muted); }
+.pr-in.pr-bad, .pr-in.pr-bad:hover, .pr-in.pr-bad:focus { border-color: var(--orange); background: var(--orange-8); }
+.pr-in.pr-bad:focus-visible { outline-color: var(--orange); }
+
+td.pr-col-hint { font-size: 12px; line-height: 1.3; padding-left: 8px; padding-right: 8px; }
+.pr-problem { display: block; color: var(--orange-tint); }
+.pr-hint { display: block; color: var(--muted); }
+
+.pr-grid tfoot th, .pr-grid tfoot td {
+  border-top: 1px solid var(--na);
+  padding-top: 9px;
+  padding-bottom: 9px;
+  background: var(--raised);
+}
+.pr-grid tfoot td.num { color: var(--body); }
+.pr-tot-label { text-align: left !important; padding-left: 10px !important; color: var(--white) !important; }
+.pr-grid tfoot td.pr-tot-strong { color: var(--white); font-weight: 700; }
+
+/* ---------- notes, ticks and the paper's summary block ---------- */
+.pr-lower { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; margin-top: 14px; align-items: start; }
+.pr-notes { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pr-notes-in { min-height: 76px; resize: vertical; color-scheme: dark; }
+.pr-notes-ro { margin: 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-control); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--body); }
+.pr-notes-ro.pr-none { color: var(--muted); }
+.pr-ticks { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 4px; }
+
+.pr-sumblock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.pr-sumblock > div { padding: 5px 12px; border-bottom: 1px solid var(--hairline); }
+.pr-sumblock > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.pr-sum-k {
+  background: var(--raised);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  display: flex;
+  align-items: center;
+}
+.pr-sum-v { background: var(--surface); color: var(--white); text-align: right; font-variant-numeric: tabular-nums; min-width: 84px; }
+
+.pr-savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; }
+.pr-hint-keys { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.pr-save-status { min-height: 21px; margin: 8px 0 0; color: var(--label); font-size: 13px; }
+
+/* ---------- summary tab ---------- */
+.pr-draft { margin-bottom: 10px; }
+.pr-draft p { margin: 0; color: var(--white); font-weight: 700; }
+.pr-rules { margin: 0 0 10px; color: var(--label); font-size: 13px; }
+.pr-sumwrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.pr-sumtable { min-width: 980px; }
+.pr-sumtable th.num, .pr-sumtable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pr-sumtable tbody th {
+  text-align: left;
+  background: none;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--white);
+  border-bottom: 1px solid var(--hairline);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.pr-sumtable td.num { color: var(--white); }
+.pr-sumtable td.pr-zero { color: var(--muted); }
+.pr-sum-notes { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 200px; max-width: 360px; font-size: 13px; }
+.pr-sumtable tfoot th, .pr-sumtable tfoot td {
+  background: var(--raised);
+  border-bottom: 0;
+  color: var(--white);
+  font-weight: 700;
+  padding: 9px 10px;
+}
+.pr-sumtable tfoot th { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
+
+/* ---------- add-sheet dialog ---------- */
+.cc-dialog.pr-dialog { width: min(92vw, 420px); }
+.pr-select { color-scheme: dark; min-height: 36px; }
+
+.pr-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- narrower screens ---------- */
+/* Below 1400 px the sheet list goes on top, so the paper grid keeps the full width. */
+@media (max-width: 1399.98px) {
+  .pr-sheets { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .pr-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .pr-lower { grid-template-columns: minmax(0, 1fr) 260px; }
+  .pr-grid { min-width: 1010px; }
+  .pr-grid th:nth-child(3), .pr-grid th:nth-child(4) { width: 66px; }
+  .pr-grid th:nth-child(n+5):nth-child(-n+9) { width: 60px; }
+  .pr-grid th.pr-col-hint { width: 140px; }
+}
+@media (max-width: 900px) {
+  .pr-lower { grid-template-columns: minmax(0, 1fr); }
+  .pr-grid { min-width: 1100px; } /* scrolls in its box anyway: room for the job */
+  .pr-actions { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  .pr-page { padding-top: 16px; }
+  .pr-head h1 { font-size: 20px; flex: 1 1 100%; }
+  .pr-sheet-state { margin-left: 0; flex-basis: 100%; }
+  .pr-form-head { gap: 8px 18px; }
+  .pr-hint-keys { display: none; }
+  /* the date stays in view while the grid scrolls sideways */
+  .pr-grid .pr-date, .pr-grid thead th:first-child, .pr-grid .pr-tot-label { position: sticky; left: 0; z-index: 1; }
+  .pr-grid .pr-date { background: var(--surface); }
+}
