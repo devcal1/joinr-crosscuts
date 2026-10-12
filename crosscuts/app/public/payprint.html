@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Print - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="payprint.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="pp-page" id="pp-page">
+    <div class="pp-toolbar">
+      <button class="hs-btn hs-btn-primary" id="pp-print" type="button" disabled>Print</button>
+      <a class="hs-btn" id="pp-back" href="/payruns.html">Back</a>
+      <span class="pp-state" id="pp-state" role="status" aria-live="polite"></span>
+    </div>
+    <div class="pp-scroll">
+      <div class="pp-pages" id="pp-pages">
+        <p class="pp-message">Loading…</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/paymaths.js"></script>
+  <script src="payprint.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
