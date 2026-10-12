@@ -1,6 +1,6 @@
 # M8 Pay runs: plan
 
-Status: **M8 · 1.2 plan written, questions with Todd (2026-10-12).** Not approved yet.
+Status: **M8 · 1.3 done: Todd answered every question (2026-10-12); plan approved** (Decisions at the end; they replace section 2 where they differ).
 
 Scope (Todd, 2026-10-12, `jobs-master-tabs.md`): the Timesheet, Overtime and Payroll tabs of the jobs master become fortnightly pay runs in Crosscuts. Accounts types each employee's handwritten fortnightly timesheet into a screen that mirrors the paper form row for row, and Crosscuts produces the per-employee summary (Normal Time, Over Time, Double Time, Annual Leave, Personal Leave) for keying into MYOB. No MYOB integration (brief D10/D12): keyed by hand, as invoices are.
 
@@ -41,6 +41,30 @@ What exists:
 8. **Overtime log tab.** Recommended: folded into the timesheet's OT and DT columns; no separate log.
 9. **History.** Recommended: start fresh; no import from the workbook.
 
-## Decisions
+## Decisions (Todd, 2026-10-12)
 
-(To be recorded as Todd answers.)
+1. **Paper first, Accounts types it in.** Crosscuts prints the fortnightly timesheet for Accounts; staff fill it in by hand; Accounts types each sheet into a Crosscuts entry screen that mirrors it row for row. Staff never log in for this.
+2. **Employees:** the board's workers, each with an "on the pay run" switch, plus pay-only people Accounts adds (e.g. office staff). Each printed sheet carries the employee's name and the fortnight's dates.
+3. **Access: the existing Accounts keys, no new key.** `accounts.view` sees pay runs; `invoices.edit` enters and finalises them. (Key count stays 23.)
+4. **Crosscuts works out OT and DT**, daily. Ordinary hours **Mon–Thu 8 h, Fri 6 h**; the first **2 h** past ordinary are OT, anything beyond is DT. All three numbers are settings, editable later.
+5. **Pre-fill on the entry screen only:** the JOB column from the board, board leave and sick days, and public holidays, as suggestions; what Accounts types from the paper wins. Printed sheets stay blank apart from name and dates.
+6. **Public holidays:** an editable VIC list kept by Accounts on the pay-run page, started with this year's and next year's Victorian public holidays (local days such as Bendigo Cup added by hand).
+7. **Fortnight anchor: Monday 5 October 2026** (pay runs step 14 days from it: 5–16 Oct, 19–30 Oct, …).
+8. **MYOB:** an on-screen and printable summary per fortnight (each employee's hours by category, with notes), **Finalise** freezes it, an **Entered in MYOB** tick, as invoices. An admin can reopen a finalised pay run.
+9. **Overtime log: keep a printable blank template** (date, name, hours, job) that prints alongside the timesheets. Not typed in.
+10. **History: start fresh.** No import from the workbook.
+11. **Public holiday hours get their own line** on the summary (for MYOB's public holiday category); Normal Time is hours actually worked.
+12. **OFF SITE is renamed ON SITE** and records **hours** on a job site (away from the factory). Totalled on the summary; it doesn't change pay.
+
+### Lead's defaults (not asked; Todd can change any)
+
+- **Summary lines per employee:** Normal Time, Over Time, Double Time, Public Holiday, Annual Leave (ARL), Personal Leave (SICK), plus On Site hours and the notes.
+- **Daily maths:** worked = finish − start − lunch. Normal = worked up to that weekday's ordinary hours; OT = the next 2 h; DT = the rest. P HOL, SICK and ARL are typed (or pre-filled) hours and sit beside worked hours; a part day of work plus part leave is allowed.
+- **Pre-filled leave or holiday** uses that weekday's ordinary hours (8 or 6).
+- **Hours** stored as integer minutes; shown as decimal hours to two places, as MYOB takes them. Lunch typed as minutes or h:mm.
+- **JOB column:** free text, suggested from the board (job name and quote number; several joined when the worker was on more than one job).
+- **Workers' switch** defaults to on for every active board worker; archived workers are left out. The switch and the pay-only people live on the pay-run page (Accounts has no `workers.edit`).
+- **Leave for pre-fill** is read by the pay-run API on the server, so Accounts needs no `scheduling.view`.
+- **Settings** (ordinary hours, OT band, anchor) are edited by `invoices.edit` holders, audited, and apply to open pay runs only; a finalised pay run keeps the numbers it was finalised with.
+- **No weekend rows,** as on the paper.
+- **Every write audited** (`payrun.*`, `timesheet.*`, `holiday.*`).
