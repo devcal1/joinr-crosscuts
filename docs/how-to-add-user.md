@@ -16,12 +16,14 @@ The steps below describe the screen as it is planned. Button and menu names may 
 
 - **Admin:** everything, including users and the audit log.
 - **Accounts:** bookkeeping, invoices, job values, photo search.
-- **Design/PM:** jobs, design, orders, inspections, photo admin, scheduling view.
+- **Design/PM:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view.
 - **Scheduling:** the board (moving jobs, workers, leave).
 - **Showroom:** photo search only. Used for the shared showroom account.
-- **Workshop:** the board and the Planner (Company-wide, Install & hardware and Workshop, read-only). For the workshop TV and workshop logins. It can't edit the board: if the TV account must, give it a **Grant** override for `board.edit`.
+- **Workshop:** the board and the Planner (Company-wide, Install & hardware and Workshop, read-only). For workshop logins (the floor crew, if they get one). It can't edit the board.
+- **Ordering:** places orders: adds order lines and marks them ordered (marking a job's last line ordered makes its progress invoice due), sees jobs and design, receives deliveries. Gets the delivery notes and the "materials in" alerts.
+- **Workshop Manager:** runs the workshop floor: the board to view, order lines to view and receive (the **Deliveries** page), the Planner (adds to Workshop), tasks and messages. No job pages, so no client details.
 
-The office roles (Admin, Accounts, Design/PM, Scheduling) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
+The office roles (Admin, Accounts, Design/PM, Scheduling, Ordering, Workshop Manager) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
 
 ## Overrides
 
@@ -66,10 +68,12 @@ This is the plan from the brief (section 3.1).
 | Sam | Scheduling | Chromebook drives the workshop TV |
 | Michael | Scheduling | |
 | Showroom | Showroom | One shared account for the showroom device |
-| Floor crew | None | No login. They only watch the TV |
+| Ordering | Ordering | Whoever places the orders (M10) |
+| Workshop Manager | Workshop Manager | Runs the floor and receives deliveries; not the Scheduler (M10) |
+| Floor crew | None (or Workshop) | They watch the TV. A floor login, if wanted, gets Workshop |
 
 **Tip for Sam's Chromebook:** at login, tick **Remember this device**. The login then lasts 30 days and keeps sliding, so the TV device does not log out during daily use. Sam can also set a PIN, so that after pressing **Lock** he can unlock with the PIN instead of the password.
 
 Use the same tick on the showroom device, so it stays logged in.
 
-**The workshop TV and the Workshop role (M7).** Once the Planner is installed, switch the account the TV signs in with to the **Workshop** role (on the Users page, tick Workshop and untick its other roles). The TV still shows only the board: the board has no menu bar, so no Planner link appears on it. Workshop has no `board.edit`, so if anyone moves rows on the board from the TV, add a **Grant** override for `board.edit` to that account. Workshop logins for the floor crew work the same way: they see the board and the Planner, and change nothing.
+**The workshop TV runs on Sam's own login** (Scheduling; Todd, 2026-10-13). Don't give Sam the Workshop role or take his Scheduling role away for it. The TV shows only the board: the board has no menu bar. **Workshop logins** for the floor crew, if wanted, see the board and the Planner and change nothing.

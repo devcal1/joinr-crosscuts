@@ -21,7 +21,7 @@ Ships as 0.1.10. The board's own bar (`.nav`, `--nav-h`, rule 7) is not touched;
    - Accounts repeats Tasks.
 6. **No room left.** At 1440 px the full admin bar has 26 px to spare. Adding the four missing pages and a Dashboard link as flat links would not fit between 1366 and 1600 px.
 
-**Who has what (role presets):** Accounts: Accounts, Jobs, Board, Photos. Design/PM: Design/PM, Jobs, Scheduling, Board, Photos, Photo admin. Scheduling: Scheduling, Board, Workers, Jobs, Photos. Showroom: Photos only. Workshop: Board and Planner only. Admin: everything. All but showroom and workshop have Tasks and Messages; all but showroom have the Planner.
+**Who has what (role presets):** Accounts: Accounts, Jobs, Board, Photos. Design/PM: Design/PM, Jobs, Scheduling, Board, Photos, Photo admin. Scheduling: Scheduling, Board, Workers, Jobs, Photos. Showroom: Photos only. Workshop: Board and Planner only. Admin: everything. All but showroom and workshop have Tasks and Messages; all but showroom have the Planner. (This is the audit as of 2026-10-12. M10 later added Ordering and Workshop Manager and the Ordering menu's Deliveries; [auth.md](../auth.md) has the current table.)
 
 ## 2. Proposal (the recommended answers)
 

@@ -123,7 +123,7 @@ CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE
 ```
 
 ## Permissions (`lib/permissions.js`, written in full in Wave 0)
-- `KEYS`: an array of the 21 keys: `board.view board.edit workers.edit jobs.view jobs.edit jobs.value photos.search photos.admin accounts.view invoices.edit reports.upload design.view orders.edit orders.mark_ordered inspections.edit scheduling.view leave.edit tasks.use messages.use users.admin audit.view`.
+- `KEYS`: an array of the 21 keys: `board.view board.edit workers.edit jobs.view jobs.edit jobs.value photos.search photos.admin accounts.view invoices.edit reports.upload design.view orders.edit orders.mark_ordered inspections.edit scheduling.view leave.edit tasks.use messages.use users.admin audit.view`. (M1. Later milestones appended keys: 23 after M7, **25 after M10**. The current list is `lib/permissions.js`, and the table by role is in `docs/auth.md`.)
 - `PRESETS`: a map of role to key array.
   - admin: every key.
   - accounts: `board.view jobs.view jobs.value photos.search accounts.view invoices.edit reports.upload tasks.use messages.use`.

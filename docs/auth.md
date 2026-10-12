@@ -1,4 +1,4 @@
-# How login works
+# How login works Yes | Yes |  | |  | | Yes | |  | |  | | Yes | |  | |  | |  | |  | | Yes | | Yes | | Yes | |  | |  | |  | | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |  | |  | |
 
 The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plans/m1-contracts.md` is the source of truth. If this page disagrees with it, the contract wins and this page needs fixing.
 
@@ -30,33 +30,35 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 
 A role is a preset: a set of feature keys. A user's effective permissions are the union of their roles' keys, then each override is applied. A **grant** adds a key; a **revoke** removes it. Unknown keys in overrides are refused (400).
 
-Keys marked † only gate a shell page so far. `accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`. M7 (Staff planner) adds `planner.view` and `planner.edit` and the **workshop** role (`board.view` and `planner.view` only). Which planner layers a person sees and posts to is decided by their **roles**, not their keys (`lib/planner/layers.js`): see `docs/plans/m7-contracts.md` section 5. M8 (Pay runs) adds no key: the pay-run pages and `/api/payruns` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes), and reopening a finalised pay run needs `users.admin`: see `docs/plans/m8-contracts.md`. M9 (BAS sales and supplier accounts) adds no key: the BAS and supplier pages and `/api/bas` and `/api/suppliers` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes; a supplier statement file downloads with `accounts.view`), and reopening a lodged BAS month needs `users.admin`: see `docs/plans/m9-contracts.md`.
+`accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`. M7 (Staff planner) adds `planner.view` and `planner.edit` and the **workshop** role (`board.view` and `planner.view` only). Which planner layers a person sees and posts to is decided by their **roles**, not their keys (`lib/planner/layers.js`): see `docs/plans/m7-contracts.md` section 5. M8 (Pay runs) adds no key: the pay-run pages and `/api/payruns` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes), and reopening a finalised pay run needs `users.admin`: see `docs/plans/m8-contracts.md`. M9 (BAS sales and supplier accounts) adds no key: the BAS and supplier pages and `/api/bas` and `/api/suppliers` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes; a supplier statement file downloads with `accounts.view`), and reopening a lodged BAS month needs `users.admin`: see `docs/plans/m9-contracts.md`. M10 (New roles) adds `orders.view` (see order lines without the job pages: the Orders page, `GET /api/orders`, the Ordering menu; the job page's Orders section stays under `jobs.view`) and `orders.receive` (receive a line, undo it, change its received date, write a delivery note; the Deliveries page), and the **ordering** and **workshop_manager** roles. Ordering marks lines ordered, so marking a job's last line ordered makes its progress invoice due: see `docs/plans/m10-contracts.md`.
 
-| Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom | Workshop |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| `board.view` | Yes | Yes | Yes | Yes | | Yes |
-| `board.edit` | Yes | | | Yes | | |
-| `workers.edit` | Yes | | | Yes | | |
-| `jobs.view` | Yes | Yes | Yes | Yes | | |
-| `jobs.edit` | Yes | | Yes | | | |
-| `jobs.value` | Yes | Yes | Yes | | | |
-| `photos.search` | Yes | Yes | Yes | Yes | Yes | |
-| `photos.admin` | Yes | | Yes | | | |
-| `accounts.view` | Yes | Yes | | | | |
-| `invoices.edit` | Yes | Yes | | | | |
-| `reports.upload` | Yes | Yes | | | | |
-| `design.view` | Yes | | Yes | | | |
-| `orders.edit` | Yes | | Yes | | | |
-| `orders.mark_ordered` | Yes | | | | | |
-| `inspections.edit` | Yes | | Yes | | | |
-| `scheduling.view` | Yes | | Yes | Yes | | |
-| `leave.edit` | Yes | | | Yes | | |
-| `tasks.use` | Yes | Yes | Yes | Yes | | |
-| `messages.use` | Yes | Yes | Yes | Yes | | |
-| `planner.view` | Yes | Yes | Yes | Yes | | Yes |
-| `planner.edit` | Yes | Yes | Yes | Yes | | |
-| `users.admin` | Yes | | | | | |
-| `audit.view` | Yes | | | | | |
+| Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom | Workshop | Ordering | Workshop Manager |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `board.view` | Yes | Yes | Yes | Yes | | Yes | Yes | Yes |
+| `board.edit` | Yes | | | Yes | | | | |
+| `workers.edit` | Yes | | | Yes | | | | |
+| `jobs.view` | Yes | Yes | Yes | Yes | | | Yes | |
+| `jobs.edit` | Yes | | Yes | | | | | |
+| `jobs.value` | Yes | Yes | Yes | | | | | |
+| `photos.search` | Yes | Yes | Yes | Yes | Yes | | Yes | |
+| `photos.admin` | Yes | | Yes | | | | | |
+| `accounts.view` | Yes | Yes | | | | | | |
+| `invoices.edit` | Yes | Yes | | | | | | |
+| `reports.upload` | Yes | Yes | | | | | | |
+| `design.view` | Yes | | Yes | | | | Yes | |
+| `orders.edit` | Yes | | Yes | | | | Yes | |
+| `orders.mark_ordered` | Yes | | | | | | Yes | |
+| `inspections.edit` | Yes | | Yes | | | | | |
+| `scheduling.view` | Yes | | Yes | Yes | | | | |
+| `leave.edit` | Yes | | | Yes | | | | |
+| `tasks.use` | Yes | Yes | Yes | Yes | | | Yes | Yes |
+| `messages.use` | Yes | Yes | Yes | Yes | | | Yes | Yes |
+| `planner.view` | Yes | Yes | Yes | Yes | | Yes | Yes | Yes |
+| `planner.edit` | Yes | Yes | Yes | Yes | | | Yes | Yes |
+| `users.admin` | Yes | | | | | | | |
+| `audit.view` | Yes | | | | | | | |
+| `orders.view` | Yes | Yes | Yes | Yes | | | Yes | Yes |
+| `orders.receive` | Yes | | Yes | | | | Yes | Yes |
 
 ### Planner layers
 
@@ -65,14 +67,14 @@ The Planner (M7) has seven layers. `planner.view` is needed to see any of them a
 | Layer | Who sees it | Who adds to it | Who changes or deletes an event |
 |---|---|---|---|
 | Company-wide | everyone | everyone | the person who added it, and admin |
-| Install & hardware | everyone | Design/PM, Scheduling, admin | Design/PM, Scheduling, admin |
+| Install & hardware | everyone | Design/PM, Scheduling, Ordering, admin | Design/PM, Scheduling, Ordering, admin |
 | Accounts | Accounts, admin | Accounts, admin | Accounts, admin |
 | Design/PM | Design/PM, admin | Design/PM, admin | Design/PM, admin |
 | Scheduling/Production | Scheduling, admin | Scheduling, admin | Scheduling, admin |
-| Workshop | Scheduling, Workshop, admin | Scheduling, admin | Scheduling, admin |
+| Workshop | Scheduling, Workshop, Workshop Manager, admin | Scheduling, Workshop Manager, admin | Scheduling, Workshop Manager, admin |
 | Personal | only its owner (not even admin), and only with `planner.edit` | anyone with `planner.edit`, for themselves | only its owner |
 
-So a **workshop** login (the workshop TV, workshop staff) sees Company-wide, Install & hardware and Workshop, read-only, and has no Personal layer. **Showroom** has no planner. Someone given `planner.view` by an override with no planner role sees Company-wide and Install & hardware only; with `planner.edit` as well, they can also add to Company-wide and have a Personal layer. On a department layer, edit rights follow the role a person holds now: someone who leaves the department can no longer change its events. Because layers follow roles, revoking `accounts.view` from someone with the Accounts role still leaves the automatic invoice items on their Accounts layer, without links to the invoices.
+An **Ordering** user's new events default to Install & hardware, a **Workshop Manager**'s to Workshop (M10). A **workshop** login (workshop staff) sees Company-wide, Install & hardware and Workshop, read-only, and has no Personal layer. **Showroom** has no planner. Someone given `planner.view` by an override with no planner role sees Company-wide and Install & hardware only; with `planner.edit` as well, they can also add to Company-wide and have a Personal layer. On a department layer, edit rights follow the role a person holds now: someone who leaves the department can no longer change its events. Because layers follow roles, revoking `accounts.view` from someone with the Accounts role still leaves the automatic invoice items on their Accounts layer, without links to the invoices.
 
 Known M1 limit: the board does not hide edit controls from view-only users. The server refuses their edits with a 403.
 
