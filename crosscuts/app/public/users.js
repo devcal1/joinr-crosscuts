@@ -9,6 +9,8 @@
     scheduling: "Scheduling",
     showroom: "Showroom",
     workshop: "Workshop",
+    ordering: "Ordering",
+    workshop_manager: "Workshop Manager",
   };
 
   let meta = { roles: [], keys: [], presets: {} };

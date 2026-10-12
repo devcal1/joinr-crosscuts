@@ -41,10 +41,14 @@
     },
     {
       // Ordering (Todd, 2026-10-12): its own department; drawer, stock and paint orders join later.
+      // M10: Orders by orders.view (no job pages needed); Deliveries for whoever receives them.
       id: "ordering",
       label: "Ordering",
       dept: "ordering",
-      items: [{ label: "Orders", href: "/orders.html", key: "jobs.view" }],
+      items: [
+        { label: "Orders", href: "/orders.html", key: "orders.view" },
+        { label: "Deliveries", href: "/deliveries.html", key: "orders.receive" },
+      ],
     },
     {
       id: "accounts",

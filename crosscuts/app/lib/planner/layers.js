@@ -29,19 +29,20 @@ const SEE_ROLES = {
   accounts: ["accounts", "admin"],
   design_pm: ["design_pm", "admin"],
   scheduling: ["scheduling", "admin"],
-  workshop: ["scheduling", "workshop", "admin"],
+  workshop: ["scheduling", "workshop", "workshop_manager", "admin"],
 };
 const POST_ROLES = {
   company: null,
-  install: ["design_pm", "scheduling", "admin"],
+  install: ["design_pm", "scheduling", "ordering", "admin"],
   accounts: ["accounts", "admin"],
   design_pm: ["design_pm", "admin"],
   scheduling: ["scheduling", "admin"],
-  workshop: ["scheduling", "admin"],
+  workshop: ["scheduling", "workshop_manager", "admin"],
 };
 
-// The default layer for a new event, in preference order after admin.
-const DEFAULT_ORDER = ["accounts", "design_pm", "scheduling"];
+// The default layer for a new event, in preference order after admin. M10: Ordering defaults to
+// Install & hardware and the Workshop Manager to Workshop (docs/plans/m10-contracts.md section 7).
+const DEFAULT_ORDER = ["accounts", "design_pm", "scheduling", "install", "workshop"];
 
 function has(user, key) {
   if (!user) return false;

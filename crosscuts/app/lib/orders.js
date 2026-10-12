@@ -5,7 +5,7 @@
 const audit = require("./audit");
 const invoices = require("./invoices");
 const notify = require("./notify");
-const { bad, notFound, conflict, forbidden, can } = require("./httperror");
+const { HttpError, bad, notFound, conflict, forbidden, can } = require("./httperror");
 const { sydneyToday, addDays } = require("./time");
 
 const STATUSES = ["to_order", "ordered", "received", "cancelled"];
@@ -417,6 +417,13 @@ function cancelLine(db, orderId, req) {
   })();
 }
 
+// M10 (docs/plans/m10-contracts.md section 4.4): every ordered line on a live job in five groups
+// by expected date (overdue, today, the next 7 days, later, no date yet), the last 14 days
+// received, and the overdue and today counts. Stub in the scaffold; Wave 1 A.
+function deliveries(db, today = sydneyToday()) {
+  throw new HttpError(501, "Not built");
+}
+
 // {materials, materialsIn} for the Scheduling page; `from` is today.
 function upcoming(db, from, to) {
   const materials = db
@@ -458,6 +465,7 @@ module.exports = {
   suppliers,
   createLine,
   updateLine,
+  deliveries,
   cancelLine,
   refreshMaterialsIn,
   upcoming,

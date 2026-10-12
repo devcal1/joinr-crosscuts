@@ -29,7 +29,7 @@ async function ensureUsers() {
   const have = (await api("GET", "/api/users", null, admin)).body;
   const rows = Array.isArray(have) ? have : (have && (have.rows || have.users)) || [];
   const cookies = { admin };
-  for (const role of ["accounts", "design_pm", "scheduling", "showroom", "workshop"]) {
+  for (const role of ["accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"]) {
     const u = "m-" + role.replace("_", "");
     if (!rows.find(x => x.username === u)) {
       const r = await api("POST", "/api/users", { username: u, displayName: role.replace("_", " ") + " test", password: PW, roles: [role] }, admin);
@@ -86,7 +86,7 @@ async function ensureUsers() {
 
   if (!ONLY_MEASURE) {
   // 1. Per-role bar at 1920 and 1366 (viewport-sized, top 420 px), plus the dashboard.
-  for (const role of ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop"]) {
+  for (const role of ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"]) {
     for (const w of [1920, 1366]) { await open(role, "/", w, 700); await shot(`bar-${role}-${w}`, 420); }
   }
   // 2. Admin at 1440 with menus open.

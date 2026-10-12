@@ -20,6 +20,7 @@ const PAGES = [
   ["planner", "/planner.html", 1440, true], ["planner-1100", "/planner.html", 1100, true], ["phone-planner", "/planner.html", 375, true],
   ["payruns", "/payruns.html", 1440, true], ["payrun", "/payrun.html?id=1", 1440, true], ["payrun-1100", "/payrun.html?id=1", 1100, true], ["phone-payruns", "/payruns.html", 375, true],
   ["bas", "/bas.html", 1440, true], ["bas-1100", "/bas.html", 1100, true], ["suppliers", "/suppliers.html", 1440, true], ["phone-bas", "/bas.html", 375, true], ["phone-suppliers", "/suppliers.html", 375, true],
+  ["deliveries", "/deliveries.html", 1440, true], ["phone-deliveries", "/deliveries.html", 375, true], ["orders-1100", "/orders.html", 1100, true],
 ];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function sid() {

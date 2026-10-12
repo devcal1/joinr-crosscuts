@@ -56,12 +56,23 @@ r.post("/job-records/:id/orders", "orders.edit", handle((req, res) => {
   );
 }));
 
-// Registered before the /orders/:id routes.
-r.get("/orders/suppliers", "jobs.view", handle((req, res) => {
+// Registered before the /orders/:id routes. M10: orders.view (order lines without the job pages).
+r.get("/orders/suppliers", "orders.view", handle((req, res) => {
   res.json(orders.suppliers(db, typeof req.query.q === "string" ? req.query.q : ""));
 }));
 
-r.get("/orders", "jobs.view", handle((req, res) => {
+// M10 (docs/plans/m10-contracts.md section 4.4): the Deliveries page. Wave 1 A.
+r.get("/orders/deliveries", "orders.receive", (req, res) => {
+  try {
+    res.json(orders.deliveries(db));
+  } catch (e) {
+    // sendError hides anything that isn't a 4xx; the scaffold stub's 501 is answered as it is.
+    if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
+    sendError(res, e, "[orders]");
+  }
+});
+
+r.get("/orders", "orders.view", handle((req, res) => {
   const q = req.query;
   for (const k of ["status", "supplier", "jobId"]) {
     if (q[k] !== undefined && typeof q[k] !== "string") throw bad(`${k} must be a single value`);
@@ -69,7 +80,8 @@ r.get("/orders", "jobs.view", handle((req, res) => {
   res.json(orders.list(db, { status: q.status, supplier: q.supplier, jobId: q.jobId }));
 }));
 
-r.patch("/orders/:id", ["orders.edit", "orders.mark_ordered"], handle((req, res) => {
+// The finer rules (which key each change needs) are in lib/orders.js updateLine.
+r.patch("/orders/:id", ["orders.edit", "orders.mark_ordered", "orders.receive"], handle((req, res) => {
   const id = idOr404(req);
   res.json(orders.updateLine(db, id, body(req), req));
 }));
