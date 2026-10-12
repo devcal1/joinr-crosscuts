@@ -509,6 +509,8 @@
       } else if (e.status === 400) {
         R.refused = { field: fieldOf(e.message), sentence: e.message, client: false };
         say(`Not saved: ${e.message}`);
+      } else if (e.status === 404 && (await dropIfGone(R))) {
+        // No longer listed in this month (archived elsewhere): the row has gone with a sentence.
       } else {
         R.error = `Not saved. ${e.message}`;
         say(R.error);
@@ -550,6 +552,35 @@
       state: line.state, totalCents: line.totalCents ?? null, note: line.note || "",
       reconciled: !!line.reconciled, paid: !!line.paid, myob: !!line.myob,
     };
+  }
+
+  // After a 404 on one line: the line as the server has it now. {gone: true} when the supplier isn't
+  // listed in this month any more (archived elsewhere): the rows are brought in line (unsaved typing
+  // on other rows is kept) and the page's status line says why the row went. Otherwise {line}, or
+  // null when the month couldn't be loaded.
+  async function lineNow(R) {
+    let m;
+    try {
+      m = await call("GET", `/api/suppliers/months/${period}`);
+    } catch (e) {
+      return null;
+    }
+    if (R.dead) return { gone: true };
+    const fresh = (m.lines || []).find((l) => l.supplier.id === R.id);
+    if (fresh) return { line: fresh };
+    month = m;
+    syncRows(m.lines || []);
+    renderAfterSync();
+    const s = `${R.name} isn't listed in ${P.longLabel(period)} any more (it was archived elsewhere), so the change wasn't saved.`;
+    const status = $("suStatus");
+    status.textContent = s;
+    status.hidden = false;
+    say(s);
+    return { gone: true };
+  }
+  async function dropIfGone(R) {
+    const now = await lineNow(R);
+    return !!(now && now.gone);
   }
 
   async function reloadRow(R, btn) {
@@ -621,6 +652,7 @@
     const bad = checkFile(file);
     if (bad) {
       R.fileError = bad;
+      R.flash = "";
       renderMsg(R);
       focusFileTool(R);
       return;
@@ -647,6 +679,8 @@
         say(`${old ? "Replaced" : "Attached"} the statement for ${R.name}: ${file.name}.`);
       } catch (e) {
         if (R.dead) return;
+        R.flash = "";
+        if (e.status === 404 && (await dropIfGone(R))) return;
         R.fileError = `Not attached. ${e.message}`;
         say(R.fileError);
       } finally {
@@ -673,6 +707,22 @@
         say(`Removed the statement for ${R.name}.`);
       } catch (e) {
         if (R.dead) return;
+        R.flash = "";
+        if (e.status === 404) {
+          // Removed (or replaced) elsewhere meanwhile, or the supplier was archived: show the file as
+          // saved now. The line's updatedAt stays as last seen, so a later change meets the 409.
+          const now = await lineNow(R);
+          if (now && now.gone) return;
+          if (now && now.line) {
+            R.server = Object.assign({}, R.server, { file: now.line.file });
+            R.fileError = now.line.file
+              ? `Not removed: someone else had already replaced this statement with ${now.line.file.name}.`
+              : "Not removed: someone else had already removed this statement.";
+            renderFile(R);
+            say(R.fileError);
+            return;
+          }
+        }
         R.fileError = `Not removed. ${e.message}`;
         say(R.fileError);
       } finally {

@@ -47,6 +47,8 @@ a.hs-btn:hover { text-decoration: none; }
   color: var(--white);
 }
 .ba-attend { color: var(--orange-tint); }
+/* a count or a cell to attend to keeps its orange inside the tables (hs-table and the sum rows set td colours) */
+.ba-wrap .ba-table td.ba-attend { color: var(--orange-tint); }
 
 /* ---------- tables ---------- */
 .ba-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
@@ -190,7 +192,8 @@ a.hs-btn:hover { text-decoration: none; }
 .ba-axis { stroke: var(--na); stroke-width: 1; }
 .ba-tick { fill: var(--muted); font-size: 11px; }
 .ba-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.ba-endlabel { font-size: 11px; font-weight: 700; }
+.ba-endlabel { font-size: 11px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+/* the surface-coloured edge keeps an end label readable where it sits over another year's line */
 .ba-l-now .ba-line { stroke: var(--teal); stroke-width: 2.5; }
 .ba-l-now .ba-dot { fill: var(--teal); }
 .ba-endlabel.ba-l-now { fill: var(--teal); }
@@ -272,7 +275,7 @@ a.hs-btn:hover { text-decoration: none; }
   .ba-year .ba-qrow th { font-size: 7.5pt; }
   .ba-monthbtn, .ba-mlabel, .ba-mrow.ba-open .ba-monthbtn { color: #000; font-weight: 400; padding: 0; text-decoration: none; }
   .ba-mrow.ba-open { background: #fff; }
-  .ba-mrow.ba-future td, .ba-mrow.ba-future .ba-mlabel, .ba-year td.ba-sales, .ba-attend, .ba-st-word { color: #000; }
+  .ba-mrow.ba-future td, .ba-mrow.ba-future .ba-mlabel, .ba-year td.ba-sales, .ba-attend, .ba-wrap .ba-table td.ba-attend, .ba-st-word { color: #000; }
   .ba-year .ba-qrow th, .ba-year .ba-qrow td, .ba-year tfoot th, .ba-year tfoot td { background: #fff; color: #000; }
   .ba-qrow th, .ba-qrow td { font-weight: 700; border-bottom: 0.4mm solid #000; }
   .ba-qrow td.ba-st, .ba-yrow td.ba-st { font-weight: 400; color: #000; }

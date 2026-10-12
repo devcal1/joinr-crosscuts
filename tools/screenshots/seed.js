@@ -83,5 +83,34 @@ async function api(method, path, body) {
       await api("PUT", `/api/payruns/${run.id}/timesheets/${ts.id}`, { days, notes: n ? "" : "Sat 3 h at Smith kitchen", signed: true, entered: n === 0, updatedAt: ts.updatedAt });
     }
   }
+  // M9: made-up BAS history (hand amounts, two months lodged) and a supplier month (last month,
+  // mixed states). Made-up names and amounts only.
+  const P = require("../../crosscuts/app/public/periods");
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
+  const thisMonth = P.currentPeriod(today), lastMonth = P.addMonths(thisMonth, -1);
+  if (!(await api("GET", "/api/suppliers")).suppliers.length) {
+    for (let k = 1; k <= 15; k++) {
+      const period = P.addMonths(thisMonth, -k);
+      const handCents = 3000000 + ((k * 7919) % 25) * 100000;
+      await api("PUT", `/api/bas/months/${period}/hand`, { handCents, handGstCents: k % 4 ? Math.round(handCents / 11) : null, handNote: "From the old workbook" });
+    }
+    for (const k of [3, 2]) await api("POST", `/api/bas/months/${P.addMonths(thisMonth, -k)}/lodge`, {});
+    const names = ["Alder Timber Supplies", "Brightline Hardware", "Coastal Stone Co", "Dovetail Hinges", "Evergreen Laminates", "Fairway Freight"];
+    for (const name of names) await api("POST", "/api/suppliers", { name, fromPeriod: P.addMonths(thisMonth, -3) });
+    const month = await api("GET", `/api/suppliers/months/${lastMonth}`);
+    const lines = [
+      { state: "have", totalCents: 482150, reconciled: true, paid: true, myob: true },
+      { state: "have", totalCents: 129900, reconciled: true, paid: false, myob: false, note: "Query the freight charge" },
+      { state: "waiting" },
+      { state: "have", totalCents: -4500, reconciled: false, paid: false, myob: false, note: "Credit for a returned hinge" },
+      { state: "na", note: "Nothing bought this month" },
+      { state: "waiting" },
+    ];
+    for (const [n, line] of month.lines.entries()) {
+      const want = lines[n % lines.length];
+      if (want.state === "waiting") continue;
+      await api("PUT", `/api/suppliers/months/${lastMonth}/${line.supplier.id}`, { totalCents: null, note: "", reconciled: false, paid: false, myob: false, ...want, updatedAt: line.updatedAt });
+    }
+  }
   console.log("seeded; week", wk, "workers", workers.length);
 })().catch(e => { console.error(e.message); process.exit(1); });

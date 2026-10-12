@@ -131,17 +131,22 @@
     return td;
   }
 
-  function figureCells(f, blank) {
+  // Not in MYOB is a to-do signal, not a BAS figure: it is always the live count (a lodged
+  // month's other figures stay frozen). Pass it as liveMic.
+  function figureCells(f, blank, liveMic) {
     if (blank) return ["", "", "", "", ""].map(() => el("td", { class: "num" }));
-    const mic = f.notInMyobCount || 0;
+    const mic = liveMic === undefined ? f.notInMyobCount || 0 : liveMic || 0;
     return [
       el("td", { class: "num ba-sales", text: money(f.salesCents) }),
       el("td", { class: "num", text: money(f.gstCents) }),
       el("td", { class: "num", text: money(f.exGstCents) }),
       el("td", { class: "num", text: num(f.invoiceCount) }),
-      el("td", { class: "num" + (mic > 0 ? " ba-attend" : ""), text: num(f.notInMyobCount) }),
+      el("td", { class: "num" + (mic > 0 ? " ba-attend" : ""), text: String(mic) }),
     ];
   }
+
+  // A month's live Not in MYOB count (the frozen one only if the live figures are missing).
+  const liveMic = (m) => ((m.live || m.figures || {}).notInMyobCount || 0);
 
   function renderYear() {
     const y = year;
@@ -183,7 +188,7 @@
       } else {
         th.append(el("span", { class: "ba-mlabel", text: label }));
       }
-      tr.append(th, ...figureCells(f, blank), statusCell(m, current));
+      tr.append(th, ...figureCells(f, blank, liveMic(m)), statusCell(m, current));
       body.append(tr);
       // A quarter subtotal after every third month.
       if (i % 3 === 2) {
@@ -210,7 +215,7 @@
       tr.append(...figureCells({}, true), el("td"));
       return tr;
     }
-    const mic = months.reduce((n, m) => n + (m.future ? 0 : (m.figures && m.figures.notInMyobCount) || 0), 0);
+    const mic = months.reduce((n, m) => n + (m.future ? 0 : liveMic(m)), 0);
     tr.append(
       el("td", { class: "num ba-sales", text: money(s.salesCents) }),
       el("td", { class: "num", text: money(s.gstCents) }),
@@ -417,12 +422,16 @@
     $("csvLink").href = `${API}/months/${encodeURIComponent(m.period)}/invoices.csv`;
     $("csvNote").hidden = !(lodged && !showLive);
 
+    // In MYOB is a to-do, not a lodged figure: on the frozen list, an invoice still in the live
+    // list shows its current date; one that has left the month keeps its frozen value.
+    const liveMyob = new Map((d.invoices || []).map((i) => [i.id, i.myobEnteredDate]));
     const body = $("invRows");
     body.replaceChildren();
     for (const inv of list) {
       const job = inv.job && inv.job.name ? inv.job.name : "";
-      const myob = inv.myobEnteredDate
-        ? el("td", { class: "ba-when", text: fmtDate(inv.myobEnteredDate) })
+      const myobDate = frozen && liveMyob.has(inv.id) ? liveMyob.get(inv.id) : inv.myobEnteredDate;
+      const myob = myobDate
+        ? el("td", { class: "ba-when", text: fmtDate(myobDate) })
         : el("td", { class: "ba-when ba-attend", text: "Not yet" });
       body.append(
         el("tr", {},
@@ -476,12 +485,33 @@
     await Promise.all([loadYear(year ? year.fy : null), loadCompare()]);
   }
 
+  // A lodge or reopen the server refused because the month changed elsewhere (lodged or reopened
+  // in another tab): say why, then show the month as it is now so the page stops offering it.
+  async function refusedRefresh(e, period) {
+    showError(e);
+    try {
+      const d = await api(`${API}/months/${encodeURIComponent(period)}`);
+      if (period === openPeriod) {
+        detail = d;
+        renderDetail();
+      }
+    } catch (_) {
+      // the toast above already said what went wrong
+    }
+    await loadYear(year ? year.fy : null);
+  }
+
   async function lodge() {
     const m = detail.month;
     const f = m.figures || {};
     const q = `Lodge ${P.longLabel(m.period)}? Sales inc GST ${P.dollars(f.salesCents || 0)}.\n\nIts figures and invoice list are frozen as they are now. Only an admin can reopen it.`;
     if (!confirm(q)) return;
-    const d = await api(`${API}/months/${encodeURIComponent(m.period)}/lodge`, { method: "POST", body: "{}" });
+    let d;
+    try {
+      d = await api(`${API}/months/${encodeURIComponent(m.period)}/lodge`, { method: "POST", body: "{}" });
+    } catch (e) {
+      return refusedRefresh(e, m.period);
+    }
     toast(`${P.longLabel(m.period)} lodged`);
     await afterChange(d);
   }
@@ -489,7 +519,12 @@
   async function reopen() {
     const m = detail.month;
     if (!confirm(`Reopen ${P.longLabel(m.period)}? Its lodged figures are dropped, and it shows the figures as they are now.`)) return;
-    const d = await api(`${API}/months/${encodeURIComponent(m.period)}/reopen`, { method: "POST", body: "{}" });
+    let d;
+    try {
+      d = await api(`${API}/months/${encodeURIComponent(m.period)}/reopen`, { method: "POST", body: "{}" });
+    } catch (e) {
+      return refusedRefresh(e, m.period);
+    }
     toast(`${P.longLabel(m.period)} reopened`);
     await afterChange(d);
   }
@@ -501,6 +536,17 @@
       return d;
     } catch (e) {
       $("handErr").textContent = e.message;
+      // Lodged meanwhile (another tab): the form can't be used any more, so show the month as it
+      // is now. A refused value leaves the typing and the sentence where they are.
+      try {
+        const now = await api(`${API}/months/${encodeURIComponent(period)}`);
+        if (now.month.lodged && period === openPeriod) {
+          toast(`Error: ${e.message}`);
+          await afterChange(now);
+        }
+      } catch (_) {
+        // keep the sentence already shown
+      }
       return null;
     }
   }
@@ -514,7 +560,7 @@
     const note = $("handNote").value.trim();
     if (Number.isNaN(amount)) return fail("handAmount", "Type the amount in dollars, like 1,234.56");
     if (Number.isNaN(gst)) return fail("handGst", "Type the GST in dollars, like 112.23, or leave it blank");
-    if (amount === null && gst !== null) return fail("handAmount", "Enter the amount the GST belongs to, or clear the GST");
+    if (amount === null && gst !== null) return fail("handAmount", "Enter an amount for the GST to go with");
     if (amount === null && note) return fail("handAmount", "Enter an amount for the note, or clear it");
     const d = await putHand({ handCents: amount, handGstCents: gst, handNote: note });
     if (!d) return;
