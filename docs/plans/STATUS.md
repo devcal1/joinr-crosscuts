@@ -223,5 +223,5 @@ ode.exe tools/backup-secrets.mjs --only nas` (`rsync://<account>@<NAS Tailscale 
 - 2026-10-12: M8 · 3.1 Wave 1 built (A `44efe01`, B `8d68c1e`, C `8997656`, D `f8aff0b`; all local checks pass; not merged). Next M8 · 4.1 integrate.
 - 2026-10-12: M8 · 4.1 integrated (A–D merged; replay 212/0; real-data page run all PASS; six minor fixes; seed, how-to). Next M8 · 4.2 review.
 - 2026-10-12: M8 · 4.2 review (backend, pages, smoke): no Critical; 2 Major (pay-run page saves); findings in Now. Next M8 · 4.3 fix.
-- 2026-10-12: M8 · 5.1 parked (Todd: continue development). M9 · 1.1 audit and 1.2 plan written; questions to Todd.
 - 2026-10-12: M8 · 4.3 fixes (2 Major, all Minors worth it; days off per Todd). Clear point; next M8 · 5.1 publish (needs Todd's push OK).
+- 2026-10-12: M8 · 5.1 parked (Todd: continue development). M9 · 1.1 audit and 1.2 plan written; questions to Todd.
