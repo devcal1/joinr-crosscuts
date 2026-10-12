@@ -27,7 +27,7 @@
     ["paid", "Paid"],
     ["myob", "Entered in MYOB"],
   ];
-  const ACCEPT_EXT = ["pdf", "jpg", "jpeg", "png", "webp", "heic"];
+  const ACCEPT_EXT = ["pdf", "jpg", "jpeg", "png"];
   const MAX_BYTES = 25 * 1024 * 1024;
   const MAX_CENTS = 1000000000;
   const CHECK = "✓"; // a check mark character, not an icon (contracts section 9.2)
@@ -605,7 +605,7 @@
 
   function checkFile(file) {
     const ext = ((/\.([^.]+)$/.exec(file.name) || [])[1] || "").toLowerCase();
-    if (!ACCEPT_EXT.includes(ext)) return "That file type isn't allowed: attach a PDF or a photo (JPEG, PNG, WebP or HEIC)";
+    if (!ACCEPT_EXT.includes(ext)) return "That file type isn't allowed: attach a PDF or a photo (JPEG or PNG)";
     if (file.size > MAX_BYTES) return "That file is too big (25 MB at most)";
     if (file.size === 0) return "That file is empty";
     return "";
