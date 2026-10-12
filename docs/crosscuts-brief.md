@@ -153,8 +153,8 @@ After login, a **personal dashboard**: the user's working tiles ("my tasks",
 week's board. Tiles the user has no permission for are not rendered.
 Departments are reached from the menu bar, grouped by department (Todd,
 2026-10-12; `docs/plans/menu-plan.md`).
-In milestone 1 the department tiles work; tasks and notifications tiles may be
-placeholders that say so.
+(Until 0.1.10 the dashboard also had department tiles; the menu bar replaced
+them.)
 
 ## 5. Departments — target state
 

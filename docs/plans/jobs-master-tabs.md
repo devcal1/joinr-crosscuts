@@ -66,7 +66,7 @@ Changes from the old weekly tab: a fortnight instead of a Friday-to-Thursday wee
 
 ## Open points for the planning step
 
-1. **The newer timesheet:** received (see "The fortnightly timesheet" below); it shapes the pay-run tables.
+1. **The newer timesheet:** received (see "The fortnightly timesheet" above); it shapes the pay-run tables.
 2. **Ordering department:** the menu is settled (after Design/PM, holding Orders, orange rule; in 0.1.10). Still to settle: the Ordering role and its keys.
 3. **Workshop Manager role:** its keys (board, incoming orders, stocktake, Planner?) and its menu.
 4. **Alarm codes:** storing security codes in a web app, and so in its backups and NAS copies, is a risk. A safer option is to record only who holds a code, and to keep the codes themselves in a password manager or the alarm company's portal. To confirm with Todd.

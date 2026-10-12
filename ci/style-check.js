@@ -72,7 +72,8 @@ for (const file of walk(ROOT)) {
     // Comments may mention colours and fonts; check code only.
     const code = raw.replace(/\/\*.*?\*\//g, "").replace(/^\s*(\/\/|\*|\/\*).*$/, "").replace(/<!--.*?-->/g, "");
     const layerOk = LAYER_OK.has(rel) ||
-      (rel === DEPT_FILE && (code.match(/--layer-[\w-]+/g) || []).every(t => DEPT_LAYERS.has(t)));
+      (rel === DEPT_FILE && !/(?<!var\()--layer-/.test(code) &&
+        (code.match(/--layer-[\w-]+/g) || []).every(t => DEPT_LAYERS.has(t)));
     if (/--layer-/.test(code) && !layerOk) {
       problems.push(`${rel}:${i + 1}: planner layer token outside the planner: ${raw.trim().slice(0, 140)}`);
     }

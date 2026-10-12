@@ -743,8 +743,9 @@
 
     var nav = h("nav", { class: "cc-nav", id: "cc-nav", "aria-label": "Main" });
     // Phones only (shell.css): the common features come first in the Menu panel, together.
-    var wantEveryday = cc.can("planner.view") || cc.can("tasks.use") || cc.can("messages.use");
-    if (!devMode && !onAuthPage && wantEveryday) {
+    var withCounts = !devMode && !onAuthPage;
+    var wantEveryday = cc.can("planner.view") || (withCounts && (cc.can("tasks.use") || cc.can("messages.use")));
+    if (wantEveryday) {
       var cg = h("ul", { class: "cc-group cc-group-counts", "aria-labelledby": "cc-gl-counts" });
       var cl = h("li", { class: "cc-group-label", id: "cc-gl-counts", text: "Everyday" });
       cl.setAttribute("role", "presentation");
@@ -754,11 +755,11 @@
           h("a", { class: "cc-link cc-count-link", href: "/planner.html", "aria-current": path === "/planner.html" ? "page" : false, text: "Planner" }),
         ]));
       }
-      if (cc.can("tasks.use")) {
+      if (withCounts && cc.can("tasks.use")) {
         counts.tasksNav = buildCount("Tasks", "/tasks.html", "open", "cc-link cc-count-link");
         cg.appendChild(h("li", null, [counts.tasksNav.link]));
       }
-      if (cc.can("messages.use")) {
+      if (withCounts && cc.can("messages.use")) {
         counts.messagesNav = buildCount("Messages", "/messages.html", "unread", "cc-link cc-count-link");
         cg.appendChild(h("li", null, [counts.messagesNav.link]));
       }

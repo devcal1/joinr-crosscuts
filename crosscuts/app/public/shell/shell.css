@@ -104,7 +104,7 @@
 }
 
 /* A department: one button (its name) that opens a small list of its pages.
-   Menu 3.1, the fourth named exception in CLAUDE.md: Scheduling, Design/PM and Accounts carry a
+   Menu 3.1, the fourth named exception in CLAUDE.md: Scheduling, Design/PM, Ordering and Accounts carry a
    2 px rule in their Planner layer colour under the name and down the left edge of the open
    panel. Photos and Admin stay plain. Nothing else on the bar takes these colours. */
 .cc-dept {
@@ -436,8 +436,9 @@
 /* The phone-only counts group comes first in the nav; while it is hidden the Dashboard link
    must not get the divider the group would give it. */
 .cc-group-counts + .cc-depts { margin: 0; padding: 0; border: 0; }
-/* Phones: Planner, Tasks and Messages leave the bar for the top of the Menu panel. */
-@media (max-width: 640px) {
+/* Phones and small windows: Planner, Tasks and Messages leave the bar for the top of the Menu
+   panel (below 720 px; measured with a long name and 99+ on every badge). */
+@media (max-width: 719px) {
   .cc-right .cc-count { display: none; }
   .cc-group.cc-group-counts { display: flex; }
   .cc-group-counts + .cc-depts { margin-top: 6px; padding-top: 2px; border-top: 1px solid var(--hairline); }
