@@ -1,0 +1,47 @@
+/* The shared order-line dialogs and the delivery-note block (orderui.js; docs/plans/m10-contracts.md
+   section 6). Tokens come from tokens.css, hs- components from components.css, and the dialog
+   frame (cc-dialog, cc-field, cc-dialog-error) from the shell. Classes here are prefixed ou-. */
+
+/* ---------- dialogs ---------- */
+.cc-dialog.ou-dialog { width: min(94vw, 460px); max-height: 92vh; overflow-y: auto; }
+.cc-dialog.ou-dialog-wide { width: min(94vw, 560px); }
+
+.ou-line { color: var(--body); overflow-wrap: anywhere; }
+.ou-hint { overflow-wrap: anywhere; }
+.ou-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.ou-dialog-wide .ou-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.ou-dialog-wide .ou-wide { grid-column: 1 / -1; }
+.ou-field { min-width: 0; }
+.ou-field-hint { color: var(--muted); font-size: 12px; }
+.ou-date { color-scheme: dark; max-width: 220px; }
+.ou-text { resize: vertical; min-height: 64px; line-height: 1.45; }
+.ou-error:empty { min-height: 0; }
+
+@media (max-width: 520px) {
+  .ou-dialog-wide .ou-fields { grid-template-columns: minmax(0, 1fr); }
+  .cc-dialog.ou-dialog .cc-dialog-form { padding: 16px; }
+  .ou-date { max-width: none; }
+}
+
+/* ---------- the delivery-note block (a table cell's note) ---------- */
+.ou-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 0 4px 8px;
+  border-left: 2px solid var(--na);
+}
+.ou-note-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  color: var(--label);
+}
+.ou-note-text { color: var(--body); font-size: 13px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; }
+.ou-note-meta { color: var(--muted); font-size: 11px; line-height: 1.3; }
+/* still ordered: the note is something to attend to */
+.ou-note-open { border-left-color: var(--orange); }
+.ou-note-open .ou-note-label { color: var(--orange-tint); }

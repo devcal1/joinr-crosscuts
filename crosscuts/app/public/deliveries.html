@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deliveries - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
+<link rel="stylesheet" href="deliveries.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="dl-page">
+    <div class="dl-head">
+      <h1 id="dlTitle" tabindex="-1">Deliveries <span id="dlDate" class="dl-date"></span></h1>
+      <button id="dlPrint" class="hs-btn" type="button">Print</button>
+    </div>
+    <p class="dl-intro">Every ordered line waiting on delivery, by the date it's expected. Mark a line received when all of it is in; if part is short or damaged, add a delivery note and leave it ordered.</p>
+
+    <p id="dlStatus" class="dl-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="dlGroups" class="dl-groups"></div>
+
+    <section id="dlRecent" class="dl-group dl-recent" aria-labelledby="dlRecentTitle" hidden>
+      <div class="hs-sectionbar dl-bar">
+        <h2 id="dlRecentTitle" tabindex="-1">Received recently <span id="dlRecentCount" class="dl-count"></span></h2>
+        <span class="dl-bar-note">The last 14 days</span>
+      </div>
+      <p id="dlRecentEmpty" class="dl-empty" hidden>Nothing received in the last 14 days.</p>
+      <div id="dlRecentWrap" class="dl-wrap">
+        <table class="dl-table dl-table-recent">
+          <thead>
+            <tr>
+              <th scope="col" class="dl-c-date">Received</th>
+              <th scope="col" class="dl-c-by">By</th>
+              <th scope="col" class="dl-c-job">Job</th>
+              <th scope="col" class="dl-c-sup">Supplier</th>
+              <th scope="col" class="dl-c-desc">Description</th>
+              <th scope="col" class="dl-c-note">Delivery note</th>
+              <th scope="col" class="dl-c-acts"><span class="dl-sr">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="dlRecentRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- The printed checklist (hidden on screen, built before printing) -->
+    <section id="dlPrintSheet" class="dl-print" aria-hidden="true"></section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="deliveries.js"></script>
+</body>
+</html>
