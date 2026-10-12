@@ -1,0 +1,376 @@
+/* Supplier accounts (suppliers.html): the month's list of supplier statements, the suppliers list,
+   the month's print and the blank paper form (docs/plans/m9-contracts.md section 9.2).
+   Tokens come from tokens.css, hs- components from components.css, and the dialog frame from the
+   shell's cc-dialog. Page classes here are prefixed su-. The paper styles (black on white) are in
+   the print block at the end. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.su-page { max-width: 1480px; margin: 0 auto; padding: 22px 16px 48px; }
+
+.su-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.su-pick { display: none; }
+
+/* ---------- header ---------- */
+.su-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.su-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); margin-right: 8px; }
+.su-kicker {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.su-nav, .su-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.su-actions { margin-left: auto; }
+.su-meta { margin: 6px 0 14px; color: var(--label); font-size: 13px; }
+.su-meta:empty { display: none; }
+.su-status { margin: 0 0 12px; color: var(--label); font-size: 13px; }
+.su-status:empty { display: none; }
+.su-empty {
+  margin: 0;
+  padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  color: var(--label);
+}
+.su-none { color: var(--muted); font-size: 13px; }
+
+/* ---------- the month's table (scrolls inside its own box on narrow screens) ---------- */
+.su-tablewrap {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.su-table { width: 100%; min-width: 1250px; border-collapse: collapse; table-layout: fixed; }
+.su-table thead th {
+  padding: 8px 8px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.su-table thead th.su-c-tick { text-align: center; white-space: normal; line-height: 1.25; }
+.su-table thead th.num { text-align: right; }
+.su-table th.su-c-name { width: 200px; }
+.su-table th.su-c-state { width: 252px; }
+.su-table th.su-c-total { width: 120px; }
+.su-table th.su-c-tick { width: 84px; }
+.su-table th.su-c-note { width: auto; }
+.su-table th.su-c-file { width: 230px; }
+/* read-only: words and ticks are narrower than the controls, so the note gets the room */
+.su-ro .su-table { min-width: 1040px; }
+.su-ro .su-table th.su-c-state { width: 150px; }
+.su-ro .su-table th.su-c-total { width: 110px; }
+.su-ro .su-table th.su-c-tick { width: 76px; }
+.su-ro .su-table th.su-c-file { width: 200px; }
+
+.su-row > th, .su-row > td {
+  padding: 6px 8px;
+  border-top: 1px solid var(--hairline);
+  vertical-align: middle;
+}
+.su-row > th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--white);
+  overflow-wrap: anywhere;
+}
+.su-name { display: block; line-height: 1.3; }
+.su-rowstate {
+  display: block;
+  min-height: 15px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 15px;
+  color: var(--muted);
+}
+.su-rowstate:empty { min-height: 0; }
+.su-rowstate-bad { color: var(--orange-tint); }
+.su-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.su-c-tick { text-align: center; }
+
+/* the statement state: one of three */
+.su-seg {
+  display: inline-flex;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  overflow: hidden;
+}
+.su-seg-opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--label);
+  white-space: nowrap;
+  cursor: pointer;
+  border-right: 1px solid var(--na);
+}
+.su-seg-opt:last-child { border-right: 0; }
+.su-seg-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.su-seg-opt:hover { color: var(--white); background: var(--raised); }
+.su-seg-opt:has(input:focus-visible) { outline: 2px solid var(--teal); outline-offset: -2px; }
+.su-seg-have:has(input:checked) { background: var(--teal-16); color: var(--teal-tint); }
+.su-seg-waiting:has(input:checked) { background: var(--orange-8); color: var(--orange-tint); }
+.su-seg-na:has(input:checked) { background: var(--raised); color: var(--white); }
+.su-seg.su-bad { border-color: var(--orange); }
+
+.su-in {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 4px 8px;
+}
+.su-in-total { text-align: right; font-variant-numeric: tabular-nums; }
+.su-in:hover { border-color: var(--label); }
+.su-in:focus { outline: none; border-color: var(--teal); }
+.su-in:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.su-in.su-bad, .su-in.su-bad:hover, .su-in.su-bad:focus { border-color: var(--orange); background: var(--orange-8); }
+.su-in.su-bad:focus-visible { outline-color: var(--orange); }
+.su-bad-cell { outline: 1px solid var(--orange); outline-offset: -3px; }
+
+.su-tick { display: inline-flex; align-items: center; justify-content: center; padding: 4px; cursor: pointer; }
+.su-tick input { accent-color: var(--teal); width: 18px; height: 18px; margin: 0; cursor: pointer; }
+.su-tick-ro { color: var(--teal-tint); font-size: 16px; font-weight: 700; }
+.su-note-ro { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+
+.su-c-file { overflow-wrap: anywhere; }
+.su-file { display: block; font-size: 13px; line-height: 1.3; margin-bottom: 4px; }
+.su-filetools { display: flex; flex-wrap: wrap; gap: 6px; }
+.hs-btn.su-mini { padding: 5px 8px; font-size: 10px; }
+
+/* the row's message: a 409 with Reload, a refused value, or another reason it didn't save */
+.su-msgrow > td { padding: 0 8px 8px; }
+.su-msg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--orange);
+  background: var(--orange-8);
+  border-radius: var(--r-badge);
+  font-size: 13px;
+}
+.su-msg-text { color: var(--orange-tint); }
+.su-msg-hint { color: var(--label); font-size: 12px; }
+
+/* the footer: counts, the sum, the ticks */
+.su-table tfoot th, .su-table tfoot td {
+  padding: 9px 8px;
+  background: var(--raised);
+  border-top: 1px solid var(--na);
+  color: var(--white);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.su-foot-counts { text-align: left; font-size: 13px; }
+.su-foot-tick { font-size: 12px; text-align: center; }
+
+/* ---------- the suppliers list ---------- */
+.su-manage { margin-top: 28px; }
+.su-manage-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin: 10px 0 8px; }
+.su-manage-note { margin: 0; color: var(--label); font-size: 13px; }
+.su-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--body); cursor: pointer; font-size: 13px; }
+.su-check input { accent-color: var(--teal); width: 16px; height: 16px; margin: 0; }
+.su-slist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.su-slist > li { padding: 8px 12px; border-top: 1px solid var(--hairline); }
+.su-slist > li:first-child { border-top: 0; }
+.su-sitem { display: grid; grid-template-columns: minmax(0, 1fr) 210px auto; align-items: center; gap: 6px 16px; }
+.su-sname { color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.su-sitem-arch .su-sname { color: var(--label); }
+.su-smeta { color: var(--label); font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.su-stools { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* ---------- dialogs ---------- */
+.cc-dialog.su-dialog { width: min(92vw, 420px); }
+
+/* ---------- the blank form on screen: a white A4 sheet on the ink ground ---------- */
+.su-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.su-blank-state { margin-left: 6px; color: var(--label); font-size: 13px; }
+.su-blank-state:empty { display: none; }
+.su-scroll { overflow-x: auto; }
+.su-pages { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.su-message { margin: 8px 0; color: var(--body); font-size: 15px; }
+.su-error { color: var(--white); font-weight: 700; }
+.su-sheet {
+  flex: none;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+  background: var(--white);
+  color: var(--ink);
+}
+
+/* the month's print is built on demand and only shown on paper */
+.su-printmonth { display: none; }
+
+/* ---------- narrower screens ---------- */
+@media (max-width: 900px) {
+  .su-actions { margin-left: 0; }
+  .su-sitem { grid-template-columns: minmax(0, 1fr) auto; }
+  .su-smeta { grid-column: 1; }
+  .su-stools { grid-column: 2; grid-row: 1 / span 2; }
+}
+@media (max-width: 640px) {
+  .su-page { padding-top: 16px; }
+  .su-head h1 { font-size: 20px; flex: 1 1 100%; }
+  /* the supplier stays in view while the table scrolls sideways */
+  .su-table th.su-c-name { width: 150px; }
+  .su-row > th, .su-table thead th:first-child, .su-table tfoot th:first-child { position: sticky; left: 0; z-index: 1; }
+  .su-row > th { background: var(--surface); }
+  .su-sitem { grid-template-columns: minmax(0, 1fr); }
+  .su-stools { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+}
+
+/* style-check: print-start (paper colours: pure black on white; no background needed for meaning) */
+.su-sheet,
+.su-printmonth {
+  font-family: var(--font);
+  font-size: 9pt;
+  line-height: 1.3;
+}
+.su-sheet { color: #000; }
+.su-sheet :where(h1, p), .su-printmonth :where(h1, p) { margin: 0; }
+
+/* the blank form, as the paper one (m9-plan section 1.4) */
+.su-f-head { display: flex; align-items: flex-end; gap: 14mm; margin-bottom: 6mm; }
+.su-f-h1 { font-size: 18pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.1; }
+.su-f-line { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 3mm; }
+.su-f-label { font-size: 8pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1; }
+.su-f-rule { flex: 1 1 auto; height: 8mm; border-bottom: 0.4mm solid #000; }
+.su-form { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.su-form th, .su-form td { border: 0.3mm solid #000; padding: 0 1.5mm; }
+.su-form thead th {
+  height: 11mm;
+  padding: 0 0.5mm;
+  font-size: 6pt;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.2;
+  border-bottom-width: 0.6mm;
+}
+.su-form thead th:first-child { text-align: left; padding: 0 1.5mm; }
+.su-form tr { break-inside: avoid; page-break-inside: avoid; }
+.su-f-name { font-size: 10pt; font-weight: 700; overflow-wrap: anywhere; }
+.su-fc-name { width: 50mm; }
+.su-fc-box { width: 12mm; }
+.su-fc-wide { width: 17mm; }
+.su-fc-total { width: 22mm; }
+.su-fc-notes { width: auto; }
+
+/* the month's list on paper */
+.su-p-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8mm;
+  padding-bottom: 3mm;
+  margin-bottom: 4mm;
+  border-bottom: 0.5mm solid #000;
+}
+.su-p-h1 { font-size: 16pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
+.su-p-month { margin-top: 1mm; font-size: 12pt; font-weight: 700; }
+.su-p-meta { font-size: 9pt; text-align: right; }
+.su-p-empty { font-size: 11pt; }
+.su-p-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.su-pc-name { width: 44mm; }
+.su-pc-state { width: 26mm; }
+.su-pc-total { width: 24mm; }
+.su-pc-tick { width: 17mm; }
+.su-pc-note { width: auto; }
+.su-p-table th, .su-p-table td {
+  padding: 1.6mm 1.5mm;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 0.2mm solid #000;
+  overflow-wrap: anywhere;
+}
+.su-p-table thead th {
+  font-size: 6.5pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: bottom;
+  overflow-wrap: normal;
+  border-bottom: 0.5mm solid #000;
+}
+.su-p-table tbody th { font-weight: 700; }
+.su-p-table .su-p-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.su-p-table .su-p-tick { text-align: center; }
+.su-p-table .su-p-note { white-space: pre-line; font-size: 8.5pt; }
+.su-p-table tr { break-inside: avoid; page-break-inside: avoid; }
+.su-p-table tfoot th, .su-p-table tfoot td {
+  font-weight: 700;
+  border-top: 0.5mm solid #000;
+  border-bottom: 0.5mm solid #000;
+}
+.su-p-foot { margin-top: 5mm; font-size: 8.5pt; }
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html, body { background: #fff; color: #000; }
+  body > :not(main) { display: none !important; }
+  .su-page { max-width: none; margin: 0; padding: 0; }
+  #suMonthView > :not(#suPrintMonth) { display: none !important; }
+  .su-printmonth { display: block !important; color: #000; }
+  .su-printmonth * { color: #000; border-color: #000; }
+  .su-toolbar { display: none !important; }
+  .su-scroll { overflow: visible; }
+  .su-pages { display: block; }
+  .su-message { color: #000; }
+  .su-sheet { width: auto; min-height: 0; padding: 0; background: #fff; color: #000; }
+  .su-sheet * { color: #000; border-color: #000; }
+  .su-p-table tfoot { display: table-row-group; } /* totals print once, at the end */
+}
+/* style-check: print-end */
