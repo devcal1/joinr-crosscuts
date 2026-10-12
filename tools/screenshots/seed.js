@@ -112,5 +112,25 @@ async function api(method, path, body) {
       await api("PUT", `/api/suppliers/months/${lastMonth}/${line.supplier.id}`, { totalCents: null, note: "", reconciled: false, paid: false, myob: false, ...want, updatedAt: line.updatedAt });
     }
   }
+  // M10: made-up order lines in every state on the first job, for the Orders and Deliveries pages:
+  // overdue, due today, due this week (with a delivery note), no date yet, received, still to order.
+  if (job && !(await api("GET", `/api/job-records/${job.id}/orders?all=1`)).length) {
+    const day = (n) => new Date(Date.parse(today + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+    const lines = [
+      ["Brightline Hardware", "Drawer runners", -2, "ordered"],
+      ["Alder Timber Supplies", "Board pack", 0, "ordered"],
+      ["Coastal Stone Co", "Benchtop", 4, "ordered", "Template done; slab on its way"],
+      ["Evergreen Laminates", "Laminate sheets", null, "ordered"],
+      ["Dovetail Hinges", "Soft-close hinges", -1, "received", "2 of 3 boxes; the rest next week"],
+      ["Fairway Freight", "Delivery to site", null, "to_order"],
+    ];
+    for (const [supplier, description, due, status, deliveryNote] of lines) {
+      const { order } = await api("POST", `/api/job-records/${job.id}/orders`, { supplier, description, expectedDate: due === null ? null : day(due) });
+      if (status === "to_order") continue;
+      await api("PATCH", `/api/orders/${order.id}`, { status: "ordered", orderedDate: day(-5) });
+      if (status === "received") await api("PATCH", `/api/orders/${order.id}`, { status: "received", receivedDate: day(-1), deliveryNote });
+      else if (deliveryNote) await api("PATCH", `/api/orders/${order.id}`, { deliveryNote });
+    }
+  }
   console.log("seeded; week", wk, "workers", workers.length);
 })().catch(e => { console.error(e.message); process.exit(1); });
