@@ -6,6 +6,7 @@
 <title>Orders - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
 <link rel="stylesheet" href="orders.css">
 </head>
 <body>
@@ -13,7 +14,7 @@
 
   <main class="or-page">
     <div class="or-head">
-      <h1>Orders</h1>
+      <h1 id="orTitle" tabindex="-1">Orders</h1>
     </div>
 
     <div class="or-tools">
@@ -43,8 +44,9 @@
       <table class="hs-table or-table">
         <thead>
           <tr>
-            <th>Job</th><th>Supplier</th><th>Description</th><th>Status</th>
-            <th>Expected</th><th>Ordered</th><th>Notes</th><th id="actionsHead">Actions</th>
+            <th scope="col">Job</th><th scope="col">Supplier</th><th scope="col">Description</th><th scope="col">Status</th>
+            <th scope="col">Expected</th><th scope="col">Ordered</th><th scope="col">Received</th><th scope="col">Notes</th>
+            <th scope="col" id="actionsHead" hidden>Actions</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -54,7 +56,8 @@
   </main>
 
   <script src="shared.js"></script>
-  <script src="orders.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="orders.js"></script>
 </body>
 </html>

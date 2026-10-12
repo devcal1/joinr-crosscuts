@@ -1,10 +1,15 @@
-// Orders page: the supplier order lines across jobs. Talks to /api/orders
-// (see routes/orders.js and docs/plans/m3-contracts.md section 4).
+// Orders page (/orders.html, orders.view): the supplier order lines across jobs. Talks to
+// /api/orders (routes/orders.js; docs/plans/m3-contracts.md section 4 and m10-contracts.md
+// sections 4 and 9.2). The Received, Delivery note, Undo received and Edit dialogs are OrderUI's
+// (orderui.js); Mark ordered, its Undo and Cancel are built here. Who may do what is decided by
+// the server (lib/orders.js); the page only hides what a user can't use.
 (function () {
-  // Permissions come from the shell (window.cc.can). Without it, assume allowed:
-  // the server enforces everything regardless.
+  "use strict";
+
+  // Permissions come from the shell (window.cc.can); the page waits for cc.ready before it
+  // builds any control. Without the shell nothing is offered.
   function can(key) {
-    return window.cc && typeof window.cc.can === "function" ? !!window.cc.can(key) : true;
+    return window.cc && typeof window.cc.can === "function" ? !!window.cc.can(key) : false;
   }
 
   function el(tag, props, ...kids) {
@@ -32,6 +37,20 @@
     cancelled: ["Cancelled", "hs-badge-na"],
   };
 
+  // The buttons a line may get, in the order they show. `dialog` ones open OrderUI; the rest are
+  // built here. `next` is where focus goes on the same line after the action (the first that is
+  // there after the reload), else the row.
+  const ACTS = [
+    { id: "markOrdered", label: "Mark ordered", primary: true, next: ["receive", "undoOrdered", "note", "edit"] },
+    { id: "receive", label: "Received", primary: true, dialog: true, next: ["undoReceived", "note", "edit"] },
+    { id: "note", label: "Delivery note", dialog: true, next: ["note"] },
+    { id: "edit", label: "Edit", dialog: true, next: ["edit"] },
+    { id: "undoOrdered", label: "Undo", aria: "Undo ordered", next: ["markOrdered", "edit"] },
+    { id: "undoReceived", label: "Undo received", dialog: true, next: ["receive", "note", "edit"] },
+    { id: "cancel", label: "Cancel", aria: "Cancel line", next: [] },
+  ];
+  const ACT = Object.fromEntries(ACTS.map((a) => [a.id, a]));
+
   const statusEl = document.getElementById("status");
   const supplierEl = document.getElementById("supplier");
   const countEl = document.getElementById("count");
@@ -41,34 +60,26 @@
   const actionsHead = document.getElementById("actionsHead");
 
   let lines = [];
-  let loaded = false;
   let seq = 0; // the newest list request wins
+  let busy = false;
 
   function setMessage(msg, kind) {
     messageEl.textContent = msg || "";
     messageEl.className = "or-message " + (kind || "");
   }
 
-  // Which buttons a line gets: the permission table in m3-contracts.md section 2. The server checks too.
-  function lineActions(o) {
-    const acts = [];
-    if (o.status === "to_order" && can("orders.mark_ordered")) {
-      acts.push({ label: "Mark ordered", patch: { status: "ordered" }, done: "Marked ordered", primary: true });
-    }
-    if (o.status === "ordered") {
-      if (can("orders.edit")) acts.push({ label: "Received", patch: { status: "received" }, done: "Marked received", primary: true });
-      if (can("orders.mark_ordered")) acts.push({ label: "Undo", patch: { status: "to_order" }, done: "Moved back to To order" });
-    }
-    if (o.status === "received" && can("orders.edit")) {
-      acts.push({ label: "Undo", patch: { status: "ordered" }, done: "Moved back to Ordered" });
-    }
-    if (o.status !== "cancelled" && can("orders.edit")) acts.push({ label: "Cancel", cancel: true, done: "Line cancelled" });
-    return acts;
+  function lineName(o) {
+    return o.jobName + ": " + o.supplier + (o.description ? ", " + o.description : "");
+  }
+
+  function showActions() {
+    return can("orders.edit") || can("orders.mark_ordered") || can("orders.receive");
   }
 
   // A modal on the shell's cc-dialog frame. Resolves true only when the confirm button is pressed.
-  // Red is for this destructive confirm.
+  // Red is for this destructive confirm. Focus goes back to the opener when it is kept.
   function confirmDialog(title, note, confirmLabel, keepLabel) {
+    const opener = document.activeElement;
     return new Promise((resolve) => {
       let answer = false;
       const dlg = el("dialog", { class: "cc-dialog or-dialog", "aria-label": title });
@@ -94,44 +105,64 @@
       });
       dlg.addEventListener("close", () => {
         dlg.remove();
+        if (!answer && opener && opener.isConnected && typeof opener.focus === "function") opener.focus();
         resolve(answer);
       });
       dlg.showModal();
+      keep.focus();
     });
   }
 
+  function jobCell(o) {
+    if (!can("jobs.view")) return el("td", { class: "or-job" }, el("span", { class: "or-jobname", text: o.jobName }));
+    return el("td", { class: "or-job" }, el("a", { href: "/job.html?id=" + encodeURIComponent(o.jobId) + "#orders", text: o.jobName }));
+  }
+
   function render() {
-    // Read-only without orders.edit or orders.mark_ordered: no Actions column at all.
-    const showActions = can("orders.edit") || can("orders.mark_ordered");
-    actionsHead.hidden = !showActions;
+    const acts = showActions();
+    actionsHead.hidden = !acts;
     rowsEl.replaceChildren();
     emptyEl.hidden = lines.length > 0;
     if (!lines.length) emptyEl.textContent = statusEl.value === "open" ? "Nothing to order or waiting on delivery." : "No order lines match.";
     countEl.textContent = lines.length + (lines.length === 1 ? " line" : " lines");
     for (const o of lines) {
       const [label, badge] = ORDER_STATUS[o.status] || [o.status, "hs-badge-na"];
-      const expected = el("td", { class: o.overdue ? "or-overdue" : "" });
+      const expected = el("td", { class: "or-date" + (o.overdue ? " or-overdue" : "") });
       if (o.expectedDate) expected.append(document.createTextNode(fmtDate(o.expectedDate)));
       if (o.overdue) expected.append(el("span", { class: "or-overdue-tag", text: "Overdue" }));
+      const received = el("td", { class: "or-date" });
+      if (o.receivedDate) received.append(document.createTextNode(fmtDate(o.receivedDate)));
+      if (o.receivedDate && o.receivedBy && o.receivedBy.name) received.append(el("span", { class: "or-by", text: o.receivedBy.name }));
+      const desc = el("td", { class: "or-text" }, el("span", { text: o.description || "" }));
+      const note = window.OrderUI.noteBlock(o);
+      if (note) desc.append(note);
       const tr = el(
         "tr",
-        { class: o.status === "cancelled" ? "or-cancelled" : "" },
-        el("td", { class: "or-job" }, el("a", { href: "/job.html?id=" + o.jobId + "#orders", text: o.jobName })),
+        { class: o.status === "cancelled" ? "or-cancelled" : "", "data-id": String(o.id), tabindex: "-1" },
+        jobCell(o),
         el("td", { class: "or-supplier", text: o.supplier }),
-        el("td", { class: "or-text", text: o.description }),
+        desc,
         el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
         expected,
-        el("td", { text: fmtDate(o.orderedDate) }),
+        el("td", { class: "or-date", text: fmtDate(o.orderedDate) }),
+        received,
         el("td", { class: "or-text", text: o.notes })
       );
-      if (showActions) {
-        const cell = el("td", { class: "or-acts" });
-        for (const a of lineActions(o)) {
-          const btn = el("button", { type: "button", class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""), text: a.label });
-          btn.addEventListener("click", () => runAction(o, a));
-          cell.append(btn);
+      if (acts) {
+        const may = window.OrderUI.actions(o);
+        const box = el("div", { class: "or-actbox" });
+        for (const a of ACTS) {
+          if (!may[a.id]) continue;
+          box.append(el("button", {
+            type: "button",
+            class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""),
+            "data-act": a.id,
+            "data-id": String(o.id),
+            "aria-label": (a.aria || a.label) + ": " + lineName(o),
+            text: a.label,
+          }));
         }
-        tr.append(cell);
+        tr.append(el("td", { class: "or-acts" }, box));
       }
       rowsEl.append(tr);
     }
@@ -148,6 +179,7 @@
     }
   }
 
+  // Resolves true when the list was replaced (and rendered).
   async function load() {
     const mine = ++seq;
     const qs = new URLSearchParams({ status: statusEl.value });
@@ -158,33 +190,109 @@
     } catch (e) {
       if (mine === seq) {
         countEl.textContent = "";
-        setMessage(e.message, "err");
+        setMessage(e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : e.message, "err");
       }
-      return;
+      return false;
     }
-    if (mine !== seq) return;
+    if (mine !== seq) return false;
     lines = list;
-    loaded = true;
     render();
+    return true;
   }
 
-  async function runAction(o, a) {
-    if (a.cancel) {
-      const what = o.jobName + ": " + o.supplier + (o.description ? " - " + o.description : "");
-      const ok = await confirmDialog("Cancel this order line?", what + ". The line stays on the job, marked cancelled.", "Cancel line", "Keep line");
-      if (!ok) return;
-    }
-    for (const b of rowsEl.querySelectorAll("button")) b.disabled = true;
-    setMessage("Saving...", "");
-    try {
-      if (a.cancel) await api("/api/orders/" + o.id + "/cancel", { method: "POST", body: "{}" });
-      else await api("/api/orders/" + o.id, { method: "PATCH", body: JSON.stringify(a.patch) });
-      setMessage(o.jobName + ": " + a.done + ".", "ok");
-    } catch (e) {
-      setMessage(e.message, "err");
-    }
-    await load();
+  // ------------------------------------------------------------------- focus ---
+
+  function button(id, act) {
+    return rowsEl.querySelector(`button[data-act="${act}"][data-id="${id}"]`);
   }
+  function row(id) {
+    return rowsEl.querySelector(`tr[data-id="${id}"]`);
+  }
+  function focusNode(n) {
+    if (!n) return false;
+    n.focus();
+    return document.activeElement === n;
+  }
+  // A row's first button, or the row itself.
+  function focusRow(id) {
+    const tr = row(id);
+    if (!tr) return false;
+    return focusNode(tr.querySelector("button[data-act]")) || focusNode(tr);
+  }
+
+  // After a reload: the same line's next action, or its row; when the line has left the list
+  // (the filter), the next line's first action or row, then the one before; else the heading.
+  function focusAfter(id, act, before) {
+    for (const next of ACT[act].next) if (focusNode(button(id, next))) return;
+    if (focusNode(row(id))) return;
+    const at = before.indexOf(id);
+    for (const other of before.slice(at + 1).concat(before.slice(0, Math.max(at, 0)).reverse())) {
+      if (focusRow(other)) return;
+    }
+    focusNode(document.getElementById("orTitle"));
+  }
+
+  // ----------------------------------------------------------------- actions ---
+
+  function said(act, o, r) {
+    const name = lineName(o);
+    const after = (r && r.order) || {};
+    switch (act) {
+      case "markOrdered": return "Marked ordered: " + name + ".";
+      case "undoOrdered": return "Back to To order: " + name + ".";
+      case "receive": return "Received: " + name + ".";
+      case "note": return (after.deliveryNote ? "Delivery note saved: " : "Delivery note cleared: ") + name + ".";
+      case "undoReceived": return "Back to ordered: " + name + ".";
+      case "edit": return "Saved: " + name + ".";
+      case "cancel": return "Line cancelled: " + name + ".";
+      default: return "Saved.";
+    }
+  }
+
+  async function run(act, id) {
+    if (busy) return;
+    const o = lines.find((l) => l.id === id);
+    if (!o || !ACT[act]) return;
+    busy = true;
+    try {
+      const before = lines.map((l) => l.id);
+      let r;
+      if (ACT[act].dialog) {
+        r = await window.OrderUI[act](o);
+        if (!r) return; // cancelled: OrderUI puts focus back on the button
+      } else {
+        if (act === "cancel") {
+          const ok = await confirmDialog("Cancel this order line?", lineName(o) + ". The line stays on the job, marked cancelled.", "Cancel line", "Keep line");
+          if (!ok) return;
+        }
+        for (const b of rowsEl.querySelectorAll("button")) b.disabled = true;
+        setMessage("Saving...", "");
+        try {
+          if (act === "cancel") r = await api("/api/orders/" + encodeURIComponent(o.id) + "/cancel", { method: "POST", body: "{}" });
+          else {
+            const body = act === "markOrdered" ? { status: "ordered" } : { status: "to_order" };
+            r = await api("/api/orders/" + encodeURIComponent(o.id), { method: "PATCH", body: JSON.stringify(body) });
+          }
+        } catch (e) {
+          setMessage(e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
+          await load();
+          if (!focusNode(button(id, act))) focusAfter(id, act, before);
+          return;
+        }
+      }
+      setMessage(said(act, o, r), "ok");
+      await load();
+      focusAfter(id, act, before);
+    } finally {
+      busy = false;
+    }
+  }
+
+  rowsEl.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest("button[data-act]");
+    if (!b || b.disabled) return;
+    run(b.getAttribute("data-act"), Number(b.getAttribute("data-id")));
+  });
 
   statusEl.addEventListener("change", () => {
     setMessage("", "");
@@ -195,10 +303,12 @@
     load();
   });
 
-  loadSuppliers();
-  load();
-  // The shell may finish loading permissions after first paint.
-  document.addEventListener("cc:ready", () => {
-    if (loaded) render();
-  });
+  // --------------------------------------------------------------------- start ---
+  // Job links and buttons depend on the user's keys, so the first render waits for the shell.
+  (async () => {
+    const ready = window.cc && window.cc.ready ? window.cc.ready : Promise.resolve();
+    loadSuppliers();
+    await ready;
+    load();
+  })();
 })();
