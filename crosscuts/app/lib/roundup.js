@@ -1,9 +1,13 @@
 // The Friday 12:00 Sydney invoice round-up. See docs/plans/m2-contracts.md
 // section 2. Once a week it tells every invoices.edit holder what is waiting
-// to be issued, what is overdue and what is not yet in MYOB.
+// to be issued, what is overdue and what is not yet in MYOB, and (M9,
+// docs/plans/m9-contracts.md section 7.5) how many supplier statements are
+// still waiting for the previous month.
 const settings = require("./settings");
 const notify = require("./notify");
 const invoices = require("./invoices");
+const suppliers = require("./suppliers");
+const Periods = require("../public/periods");
 const { latestFridayNoon, sydneyToday } = require("./time");
 
 const CHECK_MS = 60 * 1000;
@@ -80,6 +84,10 @@ function buildSummary(db, today) {
     .prepare("SELECT COUNT(*) AS n FROM invoices WHERE status = 'pending' AND kind IN ('deposit','progress','final')")
     .get().n;
 
+  // Supplier statements still waiting for the previous month (m9-contracts.md section 7.5).
+  const statementsPeriod = Periods.addMonths(Periods.currentPeriod(today), -1);
+  const statementsWaitingCount = suppliers.waitingCount(db, statementsPeriod);
+
   // Oldest first: a due invoice by when it became due, an overdue one by its due date.
   waiting.sort((a, b) => (a.since < b.since ? -1 : a.since > b.since ? 1 : a.invoiceId - b.invoiceId));
 
@@ -91,6 +99,8 @@ function buildSummary(db, today) {
     notMyobCount,
     needsValueCount,
     oldest: waiting.slice(0, OLDEST_N),
+    statementsWaitingCount,
+    statementsPeriod,
   };
 }
 
@@ -100,6 +110,9 @@ function message(s) {
   if (s.overdueCount) parts.push(`${s.overdueCount} overdue`);
   if (s.notMyobCount) parts.push(`${s.notMyobCount} not in MYOB`);
   if (s.needsValueCount) parts.push(`${s.needsValueCount} need a job value`);
+  if (s.statementsWaitingCount) {
+    parts.push(`${s.statementsWaitingCount} ${s.statementsWaitingCount === 1 ? "statement" : "statements"} waiting`);
+  }
   const title = `Friday round-up: ${parts.join(", ")}`;
 
   const lines = [];
@@ -116,6 +129,11 @@ function message(s) {
       "Oldest: " + s.oldest.map((o) => `${o.jobName} (${KIND_LABEL[o.kind] || o.kind}, ${o.status})`).join("; ") + "."
     );
   }
+  if (s.statementsWaitingCount) {
+    const n = s.statementsWaitingCount;
+    const monthName = Periods.longLabel(s.statementsPeriod).split(" ")[0];
+    lines.push(`${n} supplier ${n === 1 ? "statement" : "statements"} still waiting for ${monthName}.`);
+  }
   return { title, body: lines.join(" ") };
 }
 
@@ -126,13 +144,16 @@ function run(db, { force = false, now = new Date(), friday } = {}) {
   return db.transaction(() => {
     const summary = buildSummary(db, sydneyToday(now));
     let sent = 0;
-    if (summary.dueCount || summary.overdueCount || summary.notMyobCount || summary.needsValueCount) {
+    const invoiceCounts = summary.dueCount || summary.overdueCount || summary.notMyobCount || summary.needsValueCount;
+    if (invoiceCounts || summary.statementsWaitingCount) {
       const { title, body } = message(summary);
+      // The supplier page only when the waiting statements are all there is to see.
+      const link = invoiceCounts ? "/accounts.html" : `/suppliers.html?period=${summary.statementsPeriod}`;
       sent = notify.toKey(db, "invoices.edit", {
         kind: "invoice.roundup",
         title,
         body,
-        link: "/accounts.html",
+        link,
         entityType: "roundup",
         entityId: friday || latestFridayNoon(now),
       });
