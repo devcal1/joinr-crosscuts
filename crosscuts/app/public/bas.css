@@ -1,0 +1,291 @@
+/* BAS sales (bas.html): the financial year's sales by month (cash basis) with quarter and year
+   totals, a month's detail, and the same month compared across financial years
+   (docs/plans/m9-contracts.md section 9.1). Tokens come from tokens.css, hs- components from
+   components.css, and fields from the shell's cc-field. Page classes here are prefixed ba-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[hidden] { display: none !important; }
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.ba-visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.ba-page { max-width: 1100px; margin: 0 auto; padding: 22px 16px 48px; }
+.ba-printhead { display: none; }
+
+/* ---------- header ---------- */
+.ba-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.ba-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.ba-fy { color: var(--teal-tint); }
+.ba-range { color: var(--label); font-size: 13px; }
+.ba-head .hs-badge { align-self: center; }
+.ba-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; align-self: center; }
+.ba-basis { margin: 6px 0 16px; color: var(--label); font-size: 13px; }
+.ba-status { margin: 0 0 12px; color: var(--label); }
+.ba-status:empty { display: none; }
+
+.ba-section { margin-bottom: 26px; }
+.ba-section > .hs-sectionbar { margin-bottom: 8px; }
+.ba-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.ba-h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--white);
+}
+.ba-attend { color: var(--orange-tint); }
+
+/* ---------- tables ---------- */
+.ba-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.ba-table th, .ba-table td { padding: 8px 12px; vertical-align: middle; }
+.ba-table th.num, .ba-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* row headers read as body text, not as the column-label style of hs-table th */
+.ba-table tbody th {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  color: var(--body);
+  background: none;
+  border-bottom: 1px solid var(--hairline);
+}
+.ba-table tbody tr:last-child td, .ba-table tbody tr:last-child th { border-bottom: 0; }
+.ba-table tfoot th, .ba-table tfoot td {
+  border-top: 1px solid var(--na);
+  border-bottom: 0;
+  color: var(--white);
+  font-weight: 700;
+  text-align: left;
+  background: none;
+}
+.ba-table tfoot th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ba-year tfoot th, .ba-year tfoot td { background: var(--raised); }
+
+/* the year table */
+.ba-year { min-width: 860px; }
+.ba-year th:first-child, .ba-year td:first-child { width: 190px; }
+.ba-mcell { white-space: nowrap; }
+.ba-monthbtn {
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--teal-tint);
+  cursor: pointer;
+  text-align: left;
+}
+.ba-monthbtn:hover { text-decoration: underline; }
+.ba-mlabel { color: var(--muted); }
+.ba-mrow:hover { background: var(--raised); }
+.ba-mrow.ba-open { background: var(--teal-8); }
+.ba-mrow.ba-open .ba-monthbtn { color: var(--white); }
+.ba-mrow.ba-future td, .ba-mrow.ba-future .ba-mlabel { color: var(--muted); }
+.ba-year td.ba-sales { color: var(--white); }
+.ba-qrow th, .ba-qrow td {
+  background: var(--raised);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 13px;
+}
+.ba-year .ba-qrow th { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--white); background: var(--raised); }
+.ba-qrow td.ba-st { font-weight: 400; color: var(--label); }
+.ba-yrow td.ba-st { font-weight: 400; color: var(--label); }
+.ba-st { white-space: nowrap; }
+.ba-badge + .ba-badge, .ba-badge + .ba-st-word { margin-left: 6px; }
+.ba-st-word { color: var(--label); font-size: 13px; }
+
+/* ---------- a month's detail ---------- */
+.ba-detail { scroll-margin-top: 12px; }
+.ba-detail h2:focus { outline: none; }
+.ba-detail h2:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.ba-barbtns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.hs-sectionbar .ba-barbtn { padding: 6px 10px; }
+.ba-detail-status { margin: 0 0 12px; color: var(--label); }
+.ba-detail-status:empty { display: none; }
+
+.ba-detail-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+.ba-figs-box { min-width: 0; }
+.ba-figs {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+.ba-figs th, .ba-figs td { padding: 8px 12px; }
+.ba-figs th.num, .ba-figs td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ba-figs tbody tr:last-child th, .ba-figs tbody tr:last-child td { border-bottom: 0; }
+.ba-figs .ba-fig-k {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  background: none;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--hairline);
+}
+.ba-figs .ba-fig-main td { color: var(--white); font-weight: 700; font-size: 15px; }
+.ba-figs td.ba-attend { color: var(--orange-tint); }
+
+.ba-detail-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ba-changes p, .ba-change-list { margin: 0; }
+.ba-change-list { padding-left: 18px; color: var(--orange-tint); }
+.ba-change-list li + li { margin-top: 4px; }
+.ba-month-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.ba-detail-side > .ba-hint { margin: 0; }
+
+.ba-hand { display: grid; gap: 10px; padding: 14px 16px; }
+.ba-hand .ba-hand-help { margin: 0; color: var(--label); }
+.ba-hand-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.ba-hand-note { grid-column: 1 / -1; }
+.ba-hand .hs-input { min-height: 36px; }
+.ba-num { font-variant-numeric: tabular-nums; }
+.ba-hand-err:empty { min-height: 0; }
+.ba-hand-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+.ba-invbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 8px; }
+.ba-invtools { display: flex; flex-wrap: wrap; gap: 8px; }
+.ba-invtools .hs-btn[aria-pressed="true"] { border-color: var(--teal); color: var(--teal-tint); background: var(--teal-16); }
+.ba-csv-note { margin: -2px 0 8px; text-align: right; }
+.ba-inv { min-width: 900px; }
+.ba-inv td { overflow-wrap: anywhere; }
+.ba-inv td.ba-when { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ba-inv td.ba-invno { white-space: nowrap; font-weight: 700; }
+.ba-inv td.ba-client { color: var(--white); }
+.ba-inv tbody tr:hover { background: var(--raised); }
+.ba-inv tfoot .ba-hand-row th, .ba-inv tfoot .ba-hand-row td { font-weight: 400; color: var(--body); }
+.ba-inv tfoot .ba-hand-row th { color: var(--white); }
+.ba-inv tfoot .ba-total-row th, .ba-inv tfoot .ba-total-row td { border-top-color: var(--na); }
+.ba-inv tfoot .ba-hand-row + .ba-total-row th, .ba-inv tfoot .ba-hand-row + .ba-total-row td { border-top-color: var(--hairline); }
+.ba-empty { padding: 22px 14px; text-align: center; color: var(--label); }
+
+/* ---------- the comparison ---------- */
+.ba-compare-note { margin: 0 0 8px; }
+.ba-chart { padding: 10px 12px; margin-bottom: 12px; }
+.ba-svg { display: block; width: 100%; height: auto; font-family: var(--font); }
+.ba-grid { stroke: var(--hairline); stroke-width: 1; }
+.ba-axis { stroke: var(--na); stroke-width: 1; }
+.ba-tick { fill: var(--muted); font-size: 11px; }
+.ba-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ba-endlabel { font-size: 11px; font-weight: 700; }
+.ba-l-now .ba-line { stroke: var(--teal); stroke-width: 2.5; }
+.ba-l-now .ba-dot { fill: var(--teal); }
+.ba-endlabel.ba-l-now { fill: var(--teal); }
+.ba-l-last .ba-line { stroke: var(--label); }
+.ba-l-last .ba-dot { fill: var(--label); }
+.ba-endlabel.ba-l-last { fill: var(--label); }
+.ba-l-old .ba-line { stroke: var(--muted); }
+.ba-l-old .ba-dot { fill: var(--muted); }
+.ba-endlabel.ba-l-old { fill: var(--muted); }
+.ba-dot { stroke: var(--surface); stroke-width: 1.5; }
+.ba-cmp th:first-child { width: 90px; }
+.ba-cmp tbody th { color: var(--label); }
+.ba-cmp th.ba-cmp-now { color: var(--teal-tint); }
+.ba-cmp td.ba-cmp-now { color: var(--white); }
+
+@media (max-width: 900px) {
+  .ba-detail-top { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .ba-head h1 { font-size: 20px; }
+  .ba-actions { margin-left: 0; width: 100%; }
+  .ba-hand-grid { grid-template-columns: minmax(0, 1fr); }
+  .ba-detail .hs-sectionbar { flex-wrap: wrap; }
+  .ba-barbtns { justify-content: flex-start; }
+  .ba-csv-note { text-align: left; }
+  .ba-table th, .ba-table td { padding: 8px 10px; }
+  /* the figures (lodged beside now) fit the phone: values may wrap, the box never sticks out */
+  .ba-figs-box { overflow-x: auto; }
+  .ba-figs { width: 100%; }
+  .ba-figs th, .ba-figs td { padding: 8px 8px; }
+  .ba-figs th.num, .ba-figs td.num { white-space: normal; }
+  .ba-figs .ba-fig-k { white-space: normal; }
+  /* the month column stays put while the figures scroll sideways inside their box */
+  .ba-year th:first-child, .ba-year td:first-child { width: auto; position: sticky; left: 0; z-index: 1; background: var(--surface); }
+  .ba-year thead th:first-child, .ba-year .ba-qrow th { background: var(--raised); }
+  .ba-year .ba-mrow.ba-open th { background: var(--surface); }
+  .ba-year { min-width: 760px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  /* html:root and html body outrank tokens.css's html rule in any load order. */
+  html:root, html body { background: #fff; color: #000; }
+  body, body:has(> .cc-foot-rule) { padding-bottom: 0; font-size: 9.5pt; }
+  #cc-shell, .cc-foot-rule, .cc-dialog, .ba-head, .ba-basis, .ba-status, .ba-detail, .ba-compare,
+  .ba-screenonly { display: none !important; }
+  .ba-page { max-width: none; margin: 0; padding: 0; }
+
+  .ba-printhead { display: block; margin-bottom: 5mm; padding-bottom: 3mm; border-bottom: 0.5mm solid #000; }
+  .ba-printhead p { margin: 0; color: #000; }
+  .ba-print-title { font-size: 16pt; font-weight: 700; }
+  .ba-print-range { font-size: 10pt; }
+  .ba-print-basis { margin-top: 2mm !important; font-size: 9pt; }
+  .ba-print-date { font-size: 8.5pt; }
+
+  .ba-wrap { background: #fff; border: 0; border-radius: 0; overflow: visible; }
+  .ba-year { min-width: 0; width: 100%; }
+  .ba-year th, .ba-year td {
+    padding: 1.4mm 2mm;
+    color: #000;
+    background: #fff;
+    border-bottom: 0.2mm solid #000;
+    position: static;
+  }
+  .ba-year thead th {
+    font-size: 7pt;
+    border-bottom: 0.5mm solid #000;
+    white-space: normal;
+    vertical-align: bottom;
+  }
+  .ba-year tr { break-inside: avoid; page-break-inside: avoid; }
+  .ba-year tbody tr:last-child td, .ba-year tbody tr:last-child th { border-bottom: 0.2mm solid #000; }
+  .ba-year tbody th { font-size: 9.5pt; }
+  .ba-year .ba-qrow th { font-size: 7.5pt; }
+  .ba-monthbtn, .ba-mlabel, .ba-mrow.ba-open .ba-monthbtn { color: #000; font-weight: 400; padding: 0; text-decoration: none; }
+  .ba-mrow.ba-open { background: #fff; }
+  .ba-mrow.ba-future td, .ba-mrow.ba-future .ba-mlabel, .ba-year td.ba-sales, .ba-attend, .ba-st-word { color: #000; }
+  .ba-year .ba-qrow th, .ba-year .ba-qrow td, .ba-year tfoot th, .ba-year tfoot td { background: #fff; color: #000; }
+  .ba-qrow th, .ba-qrow td { font-weight: 700; border-bottom: 0.4mm solid #000; }
+  .ba-qrow td.ba-st, .ba-yrow td.ba-st { font-weight: 400; color: #000; }
+  .ba-year tfoot th, .ba-year tfoot td { border-top: 0.6mm solid #000; border-bottom: 0.6mm solid #000; font-weight: 700; }
+  .ba-year tfoot { display: table-row-group; }
+  .hs-badge, .hs-badge-na, .hs-badge-check {
+    background: #fff;
+    color: #000;
+    border: 0;
+    padding: 0;
+    font-size: 7pt;
+  }
+  .ba-badge + .ba-badge::before { content: "· "; }
+  .ba-hint { color: #000; font-size: 8.5pt; margin-top: 2mm; }
+}
+/* style-check: print-end */
