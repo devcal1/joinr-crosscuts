@@ -631,22 +631,30 @@
   };
   let orders = [];
   let showCancelled = false;
+  let ordersBusy = false;
 
-  // Which buttons a line gets: the permission table in m3-contracts.md section 2. The server checks too.
-  function lineActions(o) {
-    const acts = [];
-    if (o.status === "to_order" && can("orders.mark_ordered")) {
-      acts.push({ label: "Mark ordered", patch: { status: "ordered" }, done: "Marked ordered", primary: true });
-    }
-    if (o.status === "ordered") {
-      if (can("orders.edit")) acts.push({ label: "Received", patch: { status: "received" }, done: "Marked received", primary: true });
-      if (can("orders.mark_ordered")) acts.push({ label: "Undo", patch: { status: "to_order" }, done: "Moved back to To order" });
-    }
-    if (o.status === "received" && can("orders.edit")) {
-      acts.push({ label: "Undo", patch: { status: "ordered" }, done: "Moved back to Ordered" });
-    }
-    if (o.status !== "cancelled" && can("orders.edit")) acts.push({ label: "Cancel", cancel: true, done: "Line cancelled" });
-    return acts;
+  // The buttons a line may get, in the order they show (docs/plans/m10-contracts.md section 9.3).
+  // Which ones a line gets comes from OrderUI.actions(); the server decides (lib/orders.js).
+  // `dialog` ones open OrderUI (orderui.js); the rest are built here. `next` is where focus goes
+  // on the same line after the action (the first that is there after the reload), else the row.
+  const ORDER_ACTS = [
+    { id: "markOrdered", label: "Mark ordered", primary: true, next: ["receive", "undoOrdered", "note", "edit"] },
+    { id: "receive", label: "Received", primary: true, dialog: true, next: ["undoReceived", "note", "edit"] },
+    { id: "note", label: "Delivery note", dialog: true, next: ["note"] },
+    { id: "edit", label: "Edit", dialog: true, next: ["edit"] },
+    { id: "undoOrdered", label: "Undo", aria: "Undo ordered", next: ["markOrdered", "edit"] },
+    { id: "undoReceived", label: "Undo received", dialog: true, next: ["receive", "note", "edit"] },
+    { id: "cancel", label: "Cancel", aria: "Cancel line", next: [] },
+  ];
+  const ORDER_ACT = Object.fromEntries(ORDER_ACTS.map((a) => [a.id, a]));
+
+  function orderLineName(o) {
+    return o.supplier + (o.description ? ", " + o.description : "");
+  }
+
+  // The Actions column shows for anyone who may change a line in some way.
+  function orderActionsShown() {
+    return can("orders.edit") || can("orders.mark_ordered") || can("orders.receive");
   }
 
   function renderOrdersSummary() {
@@ -693,40 +701,91 @@
       body.replaceChildren(el("p", { class: "muted jo-empty", text: showCancelled ? "No order lines." : "No order lines yet." }));
       return;
     }
+    const showActs = orderActionsShown();
     const table = el("table", { class: "hs-table jo-table jo-orders" });
-    table.append(headRow(["Supplier", "Description", "Status", "Expected", "Dates", "Actions"]));
+    const heads = ["Supplier", "Description", "Status", "Expected", "Ordered", "Received"];
+    table.append(headRow(showActs ? heads.concat("Actions") : heads));
     const tb = el("tbody");
     for (const o of orders) {
       const [label, badge] = ORDER_STATUS[o.status] || [o.status, "hs-badge-na"];
-      const expected = el("td", { class: o.overdue ? "jo-overdue" : "" });
-      if (o.expectedDate) expected.append(document.createTextNode(fmtDate(o.expectedDate)));
+      // The dates sit in jo-dates cells (one line each, the same size).
+      const expected = el("td", { class: "jo-dates" + (o.overdue ? " jo-overdue" : "") });
+      if (o.expectedDate) expected.append(el("span", { text: fmtDate(o.expectedDate) }));
       if (o.overdue) expected.append(el("span", { class: "jo-overdue-tag", text: "Overdue" }));
-      const actions = el("td", { class: "jo-acts" });
-      for (const a of lineActions(o)) {
-        const btn = el("button", { type: "button", class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""), text: a.label });
-        btn.addEventListener("click", () => runLineAction(o, a));
-        actions.append(btn);
+      // The received date, and under it who marked it received (when known).
+      const received = el("td", { class: "jo-dates" });
+      if (o.receivedDate) {
+        received.append(el("span", { text: fmtDate(o.receivedDate) }));
+        if (o.receivedBy && o.receivedBy.name) received.append(el("span", { class: "jo-note", text: o.receivedBy.name }));
       }
-      tb.append(
-        el(
-          "tr",
-          { class: o.status === "cancelled" ? "jo-cancelled" : "" },
-          el("td", { class: "jo-strong", text: o.supplier }),
-          el("td", { class: "jo-text" }, document.createTextNode(o.description), o.notes ? el("span", { class: "jo-note", text: o.notes }) : null),
-          el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
-          expected,
-          el(
-            "td",
-            { class: "jo-dates" },
-            o.orderedDate ? el("span", { text: "Ordered " + fmtDate(o.orderedDate) }) : null,
-            o.receivedDate ? el("span", { text: "Received " + fmtDate(o.receivedDate) }) : null
-          ),
-          actions
-        )
+      // The description, the line's notes and its delivery note (OrderUI's block).
+      const note = window.OrderUI ? window.OrderUI.noteBlock(o) : null;
+      const desc = el(
+        "td",
+        { class: "jo-text" },
+        document.createTextNode(o.description || ""),
+        o.notes ? el("span", { class: "jo-note", text: o.notes }) : null,
+        note ? el("div", { class: "jo-note" }, note) : null
       );
+      const tr = el(
+        "tr",
+        { class: o.status === "cancelled" ? "jo-cancelled" : "", "data-id": String(o.id), tabindex: "-1" },
+        el("td", { class: "jo-strong", text: o.supplier }),
+        desc,
+        el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
+        expected,
+        el("td", { class: "jo-dates" }, o.orderedDate ? el("span", { text: fmtDate(o.orderedDate) }) : null),
+        received
+      );
+      if (showActs) {
+        const may = window.OrderUI ? window.OrderUI.actions(o) : {};
+        const actions = el("td", { class: "jo-acts" });
+        for (const a of ORDER_ACTS) {
+          if (!may[a.id]) continue;
+          actions.append(el("button", {
+            type: "button",
+            class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""),
+            "data-act": a.id,
+            "data-id": String(o.id),
+            "aria-label": (a.aria || a.label) + ": " + orderLineName(o),
+            text: a.label,
+          }));
+        }
+        tr.append(actions);
+      }
+      tb.append(tr);
     }
     table.append(tb);
     body.replaceChildren(tableWrap(table));
+  }
+
+  // ---- focus after an order action: the same line's next action, or its row; when the line
+  // has left the list (cancelled, with cancelled lines hidden), the next line's first action or
+  // row, then the one before; else the section heading.
+  function orderButton(id, act) {
+    return $("ordersBody").querySelector(`button[data-act="${act}"][data-id="${id}"]`);
+  }
+  function orderRow(id) {
+    return $("ordersBody").querySelector(`tr[data-id="${id}"]`);
+  }
+  function focusNode(n) {
+    if (!n) return false;
+    n.focus();
+    return document.activeElement === n;
+  }
+  function focusOrderAfter(id, act, before) {
+    for (const next of ORDER_ACT[act].next) if (focusNode(orderButton(id, next))) return;
+    if (focusNode(orderRow(id))) return;
+    const at = before.indexOf(id);
+    for (const other of before.slice(at + 1).concat(before.slice(0, Math.max(at, 0)).reverse())) {
+      const tr = orderRow(other);
+      if (tr && (focusNode(tr.querySelector("button[data-act]")) || focusNode(tr))) return;
+    }
+    const h = $("orders-h");
+    if (h) {
+      h.setAttribute("tabindex", "-1");
+      focusNode(h);
+    }
   }
 
   async function loadOrders() {
@@ -748,25 +807,66 @@
     }
   }
 
-  async function runLineAction(o, a) {
+  function orderSaid(act, o, r) {
+    const name = orderLineName(o);
+    const after = (r && r.order) || {};
+    switch (act) {
+      case "markOrdered": return "Marked ordered: " + name + ".";
+      case "undoOrdered": return "Back to To order: " + name + ".";
+      case "receive": return "Received: " + name + ".";
+      case "note": return (after.deliveryNote ? "Delivery note saved: " : "Delivery note cleared: ") + name + ".";
+      case "undoReceived": return "Back to ordered: " + name + ".";
+      case "edit": return "Saved: " + name + ".";
+      case "cancel": return "Line cancelled: " + name + ".";
+      default: return "Saved.";
+    }
+  }
+
+  // One order action. Received, Delivery note, Undo received and Edit open OrderUI's dialogs
+  // (which show a refusal inside the dialog); Mark ordered, its Undo and Cancel are built here.
+  async function runOrderAction(act, id, opener) {
+    if (ordersBusy || !ORDER_ACT[act]) return;
+    const o = orders.find((l) => l.id === id);
+    if (!o) return;
     const status = $("ordersStatus");
-    if (a.cancel) {
-      const what = o.supplier + (o.description ? " - " + o.description : "");
-      const ok = await confirmDialog("Cancel this order line?", what + ". The line stays on the job, marked cancelled.", "Cancel line", "Keep line");
-      if (!ok) return;
-    }
-    for (const b of $("ordersBody").querySelectorAll("button")) b.disabled = true;
-    setLine(status, "Saving...", "muted");
+    ordersBusy = true;
     try {
-      const r = a.cancel
-        ? await api("/api/orders/" + o.id + "/cancel", { method: "POST", body: "{}" })
-        : await api("/api/orders/" + o.id, { method: "PATCH", body: JSON.stringify(a.patch) });
-      applyJobState(r.job);
-      setLine(status, a.done + ".", "ok");
-    } catch (e) {
-      setLine(status, e.message, "err");
+      const before = orders.map((l) => l.id);
+      let r;
+      if (ORDER_ACT[act].dialog) {
+        r = await window.OrderUI[act](o);
+        if (!r) return; // cancelled: OrderUI puts focus back on the button
+      } else {
+        if (act === "cancel") {
+          const ok = await confirmDialog("Cancel this order line?", orderLineName(o) + ". The line stays on the job, marked cancelled.", "Cancel line", "Keep line");
+          if (!ok) {
+            if (opener && opener.isConnected) opener.focus();
+            return;
+          }
+        }
+        for (const b of $("ordersBody").querySelectorAll("button")) b.disabled = true;
+        setLine(status, "Saving...", "muted");
+        try {
+          r = act === "cancel"
+            ? await api("/api/orders/" + encodeURIComponent(o.id) + "/cancel", { method: "POST", body: "{}" })
+            : await api("/api/orders/" + encodeURIComponent(o.id), {
+              method: "PATCH",
+              body: JSON.stringify({ status: act === "markOrdered" ? "ordered" : "to_order" }),
+            });
+        } catch (e) {
+          setLine(status, e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
+          await loadOrders();
+          if (!focusNode(orderButton(id, act))) focusOrderAfter(id, act, before);
+          return;
+        }
+      }
+      applyJobState(r && r.job);
+      setLine(status, orderSaid(act, o, r), "ok");
+      await loadOrders();
+      focusOrderAfter(id, act, before);
+    } finally {
+      ordersBusy = false;
     }
-    await loadOrders();
   }
 
   async function onAddLine(ev) {
@@ -1335,6 +1435,11 @@
       renderOrdersSummary();
       $("orderForm").hidden = !can("orders.edit");
       $("orderForm").addEventListener("submit", onAddLine);
+      $("ordersBody").addEventListener("click", (ev) => {
+        const b = ev.target.closest && ev.target.closest("button[data-act]");
+        if (!b || b.disabled) return;
+        runOrderAction(b.getAttribute("data-act"), Number(b.getAttribute("data-id")), b);
+      });
       $("showCancelled").addEventListener("click", (ev) => {
         showCancelled = !showCancelled;
         ev.currentTarget.setAttribute("aria-pressed", showCancelled ? "true" : "false");

@@ -1,4 +1,4 @@
-// Personal dashboard: greeting, the this-week board and accounts lines, notifications and the
+// Personal dashboard: greeting, the this-week board, accounts and deliveries lines, notifications and the
 // signed-in user's own work (planner, tasks, messages). Getting to a department is the menu bar's job. Everything is gated on window.cc (shell/shell.js).
 (function () {
   "use strict";
@@ -47,6 +47,29 @@
         line.appendChild(document.createTextNode(s.dueCount + " due · "));
         line.appendChild(el("span", s.overdueCount > 0 ? "stat-overdue" : null, s.overdueCount + " overdue"));
         line.appendChild(el("span", "week-go", "Open accounts"));
+        line.hidden = false;
+      })
+      .catch(function () { /* optional; leave it hidden */ });
+  }
+
+  // Deliveries: "N due today · N overdue" beside the board summary, for people who receive
+  // deliveries (orders.receive; docs/plans/m10-contracts.md section 9.4). Overdue turns red only
+  // when there is some; the line is hidden when both are 0. It leads to the Deliveries page.
+  function renderDeliveries(cc) {
+    if (!cc.can("orders.receive")) return;
+    var line = document.getElementById("deliveries-line");
+    api("/api/orders/deliveries")
+      .then(function (d) {
+        var c = d && d.counts;
+        if (!c) return;
+        var today = Number(c.today) || 0;
+        var overdue = Number(c.overdue) || 0;
+        if (!today && !overdue) return;
+        line.textContent = "";
+        line.appendChild(el("strong", null, "Deliveries: "));
+        line.appendChild(document.createTextNode(today + " due today · "));
+        line.appendChild(el("span", overdue > 0 ? "stat-overdue" : null, overdue + " overdue"));
+        line.appendChild(el("span", "week-go", "Open deliveries"));
         line.hidden = false;
       })
       .catch(function () { /* optional; leave it hidden */ });
@@ -247,6 +270,7 @@
     renderGreeting(cc);
     renderWeek(cc);
     renderAccounts(cc);
+    renderDeliveries(cc);
     renderHint(cc);
     renderAlerts(cc);
     renderPlanner(cc);
