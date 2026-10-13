@@ -35,7 +35,7 @@ App root: `crosscuts/app/`. CommonJS, Express 4, `better-sqlite3` (the `node:sql
 | `lib/orders.js` | the hooks of §5.2 (complete), and `deliveries()` gaining `stock` (§9) | scaffold |
 | `routes/drawers.js`, `routes/stock.js`, `routes/paint.js`, `routes/boards.js` | every route of §6–§8 declared with its access value; handlers 501 | scaffold, then A / B / C |
 | `lib/drawers.js`, `lib/stock.js`, `lib/boards.js`, `lib/paint.js` | binding signatures as stubs (501) | scaffold, then A / B / B / C |
-| `lib/stockdeliveries.js` | `stockDeliveries()` stub (§9) | scaffold, then B |
+| `lib/stockdeliveries.js` | `stockDeliveries()` stub (§9); it answers an empty list, not 501, so Deliveries and the M10 smoke keep working (scaffold note) | scaffold, then B |
 | `ci/smoke.sh` | key counts 25 → 27, the presets, the M11 source loop (§12.1) | scaffold |
 | `crosscuts/app/package.json`, `package-lock.json` | 0.1.15 | scaffold |
 | `lib/joinr-sync.js` (`validateItem`, `LABELS`, `changedFields`), `lib/intake.js` (accept and link hooks), `ci/fake-joinr.js` | the `drawers` field (§4.4–§4.5) | A |

@@ -2,10 +2,13 @@
 // docs/plans/m3-contracts.md section 2, as changed by docs/plans/m10-contracts.md section 4
 // (receiving deliveries: orders.receive, who received and last changed a line, the delivery note,
 // the Deliveries list). markMaterialsOrdered is the scaffold's (the Materials ordered button calls
-// it) and keeps its signature and return values.
+// it) and keeps its signature and return values. M11 (docs/plans/m11-contracts.md section 5): lines
+// that are a job's drawers or a paint order's job line carry kind/drawers/paintOrderId, and plain
+// calls (no opts.via) are refused the changes that belong to the Drawer order or paint order pages.
 const audit = require("./audit");
 const invoices = require("./invoices");
 const notify = require("./notify");
+const links = require("./orderlinks");
 const { bad, notFound, conflict, forbidden, can } = require("./httperror");
 const { sydneyToday, addDays } = require("./time");
 
@@ -51,10 +54,12 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 // The names of who created, received and last changed a line (M10 section 4.1).
 const LINE_COLUMNS = `o.*, u.display_name AS created_by_name,
-  ur.display_name AS received_by_name, uu.display_name AS updated_by_name`;
+  ur.display_name AS received_by_name, uu.display_name AS updated_by_name,
+  ${links.COLUMNS_SQL}`;
 const LINE_USERS = `LEFT JOIN users u ON u.id = o.created_by
   LEFT JOIN users ur ON ur.id = o.received_by
-  LEFT JOIN users uu ON uu.id = o.updated_by`;
+  LEFT JOIN users uu ON uu.id = o.updated_by
+  ${links.JOIN_SQL}`;
 const SELECT_LINE = `SELECT ${LINE_COLUMNS} FROM orders o ${LINE_USERS}`;
 
 function nowIso() {
@@ -103,6 +108,8 @@ function present(row, today = sydneyToday()) {
       (row.status === "to_order" || row.status === "ordered") &&
       !!row.expected_date &&
       row.expected_date < today,
+    // M11 section 4.2: {kind, drawers, paintOrderId}.
+    ...links.presentLink(row),
   };
 }
 
@@ -311,7 +318,9 @@ function refreshMaterialsIn(db, jobId, req) {
 
 // --- writes -----------------------------------------------------------------
 
-function createLine(db, jobId, { supplier, description, expectedDate, notes } = {}, req) {
+// opts is accepted for symmetry with updateLine/cancelLine (M11 section 5.2); a plain call and a
+// call from lib/drawers.js or lib/paint.js behave the same (they write their link row afterwards).
+function createLine(db, jobId, { supplier, description, expectedDate, notes } = {}, req, opts = {}) { // eslint-disable-line no-unused-vars
   requireJob(db, jobId);
   const sup = textField("supplier", supplier, SUPPLIER_MAX, { required: true });
   const desc = textField("description", description, DESCRIPTION_MAX);
@@ -337,7 +346,9 @@ function createLine(db, jobId, { supplier, description, expectedDate, notes } = 
   })();
 }
 
-function updateLine(db, orderId, patch, req) {
+// opts.via: "drawers" | "paint" | undefined (M11 section 5.2). Only lib/drawers.js and lib/paint.js
+// pass it; the routes never do.
+function updateLine(db, orderId, patch, req, opts = {}) {
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw bad("JSON body required");
   const has = (k) => Object.prototype.hasOwnProperty.call(patch, k) && patch[k] !== undefined;
   const line = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
@@ -363,13 +374,28 @@ function updateLine(db, orderId, patch, req) {
 
   if (line.status === "cancelled") throw conflict("Cancelled lines can't be changed");
 
+  // M11 section 5.2: a plain call can't change what the Drawer order or a paint order owns.
+  const link = links.linkOf(db, orderId);
+  if (link && !opts.via) {
+    if (link.kind === "paint") throw conflict(`This line is part of paint order ${link.paintOrderId}; change it there`);
+    if (link.kind === "drawers") {
+      if (has("status") && line.status === "to_order" && patch.status === "ordered") {
+        throw conflict("Drawer lines are ordered from the Drawer order page");
+      }
+      if (("supplier" in text && text.supplier !== line.supplier) || ("description" in text && text.description !== line.description)) {
+        throw conflict("The drawer grid sets this line; change the grid");
+      }
+    }
+  }
+
   // The permission checks live here, so no caller can bypass them (plan Q1). The whole PATCH is
   // checked (every key it needs, every rule) before anything is written (M10 section 4.2).
   const changes = {}; // column -> new value
   for (const [col, v] of Object.entries(text)) {
     if (v !== line[col]) changes[col] = v;
   }
-  if (Object.keys(changes).length && !can(req, "orders.edit")) throw forbidden();
+  // A call from lib/drawers.js or lib/paint.js has had its own access checked (M11 section 5.2).
+  if (Object.keys(changes).length && !opts.via && !can(req, "orders.edit")) throw forbidden();
 
   // Marking a line ordered or received a second time is refused, not turned into a date edit (a
   // second person pressing Received on a line someone already received; M10 · 4.3, review P1).
@@ -505,6 +531,11 @@ function updateLine(db, orderId, patch, req) {
         audit.log(req, { action: "order.status", entityType: "order", entityId: orderId, before, after });
       }
     }
+    // M11 section 5.2: a drawer line going back to To order leaves its placed drawer order (whose
+    // frozen grid keeps it as history).
+    if (transition === "ordered>to_order" && link && link.kind === "drawers") {
+      db.prepare("UPDATE order_drawers SET drawer_order_id = NULL WHERE order_id = ?").run(orderId);
+    }
     // The all-ordered rule: the last to_order line has just been ordered.
     if (transition === "to_order>ordered" && allOrdered(db, line.job_id)) {
       markMaterialsOrdered(db, line.job_id, req, changes.ordered_date);
@@ -533,11 +564,16 @@ function updateLine(db, orderId, patch, req) {
 
 // Note (contracts section 11.8): a cancel by an orders.mark_ordered holder
 // fires the all-ordered rule; a cancel by anyone else never does.
-function cancelLine(db, orderId, req) {
-  if (!can(req, "orders.edit")) throw forbidden();
+// opts.via as updateLine (M11 section 5.2): a paint order cancels its own job lines.
+function cancelLine(db, orderId, req, opts = {}) {
+  if (!opts.via && !can(req, "orders.edit")) throw forbidden();
   const line = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   if (!line) throw notFound();
   if (line.status === "cancelled") throw conflict("Already cancelled");
+  const link = links.linkOf(db, orderId);
+  if (link && link.kind === "paint" && !opts.via) {
+    throw conflict(`This line is part of paint order ${link.paintOrderId}; change it there`);
+  }
   return db.transaction(() => {
     db.prepare("UPDATE orders SET status = 'cancelled', updated_at = ?, updated_by = ? WHERE id = ?").run(
       nowIso(),
@@ -562,6 +598,9 @@ function cancelLine(db, orderId, req) {
 // M10 (docs/plans/m10-contracts.md section 4.4): every ordered line on a job that isn't archived,
 // in five groups by expected date (overdue, today, the next 7 days, later, no date yet); the lines
 // received in the last 14 days (today included), newest first; and the overdue and today counts.
+// M11 (section 5.2 and 9): paint order job lines are left out (they're received with their paint
+// order), and `stock` lists the stock groups, paint orders and drawer stock rows waiting; their
+// today and overdue counts are added in.
 function deliveries(db, today = sydneyToday()) {
   const weekEnd = addDays(today, 7);
   const groups = [
@@ -574,7 +613,7 @@ function deliveries(db, today = sydneyToday()) {
   const byId = Object.fromEntries(groups.map((g) => [g.id, g]));
   const ordered = listRows(
     db,
-    "o.status = 'ordered' AND j.archived = 0",
+    "o.status = 'ordered' AND j.archived = 0 AND poj.paint_order_id IS NULL",
     [],
     "o.expected_date, j.name COLLATE NOCASE, o.id",
     today
@@ -586,16 +625,21 @@ function deliveries(db, today = sydneyToday()) {
   }
   const recent = listRows(
     db,
-    "o.status = 'received' AND o.received_date >= ? AND j.archived = 0",
+    "o.status = 'received' AND o.received_date >= ? AND j.archived = 0 AND poj.paint_order_id IS NULL",
     [addDays(today, -13)],
     "o.received_date DESC, o.id DESC",
     today
   );
+  const stock = require("./stockdeliveries").stockDeliveries(db, today);
   return {
     date: today,
     groups,
     recent,
-    counts: { overdue: byId.overdue.lines.length, today: byId.today.lines.length },
+    stock,
+    counts: {
+      overdue: byId.overdue.lines.length + stock.counts.overdue,
+      today: byId.today.lines.length + stock.counts.today,
+    },
   };
 }
 

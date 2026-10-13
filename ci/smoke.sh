@@ -279,7 +279,7 @@ expect_jq '.setupNeeded == false and .loggedIn == true' "auth status after setup
 
 req GET /api/auth/me "$ADMIN"
 expect_status 200 "me as admin"
-expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 25' "setup user is an admin with all 25 keys"
+expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 27' "setup user is an admin with all 27 keys"
 
 # ============================================================================
 step "b. logged out: every routed API is 401, pages redirect"
@@ -940,12 +940,12 @@ expect_status 403 "show GET /schedule.html"
 req GET /api/users/meta "$ADMIN"
 expect_status 200 "admin GET /api/users/meta"
 expect_jq '.roles | index("workshop") != null' "the roles include workshop"
-expect_jq '.keys | length == 25' "25 feature keys (M10 adds orders.view and orders.receive)"
+expect_jq '.keys | length == 27' "27 feature keys (M10 adds orders.view and orders.receive; M11 stock.count and stock.order)"
 expect_jq '.presets.workshop == ["board.view","planner.view"]' "the workshop preset is board.view and planner.view"
 # M10 (docs/plans/m10-contracts.md section 10.1): the two new roles and their presets.
 expect_jq '.roles | index("ordering") != null and index("workshop_manager") != null' "the roles include ordering and workshop_manager"
-expect_jq '.presets.ordering == ["board.view","jobs.view","design.view","photos.search","orders.view","orders.edit","orders.mark_ordered","orders.receive","tasks.use","messages.use","planner.view","planner.edit"]' "the ordering preset is as section 3"
-expect_jq '.presets.workshop_manager == ["board.view","orders.view","orders.receive","tasks.use","messages.use","planner.view","planner.edit"]' "the workshop_manager preset is as section 3"
+expect_jq '.presets.ordering == ["board.view","jobs.view","design.view","photos.search","orders.view","orders.edit","orders.mark_ordered","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count","stock.order"]' "the ordering preset is as M10 section 3 plus M11's stock keys"
+expect_jq '.presets.workshop_manager == ["board.view","orders.view","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count"]' "the workshop_manager preset is as M10 section 3 plus stock.count (M11)"
 
 echo "per-user override (revoke board.edit from sched)..."
 req PUT "/api/users/$SCHED_ID/overrides/board.edit" "$ADMIN" '{"effect":"revoke"}'
@@ -1236,6 +1236,8 @@ expect_jq '.user.roles == ["ordering"]' "ordr holds the ordering role (migration
 req GET /api/auth/me "$WSMGR"
 expect_jq '.user.roles == ["workshop_manager"]' "wsmgr holds the workshop_manager role (migration 021 allows it)"
 for f in "$(dirname "$0")"/smoke-m10-*.sh; do [ -f "$f" ] && source "$f"; done
+# M11 suites (ci/smoke-m11-*.sh, docs/plans/m11-contracts.md section 12): same rules.
+for f in "$(dirname "$0")"/smoke-m11-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

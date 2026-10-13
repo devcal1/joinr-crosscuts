@@ -36,6 +36,11 @@ const DEFAULTS = {
   "pay.ordinary_mon_thu_min": "480",
   "pay.ordinary_fri_min": "360",
   "pay.ot_band_min": "120",
+  // M11 (docs/plans/m11-contracts.md section 3.3): changed through PUT /api/drawers/settings and
+  // PUT /api/paint/settings only (never /api/settings).
+  "drawers.supplier.edge": "Finista EDGE",
+  "drawers.supplier.dtc": "DTC DragonPro",
+  "paint.litres_per_kg": "0.85",
 };
 const KEYS = Object.keys(DEFAULTS);
 

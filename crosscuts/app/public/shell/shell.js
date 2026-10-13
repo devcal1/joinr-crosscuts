@@ -41,14 +41,19 @@
       ],
     },
     {
-      // Ordering (Todd, 2026-10-12): its own department; drawer, stock and paint orders join later.
-      // M10: Orders by orders.view (no job pages needed); Deliveries for whoever receives them.
+      // Ordering (Todd, 2026-10-12): its own department. M10: Orders by orders.view (no job pages
+      // needed); Deliveries for whoever receives them. M11 (docs/plans/m11-contracts.md section 10):
+      // the drawer, stock and paint orders and the board stocktake.
       id: "ordering",
       label: "Ordering",
       dept: "ordering",
       items: [
         { label: "Orders", href: "/orders.html", key: "orders.view" },
         { label: "Deliveries", href: "/deliveries.html", key: "orders.receive" },
+        { label: "Drawer order", href: "/drawers.html", key: "stock.order" },
+        { label: "Stock order", href: "/stock.html", key: "stock.count" },
+        { label: "Paint order", href: "/paint.html", key: "stock.order" },
+        { label: "Board stocktake", href: "/boards.html", key: "stock.count" },
       ],
     },
     {
@@ -59,6 +64,7 @@
         { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
         { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
         { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
+        { label: "Stock value", href: "/stockvalue.html", key: "accounts.view" },
         { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
         { label: "Reports", href: "/reports.html", key: "accounts.view" },
       ],

@@ -29,6 +29,10 @@ const KEYS = [
   // deliveries and write delivery notes.
   "orders.view",
   "orders.receive",
+  // M11 (docs/plans/m11-contracts.md section 3): count stock and boards; run the ordering pages
+  // (drawer order, stock order, paint order, the lists and board prices).
+  "stock.count",
+  "stock.order",
 ];
 
 const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"];
@@ -59,10 +63,11 @@ const PRESETS = {
   ordering: [
     "board.view", "jobs.view", "design.view", "photos.search", "orders.view", "orders.edit",
     "orders.mark_ordered", "orders.receive", "tasks.use", "messages.use", "planner.view", "planner.edit",
+    "stock.count", "stock.order",
   ],
   workshop_manager: [
     "board.view", "orders.view", "orders.receive", "tasks.use", "messages.use",
-    "planner.view", "planner.edit",
+    "planner.view", "planner.edit", "stock.count",
   ],
 };
 
