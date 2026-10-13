@@ -255,6 +255,37 @@ function stringList(raw, name) {
   });
 }
 
+// The optional drawer lines (M11, docs/plans/m11-contracts.md section 4.4; contract version 2):
+// absent or null -> null ("not reported"), else at most 200 {section, name, qty}. A quantity is
+// rounded half up to a whole number; 0 after rounding is dropped.
+const DRAWER_SECTIONS = ["drawers", "innerDrawers"];
+const DRAWER_LINES_MAX = 200;
+const DRAWER_NAME_MAX = 200;
+const DRAWER_QTY_MAX = 100000;
+
+function drawerLines(item) {
+  const v = item.drawers;
+  if (v === undefined || v === null) return null;
+  if (!Array.isArray(v) || v.length > DRAWER_LINES_MAX) {
+    throw invalid(`drawers must be a list of at most ${DRAWER_LINES_MAX} lines or null`);
+  }
+  const out = [];
+  v.forEach((d, i) => {
+    if (!d || typeof d !== "object" || Array.isArray(d)) throw invalid(`drawers[${i}] must be an object`);
+    if (!DRAWER_SECTIONS.includes(d.section)) throw invalid(`drawers[${i}].section must be one of ${DRAWER_SECTIONS.join(", ")}`);
+    const name = typeof d.name === "string" ? d.name.trim() : "";
+    if (!name || name.length > DRAWER_NAME_MAX) {
+      throw invalid(`drawers[${i}].name must be a string of 1 to ${DRAWER_NAME_MAX} characters`);
+    }
+    if (typeof d.qty !== "number" || !Number.isFinite(d.qty) || d.qty <= 0 || d.qty > DRAWER_QTY_MAX) {
+      throw invalid(`drawers[${i}].qty must be a number above 0 and at most ${DRAWER_QTY_MAX}`);
+    }
+    const qty = Math.floor(d.qty + 0.5);
+    if (qty > 0) out.push({ section: d.section, name, qty });
+  });
+  return out;
+}
+
 // Checks one item against the wire contract. Returns a normalised copy holding only the
 // contract's fields (in a fixed order), or throws an Error whose message names the field.
 // Messages never quote the values.
@@ -349,6 +380,7 @@ function validateItem(item) {
   if (typeof item.url !== "string" || item.url.length > 1000 || !/^https?:$/.test(url.protocol)) {
     throw invalid("url must be an http(s) link");
   }
+  const drawers = drawerLines(item);
 
   return {
     cursor,
@@ -373,6 +405,7 @@ function validateItem(item) {
     estimatedHours,
     spec: { sheetCount, twoPac, benchtop, jobType },
     raw,
+    drawers,
     url: item.url,
   };
 }
@@ -415,6 +448,7 @@ const LABELS = {
   spec: "spec",
   raw: "spec",
   url: "link",
+  drawers: "drawers",
   event: "event",
 };
 
@@ -424,6 +458,9 @@ function changedFields(oldP, newP) {
   const out = [];
   for (const k of Object.keys(LABELS)) {
     if (k === "event") continue;
+    // M11 section 4.4: the drawer lines count only when both payloads report them, so the first
+    // sync after Joinr starts sending the field (null -> a list) doesn't flag every record.
+    if (k === "drawers" && !(Array.isArray(a[k]) && Array.isArray(b[k]))) continue;
     if (canonical(a[k]) !== canonical(b[k])) {
       const label = LABELS[k];
       if (!out.includes(label)) out.push(label);
@@ -527,6 +564,12 @@ function applyItem(db, item) {
     // A repeat of an identical item only records that it was seen.
     const differs = fields.length > 0;
     if (!differs) {
+      // M11 section 4.4: drawer lines first reported now (null -> a list) are no change, but they
+      // are kept, so the job page and Refill see them and a later change to them is flagged.
+      if (Array.isArray(item.drawers) && !(stored && Array.isArray(stored.drawers))) {
+        db.prepare("UPDATE joinr_intake SET payload = ?, last_seen_at = ? WHERE id = ?").run(payload, now, row.id);
+        return { action: row.state === "ignored" ? "ignored" : "skipped" };
+      }
       db.prepare("UPDATE joinr_intake SET last_seen_at = ? WHERE id = ?").run(now, row.id);
       return { action: row.state === "ignored" ? "ignored" : "skipped" };
     }
