@@ -837,6 +837,8 @@ As M10 §10.5:
 
 ## 13. The Joinr side (task J2, tenon-quotr, separate from the waves)
 
+**CLAUDE.md rule 12: nothing in this section starts until Todd has been warned "THIS WILL TOUCH JOINR" and has said yes twice.** It is recorded here as the agreed design only.
+
 From the survey on 2026-10-13: the SQL read already returns each room's whole `qty` map and the pruned card (section ids and the names in use), so this needs **no migration** in Joinr.
 
 - **Code:**
