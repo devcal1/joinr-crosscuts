@@ -352,6 +352,8 @@
   }
 
   // ---------- menus ----------
+  // A real mouse (not touch): department menus open on hover.
+  var canHover = window.matchMedia("(hover: hover) and (pointer: fine)");
   function closeAllPopups(except) {
     Array.prototype.forEach.call(document.querySelectorAll("#cc-shell [data-cc-toggle]"), function (btn) {
       if (btn === except) return;
@@ -715,8 +717,28 @@
       if (focusFirst) { var l = links(); if (l.length) l[0].focus(); }
     }
     btn.addEventListener("click", function () {
+      // A click on a menu the mouse has just opened keeps it open rather than shutting it.
+      if (hoverOpened) { hoverOpened = false; return; }
       if (btn.getAttribute("aria-expanded") === "true") setOpen(btn, false);
       else open(false);
+    });
+    // With a mouse (Todd, 2026-10-13), pointing at a department opens it and moving away closes it,
+    // after a short pause so the pointer can cross the gap to the list. Touch and the keyboard keep
+    // the click/Enter behaviour, and the collapsed Menu panel (button hidden) is left alone.
+    var hoverCloseTimer = null;
+    var hoverOpened = false;
+    li.addEventListener("mouseenter", function () {
+      if (!canHover.matches || !btn.offsetParent) return;
+      clearTimeout(hoverCloseTimer);
+      if (btn.getAttribute("aria-expanded") !== "true") { open(false); hoverOpened = true; }
+    });
+    li.addEventListener("mouseleave", function () {
+      if (!canHover.matches || !btn.offsetParent) return;
+      clearTimeout(hoverCloseTimer);
+      hoverCloseTimer = setTimeout(function () {
+        hoverOpened = false;
+        if (!li.contains(document.activeElement) || document.activeElement === btn) setOpen(btn, false);
+      }, 250);
     });
     btn.addEventListener("keydown", function (e) {
       if (e.key === "ArrowDown") { e.preventDefault(); open(true); }
