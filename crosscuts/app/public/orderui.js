@@ -11,7 +11,18 @@
 //   OrderUI.undoReceived(line) -> Promise<{order, job} | {refused: true} | null>
 //   OrderUI.edit(line)         -> Promise<{order, job} | {refused: true} | null>
 //   OrderUI.noteBlock(line)    -> HTMLElement | null
-//   OrderUI.actions(line)      -> {receive, note, undoReceived, edit, markOrdered, undoOrdered, cancel}
+//   OrderUI.actions(line)      -> {receive, note, undoReceived, edit, markOrdered, undoOrdered, cancel, link}
+//   OrderUI.kindLabel(line)    -> HTMLElement | null  ("PAINT ORDER <id>" or "DRAWERS", for under the description)
+//   OrderUI.paintLink(line)    -> HTMLAnchorElement | null  ("Open paint order <id>", when the user may open it)
+//   OrderUI.receiveItem(item, send)      -> as receive, for a stock, paint or drawer-stock delivery (M11)
+//   OrderUI.undoReceivedItem(item, send) -> as undoReceived, for the same
+//   OrderUI.ui                 -> the dialog frame and its fields, for the M11 pages (paint.js)
+//
+// M11 (docs/plans/m11-contracts.md section 11.8): a line that belongs to a paint order (`kind:
+// "paint"`) is managed entirely by that order, so actions() offers none of its own, only `link`
+// ({href, text}, or null when the user can't open the paint order page). A job's drawer line
+// (`kind: "drawers"`) is ordered from the Drawer order page, so it gets no markOrdered, and its
+// Edit changes only the notes and the expected date (the grid sets the supplier and description).
 //
 // `line` is an order object (lib/orders.js present(), with jobName when the list has it). Each
 // dialog resolves to the server's response, or null when the user cancels (Cancel, Escape, the
@@ -245,6 +256,14 @@
 
   // ---------------------------------------------------------------- actions ---
 
+  // The paint order page a paint line belongs to, when the user may open that page
+  // (lib/pages.js: stock.order or orders.receive).
+  function paintHref(line) {
+    if (!line || line.kind !== "paint" || line.paintOrderId == null) return null;
+    if (!can("stock.order") && !can("orders.receive")) return null;
+    return "/paint.html?id=" + encodeURIComponent(line.paintOrderId);
+  }
+
   function actions(line) {
     const s = line && line.status;
     const live = s === "to_order" || s === "ordered" || s === "received";
@@ -252,6 +271,28 @@
     const receive = can("orders.receive");
     const edit = can("orders.edit");
     const mark = can("orders.mark_ordered");
+    const kind = line && line.kind;
+    if (kind === "paint") {
+      // Changed only from its paint order (lib/orders.js refuses every plain change).
+      const href = paintHref(line);
+      return {
+        receive: false, note: false, undoReceived: false, edit: false,
+        markOrdered: false, undoOrdered: false, cancel: false,
+        link: href ? { href, text: "Open paint order " + line.paintOrderId } : null,
+      };
+    }
+    if (kind === "drawers") {
+      return {
+        receive: s === "ordered" && receive,
+        note: placed && receive,
+        undoReceived: s === "received" && receive,
+        edit: live && edit, // notes and expected date only
+        markOrdered: false, // ordered from the Drawer order page
+        undoOrdered: s === "ordered" && mark,
+        cancel: live && edit,
+        link: null,
+      };
+    }
     return {
       receive: s === "ordered" && receive,
       note: placed && receive,
@@ -260,7 +301,28 @@
       markOrdered: s === "to_order" && mark,
       undoOrdered: s === "ordered" && mark,
       cancel: live && edit,
+      link: null,
     };
+  }
+
+  // ------------------------------------------------------------ kind label ---
+
+  // The small grey label under a managed line's description: "PAINT ORDER <id>" or "DRAWERS"
+  // (hs-label: uppercase, letterspaced). Null for an ordinary line.
+  function kindLabel(line) {
+    if (!line) return null;
+    let text = "";
+    if (line.kind === "paint" && line.paintOrderId != null) text = "Paint order " + line.paintOrderId;
+    else if (line.kind === "drawers") text = "Drawers";
+    if (!text) return null;
+    return el("div", { class: "hs-label ou-kind", text });
+  }
+
+  // "Open paint order <id>" as a link button, or null.
+  function paintLink(line) {
+    const href = paintHref(line);
+    if (!href) return null;
+    return el("a", { class: "hs-btn", href, text: "Open paint order " + line.paintOrderId });
   }
 
   // ------------------------------------------------------------- note block ---
@@ -357,7 +419,14 @@
     const read = []; // [key, input, before, kind], in the order they show
     let list = null;
     const editText = can("orders.edit");
-    if (editText) {
+    // A drawer line: its grid sets the supplier and description, and it is ordered from the
+    // Drawer order page, so only the expected date and the notes are offered here.
+    const drawers = line.kind === "drawers";
+    if (editText && drawers) {
+      const exp = dateInput(line.expectedDate || "", null, null);
+      top.push(fieldBox("Expected", exp, { hint: "Empty for no date yet." }));
+      read.push(["expectedDate", exp, line.expectedDate || null, "date-or-null"]);
+    } else if (editText) {
       list = el("datalist", { id: "ou-suppliers" });
       const sup = textInput(line.supplier, SUPPLIER_MAX, "ou-suppliers");
       const desc = textInput(line.description, DESCRIPTION_MAX);
@@ -374,12 +443,12 @@
     // other as it is changed.
     let od = null;
     let rd = null;
-    if (placed && can("orders.mark_ordered")) {
+    if (!drawers && placed && can("orders.mark_ordered")) {
       od = dateInput(line.orderedDate || "", null, received ? earlier(today, line.receivedDate) : today);
       dates.push(fieldBox("Ordered", od));
       read.push(["orderedDate", od, line.orderedDate || null, "date"]);
     }
-    if (received && can("orders.receive")) {
+    if (!drawers && received && can("orders.receive")) {
       rd = dateInput(line.receivedDate || "", line.orderedDate || null, today);
       dates.push(fieldBox("Received", rd));
       read.push(["receivedDate", rd, line.receivedDate || null, "date"]);
@@ -439,5 +508,64 @@
     });
   }
 
-  window.OrderUI = { receive, note, undoReceived, edit, noteBlock, actions };
+  // ------------------------------------------- stock, paint and drawer-stock deliveries (M11) ---
+
+  // `item`: {name, orderedDate, receivedDate, deliveryNote} (a Deliveries stock item or a paint
+  // order). `send(body)` posts to the item's own route (docs/plans/m11-contracts.md section 9)
+  // and returns its promise; an answer from the server is a refusal, as with an order line.
+  function sendVia(send, body) {
+    return Promise.resolve()
+      .then(() => send(body))
+      .catch((e) => {
+        if (e instanceof TypeError) throw new Error("Couldn't reach the server. Try again.");
+        if (e && typeof e === "object") e.refused = true;
+        throw e;
+      });
+  }
+
+  function receiveItem(item, send) {
+    const today = todayISO();
+    const date = dateInput(today, item.orderedDate || null, today);
+    const had = (item.deliveryNote || "").trim();
+    const note = textArea(had, NOTE_MAX, 3);
+    return dialog({
+      title: "Received",
+      note: item.name + (item.orderedDate ? `. Ordered ${fmtDate(item.orderedDate)}.` : "."),
+      fields: [
+        fieldBox("Date received", date),
+        fieldBox("Delivery note (optional)", note, { wide: true, hint: "Up to 500 characters. Empty the box to clear a note." }),
+      ],
+      hint: "Mark it received when everything on it has arrived.",
+      submit: "Mark received",
+      focus: date,
+      run: () => {
+        if (!validDate(date.value)) throw new Error("Choose the date it arrived");
+        if (item.orderedDate && date.value < item.orderedDate) throw new Error(`It can't arrive before it was ordered (${fmtDate(item.orderedDate)})`);
+        if (date.value > today) throw new Error("The date can't be in the future");
+        const body = { receivedDate: date.value };
+        const n = note.value.trim();
+        if (n !== had) body.deliveryNote = n;
+        return sendVia(send, body);
+      },
+    });
+  }
+
+  function undoReceivedItem(item, send) {
+    return dialog({
+      title: "Undo received?",
+      note: item.name + (item.receivedDate ? `. Received ${fmtDate(item.receivedDate)}.` : "."),
+      hint: "It goes back to ordered and waits for delivery again. Its delivery note stays.",
+      submit: "Undo received",
+      cancel: "Keep received",
+      focus: "cancel",
+      run: () => sendVia(send, { undo: true }),
+    });
+  }
+
+  window.OrderUI = {
+    receive, note, undoReceived, edit, noteBlock, actions, kindLabel, paintLink, receiveItem, undoReceivedItem,
+    // The frame the dialogs above are built on, for the M11 pages: dialog(spec) as described at
+    // dialog(); field(label, input, {wide, hint}); the inputs; and the date helpers.
+    ui: { dialog, field: fieldBox, dateInput, textInput, textArea, todayISO, fmtDate, validDate, sendVia },
+  };
 })();

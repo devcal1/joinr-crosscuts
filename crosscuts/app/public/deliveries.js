@@ -2,6 +2,12 @@
 // the date it's expected, with Received and Delivery note on each line, the last 14 days received
 // with Undo, and a printed checklist. docs/plans/m10-contracts.md sections 4.4 and 9.1. The dialogs
 // are OrderUI's (orderui.js); the server decides who may do what (lib/orders.js).
+//
+// M11 (docs/plans/m11-contracts.md sections 9 and 11.7): a "Stock and paint" section after the five
+// groups lists the monthly stock order's supplier groups, paint orders and drawer stock rows that
+// are ordered (`stock.items`), each received through its own route; their recent receipts join
+// Received recently with Undo, and those due within 7 days join the printed checklist. A drawer
+// line stays in the job groups, labelled by its description.
 (function () {
   "use strict";
 
@@ -54,6 +60,13 @@
 
   function plural(n, one, many) {
     return `${n} ${n === 1 ? one : many}`;
+  }
+
+  // YYYY-MM-DD plus n days.
+  function addDays(s, n) {
+    const p = parts(s);
+    if (!p) return "";
+    return new Date(Date.UTC(p.y, p.m - 1, p.d + n)).toISOString().slice(0, 10);
   }
 
   function lineName(l) {
@@ -118,11 +131,121 @@
       cell);
   }
 
+  // ------------------------------------------------- stock and paint (M11) ---
+
+  function stockItems() {
+    return (data && data.stock && Array.isArray(data.stock.items)) ? data.stock.items : [];
+  }
+  function stockRecent() {
+    return (data && data.stock && Array.isArray(data.stock.recent)) ? data.stock.recent : [];
+  }
+
+  // A stock item's key on the page: its type and id ("stock:2026-10:Supplier", "paint:3").
+  function sid(it) {
+    return it.type + ":" + it.id;
+  }
+
+  // Whether the user may open the item's own page (lib/pages.js).
+  function mayOpen(it) {
+    if (it.type === "stock") return can("stock.count") || can("stock.order");
+    if (it.type === "paint") return can("stock.order") || can("orders.receive");
+    if (it.type === "drawer_stock") return can("stock.order");
+    return false;
+  }
+
+  function safeLink(it) {
+    return typeof it.link === "string" && /^\/(?!\/)/.test(it.link) ? it.link : null;
+  }
+
+  // The name in dialogs, aria labels and messages: "Stock order October 2026: Supplier".
+  function itemName(it) {
+    return it.label + (it.supplier ? ": " + it.supplier : "");
+  }
+
+  // Posts to the item's own receive route (section 9); the body is {receivedDate?, deliveryNote?}
+  // or {undo: true}.
+  function sendReceived(it, body) {
+    if (it.type === "stock") {
+      // "<period>:<supplier>": the supplier may itself hold a colon, so split at the first.
+      const s = String(it.id);
+      const at = s.indexOf(":");
+      const period = s.slice(0, at);
+      const supplier = s.slice(at + 1);
+      return api("/api/stock/orders/" + encodeURIComponent(period) + "/groups/received", {
+        method: "POST", body: JSON.stringify(Object.assign({ supplier }, body)),
+      });
+    }
+    if (it.type === "paint") {
+      return api("/api/paint/orders/" + encodeURIComponent(it.id) + "/received", { method: "POST", body: JSON.stringify(body) });
+    }
+    if (it.type === "drawer_stock") {
+      return api("/api/drawers/placed/" + encodeURIComponent(it.id) + "/stock-received", { method: "POST", body: JSON.stringify(body) });
+    }
+    return Promise.reject(new Error("Reload the page and try again."));
+  }
+
+  function itemNode(it) {
+    const href = safeLink(it);
+    if (href && mayOpen(it)) return el("a", { class: "dl-job", href, text: it.label });
+    return el("span", { class: "dl-job", text: it.label });
+  }
+
+  // The delivery-note block as an order line's (still waiting: the "attend to this" edge).
+  function itemNote(it, waiting) {
+    return window.OrderUI.noteBlock({ deliveryNote: it.deliveryNote || "", status: waiting ? "ordered" : "received" });
+  }
+
+  const STOCK_COLS = [
+    ["Expected", "dl-c-date"], ["Order", "dl-c-what"], ["Supplier", "dl-c-sup"], ["Ordered", "dl-c-date"],
+    ["Delivery note", "dl-c-note"], ["", "dl-c-acts"],
+  ];
+
+  function stockRow(it) {
+    // One child, so the narrow card layout keeps the tag beside its label.
+    const exp = td("Expected", "dl-c-date" + (it.overdue ? " dl-overdue" : ""),
+      el("span", { text: it.expectedDate ? fmtDate(it.expectedDate) : "No date yet" },
+        it.overdue ? el("span", { class: "dl-overdue-tag", text: "Overdue" }) : null));
+    const box = el("div", { class: "dl-acts" });
+    const key = sid(it);
+    if (can("orders.receive")) {
+      box.append(el("button", { type: "button", class: "hs-btn hs-btn-primary", "data-act": "sReceive", "data-id": key, text: "Received",
+        "aria-label": "Received: " + itemName(it) }));
+    }
+    const href = safeLink(it);
+    if (href && mayOpen(it)) {
+      box.append(el("a", { class: "hs-btn", href, text: "Open", "aria-label": "Open " + it.label }));
+    }
+    const note = itemNote(it, true);
+    return el("tr", { "data-sid": key },
+      exp,
+      td("Order", "dl-c-what", itemNode(it)),
+      td("Supplier", "dl-c-sup", el("span", { text: it.supplier || "" })),
+      td("Ordered", "dl-c-date" + (it.orderedDate ? "" : " dl-blank"), el("span", { text: fmtDate(it.orderedDate) })),
+      td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
+      td("", "dl-c-acts", box));
+  }
+
+  function stockSection() {
+    const items = stockItems();
+    if (!items.length) return null;
+    const overdue = items.some((it) => it.overdue);
+    return el("section", { class: "dl-group dl-stock", id: "dl-g-stock", "aria-labelledby": "dl-h-stock" },
+      el("div", { class: "hs-sectionbar dl-bar" + (overdue ? " hs-sectionbar-orange" : "") },
+        el("h2", { id: "dl-h-stock", tabindex: "-1" }, "Stock and paint ",
+          el("span", { class: "dl-count" + (overdue ? " dl-count-overdue" : ""), text: String(items.length) })),
+        el("span", { class: "dl-bar-note", text: "Workshop stock, paint orders and drawer stock" })),
+      el("div", { class: "dl-wrap" }, el("table", { class: "dl-table dl-table-stock" }, headRow(STOCK_COLS),
+        el("tbody", null, ...items.map(stockRow)))));
+  }
+
   function renderGroups() {
     const host = $("dlGroups");
     const shown = data.groups.filter((g) => g.lines.length);
+    const stock = stockSection();
     if (!shown.length) {
-      host.replaceChildren(el("p", { class: "dl-empty dl-nothing", text: "Nothing on order." }));
+      host.replaceChildren(stock ? el("p", { class: "dl-empty dl-nothing", text: "No job lines on order." })
+        : el("p", { class: "dl-empty dl-nothing", text: "Nothing on order." }));
+      if (stock) host.append(stock);
       return;
     }
     host.replaceChildren(...shown.map((g) => {
@@ -135,16 +258,45 @@
             el("span", { class: "dl-count" + (overdue ? " dl-count-overdue" : ""), text: String(g.lines.length) }))),
         el("div", { class: "dl-wrap" }, el("table", { class: "dl-table" }, headRow(LINE_COLS), tbody)));
     }));
+    if (stock) host.append(stock);
+  }
+
+  // A stock, paint or drawer-stock receipt in Received recently: its label in the Job column.
+  function stockRecentRow(it) {
+    const key = sid(it);
+    const cell = td("", "dl-c-acts");
+    if (can("orders.receive")) {
+      cell.append(el("div", { class: "dl-acts" }, el("button", { type: "button", class: "hs-btn", "data-act": "sUndo", "data-id": key,
+        text: "Undo", "aria-label": "Undo received: " + itemName(it) })));
+    }
+    const note = itemNote(it, false);
+    return el("tr", { "data-sid": key },
+      td("Received", "dl-c-date", el("span", { text: fmtDate(it.receivedDate) })),
+      td("By", "dl-c-by" + (it.receivedBy ? "" : " dl-blank"), el("span", { text: it.receivedBy ? it.receivedBy.name || "" : "" })),
+      td("Order", "dl-c-job", itemNode(it)),
+      td("Supplier", "dl-c-sup", el("span", { text: it.supplier || "" })),
+      td("Description", "dl-c-desc dl-blank", el("span", { text: "" })),
+      td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
+      cell);
+  }
+
+  // Job lines and stock receipts together, newest first (each list already is).
+  function recentAll() {
+    const out = (data.recent || []).map((l) => ({ kind: "line", date: l.receivedDate || "", v: l }))
+      .concat(stockRecent().map((it) => ({ kind: "stock", date: it.receivedDate || "", v: it })));
+    return out.map((r, i) => Object.assign(r, { i })).sort((a, b) => b.date.localeCompare(a.date) || a.i - b.i);
   }
 
   function renderRecent() {
     const rows = $("dlRecentRows");
-    const recent = data.recent || [];
+    const all = recentAll();
     $("dlRecent").hidden = false;
-    $("dlRecentCount").textContent = String(recent.length);
-    $("dlRecentEmpty").hidden = recent.length > 0;
-    $("dlRecentWrap").hidden = recent.length === 0;
-    rows.replaceChildren(...recent.map((l) => {
+    $("dlRecentCount").textContent = String(all.length);
+    $("dlRecentEmpty").hidden = all.length > 0;
+    $("dlRecentWrap").hidden = all.length === 0;
+    rows.replaceChildren(...all.map((r) => {
+      if (r.kind === "stock") return stockRecentRow(r.v);
+      const l = r.v;
       const acts = window.OrderUI.actions(l);
       const cell = td("", "dl-c-acts");
       if (acts.undoReceived) {
@@ -202,8 +354,14 @@
     return document.activeElement === n;
   }
 
+  // A button by its action and id (a stock item's id is text that may hold any character, so the
+  // ids are compared, not put in a selector).
   function button(id, act) {
-    return document.querySelector(`button[data-act="${act}"][data-id="${id}"]`);
+    const want = String(id);
+    for (const b of document.querySelectorAll(".dl-page button[data-act]")) {
+      if (b.getAttribute("data-act") === act && b.getAttribute("data-id") === want) return b;
+    }
+    return null;
   }
 
   function heading(id) {
@@ -286,10 +444,78 @@
     }
   }
 
+  // --- stock, paint and drawer-stock items (M11) ---
+
+  function findItem(key) {
+    for (const it of stockItems()) if (sid(it) === key) return it;
+    for (const it of stockRecent()) if (sid(it) === key) return it;
+    return null;
+  }
+
+  // After receiving an item: the next item's Received button, else the section's heading (or the
+  // job groups'), else Received recently.
+  function focusAfterItemReceive(key, before) {
+    const at = before.items.indexOf(key);
+    for (const next of before.items.slice(at + 1).concat(before.items.slice(0, Math.max(at, 0)).reverse())) {
+      if (focusNode(button(next, "sReceive"))) return;
+    }
+    if (focusNode(heading("dl-h-stock"))) return;
+    if (focusNode(heading("dlRecentTitle"))) return;
+    focusNode($("dlTitle"));
+  }
+
+  // After Undo on an item: the next Undo in Received recently, or the item's Received button.
+  function focusAfterItemUndo(key, before) {
+    const ids = before.recentKeys;
+    const at = ids.indexOf(key);
+    for (const next of ids.slice(at + 1).concat(ids.slice(0, Math.max(at, 0)).reverse())) {
+      if (focusNode(button(next.id, next.act))) return;
+    }
+    if (focusNode(button(key, "sReceive"))) return;
+    if (focusNode(heading("dlRecentTitle"))) return;
+    focusNode($("dlTitle"));
+  }
+
+  async function runItem(act, key) {
+    if (busy || !data) return;
+    const it = findItem(key);
+    if (!it) return;
+    busy = true;
+    try {
+      const before = {
+        items: stockItems().map(sid),
+        recentKeys: recentAll().map((r) => (r.kind === "stock" ? { id: sid(r.v), act: "sUndo" } : { id: String(r.v.id), act: "undoReceived" })),
+      };
+      const item = { name: itemName(it), orderedDate: it.orderedDate, receivedDate: it.receivedDate, deliveryNote: it.deliveryNote };
+      const send = (body) => sendReceived(it, body);
+      const res = act === "sReceive" ? await window.OrderUI.receiveItem(item, send) : await window.OrderUI.undoReceivedItem(item, send);
+      if (!res) return; // cancelled: OrderUI puts focus back on the button
+      if (res.refused) {
+        await load();
+        if (!focusNode(button(key, act))) {
+          if (act === "sUndo") focusAfterItemUndo(key, before);
+          else focusAfterItemReceive(key, before);
+        }
+        return;
+      }
+      setStatus((act === "sReceive" ? "Received: " : "Back to ordered: ") + itemName(it) + ".", "ok");
+      await load();
+      if (act === "sReceive") focusAfterItemReceive(key, before);
+      else focusAfterItemUndo(key, before);
+    } finally {
+      busy = false;
+    }
+  }
+
   document.addEventListener("click", (e) => {
     const b = e.target.closest && e.target.closest("button[data-act]");
     if (!b || !b.closest(".dl-page")) return;
-    run(b.getAttribute("data-act"), Number(b.getAttribute("data-id")));
+    const act = b.getAttribute("data-act");
+    if (act === "sReceive" || act === "sUndo") {
+      runItem(act, b.getAttribute("data-id"));
+      return;
+    }
+    run(act, Number(b.getAttribute("data-id")));
   });
 
   // ---------------------------------------------------------------- idle reload ---
@@ -341,7 +567,12 @@
         el("p", { class: "dl-p-date", text: dayName(data.date, true) })),
       el("div", { class: "dl-p-sign" }, el("span", { class: "dl-p-label", text: "Checked by" }), el("span", { class: "dl-p-rule" })));
     const out = [head];
-    if (!groups.length) out.push(el("p", { class: "dl-p-empty", text: "Nothing is due in the next 7 days." }));
+    // Stock and paint items due within the same 7 days (overdue ones included); the rest are
+    // counted in the foot.
+    const weekEnd = addDays(data.date, 7);
+    const items = stockItems();
+    const dueItems = items.filter((it) => it.expectedDate && it.expectedDate <= weekEnd);
+    if (!groups.length && !dueItems.length) out.push(el("p", { class: "dl-p-empty", text: "Nothing is due in the next 7 days." }));
     for (const g of groups) {
       const cols = el("colgroup", null, ...["dl-pc-tick", "dl-pc-date", "dl-pc-job", "dl-pc-sup", "dl-pc-desc", "dl-pc-note"].map((c) => el("col", { class: c })));
       const hr = el("tr", null, ...["", "Expected", "Job", "Supplier", "Description", "Delivery note"].map((t) => el("th", { scope: "col", text: t })));
@@ -356,8 +587,27 @@
         el("h2", { class: "dl-p-h2", text: `${g.label} (${g.lines.length})` }),
         el("table", { class: "dl-p-table" }, cols, el("thead", null, hr), tb)));
     }
+    if (dueItems.length) {
+      const cols = el("colgroup", null, ...["dl-pc-tick", "dl-pc-date", "dl-pc-what", "dl-pc-sup", "dl-pc-date", "dl-pc-note"].map((c) => el("col", { class: c })));
+      const hr = el("tr", null, ...["", "Expected", "Order", "Supplier", "Ordered", "Delivery note"].map((t) => el("th", { scope: "col", text: t })));
+      const tb = el("tbody", null, ...dueItems.map((it) => el("tr", null,
+        el("td", { class: "dl-p-tick" }, el("span", { class: "dl-p-box" })),
+        el("td", null, el("span", { class: "dl-p-nowrap", text: fmtDate(it.expectedDate) }),
+          it.overdue ? el("span", { class: "dl-p-over", text: "Overdue" }) : null),
+        el("td", { class: "dl-p-strong", text: it.label }),
+        el("td", { text: it.supplier || "" }),
+        el("td", { class: "dl-p-nowrap", text: fmtDate(it.orderedDate) }),
+        el("td", { class: "dl-p-note", text: (it.deliveryNote || "").trim() }))));
+      out.push(el("section", { class: "dl-p-group" },
+        el("h2", { class: "dl-p-h2", text: `Stock and paint (${dueItems.length})` }),
+        el("table", { class: "dl-p-table" }, cols, el("thead", null, hr), tb)));
+    }
     const later = data.groups.filter((g) => !PRINT_GROUPS.includes(g.id)).reduce((n, g) => n + g.lines.length, 0);
-    if (later) out.push(el("p", { class: "dl-p-foot", text: `Not on this list: ${plural(later, "line", "lines")} expected later or with no date yet.` }));
+    const laterItems = items.length - dueItems.length;
+    const notOn = [];
+    if (later) notOn.push(plural(later, "line", "lines"));
+    if (laterItems) notOn.push(plural(laterItems, "stock or paint order", "stock or paint orders"));
+    if (notOn.length) out.push(el("p", { class: "dl-p-foot", text: `Not on this list: ${notOn.join(" and ")} expected later or with no date yet.` }));
     sheet.replaceChildren(...out);
   }
 

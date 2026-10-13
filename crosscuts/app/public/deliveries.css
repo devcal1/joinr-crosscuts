@@ -116,6 +116,20 @@ a:hover { text-decoration: underline; }
   .dl-table-recent .dl-c-note { width: 260px; }
 }
 
+/* Stock and paint (M11): the order's label takes the rest. */
+.dl-c-what { width: auto; }
+.dl-table-stock { min-width: 860px; }
+.dl-table-stock .dl-c-note { width: 230px; }
+.dl-table-stock .dl-c-sup { width: 210px; }
+.dl-overdue-tag {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--orange-tint);
+}
+
 td.dl-c-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 td.dl-overdue { color: var(--orange-tint); font-weight: 700; }
 td.dl-c-sup { color: var(--white); font-weight: 700; }
@@ -204,6 +218,7 @@ td.dl-c-notes { color: var(--label); font-size: 13px; white-space: pre-line; }
 .dl-pc-job { width: 36mm; }
 .dl-pc-sup { width: 32mm; }
 .dl-pc-desc { width: auto; }
+.dl-pc-what { width: auto; }
 .dl-pc-note { width: 44mm; }
 .dl-p-table th, .dl-p-table td {
   padding: 1.8mm 1.5mm;
@@ -224,6 +239,7 @@ td.dl-c-notes { color: var(--label); font-size: 13px; white-space: pre-line; }
 .dl-p-tick { padding-left: 0; }
 .dl-p-box { display: block; width: 4.5mm; height: 4.5mm; border: 0.35mm solid #000; }
 .dl-p-nowrap { white-space: nowrap; }
+.dl-p-over { display: block; font-size: 7pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .dl-p-strong { font-weight: 700; }
 .dl-p-note { white-space: pre-line; font-size: 8.5pt; }
 .dl-p-foot { margin-top: 2mm; font-size: 8.5pt; }
