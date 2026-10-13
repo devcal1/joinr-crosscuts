@@ -2,7 +2,16 @@
 
 Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) and clear points are defined in `docs/plans/roadmap.md`.
 
-## Now (2026-10-11, clear point)
+## Start here (2026-10-13, clear point)
+
+- **Released: 0.1.13** (M8 Pay runs, M9 BAS and supplier accounts, M10 New roles: Ordering and Workshop Manager, receiving deliveries). `joinr-crosscuts` `main` pushed at `40f672d`, CI green (run 38349008150, 4160 smoke assertions on each architecture, step k included); image `ghcr.io/devcal1/crosscuts-web:0.1.13@sha256:cae03414dd6ccf67f9702390aefbf797216d386276a0bbee02ace77b7a0767ca`; **store pushed** `2adcaa6`, so Umbrel offers 0.1.13. On the device before that: 0.1.10.
+- **Local only, unpushed:** STATUS-only commits after `40f672d` (docs; push them with the next code push, with Todd's OK).
+- **Next action: M8/M9/M10 · 6.1 on the device (Todd).** Todd clicks Update in umbrelOS; then check pay runs, BAS sales, supplier accounts, the Deliveries page and the Orders page, and create the Ordering and Workshop Manager logins. Test data only for pay runs, BAS history and supplier accounts before cutover (it would be lost at the load; `docs/cutover.md`).
+- **Then: M11 Ordering pages · 1.1 audit** (one drawer order for EDGE and DTC, the monthly stock order, the paint order, the board stocktake with its monthly value to Accounts; `docs/plans/jobs-master-tabs.md`). After that M12 Design/PM tools, M13 Owner-only.
+- **Open branches/worktrees:** none. Migrations go up to **022**; 019–022 are applied in many `.dev/` databases, so never edit them.
+- The bullets below are the history of how we got here (the long M8–M10 bullet has every step's details and findings); the newest facts are in this block and at the end of History.
+
+## Now (history; last full update 2026-10-11)
 
 - **On the device:** 0.1.3 (Node 24, better-sqlite3 12.9.0, sharp 0.35), the old purple look. Verified over Tailscale: board edits save and are audited, and portrait photos upload upright.
 - **Pushed (Todd OK, 2026-10-11): version 0.1.4, `main` at `a2a8335`.** It carries everything since 0.1.3: M1.1 · 5.1 (Actions on Node-24 majors), M1.2 house style, M2 Accounts, M3 Design/PM. **CI green** (run 38093831505: both architectures built and smoke-tested, including the first real runs of the M2 and M3 smoke files; manifest merged). The image is published (digest under Released).
