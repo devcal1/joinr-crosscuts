@@ -642,7 +642,7 @@
     { id: "receive", label: "Received", primary: true, dialog: true, next: ["undoReceived", "note", "edit"] },
     { id: "note", label: "Delivery note", dialog: true, next: ["note"] },
     { id: "edit", label: "Edit", dialog: true, next: ["edit"] },
-    { id: "undoOrdered", label: "Undo", aria: "Undo ordered", next: ["markOrdered", "edit"] },
+    { id: "undoOrdered", label: "Undo ordered", next: ["markOrdered", "edit"] },
     { id: "undoReceived", label: "Undo received", dialog: true, next: ["receive", "note", "edit"] },
     { id: "cancel", label: "Cancel", aria: "Cancel line", next: [] },
   ];
@@ -701,10 +701,13 @@
       body.replaceChildren(el("p", { class: "muted jo-empty", text: showCancelled ? "No order lines." : "No order lines yet." }));
       return;
     }
+    // A line's buttons sit in a row of their own under it, across the whole table: the job page
+    // is narrow, and an Actions column there left five buttons stacked in a cramped cell
+    // (review 4.2). The line and its buttons row read as one (no rule between them).
     const showActs = orderActionsShown();
     const table = el("table", { class: "hs-table jo-table jo-orders" });
     const heads = ["Supplier", "Description", "Status", "Expected", "Ordered", "Received"];
-    table.append(headRow(showActs ? heads.concat("Actions") : heads));
+    table.append(headRow(heads));
     const tb = el("tbody");
     for (const o of orders) {
       const [label, badge] = ORDER_STATUS[o.status] || [o.status, "hs-badge-na"];
@@ -737,12 +740,13 @@
         el("td", { class: "jo-dates" }, o.orderedDate ? el("span", { text: fmtDate(o.orderedDate) }) : null),
         received
       );
+      tb.append(tr);
       if (showActs) {
         const may = window.OrderUI ? window.OrderUI.actions(o) : {};
-        const actions = el("td", { class: "jo-acts" });
+        const box = el("div", { class: "jo-oacts" });
         for (const a of ORDER_ACTS) {
           if (!may[a.id]) continue;
-          actions.append(el("button", {
+          box.append(el("button", {
             type: "button",
             class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""),
             "data-act": a.id,
@@ -751,9 +755,11 @@
             text: a.label,
           }));
         }
-        tr.append(actions);
+        if (box.childElementCount) {
+          tr.classList.add("jo-hasacts");
+          tb.append(el("tr", { class: "jo-actrow", "data-for": String(o.id) }, el("td", { colspan: String(heads.length) }, box)));
+        }
       }
-      tb.append(tr);
     }
     table.append(tb);
     body.replaceChildren(tableWrap(table));
@@ -778,8 +784,8 @@
     if (focusNode(orderRow(id))) return;
     const at = before.indexOf(id);
     for (const other of before.slice(at + 1).concat(before.slice(0, Math.max(at, 0)).reverse())) {
-      const tr = orderRow(other);
-      if (tr && (focusNode(tr.querySelector("button[data-act]")) || focusNode(tr))) return;
+      // A line's first button (in its buttons row), or the line itself.
+      if (focusNode($("ordersBody").querySelector(`button[data-act][data-id="${other}"]`)) || focusNode(orderRow(other))) return;
     }
     const h = $("orders-h");
     if (h) {
@@ -788,14 +794,30 @@
     }
   }
 
+  // Resolves true when the list was replaced (and rendered); false when it failed (its sentence
+  // shown in the status line).
   async function loadOrders() {
     try {
       orders = await api("/api/job-records/" + jobId + "/orders?all=" + (showCancelled ? "1" : "0"));
     } catch (e) {
-      setLine($("ordersStatus"), e.message, "err");
-      return;
+      setLine($("ordersStatus"), e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : e.message, "err");
+      return false;
     }
     renderOrders();
+    return true;
+  }
+
+  // Reloads after an order action. When the reload fails, the lines on screen are drawn again
+  // (with the changed line from the response, `r`, and with the buttons a one-click action
+  // disabled working again) and the reload's sentence follows `said`.
+  async function reloadOrdersAfter(said, kind, r) {
+    setLine($("ordersStatus"), said, kind);
+    if (await loadOrders()) return;
+    const why = $("ordersStatus").textContent;
+    const after = r && r.order;
+    if (after) orders = orders.map((l) => (l.id === after.id ? Object.assign({}, l, after) : l));
+    renderOrders();
+    setLine($("ordersStatus"), said ? said + " " + why : why, "err");
   }
 
   async function loadSuppliers() {
@@ -836,6 +858,15 @@
       if (ORDER_ACT[act].dialog) {
         r = await window.OrderUI[act](o);
         if (!r) return; // cancelled: OrderUI puts focus back on the button
+        if (r.refused) {
+          // Refused (its sentence was in the dialog): the line may have changed elsewhere, so show
+          // it as it is now, with focus back on the same button if the line still has it.
+          // The job's Materials ordered / in dates may have moved with it.
+          api("/api/job-records/" + jobId).then(applyJobState, () => {});
+          await reloadOrdersAfter("", "muted");
+          if (!focusNode(orderButton(id, act))) focusOrderAfter(id, act, before);
+          return;
+        }
       } else {
         if (act === "cancel") {
           const ok = await confirmDialog("Cancel this order line?", orderLineName(o) + ". The line stays on the job, marked cancelled.", "Cancel line", "Keep line");
@@ -854,15 +885,13 @@
               body: JSON.stringify({ status: act === "markOrdered" ? "ordered" : "to_order" }),
             });
         } catch (e) {
-          setLine(status, e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
-          await loadOrders();
+          await reloadOrdersAfter(e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
           if (!focusNode(orderButton(id, act))) focusOrderAfter(id, act, before);
           return;
         }
       }
       applyJobState(r && r.job);
-      setLine(status, orderSaid(act, o, r), "ok");
-      await loadOrders();
+      await reloadOrdersAfter(orderSaid(act, o, r), "ok", r);
       focusOrderAfter(id, act, before);
     } finally {
       ordersBusy = false;

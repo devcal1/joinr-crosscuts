@@ -62,6 +62,7 @@
 
   let data = null;
   let seq = 0;
+  let loadedAt = 0;
 
   function setStatus(text, kind) {
     const s = $("dlStatus");
@@ -170,17 +171,19 @@
 
   // ------------------------------------------------------------------- loading ---
 
-  async function load() {
+  // `quiet`: a failure keeps what is on screen without a sentence (the idle reload retries).
+  async function load(quiet) {
     const mine = ++seq;
     let d;
     try {
       d = await api("/api/orders/deliveries");
     } catch (e) {
-      if (mine === seq) setStatus(e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : e.message, "err");
+      if (mine === seq && !quiet) setStatus(e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : e.message, "err");
       return false;
     }
     if (mine !== seq) return false;
     data = d;
+    loadedAt = Date.now();
     if (!window.cc || window.cc.loaded) render(); // otherwise the start waits for the shell
     return true;
   }
@@ -258,6 +261,16 @@
       const before = snapshot();
       const res = await window.OrderUI[act](line);
       if (!res) return; // cancelled: OrderUI puts focus back on the button
+      if (res.refused) {
+        // Refused (its sentence was in the dialog): the line may have changed elsewhere, so show
+        // the list as it is now, with focus back on the same button if the line still has it.
+        await load();
+        if (!focusNode(button(id, act))) {
+          if (act === "undoReceived") focusAfterUndo(id, before);
+          else focusAfterReceive(id, before);
+        }
+        return;
+      }
       const after = res.order || {};
       let said;
       if (act === "receive") said = "Received: " + lineName(line) + ".";
@@ -277,6 +290,40 @@
     const b = e.target.closest && e.target.closest("button[data-act]");
     if (!b || !b.closest(".dl-page")) return;
     run(b.getAttribute("data-act"), Number(b.getAttribute("data-id")));
+  });
+
+  // ---------------------------------------------------------------- idle reload ---
+  // As the board does: every 5 minutes the list reloads, so lines received or changed elsewhere
+  // show as they are now; only when no dialog is open, nothing is being sent and the tab is
+  // visible (a tab that comes back after 5 minutes or more reloads then). Focus stays on the
+  // same control (by its line and action, or its id) and the scroll position is kept. A failed
+  // reload keeps what is on screen; the next one retries.
+  const IDLE_RELOAD_MS = 5 * 60 * 1000;
+
+  function idle() {
+    return !!data && !busy && document.visibilityState === "visible" && !document.querySelector("dialog[open]");
+  }
+
+  async function idleReload() {
+    if (!idle()) return false;
+    const a = document.activeElement;
+    const key = a && a !== document.body
+      ? { act: a.getAttribute("data-act"), id: a.getAttribute("data-id"), elId: a.id || null }
+      : null;
+    const x = window.scrollX;
+    const y = window.scrollY;
+    if (!(await load(true))) return false;
+    if (key) {
+      const back = key.act && key.id ? button(key.id, key.act) : key.elId ? $(key.elId) : null;
+      if (back && back !== document.activeElement) back.focus({ preventScroll: true });
+    }
+    window.scrollTo(x, y);
+    return true;
+  }
+
+  setInterval(idleReload, IDLE_RELOAD_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && loadedAt && Date.now() - loadedAt >= IDLE_RELOAD_MS) idleReload();
   });
 
   // -------------------------------------------------------------------- print ---

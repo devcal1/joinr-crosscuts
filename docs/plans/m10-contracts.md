@@ -100,6 +100,8 @@ Nobody loses a key. What each key means from M10:
 
 New date rule: a `receivedDate` (in a transition or alone) before the line's `ordered_date` → 400 `"The received date can't be before it was ordered (<d Mon yyyy>)"`. Future dates stay refused as now.
 
+**Added at 4.3 (review):** on a received line, an `orderedDate` later than its `received_date` → 400 `"The ordered date can't be after it was received (<d Mon yyyy>)"`; both date rules apply only when the date in question changes. `status:"received"` on a line already received → 409 `"It was already marked received on <d Mon yyyy>"` (it used to become a silent date edit), and `status:"ordered"` on a line already ordered → 409 `"It was already marked ordered on <d Mon yyyy>"`. `ordered → to_order` clears the delivery note (in the `order.status` audit). `deliveryNote: ""` is allowed on any line that isn't cancelled; only a non-empty note on a `to_order` line is 409. A note that isn't a string → 400 `"The delivery note must be text"`. The two "already marked" 409s are checked before the transition's key, so anyone who can PATCH gets the 409; `to_order` sent to a `to_order` line stays a no-op. The move back to To order clears `delivery_note_at` too (the `order.status` row carries `delivery_note` only when there was one), and a `""` sent with it needs no `orders.receive`.
+
 One PATCH may carry a status change, a `receivedDate` and a `deliveryNote` together; it is checked whole (every key needed is checked before anything is written) and written in one transaction. Audit: `order.status` as now (its before/after gain `received_by`); `order.update` for plain fields as now, now including `delivery_note`.
 
 ### 4.3 Notifications
@@ -144,7 +146,7 @@ Lines are `list()` rows (the order object plus `jobName`, `jobStage`). Inside a 
 
 ## 6. `public/orderui.js` (B)
 
-A plain script (`<script src="/orderui.js">` after `/shared.js` and the shell; its styles in `/orderui.css`, prefix `ou-`), using the shell's `cc-dialog*` dialogs as `taskui.js` does, `api()` for requests, `textContent` for every value. Every function resolves to the server's response (`{order, job}`) or `null` when the user cancels; a refused request shows its sentence inside the dialog and keeps it open.
+A plain script (`<script src="/orderui.js">` after `/shared.js` and the shell; its styles in `/orderui.css`, prefix `ou-`), using the shell's `cc-dialog*` dialogs as `taskui.js` does, `api()` for requests, `textContent` for every value. Every function resolves to the server's response (`{order, job}`) or `null` when the user cancels; a refused request shows its sentence inside the dialog and keeps it open. **Added at 4.3:** closing a dialog after the server refused a request resolves `{refused: true}`, and the page then reloads its list (the line was changed elsewhere); a plain cancel stays `null`.
 
 ```js
 window.OrderUI = {
@@ -203,7 +205,7 @@ All pass `node ci/style-check.js`, follow the house style (`tokens.css`, `compon
 
 ### 9.3 Job page Orders section (C)
 
-The same: Received column, delivery notes, the same actions through `OrderUI`; the add-line form as now. The section stays under `jobs.view`.
+The same: Received column, delivery notes, the same actions through `OrderUI`; the add-line form as now. The section stays under `jobs.view`. **At 4.3:** the job page is narrow, so each line's buttons sit in a full-width row under the line (no Actions column); the visible label for undoing an order is "Undo ordered" here and on the Orders page.
 
 ### 9.4 Dashboard (C)
 
@@ -214,7 +216,7 @@ For a user with `orders.receive`: a line beside the board summary, as the Accoun
 ### 10.1 `ci/smoke.sh` (scaffold)
 
 - Lines asserting 23 keys (the setup user's perms and `/api/users/meta`) → **25**; `.roles` includes `ordering` and `workshop_manager`; `.presets.ordering` and `.presets.workshop_manager` equal §3 exactly.
-- Users `ordr` (role `ordering`) and `wsmgr` (role `workshop_manager`) created beside `wshop`, with jars `$ORDR` and `$WSMGR` and the must-change-password step as the others; `.user.roles == ["ordering"]` and `["workshop_manager"]` (migration 021 allows them).
+- Users `ordr` (role `ordering`) and `wsmgr` (role `workshop_manager`) created after the M9 loop (so earlier suites never see the new roles), with jars `$ORDR` and `$WSMGR` and the must-change-password step as the others; `.user.roles == ["ordering"]` and `["workshop_manager"]` (migration 021 allows them).
 - After the M9 loop and before the Backup suite: `for f in "$(dirname "$0")"/smoke-m10-*.sh; do [ -f "$f" ] && source "$f"; done`.
 - Step k must still pass: the old app's database is migrated through 022 there.
 
@@ -227,6 +229,7 @@ M-suite rules (sourced, no shebang, no `set`, the shared helpers and jars, prefi
 - **Deliveries:** with a line expected yesterday (`PATCH expectedDate` by ordr) and one with none, `GET /api/orders/deliveries` has it in `overdue`, the other in `nodate`, `counts.overdue` ≥ 1, received lines in `recent`.
 - **Planner:** wsmgr may post on `workshop` (201) and not on `install` (403); ordr may post on `install` (201) and not on `workshop` (403); wsmgr's layers include `workshop`; tidy the events.
 - **Audit:** `order.status` rows for the line carry the actors.
+- **Added at 4.3:** today from the server (`GET /api/orders/deliveries` `.date`); the deliveries set S-1 / S / S+7 / S+8 / none in exactly one group each, `counts.today`, recent at S-13 in and S-14 out, an archived job in no group; the note-notice rules (each change notifies, the same note or a clear doesn't, the writer is excluded, exactly 500 accepted, a non-string 400); both "already marked" 409s; a `receivedDate` alone before the ordered date 400; an ordered date after the received date 400; the move back clearing the note with its audit; `""` on a `to_order` line 200; the actor check on a third job; a cancel's `updatedBy`; sched `GET /api/orders` 200.
 
 ### 10.3 Pages (B, C) — local checks
 
@@ -264,3 +267,5 @@ Two waves, because C builds on B's `OrderUI` and A's real responses. Worktree ba
 6. **The Deliveries page groups by expected date** (Overdue, Today, Next 7 days, Later, No date yet) and shows the last 14 days received, matching the Scheduling page's 14-day "Materials in" list.
 7. **The dashboard line** shows for anyone with `orders.receive` (admin, Design/PM, Ordering, Workshop Manager).
 8. **The workshop TV** stays on Sam's login (Decision 6); only docs change (4.1).
+9. **Overrides set before M10 don't move with the split** (review 4.2): a per-user grant or revoke of `jobs.view` no longer decides who sees the Orders page, and one of `orders.edit` no longer decides who receives. No migration copies them: users are re-created by hand at cutover (cutover decision A), so only pre-cutover test users can have such overrides; `how-to-add-user.md` says to re-check them.
+10. **The Workshop Manager's other reach** (review 4.2, for Todd's information): `tasks.use` shows the whole company task list (M4: every office user sees every task) and `board.view` the board's job names and notes. "No client details" covers the job pages.

@@ -229,7 +229,7 @@ function dateOrNull(label, v) {
 // The delivery note (M10 section 4.2): a string, trimmed, at most 500; "" (or null) clears it.
 function deliveryNoteField(v) {
   if (v === null) return "";
-  if (typeof v !== "string") throw bad("deliveryNote must be a string");
+  if (typeof v !== "string") throw bad("The delivery note must be text");
   const t = v.trim();
   if (t.length > DELIVERY_NOTE_MAX) throw bad(`The delivery note must be ${DELIVERY_NOTE_MAX} characters or fewer`);
   return t;
@@ -371,6 +371,13 @@ function updateLine(db, orderId, patch, req) {
   }
   if (Object.keys(changes).length && !can(req, "orders.edit")) throw forbidden();
 
+  // Marking a line ordered or received a second time is refused, not turned into a date edit (a
+  // second person pressing Received on a line someone already received; M10 · 4.3, review P1).
+  // A to_order line sent status to_order stays as it was (nothing about it changes).
+  if (has("status") && patch.status === line.status && (line.status === "ordered" || line.status === "received")) {
+    const on = line.status === "ordered" ? line.ordered_date : line.received_date;
+    throw conflict(`It was already marked ${line.status}${on ? ` on ${dayLabel(on)}` : ""}`);
+  }
   const statusChange = has("status") && patch.status !== line.status ? patch.status : null;
   let transition = null;
   if (statusChange) {
@@ -389,8 +396,14 @@ function updateLine(db, orderId, patch, req) {
     else if (key === "ordered>received") {
       changes.received_date = receivedDateIn || todayStr;
       changes.received_by = userId(req);
-    } else if (key === "ordered>to_order") changes.ordered_date = null;
-    else {
+    } else if (key === "ordered>to_order") {
+      // Back to To order: the ordered date goes, and so does any delivery note (M10 · 4.3, B2).
+      changes.ordered_date = null;
+      if (line.delivery_note || line.delivery_note_at) {
+        changes.delivery_note = "";
+        changes.delivery_note_at = null;
+      }
+    } else {
       // received>ordered: the delivery note stays.
       changes.received_date = null;
       changes.received_by = null;
@@ -412,21 +425,28 @@ function updateLine(db, orderId, patch, req) {
     }
   }
 
+  // The two dates stay in order (as M9's paid date and issue date). Each rule applies only when its
+  // date changes in this PATCH, so an unchanged date sent along with something else isn't refused.
   // A received date being set (by the move to received, or alone) can't be before the line was
-  // ordered (as M9's paid date and issue date).
-  const receivedSet =
-    transition === "ordered>received" ? changes.received_date : !transition && receivedDateIn ? receivedDateIn : null;
+  // ordered; an ordered date moved on a received line can't be after it was received (M10 · 4.3).
   const orderedFinal = "ordered_date" in changes ? changes.ordered_date : line.ordered_date;
-  if (receivedSet && orderedFinal && receivedSet < orderedFinal) {
-    throw bad(`The received date can't be before it was ordered (${dayLabel(orderedFinal)})`);
+  const receivedFinal = "received_date" in changes ? changes.received_date : line.received_date;
+  if (orderedFinal && receivedFinal && receivedFinal < orderedFinal) {
+    if (changes.received_date) {
+      throw bad(`The received date can't be before it was ordered (${dayLabel(orderedFinal)})`);
+    }
+    if (changes.ordered_date) {
+      throw bad(`The ordered date can't be after it was received (${dayLabel(receivedFinal)})`);
+    }
   }
 
-  // The delivery note: orders.receive to change it; only on a line that is (after this PATCH)
-  // ordered or received.
+  // The delivery note: orders.receive to change it. A non-empty note only on a line that is (after
+  // this PATCH) ordered or received; "" clears it on any line that isn't cancelled (M10 · 4.3, B2).
+  // Moving a line back to To order clears it already (above), so a "" sent with that move is moot.
   const noteBefore = line.delivery_note || "";
-  const noteChanged = noteIn !== undefined && noteIn !== noteBefore;
+  const noteChanged = noteIn !== undefined && noteIn !== noteBefore && transition !== "ordered>to_order";
   if (noteChanged && !can(req, "orders.receive")) throw forbidden();
-  if (noteIn !== undefined) {
+  if (noteIn) {
     const statusAfter = changes.status || line.status;
     if (statusAfter !== "ordered" && statusAfter !== "received") {
       throw conflict("Only an ordered or received line takes a delivery note");
@@ -451,7 +471,8 @@ function updateLine(db, orderId, patch, req) {
           c !== "status" &&
           c !== "received_by" &&
           c !== "delivery_note_at" &&
-          !(transition && (c === "ordered_date" || c === "received_date"))
+          !(transition && (c === "ordered_date" || c === "received_date")) &&
+          !(transition === "ordered>to_order" && c === "delivery_note")
       );
       if (plain.length) {
         const before = {};
@@ -464,23 +485,24 @@ function updateLine(db, orderId, patch, req) {
       }
       if (transition) {
         const was = (c) => (c in changes ? changes[c] : line[c]);
-        audit.log(req, {
-          action: "order.status",
-          entityType: "order",
-          entityId: orderId,
-          before: {
-            status: line.status,
-            ordered_date: line.ordered_date,
-            received_date: line.received_date,
-            received_by: line.received_by,
-          },
-          after: {
-            status: changes.status,
-            ordered_date: was("ordered_date"),
-            received_date: was("received_date"),
-            received_by: was("received_by"),
-          },
-        });
+        const before = {
+          status: line.status,
+          ordered_date: line.ordered_date,
+          received_date: line.received_date,
+          received_by: line.received_by,
+        };
+        const after = {
+          status: changes.status,
+          ordered_date: was("ordered_date"),
+          received_date: was("received_date"),
+          received_by: was("received_by"),
+        };
+        // Back to To order with a note: the cleared note is part of the move (B2).
+        if (transition === "ordered>to_order" && line.delivery_note) {
+          before.delivery_note = line.delivery_note;
+          after.delivery_note = changes.delivery_note;
+        }
+        audit.log(req, { action: "order.status", entityType: "order", entityId: orderId, before, after });
       }
     }
     // The all-ordered rule: the last to_order line has just been ordered.

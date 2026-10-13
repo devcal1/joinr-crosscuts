@@ -45,7 +45,7 @@
     { id: "receive", label: "Received", primary: true, dialog: true, next: ["undoReceived", "note", "edit"] },
     { id: "note", label: "Delivery note", dialog: true, next: ["note"] },
     { id: "edit", label: "Edit", dialog: true, next: ["edit"] },
-    { id: "undoOrdered", label: "Undo", aria: "Undo ordered", next: ["markOrdered", "edit"] },
+    { id: "undoOrdered", label: "Undo ordered", next: ["markOrdered", "edit"] },
     { id: "undoReceived", label: "Undo received", dialog: true, next: ["receive", "note", "edit"] },
     { id: "cancel", label: "Cancel", aria: "Cancel line", next: [] },
   ];
@@ -179,7 +179,8 @@
     }
   }
 
-  // Resolves true when the list was replaced (and rendered).
+  // Resolves true when the list was replaced (and rendered), false when it failed (its sentence
+  // shown), null when a newer request took over.
   async function load() {
     const mine = ++seq;
     const qs = new URLSearchParams({ status: statusEl.value });
@@ -188,13 +189,12 @@
     try {
       list = await api("/api/orders?" + qs);
     } catch (e) {
-      if (mine === seq) {
-        countEl.textContent = "";
-        setMessage(e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : e.message, "err");
-      }
+      if (mine !== seq) return null;
+      countEl.textContent = "";
+      setMessage(e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : e.message, "err");
       return false;
     }
-    if (mine !== seq) return false;
+    if (mine !== seq) return null;
     lines = list;
     render();
     return true;
@@ -249,6 +249,19 @@
     }
   }
 
+  // Reloads after an action. When the reload fails, the list on screen is drawn again (with the
+  // changed line from the response, `r`, and with the buttons a one-click action disabled
+  // working again) and the reload's sentence follows `said`.
+  async function reloadAfter(said, kind, r) {
+    setMessage(said, kind);
+    if ((await load()) !== false) return;
+    const why = messageEl.textContent;
+    const after = r && r.order;
+    if (after) lines = lines.map((l) => (l.id === after.id ? Object.assign({}, l, after) : l));
+    render();
+    setMessage(said ? said + " " + why : why, "err");
+  }
+
   async function run(act, id) {
     if (busy) return;
     const o = lines.find((l) => l.id === id);
@@ -260,6 +273,13 @@
       if (ACT[act].dialog) {
         r = await window.OrderUI[act](o);
         if (!r) return; // cancelled: OrderUI puts focus back on the button
+        if (r.refused) {
+          // Refused (its sentence was in the dialog): the line may have changed elsewhere, so show
+          // it as it is now, with focus back on the same button if the line still has it.
+          await reloadAfter("", "");
+          if (!focusNode(button(id, act))) focusAfter(id, act, before);
+          return;
+        }
       } else {
         if (act === "cancel") {
           const ok = await confirmDialog("Cancel this order line?", lineName(o) + ". The line stays on the job, marked cancelled.", "Cancel line", "Keep line");
@@ -274,14 +294,12 @@
             r = await api("/api/orders/" + encodeURIComponent(o.id), { method: "PATCH", body: JSON.stringify(body) });
           }
         } catch (e) {
-          setMessage(e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
-          await load();
+          await reloadAfter(e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
           if (!focusNode(button(id, act))) focusAfter(id, act, before);
           return;
         }
       }
-      setMessage(said(act, o, r), "ok");
-      await load();
+      await reloadAfter(said(act, o, r), "ok", r);
       focusAfter(id, act, before);
     } finally {
       busy = false;

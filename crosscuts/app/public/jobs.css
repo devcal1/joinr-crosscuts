@@ -177,6 +177,14 @@ a.hs-btn:hover { text-decoration: none; }
 .jo-overdue-tag { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange-tint); }
 .jo-acts { min-width: 150px; }
 .jo-acts .hs-btn { margin: 0 6px 6px 0; padding: 6px 10px; }
+/* Orders: a line's buttons in a row of their own under it (job.js renderOrders); the line and
+   its buttons row read as one, so the rule goes under the buttons. Long unbroken names wrap. */
+.jo-orders td.jo-strong { min-width: 90px; overflow-wrap: anywhere; }
+.jo-orders tr.jo-hasacts td { border-bottom: 0; padding-bottom: 4px; }
+.jo-orders tr.jo-actrow td { padding-top: 2px; padding-bottom: 10px; }
+.jo-orders tr.jo-actrow:last-child td { border-bottom: 0; }
+.jo-oacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.jo-oacts .hs-btn { padding: 6px 10px; white-space: nowrap; }
 
 .jo-form { margin-top: 14px; padding: 12px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
 .jo-formh { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }

@@ -6,17 +6,22 @@
 //   <link rel="stylesheet" href="/orderui.css">
 //   <script src="/shared.js"></script> ... <script src="/orderui.js"></script>
 //
-//   OrderUI.receive(line)      -> Promise<{order, job} | null>
-//   OrderUI.note(line)         -> Promise<{order, job} | null>
-//   OrderUI.undoReceived(line) -> Promise<{order, job} | null>
-//   OrderUI.edit(line)         -> Promise<{order, job} | null>
+//   OrderUI.receive(line)      -> Promise<{order, job} | {refused: true} | null>
+//   OrderUI.note(line)         -> Promise<{order, job} | {refused: true} | null>
+//   OrderUI.undoReceived(line) -> Promise<{order, job} | {refused: true} | null>
+//   OrderUI.edit(line)         -> Promise<{order, job} | {refused: true} | null>
 //   OrderUI.noteBlock(line)    -> HTMLElement | null
 //   OrderUI.actions(line)      -> {receive, note, undoReceived, edit, markOrdered, undoOrdered, cancel}
 //
 // `line` is an order object (lib/orders.js present(), with jobName when the list has it). Each
 // dialog resolves to the server's response, or null when the user cancels (Cancel, Escape, the
 // backdrop, or nothing changed). A refused request shows its sentence inside the dialog, which
-// stays open. Focus stays inside the open dialog and goes back to the control that opened it.
+// stays open; when the user then closes it without a later save going through, the dialog
+// resolves {refused: true} instead of null, because the server refused the line as it is now
+// (someone else may have changed it), so the page should reload its list. A sentence the
+// dialog gives itself before sending (an empty date, say) is not a refusal: closing after it
+// still resolves null. Each dialog is described by its line paragraph (aria-describedby).
+// Focus stays inside the open dialog and goes back to the control that opened it.
 // Who may do what is decided by the server (lib/orders.js); cc.can() only hides what a user can't
 // use. Every value goes in as text. Styles (ou- classes) are in orderui.css.
 (function () {
@@ -76,6 +81,13 @@
     }).format(new Date(t)));
   }
 
+  // The earlier of two YYYY-MM-DD dates (either may be missing).
+  function earlier(a, b) {
+    if (!validDate(a)) return validDate(b) ? b : "";
+    if (!validDate(b)) return a;
+    return a < b ? a : b;
+  }
+
   function validDate(s) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
     if (!m) return false;
@@ -90,12 +102,14 @@
     return line.jobName ? `${line.jobName}: ${s}` : s;
   }
 
-  // PATCH through shared.js api(); a failed request throws its {error} sentence.
+  // PATCH through shared.js api(); a failed request throws its {error} sentence. An answer from
+  // the server (not a network failure) is marked `refused`.
   async function patch(line, body) {
     try {
       return await api("/api/orders/" + encodeURIComponent(line.id), { method: "PATCH", body: JSON.stringify(body) });
     } catch (e) {
       if (e instanceof TypeError) throw new Error("Couldn't reach the server. Try again.");
+      if (e && typeof e === "object") e.refused = true;
       throw e;
     }
   }
@@ -103,8 +117,10 @@
   let open = null; // the dialog on screen; a second call replaces it (its promise resolves null)
 
   // A modal on the shell's cc-dialog frame. spec: {title, note, hint, fields, submit,
-  // submitClass, cancel, focus, wide, run}. `run()` returns a promise of the response to resolve with,
-  // undefined to close with null (nothing to send), or throws a sentence to show.
+  // submitClass, cancel, focus, wide, run}. `focus` is the control to start on: a node, or
+  // "cancel" for the cancel button (a confirm's safe choice); the submit button otherwise.
+  // `run()` returns a promise of the response to resolve with, undefined to close with null
+  // (nothing to send), or throws a sentence to show (marked `refused` when the server said no).
   function dialog(spec) {
     ensureStyles();
     if (open) open.dismiss();
@@ -112,20 +128,25 @@
 
     return new Promise((resolve) => {
       let result = null;
+      let refused = false;
       let busy = false;
-      const titleId = "ou-title-" + Math.random().toString(36).slice(2, 8);
+      const uid = Math.random().toString(36).slice(2, 8);
+      const titleId = "ou-title-" + uid;
+      const lineId = "ou-line-" + uid;
       const err = el("p", { class: "cc-dialog-error ou-error", role: "alert" });
       const cancel = el("button", { type: "button", class: "hs-btn", text: spec.cancel || "Cancel" });
       const go = el("button", { type: "submit", class: "hs-btn " + (spec.submitClass || "hs-btn-primary"), text: spec.submit });
       const form = el("form", { class: "cc-dialog-form ou-form", method: "dialog", novalidate: true },
         el("h2", { class: "cc-dialog-title", id: titleId, text: spec.title }),
-        spec.note ? el("p", { class: "cc-dialog-note ou-line", text: spec.note }) : null,
+        spec.note ? el("p", { class: "cc-dialog-note ou-line", id: lineId, text: spec.note }) : null,
         spec.fields && spec.fields.length ? el("div", { class: "ou-fields" }, ...spec.fields) : null,
         spec.hint ? el("p", { class: "cc-dialog-note ou-hint", text: spec.hint }) : null,
         err,
         el("div", { class: "cc-dialog-actions" }, cancel, go));
-      const dlg = el("dialog", { class: "cc-dialog ou-dialog" + (spec.wide ? " ou-dialog-wide" : ""), "aria-labelledby": titleId }, form);
+      const dlg = el("dialog", { class: "cc-dialog ou-dialog" + (spec.wide ? " ou-dialog-wide" : ""), "aria-labelledby": titleId,
+        "aria-describedby": spec.note ? lineId : null }, form);
       document.body.append(dlg);
+      const start = spec.focus === "cancel" ? cancel : spec.focus || go;
 
       const me = { dismiss: () => dlg.open && dlg.close() };
       open = me;
@@ -164,7 +185,7 @@
         if (open === me) open = null;
         dlg.remove();
         if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus();
-        resolve(result);
+        resolve(result !== null ? result : refused ? { refused: true } : null);
       });
 
       form.addEventListener("submit", async (e) => {
@@ -179,14 +200,14 @@
           dlg.close();
         } catch (ex) {
           setBusy(false);
+          if (ex && ex.refused) refused = true;
           err.textContent = (ex && ex.message) || "That didn't save. Try again.";
-          const back = spec.focus || go;
-          if (back && typeof back.focus === "function") back.focus();
+          if (start && typeof start.focus === "function") start.focus();
         }
       });
 
       dlg.showModal();
-      (spec.focus || go).focus();
+      start.focus();
     });
   }
 
@@ -311,6 +332,7 @@
       hint: "It goes back to ordered and waits for delivery again. Its delivery note stays.",
       submit: "Undo received",
       cancel: "Keep received",
+      focus: "cancel",
       run: () => patch(line, { status: "ordered" }),
     });
   }
@@ -346,15 +368,25 @@
         ["expectedDate", exp, line.expectedDate || null, "date-or-null"]);
     }
     const placed = line.status === "ordered" || line.status === "received";
+    const received = line.status === "received";
+    // On a received line the ordered date can't be after the received date, nor the received
+    // date before the ordered date (the server refuses both); when both show, each follows the
+    // other as it is changed.
+    let od = null;
+    let rd = null;
     if (placed && can("orders.mark_ordered")) {
-      const od = dateInput(line.orderedDate || "", null, today);
+      od = dateInput(line.orderedDate || "", null, received ? earlier(today, line.receivedDate) : today);
       dates.push(fieldBox("Ordered", od));
       read.push(["orderedDate", od, line.orderedDate || null, "date"]);
     }
-    if (line.status === "received" && can("orders.receive")) {
-      const rd = dateInput(line.receivedDate || "", line.orderedDate || null, today);
+    if (received && can("orders.receive")) {
+      rd = dateInput(line.receivedDate || "", line.orderedDate || null, today);
       dates.push(fieldBox("Received", rd));
       read.push(["receivedDate", rd, line.receivedDate || null, "date"]);
+    }
+    if (od && rd) {
+      od.addEventListener("input", () => { rd.min = validDate(od.value) ? od.value : line.orderedDate || ""; });
+      rd.addEventListener("input", () => { od.max = earlier(today, validDate(rd.value) ? rd.value : line.receivedDate); });
     }
     if (editText) {
       const notes = textArea(line.notes || "", NOTES_MAX, 3);

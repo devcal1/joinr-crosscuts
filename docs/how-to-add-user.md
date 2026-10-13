@@ -35,6 +35,8 @@ An override gives one person one extra permission, or takes one away, without ch
 
 Example: to stop Michael moving rows on the board while keeping his other scheduling rights, add a **Revoke** override for `board.edit`.
 
+**From M10, orders have their own keys.** Seeing the Orders page is `orders.view` (not `jobs.view`), and receiving deliveries is `orders.receive` (not `orders.edit`). If you had set an override on `jobs.view` or `orders.edit` to control someone's access to orders, set it again on the new key.
+
 ## Reset a password
 
 1. Open the person's entry and choose **Reset password**.
