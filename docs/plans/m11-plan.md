@@ -1,6 +1,6 @@
 # M11 Ordering pages: plan
 
-Status: **M11 · 1.2: plan written, questions put to Todd (2026-10-13).** Not approved yet.
+Status: **M11 · 1.3 done: Todd answered every question (2026-10-13); plan approved** (Decisions in section 5; they replace sections 2 and 3 where they differ).
 
 Scope (Todd, 2026-10-12, `jobs-master-tabs.md`): one **drawer order** merged from the two drawer tabs (EDGE and DTC), filled in from Orders, overseen by Ordering and handed to the Workshop Manager for delivery; the **monthly stock order** (the Workshop Manager fills in "have", Ordering places the order; the invoice check on the side of the sheet is dropped); the **paint order**; the **board stocktake**, with the monthly value shown to Accounts.
 
@@ -159,3 +159,20 @@ The drawer tabs list counts **per job**, and Todd wants them "filled in automati
 3. **Receiving stock and paint:** should the monthly stock order (per supplier) and paint orders also show on the Deliveries page for the Workshop Manager to mark received? Recommended: yes, in their own "Stock and paint" group, so all deliveries are in one place.
 4. **Paint for a job:** is paint ordered for the workshop in general, or for particular two-pac jobs? Recommended: general, with an optional job on a line for reference that doesn't touch the job's Orders or invoice. The alternative is that paint for a job becomes an order line on that job, counting toward its "all ordered".
 5. **Lists and history:** start fresh for orders and counts, and enter the three lists (stock items, paints, boards) once on the pages. To save typing, each list page gets a **Paste from spreadsheet** box: you copy the rows from the workbook and they're added. Nothing from the workbook goes into this repo. Recommended: yes. Should the past monthly stock values be typed in too (one figure a month, marked "imported", as BAS did), and from which month?
+
+## 5. Decisions (Todd, 2026-10-13)
+
+These replace sections 2 and 3 where they differ.
+
+1. **Drawer counts come from Joinr.** Joinr sends the won quote's **Drawers** and **Inner Drawers** lines (catalogue name and quantity) with the intake item. Crosscuts maps each catalogue name to a brand, height and length through a **drawer name list that Ordering keeps** (`stock.order`); names not on the list are flagged. On accept, the counts land on the job as its drawer grid, an order line "Drawers (EDGE)" or "Drawers (DTC)" with its counts in `order_drawer_counts`, as in section 2.1. **Design/PM checks and corrects the grid at design sign-off** before it goes on the drawer order; jobs not from Joinr (or accepted before this) get their grid typed in by Design/PM. The Drawer order page, Mark ordered and receiving are as section 2.1.
+   - **This needs a Joinr-side change** (tenon-quotr: the intake read and its contract `docs/integrations/joinr-crosscuts-intake.md` gain the drawer lines), run as its own task like M6's task J. Each push, migration and production deploy there needs Todd's go.
+2. **Design/PM fills in a job's drawers** (checks Joinr's counts, or types them for jobs without them).
+3. **Board stock value = counts × a price per sheet**, worked out when the count is finished, with an optional adjustment and a note. Accounts sees it on Stock value.
+4. **Ordering keeps the board prices** (`stock.order`). The Workshop Manager counts without seeing prices; Accounts sees the month's value, not the prices.
+5. **Stock and paint orders show on Deliveries**, in their own "Stock and paint" group (the stock order per supplier group), for the Workshop Manager to mark received.
+6. **Paint is ordered per job:** a paint order line with a job becomes an order line on that job, so it counts toward the job's "all ordered" and its 50% progress invoice, and its receiving shows as that job's line. **One paint order can mix** job lines and lines with no job (thinners, primer, sanding discs), which are workshop stock. This replaces section 2.3's "not on Orders" and lead's default 3 for paint.
+7. **The three lists (stock items, paints, boards) are typed in by hand** on their pages. No paste box. Orders and counts start fresh.
+8. **No stock-value history:** the Stock value page starts with the first count done in Crosscuts.
+9. **The painted-door order form** (`Joinr_paintOrder - Copy.xlsx`) is left out of M11 (lead's default 8 confirmed).
+
+Section 3's other lead's defaults stand. **Plan approved (2026-10-13).** Next: M11 · 2.1 contracts, which must also specify the Joinr contract change (the new intake fields, how an older Joinr without them is handled, and the mapping list).
