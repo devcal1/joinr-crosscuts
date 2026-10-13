@@ -11,8 +11,7 @@
 # A stand-in Joinr (ci/fake-joinr.js) runs inside the container on 127.0.0.1:4996 (the M6 suite's
 # runs on 4999 and is stopped by then). Crosscuts is pointed at it through files in /data/config,
 # removed at the end. Quotes are pulled with the import (backfill), which doesn't depend on the
-# stored sync position. The stock-delivery checks need lib/stockdeliveries.js (Wave 1 B); a local
-# run of this file alone on the A branch sets M11_DW_SKIP_STOCK_DELIVERIES=1 to leave them out.
+# stored sync position.
 
 # ============================================================================
 step "m11-drawers. drawer grids, the Drawer order page and the Joinr drawer lines"
@@ -322,12 +321,10 @@ req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"orderIds\":$M11_DW_ID
 expect_status 201 "ordr places the EDGE order again"
 M11_DW_P2=$(jqr '.drawerOrder.id')
 expect_jq '.drawerOrder.expectedDate == null and .drawerOrder.stockTotal == 2' "no expected date this time; two stock drawers"
-if [ "${M11_DW_SKIP_STOCK_DELIVERIES:-}" != 1 ]; then
-  req GET /api/orders/deliveries "$WSMGR"
-  expect_status 200 "wsmgr GET /api/orders/deliveries"
-  expect_jq "any(.stock.items[]; .type == \"drawer_stock\" and .id == $M11_DW_P2 and .label == \"Drawer stock (EDGE)\")" \
-    "the stock row waits on Deliveries"
-fi
+req GET /api/orders/deliveries "$WSMGR"
+expect_status 200 "wsmgr GET /api/orders/deliveries"
+expect_jq "any(.stock.items[]; .type == \"drawer_stock\" and .id == $M11_DW_P2 and .label == \"Drawer stock (EDGE)\")" \
+  "the stock row waits on Deliveries"
 req POST "/api/drawers/placed/$M11_DW_P2/stock-received" "$WSMGR" "{\"receivedDate\":\"$(m11dw_day +1)\"}"
 expect_status 400 "a stock delivery in the future"
 req POST "/api/drawers/placed/$M11_DW_P2/stock-received" "$SCHED" '{}'
@@ -338,11 +335,9 @@ expect_jq ".stockReceived.date == \"$M11_DW_TODAY\" and .stockReceived.by.id == 
   "received today by wsmgr, with the note"
 req POST "/api/drawers/placed/$M11_DW_P2/stock-received" "$WSMGR" '{}'
 expect_status 409 "receiving the stock row twice"
-if [ "${M11_DW_SKIP_STOCK_DELIVERIES:-}" != 1 ]; then
-  req GET /api/orders/deliveries "$WSMGR"
-  expect_jq "any(.stock.recent[]; .type == \"drawer_stock\" and .id == $M11_DW_P2) and all(.stock.items[]; .id != $M11_DW_P2)" \
-    "the stock row is in recent, no longer waiting"
-fi
+req GET /api/orders/deliveries "$WSMGR"
+expect_jq "any(.stock.recent[]; .type == \"drawer_stock\" and .id == $M11_DW_P2) and all(.stock.items[]; .id != $M11_DW_P2)" \
+  "the stock row is in recent, no longer waiting"
 req POST "/api/drawers/placed/$M11_DW_P2/undo" "$ORDR" '{}'
 expect_status 409 "undo once the stock row is received"
 req POST "/api/drawers/placed/$M11_DW_P2/stock-received" "$WSMGR" '{"undo":true}'

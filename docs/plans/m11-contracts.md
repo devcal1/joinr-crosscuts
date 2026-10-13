@@ -390,6 +390,7 @@ Joinr's rules for the field:
 **Changed detection** (A):
 - `LABELS` gains `drawers: "drawers"`.
 - In `changedFields`, **`drawers` counts as changed only when both payloads have an array** and the arrays differ by `canonical`. Going from `null` (an older payload) to an array is **not** a change. This way the first sync after Joinr starts sending the field doesn't mark every accepted record "changed".
+- **Clarified at 3.1 (A):** in `applyItem`'s no-change branch, when the new item has a `drawers` array and the stored payload has none, the new payload **is stored** (with `last_seen_at`), still without flagging the record changed. Otherwise the list would never be kept, Refill couldn't see it, and a later quantity change would compare `null` with a list again and go unflagged.
 
 ### 4.5 Filling from Joinr (A, in `lib/drawers.js`, called by `lib/intake.js`)
 
