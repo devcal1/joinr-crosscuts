@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock order - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="stock.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="st-page">
+    <div class="st-head">
+      <h1 id="stTitle" tabindex="-1">Stock order <span id="stMonthLabel" class="st-month"></span></h1>
+      <div class="st-picker" role="group" aria-label="Month">
+        <button id="stPrev" class="hs-btn" type="button">Previous month</button>
+        <label class="st-sr" for="stMonth">Month</label>
+        <select id="stMonth" class="hs-input st-select"></select>
+        <button id="stNext" class="hs-btn" type="button">Next month</button>
+      </div>
+    </div>
+    <p class="st-intro">The Workshop Manager counts what's on the shelf (Have) each month and finishes the count. Ordering then types what to order and marks each supplier ordered. Deliveries are marked received on the Deliveries page.</p>
+
+    <div id="stState" class="st-state" hidden>
+      <span id="stBadge" class="hs-badge"></span>
+      <span id="stStateText" class="st-state-text"></span>
+    </div>
+    <p id="stStatus" class="st-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="stTabs" class="st-tabs" aria-label="Stock order views" hidden>
+      <button id="stTabCount" class="st-tab" type="button" data-tab="count">Count</button>
+      <button id="stTabOrder" class="st-tab" type="button" data-tab="order">Order</button>
+      <button id="stTabList" class="st-tab" type="button" data-tab="list">List</button>
+    </div>
+
+    <section id="stPanelCount" class="st-panel" aria-label="Count" hidden>
+      <div class="st-tools">
+        <span id="stProgress" class="st-progress"></span>
+        <button id="stFinish" class="hs-btn hs-btn-primary" type="button" hidden>Finish count</button>
+        <button id="stPrintBlank" class="hs-btn" type="button">Print blank count sheet</button>
+      </div>
+      <p id="stCountNote" class="st-note" hidden></p>
+      <div id="stCountGroups"></div>
+    </section>
+
+    <section id="stPanelOrder" class="st-panel" aria-label="Order" hidden>
+      <div class="st-tools">
+        <span id="stOrderSummary" class="st-progress"></span>
+        <button id="stReopen" class="hs-btn" type="button" hidden>Reopen count</button>
+        <button id="stPrintAll" class="hs-btn" type="button">Print all orders</button>
+      </div>
+      <p id="stOrderNote" class="st-note" hidden></p>
+      <div id="stOrderGroups"></div>
+    </section>
+
+    <section id="stPanelList" class="st-panel" aria-label="Stock list" hidden>
+      <div class="st-tools">
+        <span class="st-progress">The items counted and ordered each month, by supplier. A new item appears on the month still being counted.</span>
+        <button id="stAdd" class="hs-btn hs-btn-primary" type="button">Add item</button>
+      </div>
+      <div id="stListGroups"></div>
+    </section>
+
+    <!-- The printed sheets (hidden on screen, built before printing) -->
+    <section id="stPrint" class="st-print" aria-hidden="true"></section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/periods.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="stock.js"></script>
+</body>
+</html>

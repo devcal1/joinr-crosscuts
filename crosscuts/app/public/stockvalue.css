@@ -1,0 +1,147 @@
+/* Stock value (stockvalue.html): the board stock value each month for Accounts, read-only and
+   printable (docs/plans/m11-contracts.md section 11.5). Tokens come from tokens.css, hs-
+   components from components.css. Page classes here are prefixed sv-. The paper styles (black on
+   white) are in the print block at the end. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.sv-page { max-width: 1100px; margin: 0 auto; padding: 22px 16px 48px; }
+.sv-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.sv-printhead { display: none; }
+
+.sv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 6px; }
+.sv-head h1 { flex: 1 1 auto; margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.sv-head h1:focus { outline: none; }
+.sv-head h1:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.sv-intro { margin: 0 0 14px; max-width: 780px; color: var(--label); font-size: 13px; }
+.sv-status { margin: 0 0 12px; color: var(--label); font-size: 13px; }
+.sv-status:empty { display: none; }
+.sv-status-err { color: var(--orange-tint); }
+.sv-empty {
+  margin: 0;
+  padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  color: var(--label);
+}
+
+.sv-wrap {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.sv-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; }
+.sv-table thead th {
+  padding: 8px 12px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.sv-table tbody th, .sv-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  text-align: left;
+  vertical-align: top;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.sv-table tbody tr:last-child th, .sv-table tbody tr:last-child td { border-bottom: 0; }
+.sv-table tbody th { color: var(--white); font-weight: 700; }
+.sv-c-month { width: 170px; }
+.sv-c-value { width: 230px; }
+.sv-table thead .sv-c-value { text-align: right; }
+td.sv-c-value { text-align: right; }
+.sv-c-who { width: auto; }
+.sv-c-adj { width: 150px; }
+.sv-num { font-variant-numeric: tabular-nums; }
+.sv-value { color: var(--white); font-weight: 700; }
+.sv-wait { color: var(--label); }
+.sv-none { color: var(--muted); }
+.sv-who { display: block; color: var(--body); }
+.sv-when { display: block; color: var(--label); font-size: 12px; }
+.sv-adj-note { display: none; }
+.sv-c-adj .sv-num[title] { border-bottom: 1px dotted var(--label); cursor: help; }
+
+@media (max-width: 640px) {
+  .sv-page { padding-top: 16px; }
+  .sv-head h1 { font-size: 20px; }
+  .sv-wrap { overflow: visible; background: none; border: 0; }
+  .sv-table, .sv-table tbody, .sv-table tr, .sv-table th, .sv-table td { display: block; width: auto; min-width: 0; }
+  .sv-table thead { display: none; }
+  .sv-table tbody tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+  }
+  .sv-table tbody th { padding: 0 0 6px; border: 0; }
+  .sv-table td { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; padding: 3px 0; border: 0; text-align: left; }
+  td.sv-c-value { text-align: left; }
+  .sv-table td::before {
+    content: attr(data-label);
+    padding-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  .sv-table td:empty { display: none; }
+  .sv-adj-note { display: block; color: var(--label); font-size: 12px; grid-column: 2; }
+  .sv-c-adj .sv-num { justify-self: start; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+@media print {
+  html, body { background: #fff; color: #000; }
+  body { padding: 0 !important; font-size: 10pt; }
+  body > :not(main) { display: none !important; }
+  .sv-page { max-width: none; margin: 0; padding: 0; }
+  .sv-head, .sv-intro, .sv-status { display: none !important; }
+  .sv-printhead { display: block; margin-bottom: 5mm; padding-bottom: 3mm; border-bottom: 0.5mm solid #000; }
+  .sv-printhead p { margin: 0; color: #000; }
+  .sv-print-title { font-size: 16pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .sv-print-basis { margin-top: 1mm; font-size: 9pt; }
+  .sv-print-date { margin-top: 1mm; font-size: 9pt; font-weight: 700; }
+  .sv-wrap { background: #fff; border: 0; overflow: visible; }
+  .sv-table { min-width: 0; }
+  .sv-table thead th { background: #fff; color: #000; font-size: 7pt; border-bottom: 0.5mm solid #000; padding: 1.5mm; white-space: normal; vertical-align: bottom; }
+  .sv-table tbody th, .sv-table td { color: #000; border-bottom: 0.2mm solid #000; padding: 1.8mm 1.5mm; }
+  .sv-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .sv-table * { color: #000; }
+  .sv-c-month { width: 32mm; }
+  .sv-c-value { width: 40mm; }
+  .sv-c-adj { width: 52mm; }
+  .sv-c-adj .sv-num[title] { border-bottom: 0; }
+  .sv-adj-note { display: block; font-size: 8.5pt; }
+  .sv-empty { background: #fff; border: 0; color: #000; padding: 0; }
+}
+/* style-check: print-end */

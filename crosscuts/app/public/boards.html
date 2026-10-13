@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board stocktake - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="boards.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="bd-page">
+    <div class="bd-head">
+      <h1 id="bdTitle" tabindex="-1">Board stocktake <span id="bdMonthLabel" class="bd-month"></span></h1>
+      <div class="bd-picker" role="group" aria-label="Month">
+        <button id="bdPrev" class="hs-btn" type="button">Previous month</button>
+        <label class="bd-sr" for="bdMonth">Month</label>
+        <select id="bdMonth" class="hs-input bd-select"></select>
+        <button id="bdNext" class="hs-btn" type="button">Next month</button>
+      </div>
+    </div>
+    <p class="bd-intro">The Workshop Manager counts the sheets of each board once a month, in whole or half sheets, and finishes the count. Ordering then checks the prices and confirms the month's stock value, which Accounts sees on Stock value.</p>
+
+    <div id="bdState" class="bd-state" hidden>
+      <span id="bdBadge" class="hs-badge"></span>
+      <span id="bdStateText" class="bd-state-text"></span>
+    </div>
+    <p id="bdStatus" class="bd-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="bdTabs" class="bd-tabs" aria-label="Board stocktake views" hidden>
+      <button id="bdTabCount" class="bd-tab" type="button" data-tab="count">Count</button>
+      <button id="bdTabValue" class="bd-tab" type="button" data-tab="value">Value</button>
+      <button id="bdTabList" class="bd-tab" type="button" data-tab="list">List</button>
+    </div>
+
+    <section id="bdPanelCount" class="bd-panel" aria-label="Count" hidden>
+      <div class="bd-tools">
+        <span id="bdProgress" class="bd-progress"></span>
+        <button id="bdFinish" class="hs-btn hs-btn-primary" type="button" hidden>Finish count</button>
+        <button id="bdPrintBlank" class="hs-btn" type="button">Print blank count sheet</button>
+      </div>
+      <p id="bdCountNote" class="bd-note" hidden></p>
+      <div id="bdCountBody"></div>
+    </section>
+
+    <section id="bdPanelValue" class="bd-panel" aria-label="Value" hidden>
+      <div class="bd-tools">
+        <span id="bdValueNote" class="bd-progress"></span>
+        <button id="bdReopenCount" class="hs-btn" type="button" hidden>Reopen count</button>
+        <button id="bdReopen" class="hs-btn hs-btn-stop" type="button" hidden>Reopen</button>
+      </div>
+      <div id="bdUnpriced" class="hs-callout hs-callout-orange bd-callout" hidden>
+        <h3>Prices missing</h3>
+        <p id="bdUnpricedText"></p>
+      </div>
+      <div id="bdValueBody"></div>
+      <form id="bdConfirm" class="hs-card bd-confirm" novalidate hidden>
+        <div class="bd-adj">
+          <div class="cc-field">
+            <label class="cc-field-label" for="bdAdj">Adjustment (ex GST)</label>
+            <input id="bdAdj" class="hs-input bd-money" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="bdAdjHelp bdConfirmErr">
+          </div>
+          <div class="cc-field bd-adj-note">
+            <label class="cc-field-label" for="bdAdjNote">Adjustment note</label>
+            <input id="bdAdjNote" class="hs-input" type="text" maxlength="500" autocomplete="off" aria-describedby="bdAdjHelp bdConfirmErr">
+          </div>
+        </div>
+        <p id="bdAdjHelp" class="bd-help">Optional: a correction to the worked-out figure (negative to take off), for damaged sheets or offcuts, say. A note is needed when it isn't zero.</p>
+        <p id="bdConfirmErr" class="cc-dialog-error bd-err" role="alert"></p>
+        <div class="bd-confirm-acts">
+          <button id="bdConfirmBtn" class="hs-btn hs-btn-primary" type="submit">Confirm value</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="bdPanelList" class="bd-panel" aria-label="Board list" hidden>
+      <div class="bd-tools">
+        <span class="bd-progress">The boards counted each month, in the order of the count sheet. Prices are per sheet, ex GST. A new board appears on the month still being counted.</span>
+        <button id="bdAdd" class="hs-btn hs-btn-primary" type="button">Add board</button>
+      </div>
+      <div id="bdListBody"></div>
+    </section>
+
+    <!-- The printed count sheet (hidden on screen, built before printing) -->
+    <section id="bdPrint" class="bd-print" aria-hidden="true"></section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/periods.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="boards.js"></script>
+</body>
+</html>

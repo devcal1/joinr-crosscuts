@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock value - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="stockvalue.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="sv-page">
+    <!-- On paper: the title and the printed date (the screen header is hidden). -->
+    <div class="sv-printhead" aria-hidden="true">
+      <p class="sv-print-title">Board stock value</p>
+      <p class="sv-print-basis">The board stocktake each month: the sheets counted times each board's price per sheet, plus any adjustment. Amounts are ex GST.</p>
+      <p id="svPrintDate" class="sv-print-date"></p>
+    </div>
+
+    <div class="sv-head">
+      <h1 id="svTitle" tabindex="-1">Stock value</h1>
+      <button id="svPrint" class="hs-btn" type="button">Print</button>
+    </div>
+    <p class="sv-intro">The board stock value each month, from the Workshop Manager's count and Ordering's prices per sheet, plus any adjustment. Amounts are ex GST. A month shows its value once Ordering confirms it.</p>
+    <p id="svStatus" class="sv-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="svWrap" class="sv-wrap" hidden>
+      <table class="sv-table">
+        <thead>
+          <tr>
+            <th scope="col" class="sv-c-month">Month</th>
+            <th scope="col" class="sv-c-value">Board stock value (ex GST)</th>
+            <th scope="col" class="sv-c-who">Counted</th>
+            <th scope="col" class="sv-c-who">Confirmed</th>
+            <th scope="col" class="sv-c-adj">Adjustment</th>
+          </tr>
+        </thead>
+        <tbody id="svRows"></tbody>
+      </table>
+    </div>
+    <p id="svEmpty" class="sv-empty" hidden>No board counts yet. A month appears here once the Workshop Manager finishes its board count.</p>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/periods.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="stockvalue.js"></script>
+</body>
+</html>
