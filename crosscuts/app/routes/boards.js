@@ -1,8 +1,6 @@
 // The board stocktake (docs/plans/m11-contracts.md section 8) and the Stock value page for
-// Accounts. SCAFFOLD (M11 · 2.2): every route is declared with its access; the handlers call
-// lib/boards.js, whose stubs throw HttpError(501, "Not built"), so each answers 501
-// {"error":"Not built"} until Wave 1 B fills in both files. Literal paths are registered before
-// /:id and /:period ones.
+// Accounts. Declared by the scaffold (M11 · 2.2), built in Wave 1 B; the rules live in
+// lib/boards.js. Literal paths are registered before /:id and /:period ones.
 //
 // Prices and values go only to stock.order holders (withPrices); stock.count holders count without
 // them; reopening a valued month needs users.admin; Accounts reads /api/stockvalue only.
@@ -21,7 +19,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[boards]");
     }
   };
@@ -71,12 +68,17 @@ r.get("/boards/counts/:period", SEE, handle((req, res) => {
   res.json(boards.count(db, periodOr400(req.params.period), { withPrices: withPrices(req) }));
 }));
 
+// The counter's writes answer the month without prices; a stock.order holder gets them back.
 r.put("/boards/counts/:period/lines", "stock.count", handle((req, res) => {
-  res.json(boards.saveLines(db, req, periodOr400(req.params.period), body(req).lines));
+  const period = periodOr400(req.params.period);
+  const view = boards.saveLines(db, req, period, body(req).lines);
+  res.json(withPrices(req) ? boards.count(db, period, { withPrices: true }) : view);
 }));
 
 r.post("/boards/counts/:period/counted", "stock.count", handle((req, res) => {
-  res.json(boards.counted(db, req, periodOr400(req.params.period)));
+  const period = periodOr400(req.params.period);
+  const view = boards.counted(db, req, period);
+  res.json(withPrices(req) ? boards.count(db, period, { withPrices: true }) : view);
 }));
 
 r.post("/boards/counts/:period/reopen-count", "stock.order", handle((req, res) => {

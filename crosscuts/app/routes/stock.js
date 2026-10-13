@@ -1,14 +1,12 @@
 // The monthly stock order (docs/plans/m11-contracts.md section 7) and the ordering dashboard
-// summary (section 11.8). SCAFFOLD (M11 · 2.2): every route is declared with its access; the
-// handlers call lib/stock.js, whose stubs throw HttpError(501, "Not built"), so each answers 501
-// {"error":"Not built"} until Wave 1 B fills in both files. Literal paths are registered before
-// /:id and /:period ones.
+// summary (section 11.8). Declared by the scaffold (M11 · 2.2), built in Wave 1 B; the rules live
+// in lib/stock.js. Literal paths are registered before /:id and /:period ones.
 //
 // stock.count types Have and finishes the count; stock.order keeps the list and places the order;
 // orders.receive marks a supplier group received.
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
-const { bad, notFound, sendError } = require("../lib/httperror");
+const { bad, notFound, sendError, can } = require("../lib/httperror");
 const Periods = require("../public/periods");
 const stock = require("../lib/stock");
 
@@ -21,7 +19,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[stock]");
     }
   };
@@ -51,7 +48,8 @@ r.get("/summary", SEE, handle((req, res) => {
 }));
 
 r.get("/items", SEE, handle((req, res) => {
-  res.json({ items: stock.items(db, { all: req.query.all === "1" }) });
+  // ?all=1 (inactive items too) is the List tab's, stock.order only.
+  res.json({ items: stock.items(db, { all: req.query.all === "1" && can(req, "stock.order") }) });
 }));
 
 r.post("/items/reorder", "stock.order", handle((req, res) => {
