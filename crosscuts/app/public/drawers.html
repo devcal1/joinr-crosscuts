@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drawer order - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="drawerspage.css">
+</head>
+<body class="dw-body">
+  <div id="cc-shell"></div>
+
+  <main class="dw-page">
+    <div class="dw-head">
+      <h1 id="dwTitle" tabindex="-1">Drawer order</h1>
+    </div>
+    <p class="dw-intro">Every job's checked drawer lines still to order, added up by brand, with a stock row for the shelf. Print the sheet for the supplier, then Mark ordered. Lines Design/PM hasn't checked wait below the sheet.</p>
+
+    <div id="dwTabs" class="dw-tabs" role="tablist" aria-label="Drawer order views">
+      <button id="dwTab-edge" class="dw-tab" type="button" role="tab" aria-selected="true" aria-controls="dwPanel-edge" data-tab="edge">EDGE</button>
+      <button id="dwTab-dtc" class="dw-tab" type="button" role="tab" aria-selected="false" aria-controls="dwPanel-dtc" data-tab="dtc" tabindex="-1">DTC</button>
+      <button id="dwTab-placed" class="dw-tab" type="button" role="tab" aria-selected="false" aria-controls="dwPanel-placed" data-tab="placed" tabindex="-1">Placed</button>
+      <button id="dwTab-names" class="dw-tab" type="button" role="tab" aria-selected="false" aria-controls="dwPanel-names" data-tab="names" tabindex="-1">Names</button>
+      <button id="dwTab-settings" class="dw-tab" type="button" role="tab" aria-selected="false" aria-controls="dwPanel-settings" data-tab="settings" tabindex="-1">Settings</button>
+    </div>
+
+    <p id="dwStatus" class="dw-status" role="status" aria-live="polite">Loading...</p>
+
+    <section id="dwPanel-edge" class="dw-panel" role="tabpanel" aria-labelledby="dwTab-edge" tabindex="-1"></section>
+    <section id="dwPanel-dtc" class="dw-panel" role="tabpanel" aria-labelledby="dwTab-dtc" tabindex="-1" hidden></section>
+    <section id="dwPanel-placed" class="dw-panel" role="tabpanel" aria-labelledby="dwTab-placed" tabindex="-1" hidden></section>
+    <section id="dwPanel-names" class="dw-panel" role="tabpanel" aria-labelledby="dwTab-names" tabindex="-1" hidden></section>
+    <section id="dwPanel-settings" class="dw-panel" role="tabpanel" aria-labelledby="dwTab-settings" tabindex="-1" hidden>
+      <form id="dwSettingsForm" class="dw-settings" novalidate>
+        <p class="dw-note">Each brand's supplier goes on new drawer lines and at the top of the printed sheet. Lines already made keep the supplier they were made with.</p>
+        <div class="dw-fields">
+          <div class="dw-field">
+            <label class="dw-label" for="dwSupEdge">EDGE supplier</label>
+            <input id="dwSupEdge" class="hs-input" type="text" maxlength="200" autocomplete="off">
+          </div>
+          <div class="dw-field">
+            <label class="dw-label" for="dwSupDtc">DTC supplier</label>
+            <input id="dwSupDtc" class="hs-input" type="text" maxlength="200" autocomplete="off">
+          </div>
+        </div>
+        <p id="dwSettingsMsg" class="dw-formmsg" role="status" aria-live="polite"></p>
+        <div class="dw-formacts"><button id="dwSettingsSave" class="hs-btn hs-btn-primary" type="submit">Save</button></div>
+      </form>
+    </section>
+
+    <!-- The printed sheet (hidden on screen, built before printing) -->
+    <section id="dwPrintSheet" class="dw-print" aria-hidden="true"></section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="drawers.js"></script>
+  <script src="drawerspage.js"></script>
+</body>
+</html>
