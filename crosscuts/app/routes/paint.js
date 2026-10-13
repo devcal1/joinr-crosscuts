@@ -1,7 +1,6 @@
-// Paint orders (docs/plans/m11-contracts.md section 6.3). SCAFFOLD (M11 · 2.2): every route is
-// declared with its access; the handlers call lib/paint.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 C fills in
-// both files. Literal paths are registered before /:id ones.
+// Paint orders (docs/plans/m11-contracts.md section 6.3), Wave 1 C. The routes declare the coarse
+// access and pass the body to lib/paint.js, where every other rule lives. Literal paths are
+// registered before /:id ones.
 //
 // stock.order runs paint orders; marking one with job lines ordered (or undoing it) also needs
 // orders.mark_ordered, checked in lib/paint.js; orders.receive receives it, and may read one order.
@@ -17,7 +16,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[paint]");
     }
   };
