@@ -3,6 +3,7 @@
 // decisions. Every write is one transaction and is audited. The wire shape of `payload` is
 // docs/integrations/joinr-crosscuts-intake.md.
 const audit = require("./audit");
+const drawers = require("./drawers");
 const invoices = require("./invoices");
 const { HttpError, bad, notFound, conflict } = require("./httperror");
 const { DATE_RE, sydneyToday } = require("./time");
@@ -294,6 +295,17 @@ function camelJob(user, row) {
 
 const isEmpty = (v) => v == null || v === "";
 
+// M11 (docs/plans/m11-contracts.md section 4.5): the stored payload's drawer lines when Joinr
+// reported them (a list), else null (an older Joinr, or a record stored before M11).
+function payloadDrawers(payload) {
+  try {
+    const p = JSON.parse(payload);
+    return p && typeof p === "object" && Array.isArray(p.drawers) ? p.drawers : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function accept(db, req, id) {
   const user = req && req.user;
   const jobId = db.transaction(() => {
@@ -357,6 +369,9 @@ function accept(db, req, id) {
       entityId: row.id,
       after: { jobId: newId, rootQuoteId: row.root_quote_id, quoteNumber: row.quote_number },
     });
+    // M11: the quote's drawer lines become the job's drawer grid(s), unchecked.
+    const lines = payloadDrawers(row.payload);
+    if (lines) drawers.fillFromJoinr(db, newId, lines, req, { quoteNumber: str(row.quote_number, 100) });
     return newId;
   })();
   const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
@@ -436,6 +451,9 @@ function link(db, req, id, jobId) {
     });
     // Link filled an empty value: an invoice waiting for one falls due.
     if ("value_cents" in after) invoices.onValueSet(db, jid, req);
+    // M11: as Accept; a brand the job already has a to_order drawer line for is skipped.
+    const lines = payloadDrawers(row.payload);
+    if (lines) drawers.fillFromJoinr(db, jid, lines, req, { quoteNumber: str(row.quote_number, 100) });
     return jid;
   })();
   const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(result);

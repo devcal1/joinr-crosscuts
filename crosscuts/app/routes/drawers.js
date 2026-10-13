@@ -1,8 +1,7 @@
 // Drawers (docs/plans/m11-contracts.md section 6.1): a job's drawer grids, the Drawer order page,
-// placed drawer orders, the drawer name list and the supplier settings. SCAFFOLD (M11 · 2.2): every
-// route is declared with its access; the handlers call lib/drawers.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 A fills in
-// both files. Literal paths are registered before /:id ones.
+// placed drawer orders, the drawer name list and the supplier settings. Every route is declared
+// with its access value; the handlers only parse the request and call lib/drawers.js. Literal
+// paths are registered before /:id ones.
 //
 // The finer rules live in lib/drawers.js: checking a grid needs jobs.edit; placing and undoing a
 // drawer order also need orders.mark_ordered (they mark job lines ordered).
@@ -18,8 +17,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[drawers]");
     }
   };

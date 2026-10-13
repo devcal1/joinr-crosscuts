@@ -14,6 +14,9 @@
 //                            raw merged); the fake assigns `cursor` (1, 2, 3 ...). With
 //                            "_verbatim": true the body is stored as sent (cursor still
 //                            assigned unless given), for invalid-item tests. Returns the item.
+//                            `drawers` (M11, contract version 2: [{section, name, qty}]) is
+//                            sent only when the body gives it, so an item without it is what an
+//                            older Joinr sends; "drawers": null is sent as null.
 //   POST /_control/fail      {"fail": 500 | 401 | 429 | "hang" | "garbage" | "html" | "big" | null,
 //                             "count": N (default 1)}: the next N won-quotes calls fail that
 //                            way. "garbage" is a 200 application/json body that is not JSON;
