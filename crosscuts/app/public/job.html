@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="orderui.css">
 <link rel="stylesheet" href="jobs.css">
 <link rel="stylesheet" href="tasks.css">
+<link rel="stylesheet" href="drawerspage.css">
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -37,6 +38,14 @@
       <div id="ordersSummary" class="jo-summary"></div>
       <p id="ordersStatus" class="jo-status muted" role="status"></p>
       <div id="ordersBody"></div>
+      <div id="drawersBlock" class="dw-jblock" hidden>
+        <div class="dw-jhead">
+          <h3 id="drawers-h" tabindex="-1">Drawers</h3>
+          <button id="addDrawers" class="hs-btn hs-btn-primary" type="button" hidden>Add drawers</button>
+        </div>
+        <p id="drawersStatus" class="jo-status muted" role="status"></p>
+        <div id="drawersBody"></div>
+      </div>
       <form id="orderForm" class="jo-form" novalidate hidden>
         <h3 class="jo-formh">Add a line</h3>
         <div class="jo-grid">
@@ -152,6 +161,7 @@
   <script src="comments.js"></script>
   <script src="taskui.js"></script>
   <script src="orderui.js"></script>
+  <script src="drawers.js"></script>
   <script src="job.js"></script>
   <script src="/shell/shell.js"></script>
 </body>

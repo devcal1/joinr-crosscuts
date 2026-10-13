@@ -723,10 +723,13 @@
       }
       // The description, the line's notes and its delivery note (OrderUI's block).
       const note = window.OrderUI ? window.OrderUI.noteBlock(o) : null;
+      // M11 section 11.8: a line that belongs to a drawer grid or a paint order says so.
+      const kindLabel = o.kind === "drawers" ? "Drawers" : o.kind === "paint" && o.paintOrderId ? "Paint order " + o.paintOrderId : "";
       const desc = el(
         "td",
         { class: "jo-text" },
         document.createTextNode(o.description || ""),
+        kindLabel ? el("span", { class: "dw-kind-label", text: kindLabel }) : null,
         o.notes ? el("span", { class: "jo-note", text: o.notes }) : null,
         note ? el("div", { class: "jo-note" }, note) : null
       );
@@ -746,6 +749,8 @@
         const box = el("div", { class: "jo-oacts" });
         for (const a of ORDER_ACTS) {
           if (!may[a.id]) continue;
+          // A drawer line is ordered from the Drawer order page only (m11-contracts section 5.2).
+          if (a.id === "markOrdered" && o.kind === "drawers") continue;
           box.append(el("button", {
             type: "button",
             class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""),
@@ -812,6 +817,7 @@
   // disabled working again) and the reload's sentence follows `said`.
   async function reloadOrdersAfter(said, kind, r) {
     setLine($("ordersStatus"), said, kind);
+    loadDrawers(); // a drawer line's status or notes may have changed with it
     if (await loadOrders()) return;
     const why = $("ordersStatus").textContent;
     const after = r && r.order;
@@ -929,6 +935,495 @@
       setLine(status, e.message, "err");
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  // ---- Drawers (docs/plans/m11-contracts.md section 11.1) ----------------------------------
+  // Under the order lines: each drawer line's grid (heights down, lengths across, only the ones in
+  // use, with totals) and its Design/PM check, then the won quote's drawer lines from Joinr with
+  // each one's mapping. Add drawers, Edit grid, Check / Uncheck and Refill from Joinr are here;
+  // the line's other actions (Received, Cancel ...) are OrderUI's, in the table above. The sizes
+  // come from drawers.js (window.Drawers); the server decides who may do what (lib/drawers.js).
+  const DR = window.Drawers;
+  const DRAWER_SECTION = { drawers: "Drawers", innerDrawers: "Inner drawers" };
+  const DRAWER_NOTES_MAX = 2000;
+  let drawerData = null; // GET /api/job-records/:id/drawers: {lines, joinr}
+  let drawersBusy = false;
+  let drawersSeq = 0;
+
+  function drawerBrandLabel(id) {
+    const b = DR && DR.brand(id);
+    return b ? b.label : String(id || "").toUpperCase();
+  }
+
+  function drawerHeightLabel(brandId, mm) {
+    const b = DR && DR.brand(brandId);
+    const h = b && b.heights.find((x) => x.mm === mm);
+    return h ? h.label : String(mm);
+  }
+
+  function drawerSize(brandId, height, length) {
+    return `${drawerBrandLabel(brandId)} ${drawerHeightLabel(brandId, height)} / ${length}`;
+  }
+
+  // A UTC timestamp as its Sydney day, "14 Oct".
+  function fmtDayMon(iso) {
+    const t = Date.parse(iso || "");
+    if (!Number.isFinite(t)) return "";
+    const s = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(t));
+    const [, m, d] = s.split("-").map(Number);
+    return `${d} ${MONTHS[m - 1]}`;
+  }
+
+  // The grid of one line: only the heights and lengths in use, with row and column totals.
+  function drawerGrid(brandId, counts, caption) {
+    const b = DR.brand(brandId);
+    const heights = b ? b.heights.filter((h) => counts.some((c) => c.height === h.mm)) : [];
+    const lengths = DR.LENGTHS.filter((l) => counts.some((c) => c.length === l));
+    const cell = {};
+    for (const c of counts) cell[c.height + "x" + c.length] = c.qty;
+    const t = el("table", { class: "dw-jgrid" }, el("caption", { class: "dw-sr", text: caption }));
+    t.append(el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Height" }),
+      ...lengths.map((l) => el("th", { scope: "col", text: String(l) })), el("th", { scope: "col", text: "Total" }))));
+    const tb = el("tbody");
+    for (const h of heights) {
+      let rowTotal = 0;
+      const tds = lengths.map((l) => {
+        const v = cell[h.mm + "x" + l] || 0;
+        rowTotal += v;
+        return el("td", { text: v ? String(v) : "" });
+      });
+      tb.append(el("tr", {}, el("th", { scope: "row", text: h.label }), ...tds, el("td", { class: "dw-tot", text: String(rowTotal) })));
+    }
+    t.append(tb);
+    let grand = 0;
+    const foot = lengths.map((l) => {
+      let n = 0;
+      for (const c of counts) if (c.length === l) n += c.qty;
+      grand += n;
+      return el("td", { text: String(n) });
+    });
+    t.append(el("tfoot", {}, el("tr", {}, el("th", { scope: "row", text: "Total" }), ...foot, el("td", { class: "dw-tot", text: String(grand) }))));
+    return el("div", { class: "dw-jgwrap" }, t);
+  }
+
+  function joinrDrawers() {
+    const j = drawerData && drawerData.joinr;
+    return j && Array.isArray(j.drawers) ? j : null;
+  }
+
+  // Refill is offered when the quote has drawer lines mapped to the line's brand.
+  function joinrHasBrand(brandId) {
+    const j = joinrDrawers();
+    return !!j && j.drawers.some((e) => e.map && e.map !== "ignored" && e.map.brand === brandId);
+  }
+
+  function drawerLineName(l) {
+    return `${drawerBrandLabel(l.drawers.brand)} drawers`;
+  }
+
+  function drawerCard(l) {
+    const d = l.drawers;
+    const label = drawerBrandLabel(d.brand);
+    const [stLabel, badge] = ORDER_STATUS[l.status] || [l.status, "hs-badge-na"];
+    const check = d.checked
+      ? el("span", { class: "dw-jcheck", text: `Checked by ${(d.checked.by && d.checked.by.name) || "someone"}, ${fmtDayMon(d.checked.at)}` })
+      : el("span", { class: "hs-badge hs-badge-check", text: "Not checked" });
+    const top = el("div", { class: "dw-jtop" },
+      el("h4", { class: "dw-jbrand", id: "dw-jb-" + l.id, tabindex: "-1", text: label }),
+      el("span", { class: "hs-badge " + badge, text: stLabel }),
+      check,
+      el("span", { class: "dw-jsrc", text: d.source === "joinr" ? "From Joinr" : "Typed in" }));
+    const card = el("div", { class: "dw-jcard", "data-id": String(l.id) }, top,
+      drawerGrid(d.brand, l.counts || [], `${label} drawers: count per height and runner length`));
+    if (l.notes) card.append(el("p", { class: "dw-jnotes", text: l.notes }));
+    if (l.status === "to_order") {
+      const acts = el("div", { class: "dw-jacts" });
+      const btn = (act, text, cls) => acts.append(el("button", {
+        type: "button", class: "hs-btn" + (cls ? " " + cls : ""), "data-dact": act, "data-id": String(l.id),
+        text, "aria-label": `${text}: ${label} drawers`,
+      }));
+      if (can("orders.edit")) btn("edit", "Edit grid");
+      if (can("jobs.edit")) {
+        if (d.checked) btn("uncheck", "Uncheck");
+        else btn("check", "Check", "hs-btn-primary");
+      }
+      if (can("orders.edit") && joinrHasBrand(d.brand)) btn("refill", "Refill from Joinr");
+      if (acts.childElementCount) card.append(acts);
+    }
+    return card;
+  }
+
+  function joinrBox() {
+    const j = drawerData && drawerData.joinr;
+    if (!j) return null;
+    if (!Array.isArray(j.drawers)) {
+      return el("p", { class: "dw-jempty", text: "Joinr didn't send drawer lines for this quote, so the grid is typed in here." });
+    }
+    const attend = j.unmapped.length > 0 || j.changedSinceFill;
+    const box = el("div", { class: "hs-callout dw-jjoinr" + (attend ? " hs-callout-orange" : "") }, el("h3", { text: "Drawer lines on the Joinr quote" }));
+    if (!j.drawers.length) {
+      box.append(el("p", { text: "The won quote has no drawer lines." }));
+    } else {
+      box.append(el("ul", {}, ...j.drawers.map((e) => {
+        let map;
+        if (e.map === null) map = el("span", { class: "dw-jmap-miss", text: "not on the drawer name list" });
+        else if (e.map === "ignored") map = el("span", { class: "dw-jmap", text: "ignored" });
+        else map = el("span", { class: "dw-jmap-ok", text: drawerSize(e.map.brand, e.map.height, e.map.length) });
+        return el("li", {}, document.createTextNode(`${e.qty} × `), el("b", { text: e.name }),
+          document.createTextNode(` (${DRAWER_SECTION[e.section] || e.section}): `), map);
+      })));
+    }
+    if (j.unmapped.length) {
+      if (can("stock.order")) {
+        box.append(el("p", {}, document.createTextNode("Add the missing names on the "),
+          el("a", { href: "/drawers.html#names", text: "Drawer order page" }), document.createTextNode(", then Refill from Joinr.")));
+      } else {
+        box.append(el("p", { text: "Ordering adds missing names to the drawer name list; then Refill from Joinr picks them up." }));
+      }
+    }
+    if (j.changedSinceFill) box.append(el("p", { class: "dw-jchanged", text: "Changed in Joinr since the grid was filled." }));
+    return box;
+  }
+
+  function renderDrawers() {
+    const block = $("drawersBlock");
+    if (!block || !drawerData || !DR) return;
+    const lines = drawerData.lines;
+    const j = joinrDrawers();
+    const canAdd = can("orders.edit");
+    const free = DR.BRANDS.filter((b) => !lines.some((l) => l.status === "to_order" && l.drawers.brand === b.id));
+    block.hidden = !(lines.length || (j && j.drawers.length) || canAdd);
+    $("addDrawers").hidden = !(canAdd && free.length);
+    const out = [];
+    if (!lines.length) {
+      out.push(el("p", { class: "dw-jempty", text: canAdd ? "No drawer grid yet. Add drawers to type one in." : "No drawer grid yet." }));
+    } else {
+      out.push(el("div", { class: "dw-jcards" }, ...lines.map(drawerCard)));
+    }
+    const jb = joinrBox();
+    if (jb) out.push(jb);
+    $("drawersBody").replaceChildren(...out);
+  }
+
+  // Resolves true when the drawer lines were replaced (and rendered).
+  async function loadDrawers() {
+    if (!DR || isNew) return false;
+    const mine = ++drawersSeq;
+    let d;
+    try {
+      d = await api("/api/job-records/" + jobId + "/drawers");
+    } catch (e) {
+      if (mine === drawersSeq) setLine($("drawersStatus"), e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : e.message, "err");
+      return false;
+    }
+    if (mine !== drawersSeq) return false;
+    drawerData = d;
+    renderDrawers();
+    return true;
+  }
+
+  // A modal on the shell's cc-dialog frame, as OrderUI's: spec {title, note, fields, hint, submit,
+  // submitClass, cancel, focus ("cancel" or a node), cls, run}. run() returns the response, or
+  // undefined to close with null, or throws a sentence (marked `refused` when the server said no).
+  // Resolves the response, {refused: true} when closed after a refusal, or null.
+  function drawerDialog(spec) {
+    const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+    return new Promise((resolve) => {
+      let result = null;
+      let refused = false;
+      let busy = false;
+      const uid = Math.random().toString(36).slice(2, 8);
+      const err = el("p", { class: "cc-dialog-error dw-dlg-error", role: "alert" });
+      const cancel = el("button", { type: "button", class: "hs-btn", text: spec.cancel || "Cancel" });
+      const go = el("button", { type: "submit", class: "hs-btn " + (spec.submitClass || "hs-btn-primary"), text: spec.submit });
+      const form = el("form", { class: "cc-dialog-form", method: "dialog", novalidate: true },
+        el("h2", { class: "cc-dialog-title", id: "dw-jt-" + uid, text: spec.title }),
+        spec.note ? el("p", { class: "cc-dialog-note dw-dlg-note", id: "dw-jn-" + uid, text: spec.note }) : null,
+        ...(spec.fields || []),
+        spec.hint ? el("p", { class: "cc-dialog-note", text: spec.hint }) : null,
+        err,
+        el("div", { class: "cc-dialog-actions" }, cancel, go));
+      const dlg = el("dialog", { class: "cc-dialog dw-dlg " + (spec.cls || ""), "aria-labelledby": "dw-jt-" + uid,
+        "aria-describedby": spec.note ? "dw-jn-" + uid : null }, form);
+      document.body.append(dlg);
+      const start = spec.focus === "cancel" ? cancel : spec.focus || go;
+      function setBusy(on) {
+        busy = on;
+        for (const n of form.querySelectorAll("button, input, textarea, select")) {
+          if (on) {
+            n.dataset.dwWas = n.disabled ? "1" : "";
+            n.disabled = true;
+          } else n.disabled = n.dataset.dwWas === "1";
+        }
+      }
+      cancel.addEventListener("click", () => dlg.close());
+      dlg.addEventListener("mousedown", (e) => {
+        if (e.target === dlg && !busy) dlg.close();
+      });
+      dlg.addEventListener("cancel", (e) => {
+        if (busy) e.preventDefault();
+      });
+      dlg.addEventListener("keydown", (e) => {
+        if (e.key !== "Tab") return;
+        const stops = [...dlg.querySelectorAll("button, input, textarea, select, a[href], [tabindex]:not([tabindex='-1'])")]
+          .filter((n) => !n.disabled && n.offsetParent !== null);
+        if (!stops.length) return;
+        const first = stops[0];
+        const last = stops[stops.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !dlg.contains(document.activeElement))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !dlg.contains(document.activeElement))) {
+          e.preventDefault();
+          first.focus();
+        }
+      });
+      dlg.addEventListener("close", () => {
+        dlg.remove();
+        if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus();
+        resolve(result !== null ? result : refused ? { refused: true } : null);
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        err.textContent = "";
+        setBusy(true);
+        try {
+          const r = await spec.run();
+          result = r === undefined ? null : r;
+          setBusy(false);
+          dlg.close();
+        } catch (ex) {
+          setBusy(false);
+          if (ex && ex.refused) refused = true;
+          err.textContent = (ex && ex.message) || "That didn't save. Try again.";
+          const back = ex && ex.focus ? ex.focus : start;
+          if (back && typeof back.focus === "function") back.focus();
+        }
+      });
+      dlg.showModal();
+      start.focus();
+    });
+  }
+
+  // api() with a server refusal marked `refused` (the dialog tells it from its own sentences).
+  async function drawerSend(path, method, body) {
+    try {
+      return await api(path, { method, body: JSON.stringify(body || {}) });
+    } catch (e) {
+      if (e instanceof TypeError) throw new Error("Couldn't reach the server. Try again.");
+      if (e && typeof e === "object") e.refused = true;
+      throw e;
+    }
+  }
+
+  function drawerSentence(msg, focus) {
+    const e = new Error(msg);
+    if (focus) e.focus = focus;
+    return e;
+  }
+
+  // Add drawers (line null) or Edit grid: the brand, the full grid of number inputs (every height
+  // and length), notes, and Checked (with jobs.edit).
+  function gridDialog(line) {
+    const editing = !!line;
+    const taken = new Set(drawerData.lines.filter((l) => l.status === "to_order").map((l) => l.drawers.brand));
+    let brandId = editing ? line.drawers.brand : (DR.BRANDS.find((b) => !taken.has(b.id)) || DR.BRANDS[0]).id;
+    const uid = Math.random().toString(36).slice(2, 8);
+    const host = el("div", { class: "dw-gwrap" });
+    let cells = []; // [{height, length, input}]
+
+    function totals() {
+      const t = host.querySelector("table");
+      if (!t) return;
+      let grand = 0;
+      const col = {};
+      for (const tr of t.querySelectorAll("tbody tr")) {
+        let n = 0;
+        for (const inp of tr.querySelectorAll("input")) {
+          const v = Number(inp.value);
+          if (Number.isInteger(v) && v > 0) {
+            n += v;
+            col[inp.dataset.l] = (col[inp.dataset.l] || 0) + v;
+          }
+        }
+        tr.querySelector("td.dw-tot").textContent = n ? String(n) : "";
+        grand += n;
+      }
+      for (const td of t.querySelectorAll("tfoot td[data-l]")) td.textContent = col[td.dataset.l] ? String(col[td.dataset.l]) : "";
+      t.querySelector("tfoot td.dw-tot").textContent = String(grand);
+    }
+
+    function build(counts) {
+      const b = DR.brand(brandId);
+      const have = {};
+      for (const c of counts || []) have[c.height + "x" + c.length] = c.qty;
+      cells = [];
+      const t = el("table", { class: "dw-gtable", "aria-labelledby": "dw-gl-" + uid });
+      t.append(el("colgroup", {}, el("col", { class: "dw-gc-h" }), ...DR.LENGTHS.map(() => el("col")), el("col", { class: "dw-gc-t" })));
+      t.append(el("thead", {}, el("tr", {}, el("th", { scope: "col", text: "Height" }),
+        ...DR.LENGTHS.map((l) => el("th", { scope: "col", text: String(l) })), el("th", { scope: "col", text: "Total" }))));
+      const tb = el("tbody");
+      for (const h of b.heights) {
+        const tr = el("tr", {}, el("th", { scope: "row", text: h.label }));
+        for (const l of DR.LENGTHS) {
+          const inp = el("input", {
+            class: "hs-input dw-qty", type: "number", min: "0", max: String(DR.QTY_MAX), step: "1", inputmode: "numeric",
+            "aria-label": `${h.label}, ${l} mm`,
+          });
+          inp.dataset.l = String(l);
+          const v = have[h.mm + "x" + l];
+          inp.value = v ? String(v) : "";
+          inp.addEventListener("input", totals);
+          cells.push({ height: h.mm, length: l, input: inp });
+          tr.append(el("td", {}, inp));
+        }
+        tr.append(el("td", { class: "dw-n dw-tot" }));
+        tb.append(tr);
+      }
+      t.append(tb);
+      t.append(el("tfoot", {}, el("tr", {}, el("th", { scope: "row", text: "Total" }),
+        ...DR.LENGTHS.map((l) => el("td", { class: "dw-n", "data-l": String(l) })), el("td", { class: "dw-n dw-tot" }))));
+      host.replaceChildren(t);
+      totals();
+    }
+
+    const fields = [];
+    let brandSel = null;
+    if (!editing) {
+      brandSel = el("select", { class: "hs-input", id: "dw-gb-" + uid },
+        ...DR.BRANDS.map((b) => el("option", { value: b.id, disabled: taken.has(b.id), text: b.label + (taken.has(b.id) ? " (already has a line to order)" : "") })));
+      brandSel.value = brandId;
+      brandSel.addEventListener("change", () => {
+        brandId = brandSel.value;
+        build([]);
+      });
+      fields.push(el("div", { class: "cc-field" }, el("label", { class: "cc-field-label", for: "dw-gb-" + uid, text: "Brand" }), brandSel));
+    }
+    build(editing ? line.counts : []);
+    fields.push(el("div", { class: "cc-field" },
+      el("span", { class: "cc-field-label", id: "dw-gl-" + uid, text: "Drawers: how many of each height and runner length" }), host));
+    const notes = el("textarea", { class: "hs-input dw-text", id: "dw-gn-" + uid, maxlength: String(DRAWER_NOTES_MAX), rows: "2" });
+    notes.value = editing ? line.notes || "" : "";
+    fields.push(el("div", { class: "cc-field" }, el("label", { class: "cc-field-label", for: "dw-gn-" + uid, text: "Notes (optional)" }), notes));
+    let checkBox = null;
+    if (can("jobs.edit")) {
+      checkBox = el("input", { type: "checkbox", id: "dw-gc-" + uid });
+      checkBox.checked = editing ? !!line.drawers.checked : false;
+      fields.push(el("label", { class: "dw-check", for: "dw-gc-" + uid }, checkBox, el("span", { text: "Checked against the signed-off design" })));
+    }
+    const hint = can("jobs.edit")
+      ? "Only checked grids go on the Drawer order. Changing the counts clears the check unless Checked is ticked."
+      : "Design/PM checks the grid before it goes on the Drawer order. Changing the counts clears the check.";
+
+    return drawerDialog({
+      title: editing ? `Edit ${drawerBrandLabel(brandId)} drawers` : "Add drawers",
+      note: editing ? `${line.description}.` : null,
+      fields,
+      hint,
+      submit: editing ? "Save" : "Add drawers",
+      cls: "dw-dlg-grid",
+      focus: editing ? cells[0].input : brandSel,
+      run: () => {
+        const counts = [];
+        for (const c of cells) {
+          const raw = c.input.value.trim();
+          if (raw === "") continue;
+          const n = Number(raw);
+          if (!Number.isInteger(n) || n < 0 || n > DR.QTY_MAX) {
+            throw drawerSentence(`Each count is a whole number from 0 to ${DR.QTY_MAX}`, c.input);
+          }
+          if (n > 0) counts.push({ height: c.height, length: c.length, qty: n });
+        }
+        if (!counts.length) throw drawerSentence(editing ? "Add at least one drawer, or cancel the line in the table above" : "Add at least one drawer", cells[0].input);
+        const note = notes.value.trim();
+        if (editing) {
+          const same = JSON.stringify(DR.sorted(brandId, counts)) === JSON.stringify(DR.sorted(brandId, line.counts)) &&
+            note === (line.notes || "").trim() && (!checkBox || checkBox.checked === !!line.drawers.checked);
+          if (same) return undefined;
+          const body = { counts, notes: note };
+          if (checkBox) body.checked = checkBox.checked;
+          return drawerSend("/api/orders/" + encodeURIComponent(line.id) + "/drawers", "PUT", body);
+        }
+        const body = { brand: brandId, counts, notes: note };
+        if (checkBox && checkBox.checked) body.checked = true;
+        return drawerSend("/api/job-records/" + jobId + "/drawers", "POST", body);
+      },
+    });
+  }
+
+  function refillDialog(line) {
+    return drawerDialog({
+      title: "Refill from Joinr?",
+      note: `${line.description}.`,
+      hint: "The counts are replaced by the Joinr quote's drawer lines, as the drawer name list maps them now. The check is cleared, so Design/PM checks the grid again.",
+      submit: "Refill",
+      cancel: "Keep these counts",
+      focus: "cancel",
+      run: () => drawerSend("/api/orders/" + encodeURIComponent(line.id) + "/drawers/refill", "POST", {}),
+    });
+  }
+
+  function drawerButton(id, act) {
+    return $("drawersBody").querySelector(`button[data-dact="${act}"][data-id="${id}"]`);
+  }
+
+  // After an action: the same line's next button, or its heading, or the block's heading.
+  function focusDrawerAfter(id, acts) {
+    for (const a of acts) if (focusNode(drawerButton(id, a))) return;
+    if (focusNode($("dw-jb-" + id))) return;
+    focusNode($("drawers-h"));
+  }
+
+  async function runDrawerAction(act, id, opener) {
+    if (drawersBusy || !drawerData) return;
+    const line = id ? drawerData.lines.find((l) => l.id === id) : null;
+    if (act !== "add" && !line) return;
+    const status = $("drawersStatus");
+    drawersBusy = true;
+    try {
+      let r;
+      if (act === "add" || act === "edit" || act === "refill") {
+        r = act === "refill" ? await refillDialog(line) : await gridDialog(act === "edit" ? line : null);
+        if (!r) return; // cancelled: focus is back on the button
+        if (r.refused) {
+          await Promise.all([loadDrawers(), loadOrders()]);
+          if (!focusNode(opener)) focusDrawerAfter(id, [act]);
+          return;
+        }
+      } else {
+        for (const b of $("drawersBody").querySelectorAll("button")) b.disabled = true;
+        setLine(status, "Saving...", "muted");
+        try {
+          r = await api("/api/orders/" + encodeURIComponent(line.id) + "/drawers/check", {
+            method: "POST",
+            body: JSON.stringify({ checked: act === "check" }),
+          });
+        } catch (e) {
+          setLine(status, e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
+          await loadDrawers();
+          focusDrawerAfter(id, [act]);
+          return;
+        }
+      }
+      const o = (r && r.order) || line;
+      const name = o && o.drawers ? drawerLineName(o) : "Drawers";
+      const said = {
+        add: `Added: ${name}. Design/PM checks it before it goes on the Drawer order.`,
+        edit: `Saved: ${name}.`,
+        check: `Checked: ${name}. It goes on the Drawer order.`,
+        uncheck: `Unchecked: ${name}. It waits for the check again.`,
+        refill: `Refilled from Joinr: ${name}. Check it again.`,
+      }[act];
+      if (r && r.job) applyJobState(r.job);
+      setLine(status, act === "add" && r.order && r.order.drawers && r.order.drawers.checked ? `Added and checked: ${name}.` : said, "ok");
+      await Promise.all([loadDrawers(), loadOrders()]);
+      const newId = r && r.order ? r.order.id : id;
+      const next = { add: ["edit"], edit: ["edit"], check: ["uncheck"], uncheck: ["check"], refill: ["refill", "edit"] }[act];
+      focusDrawerAfter(newId, act === "add" ? [] : next);
+    } finally {
+      drawersBusy = false;
     }
   }
 
@@ -1478,6 +1973,15 @@
       });
       tasks.push(loadOrders());
       if (can("orders.edit")) tasks.push(loadSuppliers());
+      if (DR) {
+        $("drawersBody").addEventListener("click", (ev) => {
+          const b = ev.target.closest && ev.target.closest("button[data-dact]");
+          if (!b || b.disabled) return;
+          runDrawerAction(b.getAttribute("data-dact"), Number(b.getAttribute("data-id")), b);
+        });
+        $("addDrawers").addEventListener("click", (ev) => runDrawerAction("add", null, ev.currentTarget));
+        tasks.push(loadDrawers());
+      }
     }
     if (can("jobs.view") || can("scheduling.view")) {
       $("inspectionForm").addEventListener("submit", onBook);

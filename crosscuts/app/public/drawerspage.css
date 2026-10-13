@@ -1,0 +1,439 @@
+/* Drawer order (drawers.html, drawerspage.js) and the job page's drawer grids (job.html links this
+   file for the dw-j classes): docs/plans/m11-contracts.md sections 11.1 and 11.2. Tokens come from
+   tokens.css, hs- components from components.css, and the dialog frame (cc-dialog, cc-field) from
+   the shell. Page classes are prefixed dw-. The paper styles (black on white) are in the print
+   block at the end, scoped to the Drawer order page (body.dw-body) so the job page prints as it did. */
+
+/* ======================================================================== the Drawer order page */
+.dw-body { margin: 0; min-height: 100%; background: var(--ink); color: var(--body); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+.dw-body a { color: var(--teal-tint); text-decoration: none; }
+.dw-body a:hover { text-decoration: underline; }
+
+.dw-page { max-width: 1320px; margin: 0 auto; padding: 22px 16px 48px; }
+.dw-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- header, tabs, status ---------- */
+.dw-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 6px; }
+.dw-head h1 { flex: 1 1 auto; margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.dw-head h1:focus { outline: none; }
+.dw-intro { margin: 0 0 14px; max-width: 760px; color: var(--label); font-size: 13px; }
+
+.dw-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--hairline);
+  overflow-x: auto;
+}
+.dw-tab {
+  flex: 0 0 auto;
+  margin-bottom: -1px;
+  padding: 8px 14px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--label);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.dw-tab:hover { color: var(--white); }
+.dw-tab[aria-selected="true"] { color: var(--white); border-bottom-color: var(--teal); }
+.dw-tab:focus-visible { outline-offset: -2px; }
+
+.dw-status { margin: 0 0 12px; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.dw-status:empty { display: none; }
+.dw-status-ok { color: var(--go-tint); }
+.dw-status-err { color: var(--orange-tint); }
+
+.dw-panel:focus { outline: none; }
+.dw-note { margin: 0 0 10px; max-width: 760px; color: var(--label); font-size: 13px; }
+.dw-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.dw-empty {
+  margin: 0 0 22px;
+  padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  color: var(--label);
+}
+
+/* ---------- a brand tab: summary and buttons ---------- */
+.dw-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.dw-summary { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0; }
+.dw-sumitem { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; }
+.dw-sumitem b { color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.dw-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.dw-group { margin-bottom: 22px; }
+.dw-sbar { margin-bottom: 8px; flex-wrap: wrap; }
+.dw-sbar h2 { display: inline-flex; align-items: center; gap: 8px; white-space: normal; }
+.dw-sbar h2:focus { outline: none; }
+.dw-sbar h2:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.dw-sbar-note { color: var(--label); font-size: 12px; }
+.dw-count {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--na);
+  border-radius: var(--r-badge);
+  color: var(--white);
+  font-size: 11px;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.dw-count-check { border-color: var(--orange); background: var(--orange-16); color: var(--orange-tint); }
+
+.dw-wrap {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+
+/* ---------- the sheet: one block per height, the seven lengths across ---------- */
+.dw-sheet { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.dw-col-job { width: auto; }
+.dw-col-n { width: 70px; }
+.dw-col-tot { width: 78px; }
+.dw-sheet th, .dw-sheet td { padding: 6px 10px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.dw-sheet thead th {
+  background: var(--raised);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.dw-sheet .dw-n { text-align: right; }
+.dw-sheet thead th.dw-n { text-align: right; }
+.dw-sheet .dw-tot { color: var(--white); font-weight: 700; }
+.dw-blockhead th {
+  padding-top: 12px;
+  background: var(--surface);
+  border-bottom-color: var(--na);
+  color: var(--teal-tint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+}
+.dw-block:first-of-type .dw-blockhead th { padding-top: 8px; }
+.dw-th-job { text-align: left; font-weight: 400; color: var(--body); overflow-wrap: anywhere; }
+/* the job names stay in view while the lengths scroll under them (narrow screens) */
+.dw-sheet tbody th.dw-th-job, .dw-sheet thead th.dw-th-job { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.dw-sheet thead th.dw-th-job, .dw-sheet .dw-totrow th.dw-th-job { background: var(--raised); }
+.dw-jobrow .dw-th-job { font-weight: 700; }
+.dw-jobrow td { color: var(--white); }
+.dw-jobrow:hover { background: var(--raised); }
+.dw-rownote { display: block; margin-top: 1px; color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.35; white-space: pre-line; overflow-wrap: anywhere; }
+span.dw-job { color: var(--white); font-weight: 700; }
+span.dw-joblink { color: var(--body); }
+a.dw-job { font-weight: 700; }
+.dw-stockrow .dw-th-job { color: var(--label); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.dw-stockrow td.dw-in { padding: 4px 6px; }
+.dw-qty {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  -moz-appearance: textfield;
+}
+.dw-qty::-webkit-outer-spin-button,
+.dw-qty::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.dw-qty[aria-invalid="true"] { border-color: var(--orange); }
+.dw-totrow th, .dw-totrow td { background: var(--raised); color: var(--white); font-weight: 700; }
+.dw-totrow .dw-th-job { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.dw-block:last-child .dw-totrow th, .dw-block:last-child .dw-totrow td { border-bottom: 0; }
+.dw-foot { margin: 8px 2px 0; color: var(--label); font-size: 13px; }
+.dw-foot b { color: var(--white); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---------- lists: Waiting, Placed, the names ---------- */
+.dw-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dw-table th {
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.dw-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.dw-table tbody tr:last-child td { border-bottom: 0; }
+.dw-table tbody tr:hover { background: var(--raised); }
+.dw-table-wait { min-width: 640px; }
+.dw-table-placed { min-width: 980px; }
+.dw-table-unmapped { min-width: 700px; }
+.dw-table-names { min-width: 640px; }
+.dw-c-job { width: 260px; }
+.dw-c-desc { width: auto; }
+.dw-c-num { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+th.dw-c-num { text-align: right; }
+.dw-c-src { width: 100px; }
+.dw-c-date { width: 112px; white-space: nowrap; }
+.dw-c-brand { width: 76px; }
+.dw-c-sup { width: 170px; }
+.dw-c-jobs { width: auto; }
+.dw-c-stock { width: 170px; }
+.dw-c-lines { width: 130px; }
+.dw-c-acts { width: 104px; text-align: right; }
+.dw-c-name { width: auto; }
+.dw-c-sec { width: 130px; }
+.dw-c-map { width: 230px; }
+.dw-c-by { width: 200px; color: var(--label); }
+.dw-table-names .dw-c-acts { width: 190px; }
+.dw-table-unmapped .dw-c-jobs { width: 34%; }
+td.dw-c-sup, .dw-strong { color: var(--white); font-weight: 700; }
+td.dw-ignored { color: var(--label); }
+.dw-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.dw-c-acts .hs-btn { padding: 7px 10px; }
+
+.dw-filterbar { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.dw-filter { width: auto; min-width: 160px; }
+.dw-back { margin-bottom: 8px; }
+.dw-back .hs-btn { padding-left: 0; }
+.dw-kvt { flex: 1 1 440px; max-width: 720px; grid-template-columns: 150px minmax(0, 1fr); }
+.dw-kvt .v { overflow-wrap: anywhere; }
+
+/* ---------- Settings ---------- */
+.dw-settings { max-width: 720px; padding: 16px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.dw-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.dw-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dw-formmsg { min-height: 20px; margin: 10px 0 0; color: var(--label); font-size: 13px; }
+.dw-formacts { display: flex; justify-content: flex-end; margin-top: 6px; }
+
+/* ---------- dialogs (on the shell's cc-dialog frame) ---------- */
+.cc-dialog.dw-dlg { width: min(94vw, 460px); max-height: 92vh; overflow-y: auto; }
+.cc-dialog.dw-dlg-wide { width: min(94vw, 600px); }
+.cc-dialog.dw-dlg-grid { width: min(96vw, 760px); }
+.dw-dlg-note { color: var(--body); overflow-wrap: anywhere; }
+.dw-dlg-field { min-width: 0; }
+.dw-dlg-hint { color: var(--muted); font-size: 12px; }
+.dw-dlg-error:empty { min-height: 0; }
+.dw-dlg-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.dw-dlg-row3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dw-dlg-sub { display: flex; flex-direction: column; gap: 6px; }
+.dw-dlg-list { margin: 0; padding: 8px 12px 8px 28px; max-height: 190px; overflow-y: auto; background: var(--ink); border: 1px solid var(--hairline); border-radius: var(--r-control); }
+.dw-dlg-list li { overflow-wrap: anywhere; }
+.dw-dlg-list b { color: var(--white); font-weight: 700; }
+.dw-date { color-scheme: dark; }
+.dw-text { resize: vertical; min-height: 64px; line-height: 1.45; }
+.dw-kind { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.dw-kind legend { padding: 0; margin-bottom: 6px; }
+.dw-radio { display: inline-flex; align-items: center; gap: 8px; color: var(--body); cursor: pointer; }
+.dw-radio input, .dw-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
+.dw-check { display: inline-flex; align-items: center; gap: 8px; color: var(--body); cursor: pointer; }
+
+/* the grid of number inputs in the job page's dialog */
+.dw-gwrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--ink); }
+.dw-gtable { width: 100%; min-width: 600px; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.dw-gtable th, .dw-gtable td { padding: 4px 5px; border-bottom: 1px solid var(--hairline); }
+.dw-gtable thead th {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: right;
+}
+.dw-gtable thead th:first-child { text-align: left; }
+.dw-gtable tbody th { text-align: left; color: var(--white); font-weight: 700; font-size: 13px; white-space: nowrap; }
+.dw-gtable col.dw-gc-h { width: 128px; }
+.dw-gtable col.dw-gc-t { width: 60px; }
+.dw-gtable td.dw-n, .dw-gtable th.dw-n { text-align: right; }
+.dw-gtable td.dw-tot { color: var(--white); font-weight: 700; padding-right: 8px; }
+.dw-gtable tfoot th, .dw-gtable tfoot td { border-bottom: 0; color: var(--white); font-weight: 700; background: var(--raised); }
+.dw-gtable tfoot th { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); text-align: left; }
+
+/* ============================================================== the job page's drawer grids (dw-j) */
+.dw-jblock { margin-top: 14px; }
+.dw-jhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.dw-jhead h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.dw-jcards { display: grid; gap: 10px; }
+.dw-jcard { padding: 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); min-width: 0; }
+.dw-jtop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; }
+.dw-jbrand { margin: 0; color: var(--white); font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.dw-jbrand:focus { outline: none; }
+.dw-jbrand:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.dw-jcheck { color: var(--label); font-size: 13px; }
+.dw-jsrc { color: var(--muted); font-size: 12px; }
+.dw-jnotes { margin: 8px 0 0; color: var(--label); font-size: 13px; white-space: pre-line; overflow-wrap: anywhere; }
+.dw-jacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dw-jacts .hs-btn { padding: 6px 10px; }
+.dw-jgwrap { display: inline-block; vertical-align: top; overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--r-control); max-width: 100%; }
+.dw-jblock .jo-status:empty { min-height: 0; margin: 0; }
+.dw-jgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.dw-jgrid th, .dw-jgrid td { padding: 5px 10px; border-bottom: 1px solid var(--hairline); text-align: right; white-space: nowrap; }
+.dw-jgrid thead th { background: var(--raised); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.dw-jgrid thead th:first-child, .dw-jgrid tbody th, .dw-jgrid tfoot th { text-align: left; }
+.dw-jgrid tbody th { color: var(--white); font-weight: 700; }
+.dw-jgrid td { color: var(--white); min-width: 48px; }
+.dw-jgrid .dw-tot { font-weight: 700; }
+.dw-jgrid tfoot th, .dw-jgrid tfoot td { border-bottom: 0; background: var(--raised); font-weight: 700; color: var(--white); }
+.dw-jgrid tfoot th { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.dw-jempty { margin: 0 0 10px; color: var(--label); font-size: 14px; }
+.dw-jjoinr { margin-top: 10px; }
+.dw-jjoinr ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.dw-jjoinr li { overflow-wrap: anywhere; }
+.dw-jjoinr b { color: var(--white); font-weight: 700; }
+.dw-jmap { color: var(--label); }
+.dw-jmap-ok { color: var(--teal-tint); }
+.dw-jmap-miss { color: var(--orange-tint); font-weight: 700; }
+.dw-jchanged { margin: 8px 0 0; color: var(--orange-tint); font-size: 13px; font-weight: 700; }
+.dw-jjoinr p { margin: 6px 0 0; font-size: 13px; color: var(--label); }
+.dw-kind-label {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+/* ---------- narrow screens ---------- */
+@media (max-width: 760px) {
+  .dw-page { padding-top: 16px; }
+  .dw-head h1 { font-size: 20px; }
+  .dw-fields { grid-template-columns: minmax(0, 1fr); }
+  .dw-tab { padding: 8px 9px; letter-spacing: 0.08em; }
+  .dw-sheet { min-width: 640px; }
+  .dw-col-n { width: 62px; }
+  .dw-col-tot { width: 64px; }
+  .dw-kvt { flex-basis: 100%; grid-template-columns: 110px minmax(0, 1fr); }
+  /* the lists become cards; the sheets keep their columns and scroll inside their box */
+  .dw-wrap:has(> .dw-table) { overflow: visible; background: none; border: 0; }
+  .dw-table, .dw-table tbody, .dw-table tr, .dw-table td { display: block; width: auto; min-width: 0; }
+  .dw-table td[class] { width: auto; }
+  .dw-table thead { display: none; }
+  .dw-table tbody tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+  }
+  .dw-table tbody tr:hover { background: var(--surface); }
+  .dw-table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; padding: 3px 0; border: 0; text-align: left; }
+  .dw-table td::before {
+    content: attr(data-label);
+    padding-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  .dw-table td.dw-c-acts { display: block; padding-top: 8px; }
+  .dw-table td.dw-c-acts::before { content: none; }
+  .dw-acts { justify-content: flex-start; }
+  .dw-c-acts .hs-btn { padding: 10px 12px; }
+  .dw-dlg-row, .dw-dlg-row3 { grid-template-columns: minmax(0, 1fr); }
+  .dw-gtable { min-width: 540px; }
+  .dw-gtable col.dw-gc-h { width: 92px; }
+  .dw-gtable tbody th { white-space: normal; font-size: 12px; line-height: 1.25; }
+  .cc-dialog.dw-dlg .cc-dialog-form { padding: 16px; }
+}
+
+/* the sheet is built before printing and only shown on paper */
+.dw-print { display: none; }
+
+/* style-check: print-start (paper colours: pure black on white) */
+.dw-print {
+  page: dwsheet;
+  font-family: var(--font);
+  font-size: 9.5pt;
+  line-height: 1.3;
+  color: #000;
+}
+.dw-print :where(h1, p) { margin: 0; }
+.dw-p-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10mm;
+  padding-bottom: 3mm;
+  margin-bottom: 4mm;
+  border-bottom: 0.5mm solid #000;
+}
+.dw-p-h1 { font-size: 16pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
+.dw-p-sup { margin-top: 1mm; font-size: 11pt; font-weight: 700; }
+.dw-p-meta { text-align: right; }
+.dw-p-meta p, .dw-p-foot p { display: flex; gap: 3mm; justify-content: flex-end; align-items: baseline; }
+.dw-p-label { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.dw-p-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.dw-pc-job { width: auto; }
+.dw-pc-n { width: 15mm; }
+.dw-p-table th, .dw-p-table td { padding: 1.4mm 1.5mm; border-bottom: 0.2mm solid #000; vertical-align: top; overflow-wrap: anywhere; }
+.dw-p-block { break-inside: avoid; page-break-inside: avoid; }
+.dw-p-bh th {
+  padding-top: 4mm;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 0.5mm solid #000;
+  vertical-align: bottom;
+}
+.dw-p-hl { text-align: left; font-size: 9pt; }
+.dw-p-n { text-align: right; }
+.dw-p-job { text-align: left; }
+.dw-p-strong { font-weight: 700; }
+.dw-p-tot td { font-weight: 700; border-bottom: 0.5mm solid #000; }
+.dw-p-foot { display: flex; justify-content: space-between; gap: 10mm; margin-top: 5mm; padding-top: 2mm; font-size: 11pt; }
+.dw-p-empty { font-size: 11pt; }
+
+@page dwsheet {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html:has(> body.dw-body), body.dw-body { background: #fff; color: #000; }
+  body.dw-body { padding: 0 !important; }
+  body.dw-body > :not(main) { display: none !important; }
+  .dw-page { max-width: none; margin: 0; padding: 0; }
+  .dw-page > :not(#dwPrintSheet) { display: none !important; }
+  .dw-print { display: block !important; color: #000; }
+  .dw-print * { color: #000; border-color: #000; background: #fff; }
+}
+/* style-check: print-end */
