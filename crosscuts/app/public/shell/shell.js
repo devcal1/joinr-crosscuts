@@ -1,4 +1,5 @@
-// Crosscuts shared shell: the top bar used by every page except the schedule board.
+// Crosscuts shared shell: the top bar used by every page except login, setup
+// and photo search (Todd, 2026-10-13: the board and Workers use it too).
 //
 //   <div id="cc-shell"></div>
 //   <script src="/shell/shell.js"></script>

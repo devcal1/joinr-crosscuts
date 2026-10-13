@@ -4,15 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Schedule — TH Cabinets</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shell/shell.css">
 <link rel="stylesheet" href="schedule.css">
 <link rel="stylesheet" href="vendor/phosphor/style.css">
 </head>
 <body>
 
-  <nav class="nav">
-    <a class="nav-brand" href="/">TH Cabinets</a>
-    <a href="/schedule.html" aria-current="page">Schedule</a>
-    <a href="/workers.html">Workers</a>
+  <div id="cc-shell"></div>
+
+  <!-- The week controls: a strip under the shared menu bar (Todd, 2026-10-13). -->
+  <nav class="nav" aria-label="Week">
     <div class="nav-spacer"></div>
     <button id="prevWeekBtn" class="btn btn-secondary btn-icon" type="button" aria-label="Previous week"><i class="ph ph-caret-left"></i></button>
     <input id="weekPicker" class="input" type="date" title="Jump to week">
@@ -43,6 +45,7 @@
   <div id="popover" class="popover" hidden></div>
   <dialog id="finishDialog" class="finish-dialog" aria-label="Finish week"></dialog>
 
+  <script src="shell/shell.js"></script>
   <script src="shared.js"></script>
   <script src="schedule.js"></script>
 </body>

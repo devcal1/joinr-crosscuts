@@ -20,7 +20,7 @@ None of Crosscuts follows the house style yet. All of it was built on an earlier
 | Brand | the word "Crosscuts" with a purple square | text lockup **TH CABINETS**, like Offcuts |
 
 Per page (details in the audit, file and line references available):
-- **Menu bar (shell):** all of the above; it appears on every page except login, setup, photo search and the board.
+- **Menu bar (shell):** all of the above; it appears on every page except login, setup and photo search. (The board and Workers gained it on 2026-10-13, Todd: one consistent top header; the board's week buttons sit in a strip under it.)
 - **Login and setup:** purple filled button and a card shadow.
 - **Dashboard, Accounts, Design, Scheduling:** tiles with 12px corners, purple links, rounded "Planned" pills.
 - **Photo admin:** closest to the house style (outlined buttons), but purple, pink "delete" and rounded tag pills.

@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Workers — TH Cabinets</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shell/shell.css">
 <link rel="stylesheet" href="schedule.css">
 <style>
   .worker-table { width: 100%; border-collapse: collapse; max-width: 640px; }
@@ -26,11 +28,7 @@
 </head>
 <body>
 
-  <nav class="nav">
-    <a class="nav-brand" href="/">TH Cabinets</a>
-    <a href="/schedule.html">Schedule</a>
-    <a href="/workers.html" aria-current="page">Workers</a>
-  </nav>
+  <div id="cc-shell"></div>
 
   <main>
     <div class="page-head">
@@ -47,6 +45,7 @@
     <div id="workerList" class="worker-table"></div>
   </main>
 
+  <script src="shell/shell.js"></script>
   <script src="shared.js"></script>
   <script src="workers.js"></script>
 </body>

@@ -715,10 +715,14 @@
     return next && next.classList.contains("job-notes") && !next.hidden ? next.offsetHeight : 0;
   }
   function syncRowHeights() {
-    // The sticky week banner sits below the nav; nav height varies with
-    // flex-wrap, so measure it into the CSS var the banner's `top` uses.
-    // This runs on render/resize/fonts-ready — the same times it can change.
-    document.documentElement.style.setProperty("--nav-h", `${document.querySelector(".nav").offsetHeight}px`);
+    // The sticky week banner sits below the menu bar and the nav; nav height
+    // varies with flex-wrap, so measure both into the CSS vars the nav's and
+    // the banner's `top` use. This runs on render/resize/fonts-ready (and when
+    // the menu bar has loaded) — the same times they can change.
+    const shellEl = document.getElementById("cc-shell");
+    const shellH = shellEl ? shellEl.offsetHeight : 0;
+    document.documentElement.style.setProperty("--shell-h", `${shellH}px`);
+    document.documentElement.style.setProperty("--nav-h", `${shellH + document.querySelector(".nav").offsetHeight}px`);
     const stacked = window.matchMedia("(max-width: 900px)").matches;
     const pairs = [];
     for (const section of weeksContainer.querySelectorAll(".week-section")) {
@@ -1572,6 +1576,7 @@
   // changes — and once the web font lands, since it shifts text metrics.
   window.addEventListener("resize", queueSync);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncRowHeights);
+  document.addEventListener("cc:ready", queueSync);
 
   // The board lives on an always-on workshop TV: once the local date rolls
   // over, re-render so the today highlight moves — and if the viewer was on
