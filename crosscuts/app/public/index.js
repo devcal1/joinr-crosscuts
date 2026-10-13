@@ -1,4 +1,4 @@
-// Personal dashboard: greeting, the this-week board, accounts and deliveries lines, notifications and the
+// Personal dashboard: greeting, the this-week board, accounts, deliveries and stock lines, notifications and the
 // signed-in user's own work (planner, tasks, messages). Getting to a department is the menu bar's job. Everything is gated on window.cc (shell/shell.js).
 (function () {
   "use strict";
@@ -71,6 +71,50 @@
         line.appendChild(el("span", overdue > 0 ? "stat-overdue" : null, overdue + " overdue"));
         line.appendChild(el("span", "week-go", "Open deliveries"));
         line.hidden = false;
+      })
+      .catch(function () { /* optional; leave it hidden */ });
+  }
+
+  // Stock, boards and drawers (docs/plans/m11-contracts.md section 11.8): lines like the
+  // Deliveries one, each hidden when there is nothing to say, from one request. The server
+  // returns only the parts the user's keys allow, and applies the counting window (the 25th of a
+  // month to the 7th of the next).
+  function stockLine(href, label, text, go, attend) {
+    var a = el("a", "week-line hs-callout" + (attend ? " hs-callout-orange" : ""));
+    a.href = href;
+    a.appendChild(el("strong", null, label + ": "));
+    a.appendChild(document.createTextNode(text));
+    a.appendChild(el("span", "week-go", go));
+    return a;
+  }
+  function periodHref(page, period) {
+    return "/" + page + "?period=" + encodeURIComponent(period);
+  }
+  function renderStock(cc) {
+    if (!cc.can("stock.count") && !cc.can("stock.order")) return;
+    var host = document.querySelector(".dash-lines");
+    if (!host) return;
+    api("/api/stock/summary")
+      .then(function (s) {
+        if (!s) return;
+        var lines = [];
+        if (s.stockCount && s.stockCount.period) {
+          lines.push(stockLine(periodHref("stock.html", s.stockCount.period), "Stock count", s.stockCount.label + " not done", "Open stock order", true));
+        }
+        if (s.boardCount && s.boardCount.period) {
+          lines.push(stockLine(periodHref("boards.html", s.boardCount.period), "Board count", s.boardCount.label + " not done", "Open board stocktake", true));
+        }
+        var d = s.drawers;
+        if (d && (Number(d.toOrder) > 0 || Number(d.waiting) > 0)) {
+          lines.push(stockLine("/drawers.html", "Drawers", (Number(d.toOrder) || 0) + " to order · " + (Number(d.waiting) || 0) + " waiting for check", "Open drawer order", false));
+        }
+        (s.stockToOrder || []).forEach(function (m) {
+          lines.push(stockLine(periodHref("stock.html", m.period), "Stock order " + m.label, "counted, to order", "Open stock order", false));
+        });
+        (s.boardValue || []).forEach(function (m) {
+          lines.push(stockLine(periodHref("boards.html", m.period), "Board count " + m.label, "value to confirm", "Open board stocktake", false));
+        });
+        lines.forEach(function (a) { host.appendChild(a); });
       })
       .catch(function () { /* optional; leave it hidden */ });
   }
@@ -271,6 +315,7 @@
     renderWeek(cc);
     renderAccounts(cc);
     renderDeliveries(cc);
+    renderStock(cc);
     renderHint(cc);
     renderAlerts(cc);
     renderPlanner(cc);

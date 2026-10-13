@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint orders - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
+<link rel="stylesheet" href="paint.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <main class="pt-page" id="ptPage">
+    <div class="pt-head">
+      <h1 id="ptTitle" tabindex="-1">Paint orders</h1>
+      <span id="ptBadge" class="pt-badge"></span>
+      <div id="ptHeadActions" class="pt-head-actions"></div>
+    </div>
+    <p id="ptIntro" class="pt-intro" hidden>Paint, hardener, thinners, primer and sanding discs, ordered from one supplier. A line with a job becomes an order line on that job, so it counts toward the job's materials; a line with no job is workshop stock.</p>
+    <p id="ptStatus" class="pt-status" role="status" aria-live="polite">Loading...</p>
+
+    <!-- The tabs (stock.order): the orders, the paint list and the litres factor -->
+    <div id="ptTabs" class="pt-tabs" role="tablist" aria-label="Paint" hidden>
+      <button id="ptTabOrders" class="pt-tab" type="button" role="tab" aria-selected="true" aria-controls="ptPanelOrders">Orders</button>
+      <button id="ptTabList" class="pt-tab" type="button" role="tab" aria-selected="false" aria-controls="ptPanelList" tabindex="-1">Paint list</button>
+      <button id="ptTabSettings" class="pt-tab" type="button" role="tab" aria-selected="false" aria-controls="ptPanelSettings" tabindex="-1">Settings</button>
+    </div>
+
+    <section id="ptPanelOrders" class="pt-panel" role="tabpanel" aria-labelledby="ptTabOrders" hidden>
+      <div class="pt-tools">
+        <label class="pt-inline">
+          <span class="hs-label">Show</span>
+          <select id="ptFilter" class="hs-input pt-filter">
+            <option value="open">Open (draft or ordered)</option>
+            <option value="all">All</option>
+            <option value="draft">Drafts</option>
+            <option value="ordered">Ordered</option>
+            <option value="received">Received</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <a id="ptNew" class="hs-btn hs-btn-primary" href="/paint.html?id=new">New paint order</a>
+      </div>
+      <p id="ptListEmpty" class="pt-empty" hidden></p>
+      <div id="ptListWrap" class="pt-wrap" hidden>
+        <table class="pt-table pt-table-orders">
+          <thead>
+            <tr>
+              <th scope="col" class="pt-c-order">Order</th>
+              <th scope="col" class="pt-c-status">Status</th>
+              <th scope="col" class="pt-c-sup">Supplier</th>
+              <th scope="col" class="pt-c-date">Date</th>
+              <th scope="col" class="pt-c-jobs">Jobs</th>
+              <th scope="col" class="pt-c-num">Lines</th>
+            </tr>
+          </thead>
+          <tbody id="ptListRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ptPanelList" class="pt-panel" role="tabpanel" aria-labelledby="ptTabList" hidden>
+      <form id="ptAddForm" class="pt-card pt-addform" novalidate>
+        <h2 class="pt-h2">Add to the paint list</h2>
+        <div class="pt-fields pt-fields-add">
+          <label class="pt-field"><span class="hs-label">Name</span><input id="ptAddName" class="hs-input" type="text" maxlength="200" autocomplete="off" required></label>
+          <label class="pt-field"><span class="hs-label">Finish</span><input id="ptAddFinish" class="hs-input" type="text" maxlength="200" autocomplete="off"></label>
+          <label class="pt-field"><span class="hs-label">Manufacturer</span><input id="ptAddMaker" class="hs-input" type="text" maxlength="200" autocomplete="off"></label>
+          <label class="pt-field"><span class="hs-label">Kind</span>
+            <select id="ptAddKind" class="hs-input">
+              <option value="colour">Colour</option>
+              <option value="hardener">Hardener</option>
+              <option value="thinners">Thinners</option>
+              <option value="primer">Primer</option>
+              <option value="abrasive">Abrasive</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label class="pt-field"><span class="hs-label">Unit</span>
+            <select id="ptAddUnit" class="hs-input">
+              <option value="kg">kg</option>
+              <option value="each">each</option>
+            </select>
+          </label>
+          <div class="pt-field pt-field-go"><button id="ptAddBtn" class="hs-btn hs-btn-primary" type="submit">Add</button></div>
+        </div>
+        <p id="ptAddMsg" class="pt-msg" role="status" aria-live="polite"></p>
+      </form>
+      <p id="ptItemsEmpty" class="pt-empty" hidden>Nothing on the paint list yet. Add the colours, hardener, thinners, primers and sanding discs you order.</p>
+      <div id="ptItemsWrap" class="pt-wrap" hidden>
+        <table class="pt-table pt-table-items">
+          <thead>
+            <tr>
+              <th scope="col" class="pt-c-name">Name</th>
+              <th scope="col" class="pt-c-text">Finish</th>
+              <th scope="col" class="pt-c-text">Manufacturer</th>
+              <th scope="col" class="pt-c-kind">Kind</th>
+              <th scope="col" class="pt-c-unit">Unit</th>
+              <th scope="col" class="pt-c-acts"><span class="pt-sr">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="ptItemRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ptPanelSettings" class="pt-panel" role="tabpanel" aria-labelledby="ptTabSettings" hidden>
+      <form id="ptSettingsForm" class="pt-card pt-settings" novalidate>
+        <h2 class="pt-h2">Litres per kg</h2>
+        <p class="pt-note">A paint order shows litres for each kg line: kg times this factor, rounded to 0.01. It changes the litres on every order, old ones too, because litres are worked out when an order is shown.</p>
+        <div class="pt-fields pt-fields-settings">
+          <label class="pt-field"><span class="hs-label">Litres per kg</span><input id="ptFactor" class="hs-input" type="number" min="0.1" max="5" step="0.01" inputmode="decimal"></label>
+          <div class="pt-field pt-field-go"><button id="ptFactorSave" class="hs-btn hs-btn-primary" type="submit">Save</button></div>
+        </div>
+        <p id="ptFactorMsg" class="pt-msg" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <!-- One paint order (/paint.html?id=N, or ?id=new), built by paint.js -->
+    <section id="ptOrder" class="pt-order" aria-labelledby="ptTitle" hidden></section>
+
+    <!-- The printed order (hidden on screen, built before printing) -->
+    <section id="ptPrint" class="pt-print" aria-hidden="true"></section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="paint.js"></script>
+</body>
+</html>
