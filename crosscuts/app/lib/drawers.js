@@ -11,6 +11,7 @@
 // The Joinr payload is read straight from joinr_intake (the latest record tied to the job, as
 // intake.forJob picks it), because intake's normalised quote leaves the drawer lines out and
 // lib/intake.js calls fillFromJoinr (so this file must not require it back).
+const crypto = require("crypto");
 const audit = require("./audit");
 const invoices = require("./invoices");
 const notify = require("./notify");
@@ -153,10 +154,14 @@ function normaliseJoinr(list) {
 
 // The latest intake payload tied to the job (intake.forJob's record): its drawers, or null.
 function payloadFor(db, jobId) {
-  const row = db.prepare("SELECT payload FROM joinr_intake WHERE job_id = ? ORDER BY id DESC LIMIT 1").get(jobId);
-  if (!row) return { found: false, drawers: null };
+  const row = db.prepare("SELECT payload, quote_number FROM joinr_intake WHERE job_id = ? ORDER BY id DESC LIMIT 1").get(jobId);
+  if (!row) return { found: false, drawers: null, quoteNumber: null };
   const p = parseJson(row.payload);
-  return { found: true, drawers: normaliseJoinr(p && typeof p === "object" ? p.drawers : null) };
+  return {
+    found: true,
+    drawers: normaliseJoinr(p && typeof p === "object" ? p.drawers : null),
+    quoteNumber: typeof row.quote_number === "string" && row.quote_number.trim() ? row.quote_number.trim().slice(0, 100) : null,
+  };
 }
 
 // Each entry with its current mapping, and the per-brand sums of the mapped ones.
@@ -178,9 +183,12 @@ function mapEntries(db, entries) {
   return { mapped, byBrand };
 }
 
-// The joinr_lines kept on a brand's line: that brand's entries plus every unmapped one.
-function linesForBrand(mapped, brandId) {
-  return mapped.filter((e) => e.map === null || (e.map !== "ignored" && e.map.brand === brandId));
+// The joinr_lines kept on a line (contracts section 4.5, review A-m5): every entry of the quote's
+// drawer lines as Joinr sent it (section, name, qty), with the mapping it had at the time. All of
+// them, not only the line's brand, so "Changed in Joinr" compares Joinr's own lines and a later
+// change to our name list never shows as a change.
+function linesForLine(mapped) {
+  return mapped.map((e) => ({ section: e.section, name: e.name, qty: e.qty, map: e.map }));
 }
 
 // --- reading lines -----------------------------------------------------------------------------
@@ -229,6 +237,17 @@ function openLineOf(db, jobId, brandId) {
     .get(jobId, brandId);
 }
 
+// Any live (not cancelled) drawer line of the brand on the job, ordered or received too
+// (contracts section 15.18: filling from Joinr skips such a brand).
+function liveLineOf(db, jobId, brandId) {
+  return db
+    .prepare(
+      `SELECT o.id FROM orders o JOIN order_drawers od ON od.order_id = o.id
+       WHERE o.job_id = ? AND od.brand = ? AND o.status <> 'cancelled' LIMIT 1`
+    )
+    .get(jobId, brandId);
+}
+
 // Creates a drawer line (an orders row through orders.createLine, then its link row and counts),
 // inside the caller's transaction. Returns the order id.
 function insertLine(db, req, jobId, brand, counts, { source, joinrLines, notes, expectedDate, checked }) {
@@ -258,7 +277,7 @@ function insertLine(db, req, jobId, brand, counts, { source, joinrLines, notes, 
 
 // Called by lib/intake.js accept() and link() inside their transactions, after the job is written,
 // only when the payload's drawers is an array (section 4.5). Returns {created: [orderId], unmapped: [name]}.
-function fillFromJoinr(db, jobId, payloadDrawers, req, { quoteNumber } = {}) {
+function fillFromJoinr(db, jobId, payloadDrawers, req, { quoteNumber, noUnmappedNotice } = {}) {
   const entries = normaliseJoinr(payloadDrawers);
   if (!entries) return { created: [], unmapped: [] };
   return db.transaction(() => {
@@ -268,11 +287,11 @@ function fillFromJoinr(db, jobId, payloadDrawers, req, { quoteNumber } = {}) {
     for (const brand of Drawers.BRANDS) {
       const counts = byBrand[brand.id];
       if (!counts || !counts.length) continue;
-      if (openLineOf(db, jobId, brand.id)) continue; // the job page offers Refill instead
+      if (liveLineOf(db, jobId, brand.id)) continue; // while it is still to order, the job page offers Refill
       created.push(
         insertLine(db, req, jobId, brand, counts, {
           source: "joinr",
-          joinrLines: linesForBrand(mapped, brand.id),
+          joinrLines: linesForLine(mapped),
           notes: `From Joinr${quoteNumber ? ` ${quoteNumber}` : ""}.`,
         })
       );
@@ -284,7 +303,7 @@ function fillFromJoinr(db, jobId, payloadDrawers, req, { quoteNumber } = {}) {
       keys.add(nameKey(e.name));
       unmapped.push(e.name);
     }
-    if (unmapped.length) {
+    if (unmapped.length && !noUnmappedNotice) {
       const body = unmapped.join(", ");
       notify.toUsers(
         db,
@@ -320,25 +339,37 @@ function fillFromJoinr(db, jobId, payloadDrawers, req, { quoteNumber } = {}) {
 
 // --- a job's drawer lines (section 6.1) --------------------------------------------------------
 
-// True when a line filled from Joinr no longer matches the payload: a stored entry gone or with
-// another quantity, or a payload entry for this brand (or unmapped) that the line never saw.
-function lineChanged(stored, current, brandId) {
-  const key = (e) => `${e.section}\u0000${nameKey(e.name)}`;
-  const now = new Map(current.map((e) => [key(e), e]));
-  const had = new Map((stored || []).map((e) => [key(e), e]));
-  for (const [k, e] of had) {
-    const c = now.get(k);
-    if (!c || c.qty !== e.qty) return true;
-  }
-  for (const [k, e] of now) {
-    const forThis = e.map === null || (e.map !== "ignored" && e.map.brand === brandId);
-    if (forThis && !had.has(k)) return true;
-  }
+// True when a line filled from Joinr no longer matches what Joinr now sends: a stored entry gone,
+// a new one, or one with another quantity. It compares Joinr's own lines (section, name, qty) and
+// ignores the mapping, so remapping a name on our side is never a change (review A-m5).
+function lineChanged(stored, current) {
+  const sum = (list) => {
+    const m = new Map();
+    for (const e of list || []) {
+      const k = `${e.section}\u0000${nameKey(e.name)}`;
+      m.set(k, (m.get(k) || 0) + e.qty);
+    }
+    return m;
+  };
+  const had = sum(stored);
+  const now = sum(current);
+  if (had.size !== now.size) return true;
+  for (const [k, q] of had) if (now.get(k) !== q) return true;
   return false;
 }
 
+// The brands a Fill from Joinr would create a line for: the payload's mapped counts, minus the
+// brands the job already has a live drawer line for (section 15.18).
+function fillable(db, jobId) {
+  const p = payloadFor(db, jobId);
+  if (!p.drawers) return { payload: p, brands: [] };
+  const { byBrand } = mapEntries(db, p.drawers);
+  const brands = Drawers.BRANDS.filter((b) => byBrand[b.id] && byBrand[b.id].length && !liveLineOf(db, jobId, b.id));
+  return { payload: p, brands };
+}
+
 // GET /api/job-records/:id/drawers: {lines, joinr}.
-function forJob(db, user, jobId) { // eslint-disable-line no-unused-vars
+function forJob(db, user, jobId) {
   requireJob(db, jobId);
   const ids = db
     .prepare(
@@ -355,12 +386,30 @@ function forJob(db, user, jobId) { // eslint-disable-line no-unused-vars
     else {
       const { mapped } = mapEntries(db, p.drawers);
       const changedSinceFill = lines.some(
-        (l) => l.drawers.source === "joinr" && lineChanged(l.joinrLines, mapped, l.drawers.brand)
+        (l) => l.drawers.source === "joinr" && lineChanged(l.joinrLines, mapped)
       );
       joinr = { drawers: mapped, unmapped: mapped.filter((e) => e.map === null), changedSinceFill };
     }
   }
-  return { lines, joinr };
+  // canFill: Fill from Joinr (POST .../drawers/fill) would create at least one line, and the user may.
+  const canFill = can({ user }, "orders.edit") && fillable(db, jobId).brands.length > 0;
+  return { lines, joinr, canFill };
+}
+
+// POST /api/job-records/:id/drawers/fill -> {lines, joinr, canFill, created: [orderId]} (section 15.18).
+function fillForJob(db, req, jobId) {
+  need(req, "orders.edit");
+  return db.transaction(() => {
+    requireJob(db, jobId);
+    const { payload, brands } = fillable(db, jobId);
+    if (!brands.length) throw conflict("Nothing to fill from Joinr");
+    const { created } = fillFromJoinr(db, jobId, payload.drawers, req, {
+      quoteNumber: payload.quoteNumber,
+      noUnmappedNotice: true,
+    });
+    if (!created.length) throw conflict("Nothing to fill from Joinr");
+    return { ...forJob(db, req.user, jobId), created };
+  })();
 }
 
 function checkedFlag(v) {
@@ -475,7 +524,7 @@ function refill(db, req, orderId) {
     return rewrite(db, req, row, counts, {
       checked: false,
       source: "joinr",
-      joinrLines: linesForBrand(mapped, row.brand),
+      joinrLines: linesForLine(mapped),
       action: "order.drawers_refill",
     });
   })();
@@ -513,18 +562,31 @@ function openLines(db, brandId) {
     });
 }
 
-// GET /api/drawers?brand=: {brand, supplier, rows, waiting, stock, totals, total}.
+// A hash of what the sheet shows (line ids, counts, notes, check state, the stock row), so placing
+// can tell that something changed while the page was open (contracts section 15.23).
+function sheetKeyOf(brandId, rows, waiting, stock) {
+  const line = (l) => [l.orderId, l.counts, l.notes || "", l.checked ? 1 : 0];
+  return crypto
+    .createHash("sha1")
+    .update(JSON.stringify([brandId, rows.map(line), waiting.map(line), stock]))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+// GET /api/drawers?brand=: {brand, supplier, sheetKey, rows, waiting, stock, totals, total}.
 function board(db, brand) {
   const b = brandOr400(brand);
   const lines = openLines(db, b.id);
   const rows = lines.filter((l) => l.checked);
   const stock = stockDraft(db, b.id);
   const totals = Drawers.sum(b.id, [...rows.map((r) => r.counts), stock]);
+  const waiting = lines.filter((l) => !l.checked);
   return {
     brand: b.id,
     supplier: settings.get(db, SUPPLIER_KEY[b.id]),
+    sheetKey: sheetKeyOf(b.id, rows, waiting, stock),
     rows,
-    waiting: lines.filter((l) => !l.checked),
+    waiting: waiting,
     stock,
     totals,
     total: Drawers.total(totals),
@@ -602,7 +664,7 @@ function placedRow(db, id) {
   return row;
 }
 
-// POST /api/drawers/place: {brand, orderedDate?, expectedDate?, orderIds} -> {drawerOrder}.
+// POST /api/drawers/place: {brand, orderedDate?, expectedDate?, orderIds, sheetKey} -> {drawerOrder}.
 function place(db, req, body) {
   need(req, "stock.order");
   need(req, "orders.mark_ordered");
@@ -610,12 +672,19 @@ function place(db, req, body) {
   if (!Array.isArray(body.orderIds) || !body.orderIds.every((id) => Number.isSafeInteger(id) && id > 0)) {
     throw bad("orderIds must be a list of order line ids");
   }
+  if (typeof body.sheetKey !== "string" || !body.sheetKey) throw bad("sheetKey is required");
   const today = sydneyToday();
   const orderedDate = dateOrNull("orderedDate", body.orderedDate) || today;
   if (orderedDate > today) throw bad("The ordered date can't be in the future");
   const expectedDate = dateOrNull("expectedDate", body.expectedDate);
+  if (expectedDate && expectedDate < orderedDate) {
+    throw bad(`The expected date can't be before it was ordered (${dayLabel(orderedDate)})`);
+  }
   const id = db.transaction(() => {
     const current = board(db, b.id);
+    if (body.sheetKey !== current.sheetKey) {
+      throw conflict("The drawer order changed while you were looking; reload it");
+    }
     const want = [...new Set(body.orderIds)].sort((x, y) => x - y);
     const have = current.rows.map((r) => r.orderId).sort((x, y) => x - y);
     if (want.length !== body.orderIds.length || JSON.stringify(want) !== JSON.stringify(have)) {
@@ -708,9 +777,10 @@ function undoPlaced(db, req, id) {
     }
     db.prepare("UPDATE order_drawers SET drawer_order_id = NULL WHERE drawer_order_id = ?").run(id);
     const grid = parseJson(row.grid_json) || {};
+    // A stock cell already typed on the page is added to; one that would pass the 999 cap is held at it.
     const up = db.prepare(
       `INSERT INTO drawer_stock_draft (brand, height, length, qty) VALUES (?, ?, ?, ?)
-       ON CONFLICT (brand, height, length) DO UPDATE SET qty = qty + excluded.qty`
+       ON CONFLICT (brand, height, length) DO UPDATE SET qty = MIN(qty + excluded.qty, ${Drawers.QTY_MAX})`
     );
     for (const c of grid.stock || []) {
       if (Number.isInteger(c.qty) && c.qty > 0) up.run(row.brand, c.height, c.length, c.qty);
@@ -777,6 +847,23 @@ function stockReceived(db, req, id, body) {
       "UPDATE drawer_orders SET stock_received_date = ?, stock_received_by = ?, stock_delivery_note = ? WHERE id = ?"
     ).run(after.stock_received_date, after.stock_received_by, after.stock_delivery_note, id);
     audit.log(req, { action: "drawer_order.stock_received", entityType: "drawer_order", entityId: id, before, after });
+    // A new non-empty delivery note tells Ordering, as an order line's does (section 15.20).
+    if (after.stock_delivery_note && after.stock_delivery_note !== (row.stock_delivery_note || "")) {
+      const brandRow = Drawers.brand(row.brand);
+      notify.toKey(
+        db,
+        "orders.mark_ordered",
+        {
+          kind: "drawers.delivery_note",
+          title: `Delivery note: Drawer stock (${brandRow ? brandRow.label : String(row.brand).toUpperCase()})`,
+          body: `${row.supplier}: ${orders.cutNote(after.stock_delivery_note)}`,
+          link: `/drawers.html?placed=${id}`,
+          entityType: "drawer_order",
+          entityId: id,
+        },
+        { exceptUserId: userId(req) }
+      );
+    }
   })();
   return placedGet(db, id);
 }
@@ -970,6 +1057,7 @@ function summary(db) {
 
 module.exports = {
   fillFromJoinr,
+  fillForJob,
   forJob,
   createForJob,
   updateGrid,

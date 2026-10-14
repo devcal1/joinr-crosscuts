@@ -9,6 +9,7 @@
 // - One sync at a time: the timer, POST /sync and POST /import share one in-flight lock.
 // - One transaction per item, and the stored cursor moves with the item it was handled for,
 //   so the cursor only ever advances past items that were applied (or refused as invalid).
+const crypto = require("crypto");
 const config = require("./joinr-config");
 const notify = require("./notify");
 
@@ -263,6 +264,11 @@ const DRAWER_LINES_MAX = 200;
 const DRAWER_NAME_MAX = 200;
 const DRAWER_QTY_MAX = 100000;
 
+// A malformed drawers field doesn't refuse the quote (contracts section 15.22): validateItem keeps
+// the item with drawers null and notes the problem here (kept off the item, which is stored as the
+// payload); applyItem logs it and tells the admins, once per quote and problem.
+const drawerProblems = new WeakMap();
+
 function drawerLines(item) {
   const v = item.drawers;
   if (v === undefined || v === null) return null;
@@ -380,9 +386,16 @@ function validateItem(item) {
   if (typeof item.url !== "string" || item.url.length > 1000 || !/^https?:$/.test(url.protocol)) {
     throw invalid("url must be an http(s) link");
   }
-  const drawers = drawerLines(item);
+  let drawers = null;
+  let drawersProblem = null;
+  try {
+    drawers = drawerLines(item);
+  } catch (e) {
+    drawers = null;
+    drawersProblem = e && e.message ? String(e.message).slice(0, 200) : "drawers could not be read";
+  }
 
-  return {
+  const out = {
     cursor,
     event,
     quoteId: item.quoteId.toLowerCase(),
@@ -408,6 +421,8 @@ function validateItem(item) {
     drawers,
     url: item.url,
   };
+  if (drawersProblem) drawerProblems.set(out, drawersProblem);
+  return out;
 }
 
 // --------------------------------------------------------------- applyItem ---
@@ -503,6 +518,37 @@ function changeBody(item, row, fields) {
 // Applies one validated item in its own transaction (nested in a caller's transaction it
 // becomes a savepoint). Returns {action}. Section 4 of m6-contracts.md; the job is never edited.
 function applyItem(db, item) {
+  return db.transaction(() => {
+    const result = applyItemInner(db, item);
+    const problem = drawerProblems.get(item);
+    if (problem) reportDrawerProblem(db, item, problem);
+    return result;
+  })();
+}
+
+// Section 15.22: the quote was imported with drawers treated as absent. Logs it and tells the
+// users.admin holders, naming the quote: once per quote and distinct problem, however often the
+// item comes round again (an import repeats items).
+function reportDrawerProblem(db, item, problem) {
+  const row = db.prepare("SELECT id FROM joinr_intake WHERE root_quote_id = ?").get(item.rootQuoteId);
+  if (!row) return; // never imported (not a won quote), so nothing to tell anyone
+  console.warn(`[joinr] item ${logCursor(item.cursor)}: drawers not read (${scrub(problem)}); imported without them`);
+  const entityId = `${item.rootQuoteId}:${crypto.createHash("sha1").update(problem).digest("hex").slice(0, 8)}`;
+  const seen = db
+    .prepare("SELECT 1 FROM notifications WHERE kind = 'joinr.drawers' AND entity_type = 'joinr_intake' AND entity_id = ? LIMIT 1")
+    .get(entityId);
+  if (seen) return;
+  notify.toKey(db, "users.admin", {
+    kind: "joinr.drawers",
+    title: titleFor("Drawers not read from Joinr", item),
+    body: `The quote was imported without its drawer lines (${scrub(problem)}). Add the drawers by hand, or fix the quote in Joinr.`.slice(0, 500),
+    link: `/intake.html?item=${row.id}`,
+    entityType: "joinr_intake",
+    entityId,
+  });
+}
+
+function applyItemInner(db, item) {
   return db.transaction(() => {
     const row = db.prepare("SELECT * FROM joinr_intake WHERE root_quote_id = ?").get(item.rootQuoteId);
     const payload = JSON.stringify(item);

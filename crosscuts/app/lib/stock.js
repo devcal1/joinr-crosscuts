@@ -15,6 +15,7 @@ const { bad, notFound, conflict } = require("./httperror");
 const { sydneyToday, DATE_RE, parseDateUTC, formatDateUTC } = require("./time");
 const audit = require("./audit");
 const notify = require("./notify");
+const { cutNote } = require("./orders");
 const Periods = require("../public/periods");
 
 const SUPPLIER_MAX = 200;
@@ -306,9 +307,11 @@ function groupRows(db, row) {
 
 // Section 7.1's order: counting; counted until any group is ordered; ordering while a group with
 // something to order isn't ordered; received when every ordered group is received; else ordered.
+// A group with no order quantities needs no order (section 15.19): a counted month needing nothing
+// at all is "ordered" (done) as soon as the count is finished.
 function stateOf(row, lines, groups) {
   if (!row || !row.counted_at) return "counting";
-  if (!groups.length) return "counted";
+  if (!groups.length) return lines.some((l) => l.order > 0) ? "counted" : "ordered";
   const ordered = new Set(groups.map((g) => g.supplier));
   if (lines.some((l) => l.order > 0 && !ordered.has(l.supplier))) return "ordering";
   return groups.every((g) => g.received_date) ? "received" : "ordered";
@@ -533,6 +536,9 @@ function group(db, req, period, body, today = sydneyToday()) {
   const orderedDate = dateOrNull("orderedDate", b.orderedDate) || today;
   if (orderedDate > today) throw bad("The ordered date can't be in the future");
   const expectedDate = dateOrNull("expectedDate", b.expectedDate);
+  if (expectedDate && expectedDate < orderedDate) {
+    throw bad(`The expected date can't be before it was ordered (${dayLabel(orderedDate)})`);
+  }
   db.transaction(() => {
     const row = orderRow(db, period);
     if (!row || !row.counted_at) throw conflict("Finish the count first");
@@ -601,6 +607,22 @@ function groupReceived(db, req, period, body, today = sydneyToday()) {
     const after = { supplier, received_date: receivedDate, received_by: userId(req) };
     if (deliveryNote !== g.delivery_note) after.delivery_note = deliveryNote;
     audit.log(req, { action: "stock_order.group_received", entityType: "stock_order", entityId: period, after });
+    // A new non-empty delivery note tells Ordering, as an order line's does (section 15.20).
+    if (deliveryNote && deliveryNote !== g.delivery_note) {
+      notify.toKey(
+        db,
+        "orders.mark_ordered",
+        {
+          kind: "stock.delivery_note",
+          title: `Delivery note: Stock order ${Periods.longLabel(period)}`,
+          body: `${supplier}: ${cutNote(deliveryNote)}`,
+          link: `/stock.html?period=${period}`,
+          entityType: "stock_order",
+          entityId: period,
+        },
+        { exceptUserId: userId(req) }
+      );
+    }
   })();
   return month(db, period, today);
 }

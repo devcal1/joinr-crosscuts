@@ -68,6 +68,7 @@ m11dw_board() {
   req GET "/api/drawers?brand=edge" "$ORDR"
   expect_status 200 "ordr GET /api/drawers?brand=edge"
   M11_DW_IDS=$(printf '%s' "$BODY" | jq -c '[.rows[].orderId]')
+  M11_DW_SK=$(jqr '.sheetKey')
 }
 
 # m11dw_fake METHOD PATH [json] -> M11_DW_OUT (the stand-in's response body), inside the container.
@@ -251,16 +252,33 @@ expect_jq "any(.rows[]; .orderId == $M11_DW_LA and .jobId == $M11_DW_JA and .job
 expect_jq "any(.waiting[]; .orderId == $M11_DW_LB) and all(.rows[]; .orderId != $M11_DW_LB)" "the unchecked line is waiting, not a row"
 expect_jq '.total == ([.rows[].total] | add) + ([.stock[].qty] | add)' "the grand total is the rows plus the stock row"
 expect_jq "any(.totals[]; .height == 93 and .length == 450 and .qty >= 2)" "the totals include the stock row"
-req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"orderIds\":$(printf '%s' "$M11_DW_IDS" | jq -c ". + [$M11_DW_LB]")}"
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$(printf '%s' "$M11_DW_IDS" | jq -c ". + [$M11_DW_LB]")}"
 expect_status 409 "placing with a line that isn't on the page"
 expect_jq '.error == "The drawer order changed while you were looking; reload it"' "and says reload"
-req POST /api/drawers/place "$ORDR" '{"brand":"edge","orderIds":[]}'
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":[]}"
 expect_status 409 "placing with a stale (empty) list"
-req POST /api/drawers/place "$WSMGR" "{\"brand\":\"edge\",\"orderIds\":$M11_DW_IDS}"
+req POST /api/drawers/place "$WSMGR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$M11_DW_IDS}"
 expect_status 403 "wsmgr places"
-req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"orderIds\":$M11_DW_IDS,\"orderedDate\":\"$(m11dw_day +1)\"}"
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$M11_DW_IDS,\"orderedDate\":\"$(m11dw_day +1)\"}"
 expect_status 400 "an ordered date in the future"
-req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"orderIds\":$M11_DW_IDS,\"expectedDate\":\"$M11_DW_LATER\"}"
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$M11_DW_IDS,\"expectedDate\":\"$(m11dw_day -1)\"}"
+expect_status 400 "an expected date before the ordered date (section 15 nit)"
+expect_jq '.error | test("^The expected date can.t be before it was ordered")' "and says so"
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"orderIds\":$M11_DW_IDS}"
+expect_status 400 "placing without the sheetKey (section 15.23)"
+expect_jq '.error == "sheetKey is required"' "and says it is required"
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"0000000000000000\",\"orderIds\":$M11_DW_IDS}"
+expect_status 409 "placing with a sheetKey that isn't the sheet's"
+expect_jq '.error == "The drawer order changed while you were looking; reload it"' "with the reload sentence"
+req PUT /api/drawers/stock "$ORDR" '{"brand":"edge","counts":[{"height":93,"length":450,"qty":3}]}'
+expect_status 200 "ordr changes the stock row after the page was read"
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$M11_DW_IDS}"
+expect_status 409 "placing a sheet whose stock row changed, with the same line ids (section 15.23)"
+expect_jq '.error == "The drawer order changed while you were looking; reload it"' "stale sheets are refused"
+req PUT /api/drawers/stock "$ORDR" '{"brand":"edge","counts":[{"height":93,"length":450,"qty":2}]}'
+expect_status 200 "ordr puts the stock row back"
+m11dw_board
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$M11_DW_IDS,\"expectedDate\":\"$M11_DW_LATER\"}"
 expect_status 201 "ordr places the EDGE order"
 M11_DW_P1=$(jqr '.drawerOrder.id')
 expect_jq ".drawerOrder.brand == \"edge\" and .drawerOrder.supplier == \"$M11_DW_SUPPLIER\" and .drawerOrder.orderedDate == \"$M11_DW_TODAY\" and .drawerOrder.expectedDate == \"$M11_DW_LATER\"" \
@@ -284,6 +302,14 @@ expect_jq ".stock == [] and all(.rows[]; .orderId != $M11_DW_LA) and any(.waitin
 req GET "/api/drawers/placed?brand=edge" "$ORDR"
 expect_status 200 "ordr lists the placed EDGE orders"
 expect_jq ".placed[0].id == $M11_DW_P1 and .placed[0].undoable == true and (.placed[0] | has(\"grid\") | not)" "newest first, without the grid"
+req PATCH "/api/orders/$M11_DW_LA" "$ORDR" '{"status":"to_order"}'
+expect_status 409 "Undo ordered on a drawer line that is on a placed order (section 15.17)"
+expect_jq '.error == "These drawers are on a placed drawer order. Use Undo order on the Drawer order page."' "and points to the Drawer order page"
+req PATCH "/api/orders/$M11_DW_LA" "$ADMIN" '{"status":"to_order"}'
+expect_status 409 "admin gets the same"
+m11dw_order "$M11_DW_LA" "$M11_DW_JA"
+printf '%s' "$M11_DW_OUT" | jq -e ".status == \"ordered\" and .drawers.drawerOrderId == $M11_DW_P1" >/dev/null || fail "the line stays ordered and linked: $M11_DW_OUT"
+ok
 req GET "/api/drawers/placed/$M11_DW_P1" "$WSMGR"
 expect_status 403 "wsmgr GET a placed order"
 req GET "/api/drawers/placed/$M11_DW_P1" "$ORDR"
@@ -345,10 +371,10 @@ expect_jq ".stock == [{\"height\":93,\"length\":450,\"qty\":2}] and any(.rows[];
   "the stock row is back as the draft; the line is a row again"
 req GET "/api/audit?action=drawer_order.undo&entityId=$M11_DW_P1&limit=1" "$ADMIN"
 expect_status 200 "GET the undo's audit row"
-expect_jq ".total == 1 and (.rows[0].before.grid.stock | length) == 1" "the undo is audited with the frozen grid"
+expect_jq ".total >= 1 and (.rows[0].before.grid.stock | length) == 1" "the undo is audited with the frozen grid (newest first; an id freed by a later undo can be reused)"
 
 echo "--- the stock row's delivery ---"
-req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"orderIds\":$M11_DW_IDS}"
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$M11_DW_IDS}"
 expect_status 201 "ordr places the EDGE order again"
 M11_DW_P2=$(jqr '.drawerOrder.id')
 expect_jq '.drawerOrder.expectedDate == null and .drawerOrder.stockTotal == 2' "no expected date this time; two stock drawers"
@@ -376,6 +402,22 @@ expect_status 200 "wsmgr undoes the stock delivery"
 expect_jq '.stockReceived == null and .stockDeliveryNote == "M11 one box short"' "not received; the note stays"
 req POST "/api/drawers/placed/$M11_DW_P2/stock-received" "$WSMGR" '{}'
 expect_status 200 "wsmgr receives it again"
+
+echo "--- undoing a stock-only order holds a stock cell at 999 ---"
+req PUT /api/drawers/stock "$ORDR" '{"brand":"edge","counts":[{"height":93,"length":450,"qty":5}]}'
+expect_status 200 "ordr types a stock row of 5"
+m11dw_board
+req POST /api/drawers/place "$ORDR" "{\"brand\":\"edge\",\"sheetKey\":\"$M11_DW_SK\",\"orderIds\":$M11_DW_IDS}"
+expect_status 201 "ordr places it (the stock row, and whatever else is checked)"
+M11_DW_P3=$(jqr '.drawerOrder.id')
+req PUT /api/drawers/stock "$ORDR" '{"brand":"edge","counts":[{"height":93,"length":450,"qty":999}]}'
+expect_status 200 "ordr types 999 of the same size afterwards"
+req POST "/api/drawers/placed/$M11_DW_P3/undo" "$ORDR" '{}'
+expect_status 200 "ordr undoes the order"
+m11dw_board
+expect_jq '[.stock[] | select(.height == 93 and .length == 450)] == [{"height":93,"length":450,"qty":999}]' "the merged cell is held at 999, not 1004"
+req PUT /api/drawers/stock "$ORDR" '{"brand":"edge","counts":[]}'
+expect_status 200 "ordr clears the stock row"
 
 echo "--- Joinr: start the stand-in ---"
 docker exec "$CONTAINER" rm -f /data/config/joinr-api-key /data/config/joinr-base-url
@@ -485,6 +527,17 @@ expect_jq '.order.counts == [{"height":126,"length":500,"qty":7},{"height":174,"
 expect_jq '.order.description | test("^Drawers [(]EDGE[)]: 7 . Mid 126/500, 2 . High 174/450$")' "the description follows"
 m11dw_lines "$M11_DW_J1"
 expect_jq '.joinr.changedSinceFill == false' "the grid matches Joinr again"
+req PATCH "/api/drawers/names/$(m11dw_sql "SELECT id FROM drawer_names WHERE name_key = lower('$M11_DW_UNKNOWN')" | jq -r '.[0].id')" "$ORDR" '{"brand":"dtc","height":178,"length":450}'
+expect_status 200 "ordr remaps the second name to DTC"
+m11dw_lines "$M11_DW_J1"
+expect_jq '.joinr.changedSinceFill == false' "remapping a name on our side isn't a change in Joinr (review A-m5)"
+req PATCH "/api/drawers/names/$(m11dw_sql "SELECT id FROM drawer_names WHERE name_key = lower('$M11_DW_UNKNOWN')" | jq -r '.[0].id')" "$ORDR" '{"brand":"edge","height":174,"length":450}'
+expect_status 200 "ordr maps it back to EDGE"
+m11dw_lines "$M11_DW_J1"
+expect_jq '.joinr.changedSinceFill == false and .canFill == false' "still unchanged; a job with a live EDGE line can't be filled"
+req POST "/api/job-records/$M11_DW_J1/drawers/fill" "$DPM" '{}'
+expect_status 409 "Fill from Joinr on a job that has its EDGE line"
+expect_jq '.error == "Nothing to fill from Joinr"' "and says so"
 req POST "/api/orders/$M11_DW_LB/drawers/refill" "$ORDR" '{}'
 expect_status 409 "refill on a job with no Joinr record"
 expect_jq '.error == "No drawers from Joinr for this job"' "and says so"
@@ -509,26 +562,81 @@ expect_jq '(.lines | length) == 2 and any(.lines[]; .drawers.brand == "dtc" and 
 expect_jq 'any(.lines[]; .drawers.brand == "edge" and .drawers.source == "joinr" and .counts == [{"height":126,"length":500,"qty":3},{"height":174,"length":450,"qty":1}])' \
   "link made the EDGE line from Joinr (2.5 rounds up to 3)"
 
-echo "--- Joinr: malformed drawer lines are refused, naming the field ---"
+echo "--- Fill from Joinr (section 15.18) ---"
+m11dw_lines "$M11_DW_J2"
+expect_jq '(.lines | length) == 0 and (.joinr.drawers | length) == 1 and .canFill == true' "job 2 has Joinr lines and no line: canFill"
+req GET "/api/job-records/$M11_DW_J2/drawers" "$SHOW"
+if [ "$STATUS" = 200 ]; then expect_jq '.canFill == false' "a viewer without orders.edit is not offered Fill"; else ok; fi
+req POST "/api/job-records/$M11_DW_J2/drawers/fill" "$WSMGR" '{}'
+expect_status 403 "wsmgr Fill from Joinr"
+req POST "/api/job-records/$M11_DW_J2/drawers/fill" "$DPM" '{}'
+expect_status 201 "dpm Fill from Joinr"
+expect_jq '(.created | length) == 1 and (.lines | length) == 1 and .lines[0].drawers.source == "joinr" and .lines[0].drawers.checked == null and .lines[0].counts == [{"height":126,"length":500,"qty":4}] and .canFill == false' \
+  "one unchecked EDGE line from Joinr; nothing left to fill"
+expect_jq ".lines[0].notes == \"From Joinr CI-M11-$M11_DW_TAG-2.\" and .joinr.changedSinceFill == false" "its note names the quote; the grid matches Joinr"
+M11_DW_L2=$(jqr '.lines[0].id')
+req POST "/api/job-records/$M11_DW_J2/drawers/fill" "$DPM" '{}'
+expect_status 409 "a second Fill from Joinr"
+expect_jq '.error == "Nothing to fill from Joinr"' "and says so"
+req POST "/api/orders/$M11_DW_L2/cancel" "$DPM" '{}'
+expect_status 200 "dpm cancels the filled line"
+m11dw_lines "$M11_DW_J2"
+expect_jq '(.lines | length) == 0 and .canFill == true' "a cancelled line doesn't count as live: canFill again"
+req POST "/api/job-records/$M11_DW_J2/drawers/fill" "$DPM" '{}'
+expect_status 201 "Fill from Joinr again"
+req POST "/api/job-records/99999999/drawers/fill" "$DPM" '{}'
+expect_status 404 "Fill on a job that doesn't exist"
+
+echo "--- linking skips a brand with an ordered line (review A-m4) ---"
+M11_DW_Q7=$(m11dw_root 7)
+m11dw_quote "$M11_DW_Q7" "CI-M11-$M11_DW_TAG-7" "M11 Drawer Site Seven $M11_DW_TAG" \
+  ". + {drawers: [{section: \"drawers\", name: \"$M11_DW_MID\", qty: 1}]}"
+m11dw_import "quote 7"
+M11_DW_I7=$(m11dw_intake "$M11_DW_Q7" id)
+req PATCH "/api/job-records/$M11_DW_JA" "$ADMIN" "{\"quoteNumber\":\"CI-M11-$M11_DW_TAG-7\"}"
+expect_status 200 "admin gives job A the quote number"
+req POST "/api/joinr/intake/$M11_DW_I7/link" "$ADMIN" "{\"jobId\":$M11_DW_JA}"
+expect_status 200 "admin links quote 7 to job A, whose EDGE line is already ordered"
+m11dw_lines "$M11_DW_JA"
+expect_jq '(.lines | length) == 1 and .canFill == false' "no second EDGE line was made; nothing to fill"
+
+echo "--- Joinr: malformed drawer lines import without drawers (section 15.22) ---"
 M11_DW_LOG_CURSORS=""
-m11dw_bad() { # N FIELD DRAWERS-JSON
+m11dw_bad() { # N DRAWERS-JSON
   local root
   root=$(m11dw_root "$1")
-  m11dw_quote "$root" "CI-M11-$M11_DW_TAG-$1" "M11 Drawer Site Bad $1 $M11_DW_TAG" ". + {drawers: $3}"
-  M11_DW_LOG_CURSORS="$M11_DW_LOG_CURSORS $1:$(printf '%s' "$M11_DW_OUT" | jq -r '.cursor'):$2"
+  m11dw_quote "$root" "CI-M11-$M11_DW_TAG-$1" "M11 Drawer Site Bad $1 $M11_DW_TAG" ". + {drawers: $2}"
+  M11_DW_LOG_CURSORS="$M11_DW_LOG_CURSORS $1:$(printf '%s' "$M11_DW_OUT" | jq -r '.cursor')"
 }
-m11dw_bad 4 qty '[{"section":"drawers","name":"M11 Drawer Bad","qty":-1}]'
-m11dw_bad 5 name "[{\"section\":\"drawers\",\"name\":\"$(printf 'x%.0s' $(seq 1 201))\",\"qty\":1}]"
-m11dw_bad 6 section '[{"section":"doors","name":"M11 Drawer Bad","qty":1}]'
-m11dw_import "three malformed quotes"
+m11dw_bad 4 '[{"section":"drawers","name":"M11 Drawer Bad","qty":-1}]'
+m11dw_bad 5 "[{\"section\":\"drawers\",\"name\":\"$(printf 'x%.0s' $(seq 1 201))\",\"qty\":1}]"
+m11dw_bad 6 '[{"section":"doors","name":"M11 Drawer Bad","qty":1}]'
+m11dw_bad 8 '"not a list"'
+m11dw_import "four malformed quotes"
 M11_DW_LOGS=$(docker logs "$CONTAINER" 2>&1)
 for entry in $M11_DW_LOG_CURSORS; do
-  n=${entry%%:*}; rest=${entry#*:}; cur=${rest%%:*}; field=${rest#*:}
-  expect_eq "$(m11dw_intake "$(m11dw_root "$n")" id)" "null" "malformed quote $n made no record"
-  grep -qF "[joinr] skipped item $cur: drawers[0].$field" <<<"$M11_DW_LOGS" || fail "malformed quote $n is logged naming drawers[0].$field"
+  n=${entry%%:*}; cur=${entry#*:}
+  expect_eq "$(m11dw_intake "$(m11dw_root "$n")" state)" "new" "malformed quote $n is imported"
+  expect_eq "$(m11dw_sql "SELECT payload FROM joinr_intake WHERE root_quote_id = '$(m11dw_root "$n")'" | jq -c '.[0].payload | fromjson | .drawers')" \
+    "null" "quote $n is stored with drawers not reported"
+  grep -qF "[joinr] item $cur: drawers not read (drawers" <<<"$M11_DW_LOGS" \
+    || fail "malformed quote $n is logged as drawers not read"
   ok
+  m11dw_notifs "$ADMIN" joinr.drawers "Drawers not read from Joinr: CI-M11-$M11_DW_TAG-$n M11 Drawer Site Bad $n $M11_DW_TAG"
+  expect_eq "$M11_DW_N" "1" "admin is told about quote $n's drawers"
 done
 case $M11_DW_LOGS in *"M11 Drawer Bad"*) fail "a refused drawer line's value appears in the logs" ;; *) ok ;; esac
+m11dw_import "the same malformed quotes again"
+m11dw_notifs "$ADMIN" joinr.drawers "Drawers not read from Joinr: CI-M11-$M11_DW_TAG-4 M11 Drawer Site Bad 4 $M11_DW_TAG"
+expect_eq "$M11_DW_N" "1" "a repeat of the same item sends no second notice"
+req GET "/api/notifications?limit=100" "$DPM"
+expect_jq "[.rows[] | select(.kind == \"joinr.drawers\")] | length == 0" "dpm (no users.admin) isn't told"
+M11_DW_I4=$(m11dw_intake "$(m11dw_root 4)" id)
+req POST "/api/joinr/intake/$M11_DW_I4/accept" "$ADMIN" '{}'
+expect_status 200 "admin accepts a quote whose drawers were malformed"
+M11_DW_J4=$(jqr '.job.id')
+m11dw_lines "$M11_DW_J4"
+expect_jq '(.lines | length) == 0 and .joinr.drawers == null and .canFill == false' "no drawer line, nothing reported"
 
 echo "--- tidy up: stop the stand-in and remove the Joinr set-up ---"
 m11dw_fake POST /_control/stop

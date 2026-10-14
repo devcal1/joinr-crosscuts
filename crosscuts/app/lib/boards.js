@@ -91,6 +91,7 @@ function boardRow(db, id) {
   return db.prepare("SELECT * FROM boards WHERE id = ?").get(id);
 }
 
+// all: inactive boards too; the route allows it only to stock.order holders (section 15 nit).
 function list(db, { all = false, withPrices = false } = {}) {
   const sql = all
     ? "SELECT * FROM boards ORDER BY sort, id"
@@ -460,11 +461,16 @@ function reopenCount(db, req, period) {
 // Reads {adjustmentCents?, adjustmentNote?} from a body: whole cents within the limit, a note of
 // 500 characters at most. Absent fields read as 0 and "". Whether a note is needed is the caller's
 // question (saving a draft allows none; confirming the value requires one for a nonzero adjustment).
+// Each field is undefined when it is absent from the body (the saved one is kept: contracts section
+// 15.24); a field sent as null or "" clears it.
 function adjustmentOf(body) {
   const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
-  const adj = b.adjustmentCents === undefined || b.adjustmentCents === null ? 0 : b.adjustmentCents;
-  if (!Number.isInteger(adj) || Math.abs(adj) > ADJUSTMENT_MAX) throw bad("adjustmentCents must be a whole number of cents");
-  const note = textField("The adjustment note", b.adjustmentNote, NOTE_MAX);
+  let adj;
+  if (b.adjustmentCents !== undefined) {
+    adj = b.adjustmentCents === null ? 0 : b.adjustmentCents;
+    if (!Number.isInteger(adj) || Math.abs(adj) > ADJUSTMENT_MAX) throw bad("adjustmentCents must be a whole number of cents");
+  }
+  const note = b.adjustmentNote === undefined ? undefined : textField("The adjustment note", b.adjustmentNote, NOTE_MAX);
   return { adj, note };
 }
 
@@ -474,11 +480,13 @@ function adjustmentOf(body) {
 function saveAdjustment(db, req, period, body) {
   const today = sydneyToday();
   periodOk(period, today);
-  const { adj, note } = adjustmentOf(body);
+  const given = adjustmentOf(body);
   db.transaction(() => {
     const row = countRow(db, period);
     if (!row || row.status === "open") throw conflict("Finish the count first");
     if (row.status === "valued") throw conflict("The value is already confirmed");
+    const adj = given.adj === undefined ? row.adjustment_cents : given.adj;
+    const note = given.note === undefined ? row.adjustment_note : given.note;
     if (row.adjustment_cents === adj && row.adjustment_note === note) return;
     db.prepare("UPDATE board_counts SET adjustment_cents = ?, adjustment_note = ?, updated_at = ? WHERE id = ?").run(
       adj,
@@ -498,19 +506,18 @@ function saveAdjustment(db, req, period, body) {
 }
 
 // {adjustmentCents?, adjustmentNote?}: counted -> valued, freezing each line's price and the value.
-// With neither field in the body the saved adjustment is used; fields given override it.
+// Each adjustment field in the body overrides the saved one; an absent field keeps it (section 15.24).
 function value(db, req, period, body) {
   const today = sydneyToday();
   periodOk(period, today);
   const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
-  const given = b.adjustmentCents !== undefined || b.adjustmentNote !== undefined;
   const fromBody = adjustmentOf(b);
   db.transaction(() => {
     const row = countRow(db, period);
     if (!row || row.status === "open") throw conflict("Finish the count first");
     if (row.status === "valued") throw conflict("The value is already confirmed");
-    const adj = given ? fromBody.adj : row.adjustment_cents;
-    const note = given ? fromBody.note : row.adjustment_note;
+    const adj = fromBody.adj === undefined ? row.adjustment_cents : fromBody.adj;
+    const note = fromBody.note === undefined ? row.adjustment_note : fromBody.note;
     if (adj !== 0 && !note) throw bad("Give a note for the adjustment");
     const lines = db
       .prepare(
@@ -597,8 +604,9 @@ function stockValue(db) {
       valueCents: row.status === "valued" ? row.value_cents : null,
       counted: countedOf(row),
       valued: valuedOf(row),
-      adjustmentCents: row.adjustment_cents,
-      adjustmentNote: row.adjustment_note,
+      // Only a valued month gives Accounts the adjustment; a counted month's is still a draft (15.24).
+      adjustmentCents: row.status === "valued" ? row.adjustment_cents : null,
+      adjustmentNote: row.status === "valued" ? row.adjustment_note : null,
     }));
   return { months };
 }

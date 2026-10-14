@@ -195,12 +195,19 @@ req PUT "/api/users/$M11_P_WSMGR_ID/overrides/stock.order" "$ADMIN" '{"effect":"
 expect_status 200 "admin grants stock.order to wsmgr"
 req POST "/api/paint/orders/$M11_P_PO/ordered" "$WSMGR" '{}'
 M11_P_GRANTED=$STATUS
+M11_P_GRANTED_BODY=$BODY
 req DELETE "/api/users/$M11_P_WSMGR_ID/overrides/stock.order" "$ADMIN"
 expect_status 200 "admin removes the grant"
 STATUS=$M11_P_GRANTED
+BODY=$M11_P_GRANTED_BODY
 expect_status 403 "mark ordered without orders.mark_ordered (job lines)"
+expect_jq '.error == "Forbidden"' "and says Forbidden"
 req POST "/api/paint/orders/$M11_P_PO/ordered" "$ORDR" "{\"orderedDate\":\"2999-01-01\"}"
 expect_status 400 "an ordered date in the future"
+M11_P_YDAY=$(date -u -d "$M11_P_TODAY -1 day" +%F)
+req POST "/api/paint/orders/$M11_P_PO/ordered" "$ORDR" "{\"expectedDate\":\"$M11_P_YDAY\"}"
+expect_status 400 "an expected date before the ordered date (section 15 nit)"
+expect_jq '.error | test("^The expected date can.t be before it was ordered")' "and says so"
 req POST "/api/paint/orders/$M11_P_PO/ordered" "$ORDR" "{\"expectedDate\":\"$M11_P_TODAY\"}"
 expect_status 200 "ordr marks it ordered"
 expect_jq ".status == \"ordered\" and .orderedDate == \"$M11_P_TODAY\" and .expectedDate == \"$M11_P_TODAY\" and .orderedBy.id == $M11_P_ORDR_ID" \
@@ -238,6 +245,12 @@ req POST "/api/paint/orders/$M11_P_PO/received" "$WSMGR" "$(jq -nc --arg n "$M11
 expect_status 200 "wsmgr receives it"
 expect_jq ".status == \"received\" and .receivedDate == \"$M11_P_TODAY\" and .receivedBy.id == $M11_P_WSMGR_ID and .deliveryNote == \"$M11_P_NOTE\"" \
   "received today by wsmgr, with the note"
+req GET "/api/notifications?limit=100" "$ORDR"
+expect_status 200 "ordr GET /api/notifications"
+expect_jq "[.rows[] | select(.kind == \"paint.delivery_note\" and .link == \"/paint.html?id=$M11_P_PO\") | [.title, .body]] == [[\"Delivery note: Paint order $M11_P_PO\", \"$M11_P_SUPPLIER: $M11_P_NOTE\"]]" \
+  "ordr is told about the paint order's delivery note (section 15.20)"
+req GET "/api/notifications?limit=100" "$WSMGR"
+expect_jq "[.rows[] | select(.kind == \"paint.delivery_note\" and .link == \"/paint.html?id=$M11_P_PO\")] | length == 0" "the actor (wsmgr) is not told"
 m11_p_lines "$M11_P_JB"
 expect_jq ".[0].status == \"received\" and .[0].receivedDate == \"$M11_P_TODAY\" and .[0].receivedBy.id == $M11_P_WSMGR_ID" \
   "job B's line is received by wsmgr"
@@ -256,6 +269,7 @@ expect_jq ".status == \"ordered\" and .receivedDate == null and .receivedBy == n
 m11_p_lines "$M11_P_JB"
 expect_jq ".[0].status == \"ordered\" and .[0].receivedDate == null" "job B's line is ordered again"
 req GET "/api/job-records/$M11_P_JB" "$ADMIN"
+expect_status 200 "GET job B"
 expect_jq ".materialsInDate == null" "job B's materials are no longer in"
 req POST "/api/paint/orders/$M11_P_PO/undo-ordered" "$ORDR"
 expect_status 200 "ordr undoes ordering"

@@ -49,7 +49,8 @@ r.get("/stockvalue", "accounts.view", handle((req, res) => {
 }));
 
 r.get("/boards", SEE, handle((req, res) => {
-  res.json({ boards: boards.list(db, { all: req.query.all === "1", withPrices: withPrices(req) }) });
+  // ?all=1 (inactive boards too) is the List tab's, stock.order only, as for stock items.
+  res.json({ boards: boards.list(db, { all: req.query.all === "1" && can(req, "stock.order"), withPrices: withPrices(req) }) });
 }));
 
 r.post("/boards/reorder", "stock.order", handle((req, res) => {
