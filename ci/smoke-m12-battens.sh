@@ -21,7 +21,8 @@ req GET /battens.js "$DPM"
 expect_status 200 "dpm GET /battens.js"
 case $BODY in *"Battens"*"solve"*) ok ;; *) fail "GET /battens.js: not the batten maths: ${BODY:0:200}" ;; esac
 
-# --- the maths in the image: one node run of the section 10.3 cases; anything but "ok" fails
+# --- the maths in the image: one node run of the section 10.3 cases (with the 4.3 additions);
+# anything but "ok" fails
 M12_B_OUT=$(docker exec "$CONTAINER" node -e '
 const B = require("/app/public/battens.js");
 const bad = [];
@@ -59,6 +60,11 @@ check("both count and gap", same(B.solve({ space: 1768, count: 22, gap: 58 }), "
 check("batten ends, 1 batten", same(B.solve({ space: 1768, count: 1 }), "Starting and ending on a batten needs at least 2 battens"));
 check("no gap left", same(B.solve({ space: 1768, width: 25, count: 70 }), "70 battens of 25 mm don" + Q + "t leave a gap in 1768 mm"));
 check("gap does not fit", same(B.solve({ space: 30, width: 25, gap: 10 }), "Battens of 25 mm with a 10 mm gap don" + Q + "t fit in 30 mm"));
+// added at 4.3 (C-m5): the ends, more than 1000 battens from a gap, and one batten (singular)
+check("ends refused", same(B.solve({ space: 1768, ends: "middle", count: 3 }), "The ends must be a batten at each end or a gap at each end"));
+check("gap ends count refused", same(B.solve({ space: 1768, ends: "gap", count: 0 }), "The number of battens must be a whole number from 1 to 1000"));
+check("more than 1000 from a gap", same(B.solve({ space: 20000, width: 1, gap: 0.5 }), "Battens of 1 mm with a 0.5 mm gap would take more than 1000 battens in 20000 mm"));
+check("one batten, no gap left", same(B.solve({ space: 25.5, width: 25, ends: "gap", count: 1 }), "1 batten of 25 mm doesn" + Q + "t leave a gap in 25.5 mm"));
 
 // a tie takes more battens
 r = B.solve({ space: 100, width: 10, gap: 27.5 });

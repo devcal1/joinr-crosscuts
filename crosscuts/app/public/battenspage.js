@@ -89,6 +89,11 @@
     let d = "";
     for (const b of r.setOut) d += `M${b.start} 0H${b.end}V100H${b.start}Z`;
     s.append(svg("path", { class: "bn-batten", d }));
+    // A batten too thin to show at this scale (1 mm in 20 m is a twentieth of a pixel) is still
+    // drawn: a 1 px line down the middle of each, which keeps its width however the run is scaled.
+    let mid = "";
+    for (const b of r.setOut) mid += `M${(b.start + b.end) / 2} 0V100`;
+    s.append(svg("path", { class: "bn-batten-min", d: mid, "vector-effect": "non-scaling-stroke" }));
     s.append(svg("rect", { class: "bn-frame", x: 0, y: 0, width: r.space, height: 100, "vector-effect": "non-scaling-stroke" }));
     $("bnStrip").replaceChildren(s);
     $("bnScaleEnd").textContent = mm(r.space);
@@ -122,10 +127,10 @@
 
   // ---------------------------------------------------------------- the print head
 
-  function printInputs(r, from, asked) {
+  function printInputs(r, from, asked, widthEmpty) {
     const parts = [
       `Space to fill ${mm(r.space)}`,
-      `batten width ${mm(r.width)}`,
+      `batten width ${mm(r.width)}${widthEmpty ? " (the default)" : ""}`,
       r.ends === "gap" ? "gap at each end" : "batten at each end",
       from === "gap" ? `worked out from a gap of ${mm(asked)}` : `worked out from ${plural(r.count, "batten", "battens")}`,
     ];
@@ -138,6 +143,9 @@
     const { from, q } = inputs();
     $("bnCountField").hidden = from === "gap";
     $("bnGapField").hidden = from !== "gap";
+    // An empty width isn't a mistake: the sums use the default, and the page says so.
+    const widthEmpty = q.width === "";
+    $("bnWidthNote").hidden = !widthEmpty;
 
     const r = B.solve(q);
     const msg = $("bnMsg");
@@ -158,7 +166,7 @@
     showResult(r, from, asked);
     drawStrip(r);
     drawSetOut(r);
-    printInputs(r, from, asked);
+    printInputs(r, from, asked, widthEmpty);
     $("bnOut").hidden = false;
     $("bnRunSec").hidden = false;
     $("bnSetSec").hidden = false;
@@ -183,6 +191,9 @@
     beforePrint();
     window.print();
   });
+
+  $("bnWidthNote").textContent = `Empty, so using ${B.DEFAULT_WIDTH} mm`;
+  $("bnWidth").placeholder = String(B.DEFAULT_WIDTH);
 
   $("bnForm").addEventListener("input", update);
   $("bnForm").addEventListener("change", update);
