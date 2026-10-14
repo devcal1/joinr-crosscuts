@@ -1,0 +1,182 @@
+/* Batten calculator (battens.html; docs/plans/m12-contracts.md section 9.5). Tokens come from
+   tokens.css, hs- components from components.css. Page classes here are prefixed bn-. The paper
+   styles (black on white) are in the print block at the end. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.bn-page { max-width: 1240px; margin: 0 auto; padding: 22px 16px 48px; }
+.bn-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.bn-printhead { display: none; }
+
+/* ---------- header ---------- */
+.bn-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 6px; }
+.bn-head h1 { flex: 1 1 auto; margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.bn-head h1:focus { outline: none; }
+.bn-head h1:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.bn-intro { margin: 0 0 16px; max-width: 780px; color: var(--label); font-size: 13px; }
+
+/* ---------- inputs and result ---------- */
+.bn-top {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+.bn-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.bn-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.bn-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bn-field-one { max-width: calc(50% - 7px); }
+.bn-num { font-variant-numeric: tabular-nums; }
+.bn-choice { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bn-choice legend { padding: 0; margin-bottom: 6px; }
+.bn-radio { display: inline-flex; align-items: center; gap: 8px; color: var(--body); cursor: pointer; }
+.bn-radio input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
+
+.bn-result { min-width: 0; }
+.bn-msg { margin: 0; padding: 14px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); color: var(--label); font-size: 14px; }
+.bn-msg:empty { display: none; }
+.bn-msg-err { border-left: var(--accent-border) solid var(--orange); color: var(--orange-tint); }
+.bn-out { display: flex; flex-direction: column; gap: 12px; }
+.bn-line {
+  margin: 0;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  color: var(--white);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.bn-kvt { grid-template-columns: 150px minmax(0, 1fr); max-width: 520px; }
+.bn-kvt .v { font-variant-numeric: tabular-nums; color: var(--white); }
+
+/* ---------- sections ---------- */
+.bn-sec { margin-top: 18px; }
+.bn-bar { margin-bottom: 10px; }
+.bn-bar-note { color: var(--label); font-size: 12px; }
+
+/* ---------- the strip: battens filled, gaps empty ---------- */
+.bn-strip { padding: 10px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.bn-svg { display: block; width: 100%; height: 56px; overflow: visible; }
+.bn-batten { fill: var(--body); }
+.bn-left { fill: var(--raised); }
+.bn-frame { fill: none; stroke: var(--label); stroke-width: 1px; }
+.bn-scale { display: flex; justify-content: space-between; padding: 4px 10px 0; color: var(--label); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ---------- set-out: tables of 25 rows, in columns when long ---------- */
+.bn-setout { max-width: 420px; }
+.bn-setout-long { max-width: none; columns: 4 220px; column-gap: 16px; }
+.bn-table {
+  width: 100%;
+  margin-bottom: 12px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  break-inside: avoid;
+  font-variant-numeric: tabular-nums;
+}
+.bn-table thead th {
+  padding: 7px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  white-space: nowrap;
+}
+.bn-table tbody th, .bn-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  font-weight: 400;
+}
+.bn-table tbody th { color: var(--white); font-weight: 700; }
+.bn-table tbody tr:last-child th, .bn-table tbody tr:last-child td { border-bottom: 0; }
+.bn-table .bn-n { text-align: right; }
+.bn-table .bn-c-n { width: 28%; text-align: left; }
+
+@media (max-width: 900px) {
+  .bn-top { grid-template-columns: minmax(0, 1fr); }
+  .bn-form { max-width: 560px; }
+}
+@media (max-width: 640px) {
+  .bn-page { padding-top: 16px; }
+  .bn-head h1 { font-size: 20px; }
+  .bn-line { font-size: 17px; }
+  .bn-kvt { grid-template-columns: 120px minmax(0, 1fr); }
+  .bn-field-one { max-width: none; }
+  .bn-svg { height: 44px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+@media print {
+  html, body { background: #fff; color: #000; }
+  body { padding: 0 !important; font-size: 10pt; }
+  body > :not(main) { display: none !important; }
+  .bn-page { max-width: none; margin: 0; padding: 0; }
+  .bn-head, .bn-intro, .bn-form, .bn-msg { display: none !important; }
+  .bn-printhead { display: block; margin-bottom: 4mm; padding-bottom: 3mm; border-bottom: 0.5mm solid #000; }
+  .bn-printhead p { margin: 0; color: #000; }
+  .bn-print-title { font-size: 16pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .bn-print-inputs { margin-top: 1mm; font-size: 10pt; }
+  .bn-top { display: block; margin: 0 0 4mm; }
+  .bn-out { gap: 2mm; }
+  .bn-line { padding: 0; background: #fff; border: 0; color: #000; font-size: 13pt; }
+  .bn-kvt { display: grid; grid-template-columns: 34mm 60mm; width: 94mm; max-width: none; border: 0.2mm solid #000; border-radius: 0; }
+  .bn-kvt > div { padding: 1mm 2mm; border-bottom: 0.2mm solid #000; }
+  .bn-kvt .k, .bn-kvt .v { background: #fff; color: #000; }
+  .bn-sec { margin-top: 4mm; }
+  .bn-bar { display: block; min-height: 0; padding: 0 0 1mm; margin-bottom: 2mm; background: #fff; border: 0; border-bottom: 0.3mm solid #000; border-radius: 0; }
+  .bn-bar h2 { display: inline; color: #000; font-size: 10pt; }
+  .bn-bar-note { margin-left: 3mm; color: #000; font-size: 9pt; }
+  .bn-strip { padding: 0; background: #fff; border: 0; break-inside: avoid; }
+  .bn-svg { height: 12mm; }
+  .bn-batten { fill: #000; }
+  .bn-left { fill: #fff; }
+  .bn-frame { stroke: #000; }
+  .bn-scale { padding: 1mm 0 0; color: #000; font-size: 9pt; }
+  .bn-setout { max-width: 70mm; }
+  .bn-setout-long { max-width: none; columns: 4; column-gap: 5mm; }
+  .bn-table { margin-bottom: 3mm; background: #fff; border: 0.2mm solid #000; border-radius: 0; font-size: 8.5pt; }
+  .bn-table thead th { padding: 0.8mm 1.5mm; background: #fff; color: #000; font-size: 6.5pt; letter-spacing: 0.02em; white-space: normal; vertical-align: bottom; border-bottom: 0.3mm solid #000; }
+  .bn-table tbody th, .bn-table td { padding: 0.5mm 1.5mm; color: #000; border-bottom: 0.1mm solid #000; }
+  .bn-table tr { break-inside: avoid; }
+  .bn-table .bn-c-n { width: 21%; }
+  .bn-table thead th { padding-left: 1mm; padding-right: 1mm; letter-spacing: 0; }
+}
+/* style-check: print-end */
