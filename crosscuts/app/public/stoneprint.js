@@ -4,7 +4,13 @@
 //
 //   ?id=N&rev=R     the frozen revision R as it was sent    GET /api/stone/:id/revisions/:rev
 //   ?id=N           the current form; a draft, or a sent    GET /api/stone/:id
-//                   order with unsent changes, prints as DRAFT – NOT SENT with no revision or date
+//                   order with unsent changes, prints as DRAFT – NOT SENT with no revision or date,
+//                   and a changed sent order links "Print revision n as sent" on screen (section 12.20)
+//
+// A cancelled order (?id=N by its status, ?id=N&rev=R by the revision answer's status) carries a
+// ruled CANCELLED box at the top, above the DRAFT one when both apply (section 7, 12.19). The
+// benchtop sheet is always one page: long job lines and benchtop text get smaller type (fitLines,
+// review B-m6), never cut.
 //   ?sheet=<jobId>  the job's benchtop sheet                GET /api/job-records/:id/benchtop-sheet
 //   ?sheet=blank    a blank benchtop sheet                  GET /api/stone/letterhead
 //
@@ -98,11 +104,12 @@
     return el("section", { class: "sp-block" }, el("h2", { class: "sp-blockh", text: title }), dl);
   }
 
-  // p: {form, draft, revision, sentDate, sentBy, biz}
+  // p: {form, draft, cancelled, revision, sentDate, sentBy, biz}
   function stoneSheet(p) {
     const f = p.form || {};
-    const out = letterhead(p.biz);
-    if (p.draft) out.push(el("p", { class: "sp-draft", text: "DRAFT – NOT SENT" }));
+    const out = letterhead(p.biz).filter(Boolean); // no address line: nothing (not the text "null")
+    if (p.cancelled) out.push(el("p", { class: "sp-stamp sp-cancelled", text: "CANCELLED" }));
+    if (p.draft) out.push(el("p", { class: "sp-stamp sp-draft", text: "DRAFT – NOT SENT" }));
     const meta = el("dl", { class: "sp-meta" });
     if (!p.draft) {
       meta.append(el("dt", { text: "Revision" }), el("dd", { text: String(p.revision) }));
@@ -136,6 +143,16 @@
     $("spPrint").disabled = false;
   }
 
+  // On screen only (the toolbar never prints): the last sent revision of a changed order.
+  function revLink(idParam, n) {
+    const a = el("a", {
+      class: "hs-btn", id: "spRevLink",
+      href: "/stoneprint.html?id=" + encodeURIComponent(idParam) + "&rev=" + encodeURIComponent(n),
+      text: "Print revision " + n + " as sent",
+    });
+    $("spBack").after(a);
+  }
+
   async function startOrder(idParam, revParam) {
     if (!/^[1-9]\d*$/.test(idParam || "") || (revParam != null && !/^[1-9]\d*$/.test(revParam))) {
       refuse("That isn't a stone order. Open one from its job's Benchtops section.");
@@ -152,9 +169,10 @@
       }
       if (!can("design.view")) jobBack(r.jobId);
       const ref = text(r.form && r.form.jobReference) || text(r.jobName);
-      showStone({ form: r.form, draft: false, revision: r.revision, sentDate: r.sentDate, sentBy: r.sentBy, biz: r.business },
-        "Stone order " + ref + " rev " + r.revision);
-      setStatus("Revision " + r.revision + " as it was sent on " + fmtDate(r.sentDate) + ".");
+      const off = r.status === "cancelled";
+      showStone({ form: r.form, draft: false, cancelled: off, revision: r.revision, sentDate: r.sentDate, sentBy: r.sentBy, biz: r.business },
+        "Stone order " + ref + " rev " + r.revision + (off ? " cancelled" : ""));
+      setStatus("Revision " + r.revision + " as it was sent on " + fmtDate(r.sentDate) + "." + (off ? " The stone order has since been cancelled." : ""));
       return;
     }
     let o;
@@ -166,13 +184,20 @@
     }
     if (!can("design.view")) jobBack(o.jobId);
     const draft = !(o.revision > 0) || o.status === "draft" || !!o.changedSinceSent;
+    const off = o.status === "cancelled";
     const ref = text(o.form && o.form.jobReference) || text(o.jobName);
-    showStone({ form: o.form, draft, revision: o.revision, sentDate: o.sentDate, sentBy: o.sentBy, biz: o.business },
-      "Stone order " + ref + (draft ? " draft" : " rev " + o.revision));
+    showStone({ form: o.form, draft, cancelled: off, revision: o.revision, sentDate: o.sentDate, sentBy: o.sentBy, biz: o.business },
+      "Stone order " + ref + (draft ? " draft" : " rev " + o.revision) + (off ? " cancelled" : ""));
     const notes = [];
-    if (o.status === "cancelled") notes.push("This stone order is cancelled.");
-    if (draft && o.revision > 0) notes.push("It has changes not sent yet, so it prints as a draft. Revision " + o.revision + " prints from the order's Revisions.");
-    else if (draft) notes.push("Not sent yet, so it prints as a draft.");
+    if (off) notes.push("This stone order is cancelled.");
+    if (draft && o.revision > 0) {
+      // A changed sent order: the copy the supplier has is one click away, for anyone who can
+      // print (Accounts and Scheduling have no Stone orders page to find Revisions on).
+      revLink(idParam, o.revision);
+      notes.push("It has changes not sent yet, so it prints as a draft. Print revision " + o.revision + " as sent prints the copy the supplier has.");
+    } else if (draft) {
+      notes.push("Not sent yet, so it prints as a draft.");
+    }
     setStatus(notes.join(" "));
   }
 
@@ -202,6 +227,39 @@
         el("ul", { class: "sp-keylist" }, keyItem("[ ]", "Square edge"), keyItem("//", "Rolled edge"), keyItem("X", "Raw edge"))))];
   }
 
+  // One page, nothing cut (review B-m6): each line's value steps down from 11 pt until it takes no
+  // more than about three lines (15 mm), to 7 pt at the least; if the sheet still runs past its
+  // page (the drawing area at its least), the tallest value steps down again, to 5 pt. The sheet is
+  // the same width on screen and on paper (186 mm inside the margins), so a measure on screen holds
+  // for the print; it runs again once the banner has loaded and before printing.
+  const PX_PER_MM = 96 / 25.4;
+  const LINE_PT = 11;
+  const LINE_MIN_PT = 7;
+  const FLOOR_PT = 5;
+  const LINE_CAP_MM = 15;
+
+  function fitLines() {
+    const bt = document.querySelector(".sp-bt");
+    if (!bt) return;
+    const vals = [...bt.querySelectorAll(".sp-lineval")];
+    const cap = LINE_CAP_MM * PX_PER_MM;
+    const size = (v) => parseFloat(v.style.fontSize) || LINE_PT;
+    for (const v of vals) {
+      v.style.fontSize = "";
+      let pt = LINE_PT;
+      while (v.offsetHeight > cap + 1 && pt > LINE_MIN_PT) {
+        pt -= 0.5;
+        v.style.fontSize = pt + "pt";
+      }
+    }
+    for (let guard = 0; bt.scrollHeight > bt.clientHeight + 1 && guard < 200; guard++) {
+      // The tallest value that can still get smaller goes down a step; short lines keep their size.
+      const next = vals.filter((v) => size(v) > FLOOR_PT).sort((a, b) => b.offsetHeight - a.offsetHeight)[0];
+      if (!next) break;
+      next.style.fontSize = size(next) - 0.5 + "pt";
+    }
+  }
+
   function showSheet(job, tops, biz, title) {
     const sheet = $("spSheet");
     sheet.className = "sp-sheet sp-sheet-bt";
@@ -209,7 +267,13 @@
     sheet.replaceChildren(...benchtopSheet(job, tops, biz));
     document.title = title;
     $("spPrint").disabled = false;
+    fitLines();
+    const img = sheet.querySelector(".sp-banner");
+    if (img && !img.complete) img.addEventListener("load", fitLines, { once: true });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitLines);
   }
+
+  window.addEventListener("beforeprint", fitLines);
 
   async function startSheet(param) {
     if (param === "blank") {

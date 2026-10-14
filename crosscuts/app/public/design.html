@@ -26,7 +26,7 @@
         </article>
         <article class="tile hs-card" id="stoneTile">
           <h3 class="tile-title">Stone orders</h3>
-          <p class="tile-text">Stone benchtop orders on jobs: drafts, changes not yet sent, and installs coming up.</p>
+          <p class="tile-text">Stone benchtop orders still to send: drafts, changes not yet sent, and their installs coming up.</p>
           <p class="tile-stat" id="stoneStat" hidden></p>
           <p class="tile-stat" id="stoneSoon" hidden></p>
           <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/stone.html">Open Stone orders</a></div>
@@ -64,6 +64,8 @@
 
     // The Stone orders tile (docs/plans/m12-contracts.md section 9.4): drafts and unsent changes,
     // and installs requested in the next two weeks (orange, "attend to this") when there are any.
+    // installsSoon counts only orders still needing sending (a draft, or changed since sent): a
+    // sent, unchanged order needs nothing, so it isn't counted (section 4.6, 12.21).
     // If the call fails the tile is just the link.
     (function () {
       var stat = document.getElementById("stoneStat");

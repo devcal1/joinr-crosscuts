@@ -54,8 +54,8 @@ body.sp-body {
 .sp-strong { font-weight: 700; }
 .sp-pre { white-space: pre-line; overflow-wrap: anywhere; }
 
-/* the stone order */
-.sp-draft {
+/* the stone order: the ruled CANCELLED and DRAFT boxes (both when both apply) */
+.sp-stamp {
   margin-top: 4mm;
   padding: 2mm 4mm;
   border: 0.6mm solid var(--ink);
@@ -64,6 +64,8 @@ body.sp-body {
   letter-spacing: 0.12em;
   text-align: center;
 }
+.sp-stamp + .sp-stamp { margin-top: 2mm; }
+.sp-cancelled { border-width: 1mm; font-size: 18pt; letter-spacing: 0.2em; }
 .sp-titlerow {
   display: flex;
   justify-content: space-between;
@@ -126,7 +128,8 @@ body.sp-body {
 .sp-line { display: flex; align-items: baseline; gap: 3mm; min-height: 9mm; padding: 2mm 0 1mm; border-bottom: 0.3mm solid var(--ink); min-width: 0; }
 .sp-line-wide { grid-column: 1 / -1; }
 .sp-line .sp-label { flex: none; min-width: 24mm; }
-.sp-lineval { font-size: 11pt; font-weight: 700; overflow-wrap: anywhere; max-height: 15mm; overflow: hidden; }
+/* never cut: stoneprint.js fitLines() makes long values smaller instead (review B-m6) */
+.sp-lineval { min-width: 0; font-size: 11pt; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .sp-draw { flex: 1 1 auto; min-height: 60mm; margin-top: 5mm; border: 0.5mm solid var(--ink); }
 .sp-key { display: flex; flex-wrap: wrap; align-items: center; gap: 2mm 8mm; margin-top: 4mm; flex: none; }
 .sp-keylist { display: flex; flex-wrap: wrap; gap: 2mm 10mm; padding: 0; list-style: none; font-size: 10.5pt; }

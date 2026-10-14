@@ -9,6 +9,13 @@
 //
 // A stone order is not an order line (Decision 1): nothing here touches Orders. The dialogs are
 // built on OrderUI's frame (orderui.js). Every value goes in as text. Page classes are so-.
+//
+// After a 409 (Save, the send dialog's save or send, Cancel, Restore) the order is reloaded as the
+// server has it, the sentence shows by the buttons (plus "Your unsaved changes weren't kept." when
+// there were any) and focus moves to it. A write that fails on the network may still have gone
+// through, so the page never says "Not saved yet." over it: it says the request couldn't be
+// checked and offers Reload (section 9.2, review B-m1 to B-m3). Send carries expectUpdatedAt, the
+// updatedAt the page holds, so a copy someone else changed is refused (section 12.17).
 (function () {
   "use strict";
 
@@ -93,6 +100,15 @@
   function fmtDayMon(s) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
     return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}` : "";
+  }
+
+  // A UTC timestamp as its Sydney date (YYYY-MM-DD), or null.
+  function sydneyDate(iso) {
+    const t = Date.parse(iso || "");
+    if (!Number.isFinite(t)) return null;
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date(t));
   }
 
   function setStatus(text, kind) {
@@ -242,6 +258,7 @@
   let msg = { text: "", kind: "" };   // the sentence by the buttons
   let marked = new Set();              // the fields the last refusal named
   let suggestions = null;
+  let unsure = false;                  // a write failed on the network: it may have gone through
 
   function editable() {
     if (mode === "new") return can("jobs.edit");
@@ -327,6 +344,12 @@
     if (!n) return;
     n.textContent = msg.text;
     n.className = "so-msg" + (msg.kind ? " so-msg-" + msg.kind : "");
+  }
+
+  // The sentence by the buttons takes focus (after a 409 or a network failure), so it is read out
+  // and the keyboard carries on from there.
+  function focusMsg() {
+    return focusNode($("soMsg"));
   }
 
   function onEdit(key) {
@@ -451,7 +474,10 @@
       } else if (order.changedSinceSent) {
         lines.push("Changed since revision " + order.revision + " was sent" + (order.sentDate ? " on " + fmtDate(order.sentDate) : "") + ". Send revision " + (order.revision + 1) + " so the supplier has the changes.");
       }
-      if (order.jobArchived) lines.push("The job is archived: this stone order can be printed, but not changed.");
+      if (order.jobArchived) {
+        const mayCancel = can("jobs.edit") && order.status !== "cancelled";
+        lines.push("The job is archived: this stone order can be printed" + (mayCancel ? " or cancelled" : "") + ", but not changed.");
+      }
       else if (!can("jobs.edit")) lines.push("You can see and print this stone order. Design/PM makes and changes stone orders.");
       for (const t of lines) box.append(el("p", { class: "so-meta-note" + (order.changedSinceSent && order.status !== "cancelled" && t.startsWith("Changed") ? " so-attend-text" : ""), text: t }));
     } else {
@@ -485,7 +511,20 @@
     if (order && can("jobs.edit") && st !== "cancelled") add("soCancel", "Cancel order", "hs-btn-stop so-push", cancelOrder);
     if (order && can("jobs.edit") && st === "cancelled" && !order.jobArchived) add("soRestore", "Restore", "hs-btn-primary", restoreOrder);
     const box = el("div", { class: "so-actionbox", id: "soActions" }, bar);
-    box.append(el("p", { class: "so-msg" + (msg.kind ? " so-msg-" + msg.kind : ""), id: "soMsg", role: "status", "aria-live": "polite", text: msg.text }));
+    box.append(el("p", { class: "so-msg" + (msg.kind ? " so-msg-" + msg.kind : ""), id: "soMsg", role: "status", "aria-live": "polite", tabindex: "-1", text: msg.text }));
+    if (unsure) {
+      // A write failed on the network and may have gone through: no "Not saved yet." over it.
+      const fix = el("div", { class: "so-unsure" });
+      if (order) {
+        const b = el("button", { type: "button", class: "hs-btn hs-btn-primary", id: "soReload", text: "Reload" });
+        b.addEventListener("click", () => run(reloadNow));
+        fix.append(b);
+      } else if (job && can("jobs.view")) {
+        fix.append(el("a", { class: "hs-btn", id: "soReload", href: "/job.html?id=" + encodeURIComponent(job.id) + "#benchtops", text: "Open the job's Benchtops" }));
+      }
+      box.append(fix);
+      return box;
+    }
     if (on && order && dirty) box.append(el("p", { class: "so-dirty", text: "Not saved yet." + (st === "sent" ? " Saving keeps it sent; it then shows as changed until you send the next revision." : "") }));
     if (on && order && dirty && bar.querySelector("#soSend")) box.append(el("p", { class: "so-note", text: sendLabel() + " saves your changes first." }));
     if (on && order && dirty && bar.querySelector("#soPrint")) box.append(el("p", { class: "so-note", text: "Print shows the order as saved." }));
@@ -542,17 +581,61 @@
     mode = "order";
     base = o.form || {};
     dirty = false;
+    unsure = false;
     if (!/[?&]id=\d+/.test(location.search)) history.replaceState(null, "", "/stone.html?id=" + encodeURIComponent(o.id));
     renderOrder();
   }
 
+  // Resolves true when the order on screen is the server's again.
   async function reloadOrder() {
-    if (!order) return;
+    if (!order) return false;
     try {
       adopt(await call("/api/stone/" + encodeURIComponent(order.id)));
+      return true;
     } catch (e) {
+      // The page may be out of date: offer Reload rather than an editable stale copy's notes.
+      unsure = true;
+      renderActions();
       setMsg(failText(e), "err");
+      return false;
     }
+  }
+
+  const UNSURE_NEW = "Couldn't reach the server, so it isn't known whether the draft was saved. Check the job's Benchtops section before saving again, so it isn't saved twice.";
+
+  // A write failed on the network: it may have gone through, so the form stays as typed, nothing
+  // claims it isn't saved, and Reload shows the order as the server has it.
+  // `quiet`: a dialog is open (it keeps focus); the page behind is put right all the same.
+  function markUnsure(quiet) {
+    unsure = true;
+    const typed = changedKeys().length > 0;
+    const text = !order ? UNSURE_NEW
+      : "Couldn't reach the server, so it isn't known whether that went through. Reload to see the order as it is now" + (typed ? "; it drops what's typed here that isn't saved." : ".");
+    setMsg(text, "err");
+    renderActions();
+    if (!quiet) focusMsg();
+  }
+
+  async function reloadNow() {
+    setMsg("Reloading...", "");
+    if (await reloadOrder()) {
+      setMsg("Reloaded: this is the order as it is saved now.", "ok");
+      focusMsg();
+    } else {
+      setMsg("Still couldn't reach the server. Try Reload again.", "err");
+      focusNode($("soReload")) || focusMsg();
+    }
+  }
+
+  // After a 409: the order as the server has it now, the sentence by the buttons, focus on it.
+  // `typed`: there were changes on screen that weren't saved (now dropped).
+  async function afterConflict(text, typed) {
+    marked = new Set();
+    const ok = await reloadOrder();
+    const sentence = String(text || "That didn't go through").trim().replace(/([^.!?])$/, "$1.");
+    const said = sentence + (typed ? " Your unsaved changes weren't kept." : "");
+    setMsg(ok ? said : said + " The order couldn't be reloaded: Reload to see it as it is now.", "err");
+    focusMsg();
   }
 
   function patchBody() {
@@ -590,22 +673,27 @@
       return true;
     } catch (e) {
       if (btn && btn.isConnected) btn.disabled = false;
+      // No answer: the save may have gone through (B-m3).
       if (e instanceof TypeError) {
-        setMsg(failText(e), "err");
+        markUnsure();
+        return false;
+      }
+      // Cancelled, archived or changed since the page loaded (409): show the order as it is now
+      // (B-m2); the changes typed here weren't saved.
+      if (order && (e.status === 409 || /cancelled|archived/i.test(e.message || ""))) {
+        await afterConflict(e.message, changedKeys().length > 0);
         return false;
       }
       refused(e.message, namedIn(e));
-      // Cancelled or archived since the page loaded (409): show the order as it is now.
-      if (order && (e.status === 409 || /cancelled|archived/i.test(e.message || ""))) {
-        const said = e.message;
-        await reloadOrder();
-        setMsg(said, "err");
-        return false;
-      }
       for (const k of marked) if (focusField(k)) break;
       return false;
     }
   }
+
+  // An answer the dialog can't fix (409): the dialog closes and the page reloads (B-m1). A network
+  // failure is said inside the dialog (Try again is safe: the send carries expectUpdatedAt, so it
+  // can't go twice) and, if the dialog is closed after it, the page offers Reload (B-m3).
+  const NET_IN_DIALOG = "Couldn't reach the server, so it isn't known whether that went through. Try again, or close this and Reload.";
 
   async function sendOrder() {
     if (!order) return;
@@ -614,15 +702,23 @@
     const revs = Array.isArray(order.revisions) ? order.revisions : [];
     const last = revs.length ? revs[revs.length - 1] : null;
     const next = order.revision + 1;
-    const date = U.dateInput(today, last ? last.sentDate : null, today);
+    // Not before the last revision's sent date, or on a first send the day the order was started
+    // (section 9.2, 12.16); never after today.
+    const started = last ? null : sydneyDate(order.createdAt);
+    const min = last ? last.sentDate : started && started <= today ? started : null;
+    const minText = last ? "revision " + last.revision + " (" + fmtDate(last.sentDate) + ")"
+      : min ? "the order was started (" + fmtDate(min) + ")" : "";
+    const date = U.dateInput(today, min, today);
     const supplier = normText(valueOf("supplier"));
     const willSave = changedKeys().length > 0;
-    let named = null; // a refusal sentence from inside the dialog
+    let named = null;      // a refusal sentence from inside the dialog
+    let netFail = false;   // the last try failed on the network
+    let everNet = false;   // any try did
     const r = await U.dialog({
       title: sendLabel(),
       note: (supplier || "No supplier yet") + ": revision " + next + " of the stone order for " + (order.jobName || "this job") + ".",
       fields: [U.field("Date sent", date, {
-        hint: "The date printed on the order. Not in the future" + (last ? ", and not before revision " + last.revision + " (" + fmtDate(last.sentDate) + ")." : "."),
+        hint: "The date printed on the order. Not in the future" + (minText ? ", and not before " + minText + "." : "."),
       })],
       hint: willSave ? "Your changes are saved first, then revision " + next + " is frozen as sent." : "Revision " + next + " is frozen as sent, so it can be printed again exactly.",
       submit: sendLabel(),
@@ -630,26 +726,57 @@
       run: async () => {
         if (!U.validDate(date.value)) throw new Error("Choose the date it was sent");
         if (date.value > today) throw new Error("The sent date can't be in the future");
+        if (min && date.value < min) throw new Error("The sent date can't be before " + minText);
+        netFail = false;
+        let typed = changedKeys().length > 0;
         try {
-          if (changedKeys().length) {
-            const saved = await U.sendVia((b) => call("/api/stone/" + encodeURIComponent(order.id), { method: "PATCH", body: JSON.stringify(b) }), patchBody());
+          if (typed) {
+            const saved = await call("/api/stone/" + encodeURIComponent(order.id), { method: "PATCH", body: JSON.stringify(patchBody()) });
             order = saved;
             base = saved.form || {};
             dirty = false;
+            typed = false;
           }
-          return await U.sendVia((b) => call("/api/stone/" + encodeURIComponent(order.id) + "/send", { method: "POST", body: JSON.stringify(b) }), { sentDate: date.value });
+          return await call("/api/stone/" + encodeURIComponent(order.id) + "/send", {
+            method: "POST",
+            body: JSON.stringify({ sentDate: date.value, expectUpdatedAt: order.updatedAt }),
+          });
         } catch (e) {
-          if (e && e.refused) {
-            named = e;
-            marked = new Set(namedIn(e));
-            applyMarks();
+          if (e instanceof TypeError) {
+            netFail = true;
+            markUnsure(true);
+            everNet = true;
+            throw new Error(NET_IN_DIALOG);
           }
+          // Cancelled, archived, changed by someone else, or nothing to send: reload (B-m1).
+          if (e && e.status === 409) return { conflict: e, typed };
+          if (e && typeof e === "object") e.refused = true;
+          named = e;
+          marked = new Set(namedIn(e));
+          applyMarks();
           throw e;
         }
       },
     });
-    if (!r) return;
+    if (r && r.conflict) {
+      await afterConflict(r.conflict.message, r.typed);
+      // After a lost answer the 409 may be our own send having gone through: say what's there.
+      if (everNet && order && order.revision >= next && order.status !== "cancelled") {
+        const rv = (order.revisions || []).find((x) => x.revision === next);
+        setMsg("Revision " + next + " is sent" + (rv ? ", " + fmtDate(rv.sentDate) + (rv.sentBy && rv.sentBy.name ? " by " + rv.sentBy.name : "") : "") + ".", "ok");
+        focusMsg();
+      }
+      return;
+    }
+    if (!r) {
+      if (netFail) markUnsure();
+      return;
+    }
     if (r.refused) {
+      if (netFail) {
+        markUnsure();
+        return;
+      }
       // Keep anything still unsaved on screen; otherwise show the order as the server has it now.
       if (changedKeys().length) {
         renderActions();
@@ -659,7 +786,7 @@
       if (named) refused(named.message, namedIn(named));
       else refused("That didn't send.", []);
       for (const k of marked) if (focusField(k)) return;
-      focusNode($("soSend")) || focusNode($("soTitle"));
+      focusNode($("soSend")) || focusMsg();
       return;
     }
     marked = new Set();
@@ -672,6 +799,7 @@
     if (!order) return;
     const U = ui();
     const supplier = normText(order.form && order.form.supplier);
+    let netFail = false;
     const r = await U.dialog({
       title: "Cancel this stone order?",
       note: (supplier || "No supplier yet") + ", for " + (order.jobName || "this job") + ".",
@@ -680,11 +808,29 @@
       cancel: "Keep order",
       submitClass: "hs-btn-stop",
       focus: "cancel",
-      run: () => U.sendVia(() => call("/api/stone/" + encodeURIComponent(order.id) + "/cancel", { method: "POST", body: "{}" }), {}),
+      run: async () => {
+        netFail = false;
+        try {
+          return await call("/api/stone/" + encodeURIComponent(order.id) + "/cancel", { method: "POST", body: "{}" });
+        } catch (e) {
+          if (e instanceof TypeError) {
+            netFail = true;
+            markUnsure(true);
+            throw new Error(NET_IN_DIALOG);
+          }
+          if (e && e.status === 409) return { conflict: e };
+          if (e && typeof e === "object") e.refused = true;
+          throw e;
+        }
+      },
     });
-    if (!r) return;
-    if (r.refused) {
-      await reloadOrder();
+    if (r && r.conflict) {
+      await afterConflict(r.conflict.message, changedKeys().length > 0);
+      return;
+    }
+    if (!r || r.refused) {
+      if (netFail) markUnsure();
+      else if (r) await reloadOrder();
       return;
     }
     marked = new Set();
@@ -705,12 +851,8 @@
       focusNode($("soSave")) || focusNode($("soTitle"));
     } catch (e) {
       if (btn && btn.isConnected) btn.disabled = false;
-      setMsg(failText(e), "err");
-      if (!(e instanceof TypeError)) {
-        const said = e.message;
-        await reloadOrder();
-        setMsg(said, "err");
-      }
+      if (e instanceof TypeError) markUnsure();
+      else await afterConflict(e.message, false);
     }
   }
 
