@@ -71,6 +71,7 @@ a:hover { text-decoration: underline; }
   color: var(--body);
   font-size: 13px;
 }
+.st-nothing .hs-btn { margin-left: 12px; }
 .st-empty {
   margin: 0 0 22px;
   padding: 18px 16px;

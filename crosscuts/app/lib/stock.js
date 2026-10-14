@@ -305,13 +305,14 @@ function groupRows(db, row) {
     .all(row.id);
 }
 
-// Section 7.1's order: counting; counted until any group is ordered; ordering while a group with
-// something to order isn't ordered; received when every ordered group is received; else ordered.
-// A group with no order quantities needs no order (section 15.19): a counted month needing nothing
-// at all is "ordered" (done) as soon as the count is finished.
+// Section 7.1's order: counting; counted until Ordering acts (any group ordered, or the month marked
+// "nothing to order", section 15.19); nothing once marked; ordering while a group with something to
+// order isn't ordered; received when every ordered group is received; else ordered. Once a group is
+// ordered, groups with no order quantities count as done.
 function stateOf(row, lines, groups) {
   if (!row || !row.counted_at) return "counting";
-  if (!groups.length) return lines.some((l) => l.order > 0) ? "counted" : "ordered";
+  if (row.nothing_at) return "nothing";
+  if (!groups.length) return "counted";
   const ordered = new Set(groups.map((g) => g.supplier));
   if (lines.some((l) => l.order > 0 && !ordered.has(l.supplier))) return "ordering";
   return groups.every((g) => g.received_date) ? "received" : "ordered";
@@ -321,6 +322,12 @@ function countedOf(db, row) {
   if (!row || !row.counted_at) return null;
   const u = db.prepare("SELECT display_name FROM users WHERE id = ?").get(row.counted_by);
   return { at: row.counted_at, by: person(row.counted_by, u && u.display_name) };
+}
+
+function nothingOf(db, row) {
+  if (!row || !row.nothing_at) return null;
+  const u = db.prepare("SELECT display_name FROM users WHERE id = ?").get(row.nothing_by);
+  return { at: row.nothing_at, by: person(row.nothing_by, u && u.display_name) };
 }
 
 function view(db, period, row) {
@@ -348,6 +355,7 @@ function view(db, period, row) {
     period,
     state: stateOf(row, lines, [...groupsBy.values()]),
     counted: countedOf(db, row),
+    nothingToOrder: nothingOf(db, row),
     groups,
   };
 }
@@ -474,6 +482,7 @@ function reopen(db, req, period) {
   db.transaction(() => {
     const row = orderRow(db, period);
     if (!row || !row.counted_at) throw conflict("The count isn't finished");
+    if (row.nothing_at) throw conflict("This month is marked nothing to order; undo that first");
     if (db.prepare("SELECT 1 AS x FROM stock_order_groups WHERE stock_order_id = ? LIMIT 1").get(row.id)) {
       throw conflict("A supplier has already been ordered; undo that first");
     }
@@ -495,6 +504,9 @@ function saveOrder(db, req, period, lines, today = sydneyToday()) {
   const list = lineList(lines, "order", "Order");
   db.transaction(() => {
     const row = ensureOrder(db, period);
+    if (row.nothing_at && list.some((l) => l.value > 0)) {
+      throw conflict("This month is marked nothing to order. Undo that first.");
+    }
     const guard = (supplier) => {
       if (groupRow(db, row.id, supplier)) throw conflict(`${supplier} has already been ordered`);
     };
@@ -502,6 +514,38 @@ function saveOrder(db, req, period, lines, today = sydneyToday()) {
     if (!Object.keys(after).length) return;
     touch(db, row.id);
     audit.log(req, { action: "stock_order.order", entityType: "stock_order", entityId: period, before, after });
+  })();
+  return month(db, period, today);
+}
+
+// {} closes a counted month that needs nothing; {undo: true} takes it back (section 15.19).
+function nothingToOrder(db, req, period, body, today = sydneyToday()) {
+  periodOk(period, today);
+  const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  db.transaction(() => {
+    const row = orderRow(db, period);
+    if (b.undo === true) {
+      if (!row || !row.nothing_at) throw conflict("This month isn't marked nothing to order");
+      db.prepare("UPDATE stock_orders SET nothing_at = NULL, nothing_by = NULL, updated_at = ? WHERE id = ?").run(nowIso(), row.id);
+      audit.log(req, {
+        action: "stock_order.nothing_undo",
+        entityType: "stock_order",
+        entityId: period,
+        before: { nothing_at: row.nothing_at, nothing_by: row.nothing_by },
+      });
+      return;
+    }
+    if (!row || !row.counted_at) throw conflict("Finish the count first");
+    if (row.nothing_at) throw conflict("This month is already marked nothing to order");
+    if (db.prepare("SELECT 1 AS x FROM stock_order_groups WHERE stock_order_id = ? LIMIT 1").get(row.id)) {
+      throw conflict("A supplier has already been ordered");
+    }
+    if (db.prepare("SELECT 1 AS x FROM stock_order_lines WHERE stock_order_id = ? AND order_qty > 0 LIMIT 1").get(row.id)) {
+      throw conflict("Some items have an order quantity. Clear them, or mark their groups ordered.");
+    }
+    const now = nowIso();
+    db.prepare("UPDATE stock_orders SET nothing_at = ?, nothing_by = ?, updated_at = ? WHERE id = ?").run(now, userId(req), now, row.id);
+    audit.log(req, { action: "stock_order.nothing", entityType: "stock_order", entityId: period, after: { nothing_at: now } });
   })();
   return month(db, period, today);
 }
@@ -687,6 +731,7 @@ module.exports = {
   counted,
   reopen,
   saveOrder,
+  nothingToOrder,
   group,
   groupReceived,
   summary,

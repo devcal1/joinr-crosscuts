@@ -272,6 +272,13 @@ CREATE TABLE board_count_lines (
 );
 ```
 
+**Migration `024_stock_nothing_to_order.sql` (added in 4.3, §15.19).** Additive only, run after 023: two nullable columns on `stock_orders`, so no existing row changes.
+
+```sql
+ALTER TABLE stock_orders ADD COLUMN nothing_at TEXT;                       -- when Ordering closed a counted month needing nothing
+ALTER TABLE stock_orders ADD COLUMN nothing_by INTEGER REFERENCES users(id);
+```
+
 The runner's `VACUUM INTO` backup runs first as always. The scaffold proves 023 on a fresh `.dev/m11/` and on a copy of the latest local test database.
 
 ## 3. Keys, presets and settings (scaffold)
@@ -549,6 +556,7 @@ Audit: `paint_order.create`, `.update`, `.status`, `.cancel`, and `paint_item.*`
 | `POST /api/stock/orders/:period/counted` | `stock.count` | finishes the count; notice §7.2 |
 | `POST /api/stock/orders/:period/reopen` | `stock.order` | counted → counting; 409 when any group is ordered |
 | `PUT /api/stock/orders/:period/order` | `stock.order` | `{lines: [{itemId, order}]}`; a line in a group already ordered can't change (409 `"<supplier> has already been ordered"`) |
+| `POST /api/stock/orders/:period/nothing` | `stock.order` | `{}` marks a counted month **nothing to order** (409 unless counted with no group ordered; 409 `"Some items have an order quantity. Clear them, or mark their groups ordered."` when any line has order > 0); `{undo: true}` clears it (409 when not marked). While marked, saving an Order quantity above 0 is 409 `"This month is marked nothing to order. Undo that first."` and reopening the count is 409. Audited `stock_order.nothing` / `stock_order.nothing_undo` (§15.19) |
 | `POST /api/stock/orders/:period/groups` | `stock.order` | `{supplier, orderedDate?, expectedDate?}` marks a group ordered (it needs at least one line with order > 0: 400); `{supplier, undo: true}` before it's received |
 | `POST /api/stock/orders/:period/groups/received` | `orders.receive` | `{supplier, receivedDate?, deliveryNote?}`; `{supplier, undo: true}` |
 
@@ -561,16 +569,18 @@ Audit: `paint_order.create`, `.update`, `.status`, `.cancel`, and `paint_item.*`
 ### 7.1 The month view
 
 ```js
-{ period, state: "counting" | "counted" | "ordering" | "ordered" | "received",
+{ period, state: "counting" | "counted" | "nothing" | "ordering" | "ordered" | "received",
   counted: {at, by: {id, name}}|null,
+  nothingToOrder: {at, by: {id, name}}|null,                       // set by POST .../nothing (§15.19)
   groups: [ { supplier, ordered: {date, by}|null, expectedDate, received: {date, by}|null, deliveryNote,
               lines: [ {itemId, code, item, link, have, order} ] } ] }   // groups in list order
 ```
 
 The state is worked out, in this order:
 - `counting` until counted.
-- Then `counted` until any group is ordered. A counted month with **no order quantities at all** needs nothing, so it is `ordered` (done) as soon as the count is finished, and the dashboard stops listing it (§15.19).
-- `ordering` while some groups with order > 0 aren't ordered (a group with no order quantities needs no order and never holds the month back).
+- `nothing` when counted and marked nothing to order (§15.19). It counts as finished: the dashboard summary drops it and Deliveries has nothing for it.
+- Then `counted` until Ordering acts (any group ordered, or the month marked nothing to order), whatever the quantities.
+- `ordering` while some groups with order > 0 aren't ordered (once any group is ordered, a group with no order quantities needs no order and never holds the month back).
 - `ordered` when all are.
 - `received` when every ordered group is received.
 
@@ -903,7 +913,7 @@ From the survey on 2026-10-13: the SQL read already returns each room's whole `q
 16. **The Deliveries print uses one 7-day window** (Todd, 2026-10-14) for job, stock and paint deliveries (overdue included), not "end of next week" (§11.7).
 17. **A drawer line on a placed drawer order can't be taken back to To order from the Orders or job page** (Todd, 2026-10-14, review A-M1). `PATCH /api/orders/:id {status:"to_order"}` on such a line is 409 "These drawers are on a placed drawer order. Use Undo order on the Drawer order page."; OrderUI doesn't offer Undo ordered on it. Undo order on the Drawer order page stays the only way back. Replaces §5.2's "by any path" for the ordered → to_order move.
 18. **Fill from Joinr** (Todd, 2026-10-14, review C): `POST /api/job-records/:id/drawers/fill` (`orders.edit`) creates, unchecked, a drawer line for each brand that has mapped counts in the job's Joinr drawer lines and **no live (not cancelled) drawer line of that brand**; 409 "Nothing to fill from Joinr" when it would create none. `GET /api/job-records/:id/drawers` adds `canFill` (boolean). The job page shows **Fill from Joinr** when `canFill`. §4.5 step 3's skip on accept and link is likewise "any live drawer line of that brand", not only `to_order` (review A-m4).
-19. **A stock supplier group with no order quantities counts as done** (Todd, 2026-10-14, review C): a counted month is finished (`ordered`/done state, off the dashboard) once every group that has something to order is marked ordered; a month needing nothing is done as soon as the count is finished.
+19. **A counted month stays "counted, to order" until Ordering acts** (Todd, 2026-10-14, revised after the 4.3 build; replaces the first 4.3 rule that finished a month needing nothing as soon as it was counted): a counted month is `counted` and on the dashboard, whatever its quantities, until a supplier group is marked ordered or the month is marked nothing to order. Once any group is ordered, groups with no order quantities count as done, so the month goes `ordering` → `ordered` → `received` on the groups that have quantities. A month that needs nothing at all gets one **Nothing to order this month** button (`POST /api/stock/orders/:period/nothing`, `stock.order`), which closes it as the `nothing` state (migration 024, columns `nothing_at`/`nothing_by`); Undo brings it back to `counted`. Marking is refused with a quantity present, order quantities above 0 can't be saved while marked, and the count can't be reopened while marked.
 20. **Delivery notes on stock groups, paint orders and drawer stock rows tell Ordering** (Todd, 2026-10-14), as M10's order-line notes do: a notice to `orders.mark_ordered` holders each time the note changes (same wording style as M10's).
 21. **The board count keeps the board list's fixed order** (Todd, 2026-10-14), matching the printed sheet; §11.4's "counted rows sit together" is dropped.
 22. **A malformed `drawers` field doesn't refuse the quote** (Todd, 2026-10-14): the item is imported with `drawers` treated as absent (null), the problem is logged and admin (`users.admin`) gets a notice naming the quote. §4.4 changes accordingly; the wire `contract` stays 1.
