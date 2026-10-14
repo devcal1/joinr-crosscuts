@@ -6,7 +6,7 @@
 // the summary and the calculator page. Every other rule lives in lib/stone.js.
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
-const { bad, notFound, sendError } = require("../lib/httperror");
+const { bad, notFound, sendError, can } = require("../lib/httperror");
 const stone = require("../lib/stone");
 const settings = require("../lib/settings");
 
@@ -30,7 +30,8 @@ function idOr404(v) {
   return id;
 }
 
-// A JSON object body; send, cancel and restore also take an empty one.
+// A JSON object body; send, cancel and restore also take an empty one. The keys each takes are
+// checked in lib/stone.js (send: sentDate and expectUpdatedAt; cancel and restore: none).
 function body(req, { emptyOk = false } = {}) {
   const b = req.body;
   if (emptyOk && (b === undefined || b === null || (typeof b === "object" && !Array.isArray(b) && !Object.keys(b).length))) {
@@ -66,7 +67,8 @@ r.get("/job-records/:id/benchtop-sheet", "jobs.view", handle((req, res) => {
 r.get("/stone", "design.view", handle((req, res) => {
   const status = req.query.status;
   if (status !== undefined && typeof status !== "string") throw bad("status must be a single value");
-  res.json({ orders: stone.list(db, { status: status || "open" }) });
+  // Without jobs.view the list leaves out the form's client and address details (section 4.4).
+  res.json({ orders: stone.list(db, { status: status || "open", withClient: can(req, "jobs.view") }) });
 }));
 
 r.get("/stone/summary", "design.view", handle((req, res) => {
@@ -96,15 +98,11 @@ r.post("/stone/:id/send", "jobs.edit", handle((req, res) => {
 }));
 
 r.post("/stone/:id/cancel", "jobs.edit", handle((req, res) => {
-  const id = idOr404(req.params.id);
-  body(req, { emptyOk: true });
-  res.json(stone.cancel(db, req, id));
+  res.json(stone.cancel(db, req, idOr404(req.params.id), body(req, { emptyOk: true })));
 }));
 
 r.post("/stone/:id/restore", "jobs.edit", handle((req, res) => {
-  const id = idOr404(req.params.id);
-  body(req, { emptyOk: true });
-  res.json(stone.restore(db, req, id));
+  res.json(stone.restore(db, req, idOr404(req.params.id), body(req, { emptyOk: true })));
 }));
 
 r.get("/stone/:id/revisions/:rev", "jobs.view", handle((req, res) => {
