@@ -92,7 +92,7 @@ Placing marks each job's drawer line **Ordered** with the dates you gave, exactl
 
 The **Placed** tab lists the newest 50 placed orders, with a **Brand** filter: the date, the supplier, the jobs, the total and whether the stock row has arrived. Press **Open** on one to see the sheet as it was sent, with each job's note as it was when you placed it. Later changes to a grid don't alter it.
 
-- **Print again** prints the placed sheet.
+- **Print again** prints the placed sheet, each job's note included (once, under its name), so a reprint matches what was sent.
 - **Stock received** (see below) marks the stock row delivered.
 - **Undo order** takes the order back. It's refused if anything on it has already been received ("Something on this order has already been received"): undo the receiving first. Undoing puts each job's drawer line back to **To order**, puts the stock row back on the sheet, and removes the placed order. **A progress invoice that already fell due stays due.**
 
