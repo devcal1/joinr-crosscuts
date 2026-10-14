@@ -20,8 +20,9 @@ A job has at most one grid per brand while it is waiting to be ordered.
 
 When a quote won in Joinr is accepted or linked to a job (Design/PM, **Intake**), Crosscuts reads the quote's **Drawers** and **Inner Drawers** lines and fills in a grid for each brand it finds. It works out the brand, height and length of each line from the **name list** (below). The new grid is **From Joinr** and **Not checked**, and Design/PM is told: "Drawers to check: <job>".
 
-- **A name that isn't on the list** isn't counted. Ordering is told ("Drawer names to add: <job>"), and the Joinr box on the job page lists the name in orange as "not on the drawer name list". Once Ordering adds it, press **Refill from Joinr** on the job.
-- **A job with no Joinr drawer lines** gets no grid. This covers jobs from before drawers came from Joinr, jobs that didn't come from Joinr, and quotes with no drawer lines. The box on the job page says so, and Design/PM types the grid in.
+- **A name that isn't on the list** isn't counted. Ordering is told ("Drawer names to add: <job>"), and the Joinr box on the job page lists the name in orange as "not on the drawer name list". Once Ordering adds it, press **Fill from Joinr** on the job (when it has no grid for that brand yet) or **Refill from Joinr** (when it already has one; see below).
+- **A job with no grid yet** can still be filled later: if the quote has mapped drawer lines for a brand and the job has no live grid for that brand (a cancelled one doesn't count), the Joinr box shows **Fill from Joinr**. It makes a grid for each such brand, **Not checked**, for Ordering, Design/PM and admin (anyone who can edit order lines). If there is nothing to fill it says "Nothing to fill from Joinr".
+- **A job with no Joinr drawer lines** gets no grid. This covers jobs from before drawers came from Joinr, jobs that didn't come from Joinr, and quotes with no drawer lines. For a job that came from Joinr the box on the job page says Joinr sent no drawer lines (to people who can edit it, "so the grid is typed in here"); a job that didn't come from Joinr has no Joinr box at all. Either way, Design/PM types the grid in.
 
 ### Typing a grid in
 
@@ -29,20 +30,20 @@ When a quote won in Joinr is accepted or linked to a job (Design/PM, **Intake**)
 2. Choose the brand, type the count for each height and length, add a note if one helps (for example, "3 fronts"), and save.
 3. To change it later, press **Edit grid**. It works only while the line is still **To order**.
 
-Ticking **Checked** in the same dialog checks it at once. Only Design/PM (and admin) see that tick.
+Ticking **Checked** in the same dialog checks it at once. Only Design/PM (and admin) see that tick. When you open **Edit grid** on a grid that is already checked, **Checked** is ticked already: leave it ticked to keep the check after the save, or untick it to clear it.
 
 ### Checking at design sign-off
 
 Design/PM checks each grid when the design is signed off: compare the counts with the design, correct them with **Edit grid**, then press **Check**. **Uncheck** takes the check back.
 
-- **Changing the counts clears the check**, unless you tick Checked in the same save. Ordering can fix a count, but Design/PM has to check it again.
+- **Changing the counts clears the check**, unless Checked stays ticked in the same save (Design/PM and admin see the tick). Ordering can fix a count, but Design/PM has to check it again.
 - A checked grid shows "Checked by <name>, <date>".
 
 ### When Joinr changes: Refill from Joinr
 
 Crosscuts never rewrites a grid by itself. If the quote's drawer lines change in Joinr after the grid was filled, the job page says **Changed in Joinr since the grid was filled**. Press **Refill from Joinr** to replace the counts with the quote's lines, as the name list maps them now. The check is cleared, so Design/PM checks the grid again. A confirmation says so first.
 
-**Refill from Joinr** is shown only when the quote has drawer lines for that brand. Also use it after Ordering adds or changes a name on the list: a name-list change alone doesn't set the "Changed in Joinr" message.
+**Refill from Joinr** is shown only on a grid that is still **To order**, and only when the quote has drawer lines for that brand. It works on a grid that already exists; to make a grid for a brand the job has none for, use **Fill from Joinr** (above). Also use Refill after Ordering adds or changes a name on the list: a name-list change alone doesn't set the "Changed in Joinr" message.
 
 ### The grid on the Orders list
 
@@ -50,7 +51,8 @@ A drawer line is an ordinary order line ("Drawers (EDGE): 6 × Mid 126/500, …"
 - **Mark ordered isn't offered.** Drawer lines are ordered from the Drawer order page only.
 - The grid sets the supplier and description. Change the grid to change them.
 - **Edit** changes the notes and the expected date. It also offers the ordered and received dates, to whoever may mark ordered or receive (as on any other line).
-- **Receive**, **Undo** and **Cancel** work as on any other line.
+- **Receive**, **Undo received** and **Cancel** work as on any other line.
+- **Undo ordered isn't offered** on a drawer line that is on a placed drawer order (the Orders page and the job page both leave it out; if it were sent, Crosscuts answers "These drawers are on a placed drawer order. Use Undo order on the Drawer order page."). The way back is **Undo order** on the Drawer order page, under **Placed** (below).
 
 ## The name list (Ordering)
 
@@ -60,7 +62,7 @@ Open **Ordering**, then **Drawer order**, then the **Names** tab. Joinr's catalo
 - **Add name** adds a name. Choose **A drawer size** (brand, height, length) or **Not a drawer (ignore it)**.
 - **Ignore** is for lines that aren't drawers: runner sets, accessories and the like. An ignored name is dropped and Ordering isn't told about it again.
 - A name can be on the list once ("That name is already on the list"). **Edit** and **Remove** change it.
-- Changing the list doesn't touch grids already filled. Press **Refill from Joinr** on the job to use the change.
+- Changing the list doesn't touch grids already filled. Press **Refill from Joinr** on the job to use the change (or **Fill from Joinr** if the job has no grid for that brand yet).
 
 ## Ordering: the Drawer order page
 
@@ -82,7 +84,7 @@ Each brand's tab is the order sheet:
 
 Placing needs the Drawer order page (Ordering) and the Mark ordered permission, because it can make a progress invoice fall due. Ordering and admin have both.
 
-If someone checks, unchecks or edits a grid while you're looking, Crosscuts won't place it: "The drawer order changed while you were looking; reload it". Reload, look at the sheet again, and place it.
+If anything on the sheet changes while you're looking (someone checks, unchecks or edits a grid, changes a job's note, recounts, or edits the Stock row), Crosscuts won't place it: "The drawer order changed while you were looking; reload it". The dialog then offers **Reload the order**. Look at the sheet again, and place it.
 
 ### The 50% invoice rule
 

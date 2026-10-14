@@ -463,12 +463,40 @@
     return true;
   }
 
+  // A reload redraws every box. What was typed in them and isn't saved (prices not yet set, counts
+  // waiting in the save queue or refused on another row) is put back afterwards.
+  function snapshotTyping() {
+    const prices = [...document.querySelectorAll("#bdValueBody .bd-setprice")]
+      .map((w) => ({ board: w.querySelector("button[data-act='price']").getAttribute("data-board"), value: w.querySelector("input").value }))
+      .filter((p) => p.value !== "");
+    const counts = [...document.querySelectorAll("input.bd-qty")]
+      .filter((i) => i.value.trim() !== (i.dataset.saved || ""))
+      .map((i) => ({ board: i.getAttribute("data-board"), value: i.value, focus: i === document.activeElement }));
+    return { prices, counts };
+  }
+
+  function restoreTyping(t) {
+    for (const p of t.prices) {
+      const b = document.querySelector(`#bdValueBody button[data-act='price'][data-board="${p.board}"]`);
+      const i = b && b.parentElement.querySelector("input");
+      if (i && i.value === "") i.value = p.value;
+    }
+    for (const c of t.counts) {
+      const i = document.querySelector(`input.bd-qty[data-board="${c.board}"]`);
+      if (!i || i.disabled || i.value === c.value) continue;
+      i.value = c.value;
+      if (c.focus) i.focus({ preventScroll: true });
+    }
+  }
+
   async function reload() {
     const a = document.activeElement;
     const key = a && a !== document.body ? { act: a.getAttribute("data-act"), board: a.getAttribute("data-board"), id: a.id } : null;
     const status = $("bdStatus").textContent;
     const kind = ($("bdStatus").className.match(/bd-status-(\w+)/) || [])[1] || "";
+    const typed = snapshotTyping();
     await loadMonth();
+    restoreTyping(typed);
     setStatus(status, kind);
     if (key) {
       const back = key.act ? document.querySelector(`[data-act="${key.act}"][data-board="${key.board}"]`) : key.id ? $(key.id) : null;
@@ -509,6 +537,8 @@
         await send("PUT", `/api/boards/counts/${period}/lines`, { lines: [{ boardId, qty: v }] });
         if (forPeriod !== period) return;
         input.dataset.saved = qtyText(v);
+        const live = document.querySelector(`input.bd-qty[data-board="${boardId}"]`);
+        if (live && live !== input) live.dataset.saved = input.dataset.saved; // the box was redrawn meanwhile
         line.qty = v;
         input.value = qtyText(v);
         input.closest("tr").classList.toggle("bd-row-done", v != null);
@@ -597,13 +627,20 @@
   // The adjustment and its note save when either changes (contracts section 15.13), so a reload
   // keeps them. A note may be missing while drafting; Confirm value still asks for it.
   let adjSaved = { cents: 0, note: "" };
-  function saveAdjustment() {
+  // It saves as it is typed (a short pause after the last key), on leaving the box, and when the
+  // page is hidden or closed (a keepalive request), so a reload keeps what was typed.
+  // quiet: typing (don't complain about half a number); keepalive: the page is going away.
+  let adjTimer = null;
+  function saveAdjustment(quiet, keepalive) {
+    clearTimeout(adjTimer);
+    adjTimer = null;
     const err = $("bdConfirmErr");
     const out = $("bdAdjSaved");
     if (!view || view.status !== "counted") return;
     const adj = typedAdjustment();
     const note = $("bdAdjNote").value.trim();
     if (Number.isNaN(adj)) {
+      if (quiet === true || keepalive) return;
       out.textContent = "";
       err.textContent = "The adjustment must be dollars and cents, such as -125.50.";
       return;
@@ -615,7 +652,7 @@
       if (forPeriod !== period || !view || view.status !== "counted") return;
       out.textContent = "Saving...";
       try {
-        const v = await send("PUT", `/api/boards/counts/${period}/adjustment`, { adjustmentCents: adj, adjustmentNote: note });
+        const v = await api(`/api/boards/counts/${period}/adjustment`, { method: "PUT", body: JSON.stringify({ adjustmentCents: adj, adjustmentNote: note }), keepalive: keepalive === true });
         if (forPeriod !== period) return;
         adjSaved = { cents: adj, note };
         view.adjustmentCents = v.adjustmentCents;
@@ -883,9 +920,14 @@
   $("bdReopen").addEventListener("click", once(reopenValued));
   $("bdPrintBlank").addEventListener("click", once(printBlank));
   $("bdConfirm").addEventListener("submit", once(confirmValue));
-  $("bdAdj").addEventListener("input", updateTotal);
-  $("bdAdj").addEventListener("change", saveAdjustment);
-  $("bdAdjNote").addEventListener("change", saveAdjustment);
+  const adjSoon = () => { clearTimeout(adjTimer); adjTimer = setTimeout(() => saveAdjustment(true), 600); };
+  $("bdAdj").addEventListener("input", () => { updateTotal(); adjSoon(); });
+  $("bdAdjNote").addEventListener("input", adjSoon);
+  $("bdAdj").addEventListener("change", () => saveAdjustment());
+  $("bdAdjNote").addEventListener("change", () => saveAdjustment());
+  const flushAdj = () => { if (adjTimer) saveAdjustment(true, true); };
+  window.addEventListener("pagehide", flushAdj);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushAdj(); });
   $("bdAdd").addEventListener("click", once(async () => {
     if (!boards) await loadList();
     if (await boardDialog(null)) {

@@ -274,7 +274,10 @@
     }
     writeUrl();
     if (tab === "list" && !items) loadList();
+    // The Have column on Order is as of its last render: draw it again if a Count save came after.
+    if (tab === "order" && orderStale && view && canOrder()) { orderStale = false; renderOrder(); }
   }
+  let orderStale = false;
 
   // ------------------------------------------------------------- the month ---
 
@@ -544,6 +547,8 @@
         const res = await send("PUT", path, body);
         if (forPeriod !== period) return;
         input.dataset.saved = v == null ? "" : String(v);
+        const live = document.querySelector(`input.st-qty[data-kind="${kind}"][data-item="${itemId}"]`);
+        if (live && live !== input) live.dataset.saved = input.dataset.saved; // the box was redrawn meanwhile
         // Keep the inputs on screen; refresh the figures from the answer.
         view = res;
         const label = kind === "have" ? "Have" : "Order";
@@ -553,11 +558,35 @@
       } catch (e) {
         input.value = input.dataset.saved;
         setStatus(errText(e), "err");
-        if (!(e instanceof TypeError)) await reload(); // refused: the month may have changed elsewhere
+        if (!(e instanceof TypeError)) { // refused: the month may have changed elsewhere
+          const typed = snapshotTyping(input);
+          await reload();
+          restoreTyping(typed);
+        }
       } finally {
         input.classList.remove("st-saving");
       }
     });
+  }
+
+  // Boxes with something typed that isn't saved yet (or is waiting in the save queue). A refused
+  // save reloads the month, which redraws every box; these are put back afterwards.
+  function snapshotTyping(except) {
+    const out = [];
+    for (const i of document.querySelectorAll("input.st-qty")) {
+      if (i === except || i.value.trim() === (i.dataset.saved || "")) continue;
+      out.push({ kind: i.getAttribute("data-kind"), item: i.getAttribute("data-item"), value: i.value, focus: i === document.activeElement });
+    }
+    return out;
+  }
+
+  function restoreTyping(list) {
+    for (const t of list) {
+      const i = document.querySelector(`input.st-qty[data-kind="${t.kind}"][data-item="${t.item}"]`);
+      if (!i || i.disabled || i.value === t.value) continue;
+      i.value = t.value;
+      if (t.focus) i.focus({ preventScroll: true });
+    }
   }
 
   // After a save: the counts and badges change, the inputs stay as they are.
@@ -570,7 +599,14 @@
       const c = h && h.querySelector(".st-count");
       if (c) c.textContent = `${g.lines.filter((l) => l.have != null).length}/${g.lines.length}`;
     });
+    if (canOrder() && tab !== "order") orderStale = true;
     if (canOrder() && tab === "order") {
+      // Have may have changed (a Count save finishing late): refresh that column in place.
+      for (const input of $("stOrderGroups").querySelectorAll(`input[data-kind="order"]`)) {
+        const l = lineOf(Number(input.getAttribute("data-item")));
+        const cell = l && input.closest("tr").querySelector(".st-c-have");
+        if (cell) cell.replaceChildren(qtyText(l.have));
+      }
       // Mark ordered and Print order depend on Order > 0: rebuild the bars only.
       const host = $("stOrderGroups");
       view.groups.forEach((g, gi) => {
@@ -656,8 +692,15 @@
     $("stTitle").focus({ preventScroll: true });
   }
 
-  async function markOrdered(g) {
+  // The group as it is now, by supplier: a save still in the queue changes the month's lines.
+  function groupNow(supplier) {
+    return view && view.groups.find((x) => x.supplier === supplier) || null;
+  }
+
+  async function markOrdered(supplier) {
     await queue;
+    const g = groupNow(supplier);
+    if (!g) return;
     const today = todayISO();
     const od = el("input", { class: "hs-input st-date", type: "date", max: today, required: true });
     od.value = today;
@@ -699,7 +742,7 @@
     const g = view && view.groups[Number(b.getAttribute("data-group"))];
     if (!g) return;
     const act = b.getAttribute("data-act");
-    const run = act === "mark" ? () => markOrdered(g) : act === "undo" ? () => undoOrdered(g) : () => printSheet("order", g);
+    const run = act === "mark" ? () => markOrdered(g.supplier) : act === "undo" ? () => undoOrdered(g) : () => printSheet("order", g.supplier);
     guardedRun(b, run);
   });
 
@@ -945,8 +988,10 @@
   }
 
   let titleBefore = null;
-  async function printSheet(kind, g) {
+  async function printSheet(kind, supplier) {
     await queue;
+    const g = kind === "order" ? groupNow(supplier) : null;
+    if (kind === "order" && !g) return;
     const title = await buildSheet(kind, g);
     if (titleBefore == null) titleBefore = document.title;
     document.title = title;

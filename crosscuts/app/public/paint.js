@@ -548,6 +548,17 @@
     if (n) n.hidden = false;
   }
 
+  // Mark ordered (and Undo) come and go with whether any line has a job; draw the action box again
+  // when that changes, so the button is right before the click rather than refused after it.
+  function refreshActions() {
+    const box = document.querySelector("#ptOrder .pt-actionbox");
+    if (!box) return;
+    const had = !!box.querySelector("#ptMark");
+    const next = actionsBlock();
+    if (!!next.querySelector("#ptMark") === had) return;
+    box.replaceWith(next);
+  }
+
   // ---- rendering ----
 
   function setHead(title, status) {
@@ -743,7 +754,7 @@
         else hint.textContent = "";
         hint.hidden = !hint.textContent;
       };
-      job.addEventListener("input", () => { l.jobText = job.value; markDirty(); check(); });
+      job.addEventListener("input", () => { l.jobText = job.value; markDirty(); check(); refreshActions(); });
       check();
       jobCell.append(el("div", { class: "pt-cellbox" }, job, hint));
     } else {
@@ -755,6 +766,7 @@
       form.lines.splice(at, 1);
       markDirty();
       renderLines();
+      refreshActions();
       const next = form.lines[at] || form.lines[at - 1];
       if (!next || !focusNode(lineControl(next.key, "remove"))) focusNode($("ptAddLine"));
     });
@@ -851,9 +863,11 @@
     };
     const st = order ? order.status : "draft";
     const order_ = can("stock.order");
-    const needsMark = order ? jobLineCount() > 0 : form.lines.some((l) => l.jobText.trim());
+    // Job lines (saved, or typed into the form and about to be saved by Mark ordered) need
+    // orders.mark_ordered as well.
+    const needsMark = (order && jobLineCount() > 0) || (editable() && form.lines.some((l) => l.jobText.trim()));
     const mayMark = !needsMark || can("orders.mark_ordered");
-    if (editable()) add("ptSave", order ? "Save" : "Save draft", "hs-btn-primary", save);
+    if (editable()) add("ptSave", order ? "Save" : "Save draft", "hs-btn-primary" + (dirty ? " pt-unsaved" : ""), save);
     if (order_ && st === "draft" && mayMark) add("ptMark", "Mark ordered", order ? "hs-btn-primary" : "", markOrdered);
     if (order_ && st === "ordered" && mayMark) add("ptUndoOrdered", "Undo ordered", "", undoOrdered);
     if (can("orders.receive") && st === "ordered") add("ptReceive", "Received", "hs-btn-primary", receive);

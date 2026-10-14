@@ -211,6 +211,13 @@
           setBusy(false);
           if (ex && ex.refused) refused = true;
           err.textContent = (ex && ex.message) || "That didn't save. Try again.";
+          if (ex && ex.reload) {
+            // The sheet changed under the dialog: the only way on is to look at it again.
+            cancel.textContent = "Reload the order";
+            go.disabled = true;
+            cancel.focus();
+            return;
+          }
           const back = ex && ex.focus ? ex.focus : start;
           if (back && typeof back.focus === "function") back.focus();
         }
@@ -528,6 +535,10 @@
         if (ex.value && !validDate(ex.value)) throw sentence("That expected date isn't a whole date", ex);
         return send("/api/drawers/place", "POST", {
           brand, orderedDate: od.value, expectedDate: ex.value || null, orderIds: d.rows.map((x) => x.orderId),
+          sheetKey: d.sheetKey, // what was on screen: the server refuses (409) when the sheet has changed since
+        }).catch((ex) => {
+          if (ex && /changed while you were looking/i.test(ex.message || "")) ex.reload = true;
+          throw ex;
         });
       },
     });
