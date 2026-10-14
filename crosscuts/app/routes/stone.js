@@ -1,8 +1,6 @@
-// Stone orders and the benchtop sheet (docs/plans/m12-contracts.md section 5). SCAFFOLD (M12 · 2.2):
-// every route is declared with its access; the handlers call lib/stone.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 A fills in
-// both files. The summary answers zeros (section 4.6), and the letterhead is complete (it needs
-// nothing from lib/stone.js). Literal paths are registered before /:id ones.
+// Stone orders and the benchtop sheet (docs/plans/m12-contracts.md section 5). Declared in the
+// M12 · 2.2 scaffold, filled in by Wave 1 A: each handler checks the path ids and the body's shape
+// and passes it to lib/stone.js. Literal paths are registered before /:id ones.
 //
 // jobs.view sees and prints a job's stone orders, jobs.edit changes them, design.view has the list,
 // the summary and the calculator page. Every other rule lives in lib/stone.js.
@@ -19,8 +17,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[stone]");
     }
   };
