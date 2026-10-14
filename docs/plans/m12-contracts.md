@@ -450,3 +450,16 @@ As M11 §12.4:
 12. **The batten gap is rounded down to the 0.5 mm**, so the run never comes out longer than the space; what's left over is shown and sits at the far end. Inputs are in 0.5 mm steps.
 13. **The benchtop text** on the sheet and the job page is the Joinr room text as typed (`raw.benchtops`), from the job's accepted or linked Joinr record.
 14. **The Stone orders list has no New button:** a stone order starts from its job's Benchtops section, so it always belongs to a job.
+
+### Todd's answers on the 4.2 review (2026-10-15), all the recommended options
+
+Built in 4.3; the sections named change to match.
+
+15. **Mark sent, then Print.** No new print mode; `docs/how-to-order-stone.md` gives the steps in that order (C-M1).
+16. **The first sent date can't be before the order was started** (its `created_at` as a Sydney date); the refusal names that date (§4.3, A-m1).
+17. **Send refuses a stale copy:** the send body may carry `expectUpdatedAt`; if the order's `updated_at` differs, 409 "This stone order was changed by someone else" and the page reloads it (§4.3, §5, A-m2).
+18. **The Stone orders list leaves out `form`'s client and address details** for a caller without `jobs.view` (§5, §8, A-m3).
+19. **A cancelled order prints with a CANCELLED box**, as the DRAFT one (§7, B-m4).
+20. **The draft print of a changed sent order links "Print revision n as sent"** (`?id=N&rev=n`), so Accounts and Scheduling can reach it (§9.1, §9.3, B-m5).
+21. **The Design/PM tile's installs count only orders still needing sending** (draft, or changed since sent) with a requested install in the next two weeks; the line stays orange (§4.6, §9.4, B-m7).
+22. **Menu bar hidden in every print** (not from M12): a `@media print` rule in `public/shell/shell.css` hides `#cc-shell`, `.cc-foot-rule` and `.cc-dialog`, in 0.1.16. Board files untouched.
