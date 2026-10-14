@@ -23,7 +23,7 @@ Each page has a **List** tab (the paint page has **Paint list**). Type the lists
 - **Boards:** supplier, thickness, board, finish and the **price per sheet (ex GST)**. The list's order is the order of the count sheet. Prices are seen by Ordering only.
 - **Paint items:** name, finish, manufacturer, kind (Colour, Hardener, Thinners, Primer, Abrasive or Other) and unit (kg or each).
 
-A new item or board appears on the month that's still being counted, not on months already finished. Editing a list never changes a past month.
+A new item or board appears on the month that's still being counted, not on months already finished. Editing a list doesn't change a month that's already counted, except for prices: a board's price applies to a month until that month's value is confirmed, and is frozen once it is.
 
 ## The monthly stock order
 
@@ -43,6 +43,7 @@ Once the count is finished, Have can't be changed. Ordering can reopen it (below
 2. For each supplier group, press **Mark ordered**. Set the date it was ordered and, if you know it, the expected date. A group can be marked once the count is finished and at least one of its items has an Order above zero.
 3. **Print order** prints one supplier group: only its items with an Order above zero (code, item, quantity). **Print all orders** prints one page per supplier group.
 
+- A supplier group with nothing to order (every Order empty or zero) needs no action. The month is finished (ordered) once **every group that has something to order** is marked ordered, and a month needing nothing is finished as soon as the count is.
 - A group that's marked ordered is locked: **Undo** it first to change its quantities ("<supplier> has already been ordered").
 - **Reopen count** takes the count back to counting, so the Workshop Manager can change a Have and finish it again. It works only while no supplier is marked ordered.
 
@@ -114,7 +115,7 @@ Once ordered, an order can't be edited. Undo ordered first.
 - **The Workshop Manager and Ordering (counting):** from the **25th of a month to the 7th of the next**, the dashboard shows "Stock count: <Month> not done" and "Board count: <Month> not done" for the month just ending, until each count is finished. The link opens that month.
 - **Ordering (placing and confirming):** the dashboard also shows
   - "Drawers: N to order · N waiting for check" when there are any,
-  - "Stock order <Month>: counted, to order" once a count is finished and not all groups are ordered, and
+  - "Stock order <Month>: counted, to order" once a count is finished and until every group with something to order is marked ordered (it never shows for a month that needs nothing), and
   - "Board count <Month>: value to confirm" once a board count is finished.
 
   These stay until the work is done.

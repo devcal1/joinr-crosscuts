@@ -1059,7 +1059,10 @@
     const j = drawerData && drawerData.joinr;
     if (!j) return null;
     if (!Array.isArray(j.drawers)) {
-      return el("p", { class: "dw-jempty", text: "Joinr didn't send drawer lines for this quote, so the grid is typed in here." });
+      // "Typed in here" tells the people who can type one; others only see that Joinr sent nothing.
+      return el("p", { class: "dw-jempty", text: can("orders.edit")
+        ? "Joinr didn't send drawer lines for this quote, so the grid is typed in here."
+        : "Joinr didn't send drawer lines for this quote." });
     }
     const attend = j.unmapped.length > 0 || j.changedSinceFill;
     const box = el("div", { class: "hs-callout dw-jjoinr" + (attend ? " hs-callout-orange" : "") }, el("h3", { text: "Drawer lines on the Joinr quote" }));
@@ -1078,12 +1081,20 @@
     if (j.unmapped.length) {
       if (can("stock.order")) {
         box.append(el("p", {}, document.createTextNode("Add the missing names on the "),
-          el("a", { href: "/drawers.html#names", text: "Drawer order page" }), document.createTextNode(", then Refill from Joinr.")));
+          el("a", { href: "/drawers.html#names", text: "Drawer order page" }),
+          document.createTextNode(", then Fill from Joinr (a brand with no grid yet) or Refill from Joinr (a grid already here).")));
       } else {
-        box.append(el("p", { text: "Ordering adds missing names to the drawer name list; then Refill from Joinr picks them up." }));
+        box.append(el("p", { text: "Ordering adds missing names to the drawer name list; then Fill from Joinr (a brand with no grid yet) or Refill from Joinr (a grid already here) picks them up." }));
       }
     }
     if (j.changedSinceFill) box.append(el("p", { class: "dw-jchanged", text: "Changed in Joinr since the grid was filled." }));
+    // A brand in the quote with no live grid: one click makes the grids (unchecked).
+    if (drawerData.canFill === true && can("orders.edit")) {
+      box.append(el("div", { class: "dw-jacts" }, el("button", {
+        type: "button", class: "hs-btn hs-btn-primary", "data-dact": "fill", text: "Fill from Joinr",
+        "aria-label": "Fill drawer grids from the Joinr quote",
+      })));
+    }
     return box;
   }
 
@@ -1098,7 +1109,9 @@
     $("addDrawers").hidden = !(canAdd && free.length);
     const out = [];
     if (!lines.length) {
-      out.push(el("p", { class: "dw-jempty", text: canAdd ? "No drawer grid yet. Add drawers to type one in." : "No drawer grid yet." }));
+      out.push(el("p", { class: "dw-jempty", text: canAdd
+        ? (drawerData.canFill === true ? "No drawer grid yet. Fill from Joinr below, or add drawers to type one in." : "No drawer grid yet. Add drawers to type one in.")
+        : "No drawer grid yet." }));
     } else {
       out.push(el("div", { class: "dw-jcards" }, ...lines.map(drawerCard)));
     }
@@ -1380,11 +1393,31 @@
   async function runDrawerAction(act, id, opener) {
     if (drawersBusy || !drawerData) return;
     const line = id ? drawerData.lines.find((l) => l.id === id) : null;
-    if (act !== "add" && !line) return;
+    if (act !== "add" && act !== "fill" && !line) return;
     const status = $("drawersStatus");
     drawersBusy = true;
     try {
       let r;
+      if (act === "fill") {
+        for (const b of $("drawersBody").querySelectorAll("button")) b.disabled = true;
+        setLine(status, "Saving...", "muted");
+        try {
+          r = await api("/api/job-records/" + jobId + "/drawers/fill", { method: "POST", body: "{}" });
+        } catch (e) {
+          // 409 "Nothing to fill from Joinr": the job changed since the page loaded; show it as it is.
+          setLine(status, e instanceof TypeError ? "Couldn't reach the server. Try again." : e.message, "err");
+          await Promise.all([loadDrawers(), loadOrders()]);
+          focusNode($("drawers-h"));
+          return;
+        }
+        if (r && r.job) applyJobState(r.job);
+        const made = r && (Array.isArray(r.created) ? r.created : Array.isArray(r.lines) ? r.lines : Array.isArray(r.orders) ? r.orders : null);
+        setLine(status, `Filled from Joinr${made ? ": " + (made.length === 1 ? "1 drawer grid" : made.length + " drawer grids") : ""}. Design/PM checks each before it goes on the Drawer order.`, "ok");
+        await Promise.all([loadDrawers(), loadOrders()]);
+        const first = made && made[0] && made[0].id;
+        focusDrawerAfter(first || 0, []);
+        return;
+      }
       if (act === "add" || act === "edit" || act === "refill") {
         r = act === "refill" ? await refillDialog(line) : await gridDialog(act === "edit" ? line : null);
         if (!r) return; // cancelled: focus is back on the button

@@ -121,11 +121,15 @@
     }
     cell.append(box);
     const note = window.OrderUI.noteBlock(l);
+    // "DRAWERS" / "PAINT ORDER <id>" under the description, as on the Orders page and the job page.
+    const kind = window.OrderUI.kindLabel(l);
+    const desc = td("Description", "dl-c-desc" + (l.description ? "" : " dl-blank"), el("span", { text: l.description || "" }));
+    if (kind) desc.append(kind);
     return el("tr", { "data-id": String(l.id) },
       exp,
       td("Job", "dl-c-job", jobNode(l)),
       td("Supplier", "dl-c-sup", el("span", { text: l.supplier })),
-      td("Description", "dl-c-desc" + (l.description ? "" : " dl-blank"), el("span", { text: l.description || "" })),
+      desc,
       td("Notes", "dl-c-notes" + (l.notes ? "" : " dl-blank"), el("span", { text: l.notes || "" })),
       td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
       cell);

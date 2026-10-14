@@ -193,7 +193,8 @@ td.pt-c-n { padding-top: 17px; }
 .pt-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pt-actions #ptCancel { margin-left: auto; }
 .pt-dirty { margin: 8px 0 0; color: var(--orange-tint); font-size: 13px; }
-.pt-unsaved { background: var(--teal-16); }
+/* Unsaved changes: the Save button keeps the outlined teal text of a primary button (no fill). */
+.pt-unsaved { border-color: var(--teal); color: var(--teal-tint); }
 
 /* the Mark ordered dialog's job list */
 .pt-dlg-jobs { display: flex; flex-direction: column; gap: 6px; }

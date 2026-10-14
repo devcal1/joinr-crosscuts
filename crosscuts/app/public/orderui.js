@@ -291,7 +291,9 @@
         // description out, as the grid sets them.
         edit: live && (edit || (placed && mark) || (s === "received" && receive)),
         markOrdered: false, // ordered from the Drawer order page
-        undoOrdered: s === "ordered" && mark,
+        // Not once it is on a placed drawer order: only Undo order on the Drawer order page takes
+        // it back (contracts section 15.17); the server refuses it with a message too.
+        undoOrdered: s === "ordered" && mark && !(line.drawers && line.drawers.drawerOrderId != null),
         cancel: live && edit,
         link: null,
       };

@@ -40,6 +40,6 @@ When every line of a job has been received, the job's materials are in: the boar
 
 ## Notes
 
-- A delivery note tells everyone who can mark lines ordered (Ordering and admin), each time it changes.
+- A delivery note tells everyone who can mark lines ordered (Ordering and admin), each time it changes. That goes for a job line and for a stock supplier group, a paint order or a drawer stock row alike.
 - The Workshop Manager sees job names but not the job pages (no client details).
 - A line can't be marked received before it's marked ordered, and dates can't be in the future.
