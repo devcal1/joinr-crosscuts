@@ -26,6 +26,16 @@ Open **Ordering**, then **Deliveries** (the dashboard's **Deliveries** line goes
 - **Marked one received by mistake?** It's under **Received recently** (the last 14 days): press **Undo**. Its delivery note stays.
 - **Print** prints Overdue, Today and Next 7 days as a checklist to take round the workshop.
 
+### Stock and paint
+
+Below the job groups, **Stock and paint** lists what's on order for the workshop rather than for one job: each supplier group of the monthly stock order, each paint order, and drawer stock. Receive each with **Received** as above; its dialog takes a delivery note. There's no separate Delivery note button on these rows, so if something is short, receive it when it's all in. Recent receipts join **Received recently** with **Undo**.
+
+- **A paint order is received as a whole.** Receiving it receives its job lines too, so those jobs' materials follow. Paint lines don't appear in the job groups.
+- **A job's drawer line** stays in the job groups, labelled DRAWERS. It's ordered from the Drawer order page, not with **Mark ordered**, but you receive it here like any other line.
+- **Print** includes stock and paint due in the same 7 days (overdue ones too), in its own section.
+
+See `how-to-do-the-stocktake.md` and `how-to-order-drawers.md` for the ordering side.
+
 When every line of a job has been received, the job's materials are in: the board's materials mark turns to "in", the Planner shows it, and Scheduling and Ordering are told.
 
 ## Notes
