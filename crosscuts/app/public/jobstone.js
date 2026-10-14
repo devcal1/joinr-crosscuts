@@ -42,6 +42,7 @@
     const n = $("jtStatus");
     n.textContent = msg || "";
     n.className = "jo-status " + (kind || "muted");
+    n.hidden = !msg; // empty, it would only leave a gap above the table
   }
 
   // The state as section 9.1 words it: [text, badge class, note under it].
