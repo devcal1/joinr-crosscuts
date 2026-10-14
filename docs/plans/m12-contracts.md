@@ -250,6 +250,18 @@ Battens.solve({ space, width = 25, ends = "batten", count, gap })
 - **Rounding:** `gap` is `exactGap` **rounded down** to the 0.5 mm, so the run never comes out longer than the space. `exactGap` is reported to 0.01. `total` = count × width + gaps × gap; `leftOver` = space − total (≥ 0).
 - **Set-out:** batten `n` (1-based) starts at (n − 1)(width + gap) with batten ends, or gap + (n − 1)(width + gap) with gap ends, measured from the start; `end` = start + width. Any left-over sits at the far end.
 - **Refusals** (`ok: false`, nothing thrown): a bad or missing input names it (`"The space to fill must be from 1 to 20000 mm, in 0.5 mm steps"` and so on); both or neither of `count` and `gap` → `"Give the number of battens or the gap you'd like"`; batten ends with fewer than 2 → `"Starting and ending on a batten needs at least 2 battens"`; a gap under 0.5 mm, or no count that leaves one → `"<count> battens of <width> mm don't leave a gap in <space> mm"` (or, from a gap, `"Battens of <width> mm with a <gap> mm gap don't fit in <space> mm"`).
+- **Every refusal sentence** (listed at 4.3 from `battens.js`; `<…>` is a value in plain mm such as 25 or 25.5):
+  - "The space to fill must be from 1 to 20000 mm, in 0.5 mm steps"
+  - "The batten width must be from 1 to 1000 mm, in 0.5 mm steps"
+  - "The ends must be a batten at each end or a gap at each end"
+  - "Give the number of battens or the gap you'd like"
+  - "Starting and ending on a batten needs at least 2 battens" (batten ends, a count under 2, 0 and negatives included)
+  - "The number of battens must be a whole number from 2 to 1000" (batten ends) or "… from 1 to 1000" (gap ends)
+  - "The gap must be from 0.5 to 10000 mm, in 0.5 mm steps"
+  - "<count> battens of <width> mm don't leave a gap in <space> mm", and the singular "1 batten of <width> mm doesn't leave a gap in <space> mm" (gap ends only)
+  - "Battens of <width> mm with a <gap> mm gap don't fit in <space> mm"
+  - "Battens of <width> mm with a <gap> mm gap would take more than 1000 battens in <space> mm"
+- **A gap far larger than the space** (as built, §6 literal; deferred at 4.3): with batten ends the answer is 2 battens with the gap that fills the space (e.g. `{space: 1000, width: 25, gap: 5000}` → 2 battens, 950 mm gap), refused only when 2 don't fit; with gap ends a gap larger than the space is refused, and one between (space − width) / 2 and the space gives 1 batten in the middle.
 - **The workbook check:** `{space: 1768, width: 25, count: 22}` → gap 58, total 1768, left over 0, batten 2 starts at 83, batten 22 at 1743 and ends at 1768; `{space: 1768, width: 25, gap: 58}` → count 22.
 
 ## 7. Prints (B)
