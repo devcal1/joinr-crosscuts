@@ -386,7 +386,7 @@ Joinr's rules for the field:
   - `section` in `["drawers", "innerDrawers"]`
   - `name` a non-empty string of at most 200 characters (trimmed)
   - `qty` a finite number above 0 and at most 100000, rounded to a whole number (a fractional quantity rounds half up; 0 after rounding is dropped)
-- A bad entry throws `invalid("drawers[<i>] ...")` naming the field, never the value.
+- A bad entry (or a `drawers` that isn't an array) **doesn't refuse the quote** (§15.22): the item is imported with `drawers: null` ("not reported"), the problem is logged (`[joinr] item <cursor>: drawers not read (drawers[<i>] ...); imported without them`, naming the field, never the value), and the `users.admin` holders get a notice: kind `joinr.drawers`, title `Drawers not read from Joinr: <quote number and site>`, link `/intake.html?item=<id>`, entity `joinr_intake` with id `<rootQuoteId>:<hash of the problem>`, sent once per quote and distinct problem (a repeat of the same item sends nothing). Every other field's rules still refuse the quote as before.
 - The normalised copy gains `drawers` after `raw`.
 
 **Changed detection** (A):
@@ -405,14 +405,16 @@ Joinr's rules for the field:
 2. Mapped entries are summed per brand and cell.
 3. For each brand with any mapped count, a drawer line is created:
    - `source: 'joinr'`, unchecked.
-   - `joinr_lines` = the entries for that brand, plus every unmapped entry, as `[{section, name, qty, map: {brand, height, length}|"ignored"|null}]`.
+   - `joinr_lines` = **every** entry of the quote's drawer lines as Joinr sent them (not only that brand's), as `[{section, name, qty, map: {brand, height, length}|"ignored"|null}]`, `map` being the mapping at the time. "Changed in Joinr" (§6.1 `changedSinceFill`) compares these raw lines (section, name, summed qty) with the payload's, never the mapping, so remapping a name on our side is not a change (review A-m5).
    - `notes` = `From Joinr <quoteNumber>.`
-   - **Skipped** when the job already has a `to_order` drawer line of that brand. On `link()` the job may have one; the job page then offers Refill (§6.1).
+   - **Skipped** when the job already has **any live (not cancelled) drawer line of that brand** (to order, ordered or received; §15.18, review A-m4). On `link()` the job may have one; while it is still to order the job page offers Refill (§6.1).
 4. **Unmapped names, when there are any:**
    - If no line was created, the job's unmapped entries are still found later through the stored intake payload (`intake.forJob`).
    - One notice goes to `stock.order` holders: kind `drawers.unmapped`, title `Drawer names to add: <job name>`, body the names (cut to 300), link `/drawers.html#names`, entity `job`.
 5. **When at least one line was created**, one notice goes to `jobs.edit` holders: kind `drawers.check`, title `Drawers to check: <job name>`, link `/job.html?id=<id>#orders`, entity `job`.
    - Both notices skip the actor.
+
+**Fill from Joinr** (§15.18) runs the same fill for an existing job on demand: `POST /api/job-records/:id/drawers/fill` (§6.1). It creates, unchecked, a line for each brand that has mapped counts in the job's latest Joinr drawer lines and no live drawer line of that brand, sends the `drawers.check` notice (not the `drawers.unmapped` one), and is 409 `"Nothing to fill from Joinr"` when it would create none.
 
 Nothing else in accept or link changes. A job accepted before M11, or from an older Joinr, has no drawer data. Design/PM then types its grid by hand (`source: 'manual'`).
 
@@ -439,13 +441,14 @@ COLUMNS_SQL // "od.brand AS drawer_brand, od.source AS drawer_source, od.checked
 | Line | Plain call | Answer |
 |---|---|---|
 | drawers | `to_order → ordered` | 409 `"Drawer lines are ordered from the Drawer order page"` |
+| drawers | `ordered → to_order` while `drawerOrderId` is set (on a placed drawer order) | 409 `"These drawers are on a placed drawer order. Use Undo order on the Drawer order page."` (§15.17) |
 | drawers | `supplier` or `description` changed | 409 `"The drawer grid sets this line; change the grid"` |
 | drawers | anything else (receive, undo, notes, expected date, ordered date, delivery note, cancel) | allowed as for any line |
 | paint | any status change, any field, cancel | 409 `"This line is part of paint order <id>; change it there"` |
 
-- **A drawer line moving `ordered → to_order`**, by any path, sets `order_drawers.drawer_order_id = NULL` in the same transaction (the placed order's frozen `grid_json` keeps it as history).
+- **A drawer line moving `ordered → to_order`** (only ever through `lib/drawers.js`, §15.17: Undo order on the Drawer order page; a plain call is refused while the line is on a placed order), sets `order_drawers.drawer_order_id = NULL` in the same transaction (the placed order's frozen `grid_json` keeps it as history).
 - **`createLine(db, jobId, fields, req, opts = {})`** is unchanged for plain calls. `lib/drawers.js` and `lib/paint.js` call it and then write their own link row in the same transaction.
-- **`present()`** adds `kind`, `drawers`, `paintOrderId` (§4.2) from the joined columns. `list()`, `listForJob()` and `deliveries()` rows carry them.
+- **`present()`** adds `kind`, `drawers`, `paintOrderId` (§4.2) from the joined columns. A drawer line's `drawers.drawerOrderId` is the placed drawer order's id, or `null`; the pages hide Undo ordered on a drawer line while it is set. `list()`, `listForJob()` and `deliveries()` rows carry them.
 - **`deliveries()`:**
   - It leaves **paint lines** out of its five groups and `recent`, because they're received with their paint order (§9).
   - It keeps drawer lines (the Workshop Manager receives each job's drawers).
@@ -458,14 +461,15 @@ COLUMNS_SQL // "od.brand AS drawer_brand, od.source AS drawer_source, od.checked
 
 | Method & path | Access | What |
 |---|---|---|
-| `GET /api/job-records/:id/drawers` | `jobs.view` | `{lines: [drawer line + counts + joinrLines], joinr: {drawers: [...] |null, unmapped: [...], changedSinceFill: bool}}`; `joinr` is from the job's latest intake payload (`intake.forJob`), null when none |
+| `GET /api/job-records/:id/drawers` | `jobs.view` | `{lines: [drawer line + counts + joinrLines], joinr: {drawers: [...] |null, unmapped: [...], changedSinceFill: bool}, canFill: bool}`; `canFill` is true when the caller holds `orders.edit` and Fill from Joinr would create at least one line (§15.18); `joinr` is from the job's latest intake payload (`intake.forJob`), null when none |
 | `POST /api/job-records/:id/drawers` | `orders.edit` | `{brand, counts, notes?, expectedDate?, checked?}` → 201 `{order, job}`; `source: 'manual'`; `checked: true` needs `jobs.edit` (403 otherwise) |
+| `POST /api/job-records/:id/drawers/fill` | `orders.edit` | Fill from Joinr (§4.5, §15.18) → 201 `{lines, joinr, canFill, created: [orderId]}` (the `GET` body plus the new ids); 409 `"Nothing to fill from Joinr"` |
 | `PUT /api/orders/:id/drawers` | `orders.edit` | `{counts, notes?, checked?}`, on a `to_order` drawer line only (409 `"Only a drawer line still to order can be changed"`); empty `counts` → 400 `"Add at least one drawer, or cancel the line"`; the check rules of §4.2 |
 | `POST /api/orders/:id/drawers/check` | `jobs.edit` | sets the check on a `to_order` line without changing counts; `{checked: false}` clears it |
 | `POST /api/orders/:id/drawers/refill` | `orders.edit` | replaces the counts and `joinr_lines` from the latest intake payload and the current name list, `source: 'joinr'`, unchecked; 409 `"No drawers from Joinr for this job"` when the payload has none for the brand |
-| `GET /api/drawers?brand=edge` | `stock.order` | `{brand, supplier, rows: [checked to_order lines on live jobs], waiting: [unchecked to_order lines], stock: [...draft], totals, total}` |
+| `GET /api/drawers?brand=edge` | `stock.order` | `{brand, supplier, sheetKey, rows: [checked to_order lines on live jobs], waiting: [unchecked to_order lines], stock: [...draft], totals, total}`; `sheetKey` is a hash of what the sheet shows (§15.23) |
 | `PUT /api/drawers/stock` | `stock.order` | `{brand, counts}` replaces the stock draft |
-| `POST /api/drawers/place` | `stock.order` (+ `orders.mark_ordered` checked in lib, 403) | `{brand, orderedDate?, expectedDate?, orderIds}` → 201 `{drawerOrder}` (§6.2) |
+| `POST /api/drawers/place` | `stock.order` (+ `orders.mark_ordered` checked in lib, 403) | `{brand, orderedDate?, expectedDate?, orderIds, sheetKey}` → 201 `{drawerOrder}` (§6.2) |
 | `GET /api/drawers/placed?brand=` | `stock.order` | newest first, 50 |
 | `GET /api/drawers/placed/:id` | `stock.order` | one, with `grid` |
 | `POST /api/drawers/placed/:id/undo` | `stock.order` (+ `orders.mark_ordered`) | §6.2 |
@@ -479,9 +483,10 @@ COLUMNS_SQL // "od.brand AS drawer_brand, od.source AS drawer_source, od.checked
 ### 6.2 Placing and undoing
 
 **Place** works only on what the user saw:
-- `orderIds` must equal exactly the brand's checked `to_order` drawer lines on live jobs. Otherwise it's 409 `"The drawer order changed while you were looking; reload it"`.
+- `sheetKey` (from `GET /api/drawers?brand=`) is required (400 `"sheetKey is required"`) and must equal the sheet's current key: a hash of the brand's line ids, counts, notes and check state (checked and waiting lines) and the stock row. Otherwise it's 409 `"The drawer order changed while you were looking; reload it"` (§15.23).
+- `orderIds` must equal exactly the brand's checked `to_order` drawer lines on live jobs, with the same 409.
 - An empty set with an empty stock draft is 400 `"Nothing to order"`.
-- `orderedDate` defaults to today and can't be in the future.
+- `orderedDate` defaults to today and can't be in the future; `expectedDate` can't be before it (400 `"The expected date can't be before it was ordered (<date>)"`, as for a stock group and a paint order).
 
 In one transaction it:
 1. Writes `drawer_orders` with `grid_json`.
@@ -493,7 +498,7 @@ Audit: `drawer_order.place`.
 
 **Undo** is refused with 409 `"Something on this order has already been received"` when any line is received or the stock row is. Otherwise it:
 1. Moves each line that is still `ordered` and still linked back to `to_order` (through `updateLine` with `via`).
-2. Puts the stock row back as the draft (adding to any newer draft).
+2. Puts the stock row back as the draft (adding to any newer draft; a cell that would pass 999 is held at 999).
 3. Deletes the `drawer_orders` row.
 
 Audit: `drawer_order.undo`, with the frozen grid in `before`. A job whose progress invoice already fell due keeps it: `materials_ordered_date` is "done once", as with any undo today.
@@ -564,30 +569,32 @@ Audit: `paint_order.create`, `.update`, `.status`, `.cancel`, and `paint_item.*`
 
 The state is worked out, in this order:
 - `counting` until counted.
-- Then `counted` until any group is ordered.
-- `ordering` while some groups with order > 0 aren't ordered.
+- Then `counted` until any group is ordered. A counted month with **no order quantities at all** needs nothing, so it is `ordered` (done) as soon as the count is finished, and the dashboard stops listing it (§15.19).
+- `ordering` while some groups with order > 0 aren't ordered (a group with no order quantities needs no order and never holds the month back).
 - `ordered` when all are.
 - `received` when every ordered group is received.
 
 ### 7.2 Notices
 
 - **Counted** → `stock.order` holders, except the actor: kind `stock.counted`, title `Stock counted: <Month yyyy>`, link `/stock.html?period=<p>`.
+- **Delivery note** (§15.20) → `orders.mark_ordered` holders, except the actor, each time a group's note changes to a non-empty one (at `groups/received`): kind `stock.delivery_note`, title `Delivery note: Stock order <Month yyyy>`, body `<supplier>: <note, cut to 200>`, link `/stock.html?period=<p>`, entity `stock_order` (the period). Paint orders send `paint.delivery_note` (title `Delivery note: Paint order <id>`, body `<supplier>: <note>`, link `/paint.html?id=<id>`, entity `paint_order`) when marked received with a changed note (§6.3), and a placed drawer order's stock row sends `drawers.delivery_note` (title `Delivery note: Drawer stock (EDGE)`, link `/drawers.html?placed=<id>`, entity `drawer_order`) at `stock-received`.
+- **Dates:** `expectedDate` before the ordered date is 400 `"The expected date can't be before it was ordered (<date>)"` on a group's Mark ordered (and on a paint order's and a placed drawer order's).
 
 ## 8. Board stocktake and stock value (`routes/boards.js`, `lib/boards.js`; B)
 
 | Method & path | Access | What |
 |---|---|---|
-| `GET /api/boards` | `["stock.count","stock.order"]` | by `sort`; `priceCents` **only for `stock.order` holders** (the key is absent for others); `?all=1` includes inactive |
+| `GET /api/boards` | `["stock.count","stock.order"]` | by `sort`; `priceCents` **only for `stock.order` holders** (the key is absent for others); `?all=1` includes inactive (only for `stock.order` holders, as for stock items) |
 | `POST /api/boards`, `PATCH /api/boards/:id`, `POST /api/boards/reorder` | `stock.order` | `{supplier, thickness, name, finish, priceCents, active}` |
 | `GET /api/boards/counts` | `["stock.count","stock.order"]` | months with a record, newest first, with status (and value for `stock.order`) |
 | `GET /api/boards/counts/:period` | `["stock.count","stock.order"]` | `{period, status, counted, valued, lines: [{boardId, supplier, thickness, name, finish, qty, priceCents?, lineCents?}], subtotalCents?, adjustmentCents?, adjustmentNote?, valueCents?, unpriced: n?}`; the money keys only for `stock.order` |
 | `PUT /api/boards/counts/:period/lines` | `stock.count` | `{lines: [{boardId, qty}]}` (`qty` 0–9999 in 0.5 steps, null clears); open only (409 `"The count is finished"`) |
 | `POST /api/boards/counts/:period/counted` | `stock.count` | open → counted; notice §8.1 |
 | `POST /api/boards/counts/:period/reopen-count` | `stock.order` | counted → open (before it's valued) |
-| `PUT /api/boards/counts/:period/adjustment` | `stock.order` | `{adjustmentCents?, adjustmentNote?}` saves the adjustment and its note on a **counted** month as they are typed (added in 4.1, §15.13); same validation as `value` (whole cents within ±$10,000,000, note up to 500 characters), but a nonzero adjustment may have no note while drafting; 409 `"Finish the count first"` when open, `"The value is already confirmed"` when valued; audited `board_count.adjustment`; answers the month as `GET` does |
-| `POST /api/boards/counts/:period/value` | `stock.order` | `{adjustmentCents?, adjustmentNote?}` (a note is required when the adjustment isn't 0; with neither field in the body the saved adjustment is used, and fields given override it); refused 409 `"<n> counted board(s) have no price"` while any counted line with qty > 0 is unpriced; freezes each line's `price_cents` and `value_cents = Σ round(qty × price) + adjustment`; counted → valued; notice §8.1 |
+| `PUT /api/boards/counts/:period/adjustment` | `stock.order` | `{adjustmentCents?, adjustmentNote?}` saves the adjustment and its note on a **counted** month as they are typed (added in 4.1, §15.13); **per field**: an absent field keeps the saved value, `null` or `""` clears it (§15.24); same validation as `value` (whole cents within ±$10,000,000, note up to 500 characters), but a nonzero adjustment may have no note while drafting; 409 `"Finish the count first"` when open, `"The value is already confirmed"` when valued; audited `board_count.adjustment`; answers the month as `GET` does |
+| `POST /api/boards/counts/:period/value` | `stock.order` | `{adjustmentCents?, adjustmentNote?}` (a note is required when the adjustment isn't 0; **each field overrides the saved one only when it is in the body**, an absent field keeps the saved value, §15.24); refused 409 `"<n> counted board(s) have no price"` while any counted line with qty > 0 is unpriced; freezes each line's `price_cents` and `value_cents = Σ round(qty × price) + adjustment`; counted → valued; notice §8.1 |
 | `POST /api/boards/counts/:period/reopen` | `users.admin` | valued → counted (clears the frozen prices and value); audited |
-| `GET /api/stockvalue` | `accounts.view` | `{months: [{period, status, valueCents (valued only), counted: {at, by}, valued: {at, by}, adjustmentCents, adjustmentNote}]}`, newest first |
+| `GET /api/stockvalue` | `accounts.view` | `{months: [{period, status, valueCents (valued only), counted: {at, by}, valued: {at, by}, adjustmentCents, adjustmentNote}]}`, newest first; the adjustment fields are `null` unless the month is valued (§15.24) |
 
 **Counting and values:**
 - The period rules are as §7: a record is created on first write, lines copy the board's text, boards added later appear in the open month only.
@@ -622,7 +629,7 @@ What appears:
 - **`paint`:** each `ordered` paint order (the paint order's lines are listed by `GET /api/paint/orders/:id`, which a receiver may also call: its access becomes `["stock.order","orders.receive"]`, and prices aren't involved).
 - **`drawer_stock`:** each placed drawer order with a non-empty stock row not yet received.
 
-The receive actions are §6.1 (`stock-received`), §6.3 (`received`) and §7 (`groups/received`), all `orders.receive`.
+The receive actions are §6.1 (`stock-received`), §6.3 (`received`) and §7 (`groups/received`), all `orders.receive`. A new non-empty delivery note on any of them tells `orders.mark_ordered` holders, as an order line's does (§7.2, §15.20).
 
 ## 10. Pages, menus and access (scaffold)
 

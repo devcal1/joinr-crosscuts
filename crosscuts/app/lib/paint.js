@@ -14,6 +14,7 @@
 const { bad, notFound, conflict, forbidden, can } = require("./httperror");
 const { sydneyToday } = require("./time");
 const audit = require("./audit");
+const notify = require("./notify");
 const orders = require("./orders");
 const settings = require("./settings");
 const invoices = require("./invoices");
@@ -563,6 +564,9 @@ function ordered(db, req, id, body, today = sydneyToday()) {
   const orderedDate = dateOrNull("orderedDate", body.orderedDate) || today;
   if (orderedDate > today) throw bad("The ordered date can't be in the future");
   const expectedDate = has("expectedDate") ? dateOrNull("expectedDate", body.expectedDate) : row.expected_date || null;
+  if (expectedDate && expectedDate < orderedDate) {
+    throw bad(`The expected date can't be before it was ordered (${dayLabel(orderedDate)})`);
+  }
   return db.transaction(() => {
     db.prepare(
       `UPDATE paint_orders SET status = 'ordered', ordered_date = ?, ordered_by = ?, expected_date = ?,
@@ -641,6 +645,22 @@ function received(db, req, id, body, today = sydneyToday()) {
     }
     const after = orderRow(db, id);
     audit.log(req, { action: "paint_order.status", entityType: "paint_order", entityId: id, before: statusFields(row), after: statusFields(after) });
+    // A new non-empty delivery note tells Ordering, as an order line's does (section 15.20).
+    if (deliveryNote && deliveryNote !== (row.delivery_note || "")) {
+      notify.toKey(
+        db,
+        "orders.mark_ordered",
+        {
+          kind: "paint.delivery_note",
+          title: `Delivery note: Paint order ${id}`,
+          body: `${row.supplier}: ${orders.cutNote(deliveryNote)}`,
+          link: `/paint.html?id=${id}`,
+          entityType: "paint_order",
+          entityId: id,
+        },
+        { exceptUserId: userId(req) }
+      );
+    }
     return present(db, after, { withLines: true });
   })();
 }

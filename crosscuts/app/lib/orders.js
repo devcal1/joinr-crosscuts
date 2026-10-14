@@ -382,6 +382,11 @@ function updateLine(db, orderId, patch, req, opts = {}) {
       if (has("status") && line.status === "to_order" && patch.status === "ordered") {
         throw conflict("Drawer lines are ordered from the Drawer order page");
       }
+      // Contracts section 15.17: a line on a placed drawer order goes back only through Undo order
+      // on the Drawer order page (lib/drawers.js, which calls with opts.via).
+      if (has("status") && line.status === "ordered" && patch.status === "to_order" && link.drawerOrderId != null) {
+        throw conflict("These drawers are on a placed drawer order. Use Undo order on the Drawer order page.");
+      }
       if (("supplier" in text && text.supplier !== line.supplier) || ("description" in text && text.description !== line.description)) {
         throw conflict("The drawer grid sets this line; change the grid");
       }
@@ -688,4 +693,5 @@ module.exports = {
   cancelLine,
   refreshMaterialsIn,
   upcoming,
+  cutNote,
 };

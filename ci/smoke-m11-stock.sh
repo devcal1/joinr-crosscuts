@@ -126,7 +126,7 @@ m11_st_notifs "$ORDR" stock.counted "/stock.html?period=$M11_ST_P"
 expect_eq "$M11_ST_N" 0 "no stock.counted notice before the count is finished"
 req POST "/api/stock/orders/$M11_ST_P/counted" "$WSMGR"
 expect_status 200 "wsmgr finishes the count"
-expect_jq ".state == \"counted\" and .counted.by.id == $M11_ST_WSMGR_ID" "the month is counted, by wsmgr"
+expect_jq ".state == \"ordered\" and .counted.by.id == $M11_ST_WSMGR_ID" "the month is counted, by wsmgr (no Order typed yet, so it needs nothing: section 15.19)"
 m11_st_notifs "$ORDR" stock.counted "/stock.html?period=$M11_ST_P"
 expect_eq "$M11_ST_N" 1 "ordr is told the stock is counted"
 expect_jq "[.rows[] | select(.kind == \"stock.counted\" and .link == \"/stock.html?period=$M11_ST_P\") | .title] == [\"Stock counted: $M11_ST_PL\"]" \
@@ -160,6 +160,11 @@ expect_status 403 "wsmgr marks a group ordered"
 req GET /api/orders/deliveries "$WSMGR"
 expect_status 200 "wsmgr GET deliveries"
 M11_ST_TODAY_N=$(jqr '.counts.today')
+M11_ST_YDAY=$(date -u -d "$M11_ST_TODAY -1 day" +%F)
+req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" \
+  "{\"supplier\":\"$M11_ST_SUPA\",\"expectedDate\":\"$M11_ST_YDAY\"}"
+expect_status 400 "an expected date before the ordered date (section 15 nit)"
+expect_jq '.error | test("^The expected date can.t be before it was ordered")' "and says so"
 req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" \
   "{\"supplier\":\"$M11_ST_SUPA\",\"expectedDate\":\"$M11_ST_TODAY\"}"
 expect_status 200 "ordr marks group A ordered, expected today"
@@ -192,6 +197,12 @@ req POST "/api/stock/orders/$M11_ST_P/groups/received" "$WSMGR" \
 expect_status 200 "wsmgr receives group A"
 expect_jq '.state == "received"' "the month is received (its only ordered group)"
 expect_jq "[.groups[] | select(.supplier == \"$M11_ST_SUPA\") | .received.by.id] == [$M11_ST_WSMGR_ID]" "received by wsmgr"
+m11_st_notifs "$ORDR" stock.delivery_note "/stock.html?period=$M11_ST_P"
+expect_eq "$M11_ST_N" 1 "ordr is told about the group's delivery note (section 15.20)"
+expect_jq "[.rows[] | select(.kind == \"stock.delivery_note\" and .link == \"/stock.html?period=$M11_ST_P\") | [.title, .body]] == [[\"Delivery note: Stock order $M11_ST_PL\", \"$M11_ST_SUPA: M11 one box short\"]]" \
+  "the notice names the month, the supplier and the note"
+m11_st_notifs "$WSMGR" stock.delivery_note "/stock.html?period=$M11_ST_P"
+expect_eq "$M11_ST_N" 0 "the actor (wsmgr) is not told"
 req POST "/api/stock/orders/$M11_ST_P/groups/received" "$WSMGR" "{\"supplier\":\"$M11_ST_SUPA\"}"
 expect_status 409 "receiving it twice"
 req GET /api/orders/deliveries "$WSMGR"
@@ -206,6 +217,29 @@ expect_jq '.state == "ordered"' "back to ordered"
 req POST "/api/stock/orders/$M11_ST_P/groups/received" "$WSMGR" "{\"supplier\":\"$M11_ST_SUPA\"}"
 expect_status 200 "wsmgr receives it again"
 expect_jq "[.groups[] | select(.supplier == \"$M11_ST_SUPA\") | .deliveryNote] == [\"M11 one box short\"]" "the note stayed"
+m11_st_notifs "$ORDR" stock.delivery_note "/stock.html?period=$M11_ST_P"
+expect_eq "$M11_ST_N" 1 "receiving again with the same note sends no second notice"
+
+echo "--- a month that needs nothing is done once counted (section 15.19) ---"
+m11_st_free /api/stock/orders
+M11_ST_P2=$M11_ST_FREE
+req PUT "/api/stock/orders/$M11_ST_P2/have" "$WSMGR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"have\":7}]}"
+expect_status 200 "wsmgr types a Have in another month"
+expect_jq '.state == "counting"' "still counting"
+req POST "/api/stock/orders/$M11_ST_P2/counted" "$WSMGR"
+expect_status 200 "wsmgr finishes the count; no group has anything to order"
+expect_jq '.state == "ordered"' "the month needs nothing, so it is done (not counted forever)"
+req GET /api/stock/summary "$ORDR"
+expect_status 200 "ordr GET /api/stock/summary"
+expect_jq "all(.stockToOrder[]; .period != \"$M11_ST_P2\")" "the dashboard no longer lists it"
+req GET /api/stock/orders "$ORDR"
+expect_jq "[.months[] | select(.period == \"$M11_ST_P2\") | .state] == [\"ordered\"]" "the months list shows it done"
+req PUT "/api/stock/orders/$M11_ST_P2/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":2}]}"
+expect_status 200 "ordr types an Order after all"
+expect_jq '.state == "counted"' "the month needs an order again"
+req PUT "/api/stock/orders/$M11_ST_P2/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":0}]}"
+expect_status 200 "ordr takes it back to 0"
+expect_jq '.state == "ordered"' "and it is done again"
 req GET /api/stock/orders "$WSMGR"
 expect_jq "[.months[] | select(.period == \"$M11_ST_P\") | .state] == [\"received\"]" "the months list shows it received"
 
@@ -307,10 +341,24 @@ expect_status 200 "ordr saves the note"
 req GET "/api/boards/counts/$M11_ST_BP" "$ORDR"
 expect_jq '.status == "counted" and .adjustmentCents == -500 and .adjustmentNote == "M11 offcuts written off" and .valueCents == (.subtotalCents - 500)'   "the counted month reads the saved adjustment back"
 req GET "/api/boards/counts/$M11_ST_BP" "$WSMGR"
+expect_status 200 "wsmgr GET the counted board month"
 expect_jq 'has("adjustmentCents") | not' "wsmgr's view has no adjustment"
 req GET "/api/audit?action=board_count.adjustment&entityId=$M11_ST_BP&limit=20" "$ADMIN"
 expect_status 200 "admin GET the audit log for the adjustment"
 expect_jq '.total == 2' "the two adjustment saves are audited"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":-700}'
+expect_status 200 "ordr sends only the amount"
+expect_jq '.adjustmentCents == -700 and .adjustmentNote == "M11 offcuts written off"' "the saved note is kept (section 15.24)"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentNote":"M11 amount kept"}'
+expect_status 200 "ordr sends only the note"
+expect_jq '.adjustmentCents == -700 and .adjustmentNote == "M11 amount kept"' "the saved amount is kept"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":-500,"adjustmentNote":"M11 offcuts written off"}'
+expect_status 200 "ordr restores both"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentNote":""}'
+expect_status 200 "ordr clears the note alone"
+expect_jq '.adjustmentCents == -500 and .adjustmentNote == ""' "an empty note clears it; the amount stays"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentNote":"M11 offcuts written off"}'
+expect_status 200 "ordr types the note again"
 
 echo "--- the value ---"
 req POST "/api/boards/counts/$M11_ST_BP/value" "$WSMGR" '{}'
@@ -320,8 +368,12 @@ expect_status 409 "valuing with an unpriced board"
 expect_jq '.error == "1 counted board(s) have no price"' "names how many"
 req PATCH "/api/boards/$M11_ST_B3" "$ORDR" '{"priceCents":1001}'
 expect_status 200 "ordr prices board 3"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentNote":""}'
+expect_status 200 "ordr clears the note"
 req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{"adjustmentCents":-500}'
-expect_status 400 "an adjustment without a note"
+expect_status 400 "an adjustment without a note (the saved note is empty)"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentNote":"M11 offcuts written off"}'
+expect_status 200 "ordr types the note"
 req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{}'
 expect_status 200 "ordr confirms the value with no body adjustment: the saved one is used"
 # round(2.5 x 12345) + 1 x 6789 + 3 x 1001 - 500 = 30863 + 6789 + 3003 - 500
@@ -358,6 +410,11 @@ req POST "/api/boards/counts/$M11_ST_BP/reopen" "$ADMIN"
 expect_status 200 "admin reopens it"
 expect_jq '.status == "counted" and .valued == null and .provisional == true' "counted again, provisional"
 expect_jq '.adjustmentCents == -500 and .adjustmentNote == "M11 offcuts written off"' "the saved adjustment is kept for the next confirm"
+req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{"adjustmentCents":-100}'
+expect_status 200 "a body with only the amount overrides the amount (section 15.24)"
+expect_jq '.status == "valued" and .adjustmentCents == -100 and .adjustmentNote == "M11 offcuts written off"' "the saved note is kept"
+req POST "/api/boards/counts/$M11_ST_BP/reopen" "$ADMIN"
+expect_status 200 "admin reopens it for another confirm"
 req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{"adjustmentCents":-100,"adjustmentNote":"M11 override"}'
 expect_status 200 "a body adjustment overrides the saved one"
 expect_jq '.status == "valued" and .adjustmentCents == -100 and .adjustmentNote == "M11 override" and .valueCents == (.subtotalCents - 100)'   "valued with the body's adjustment"
@@ -367,6 +424,8 @@ expect_jq "[.lines[] | select(.boardId == $M11_ST_B1) | .priceCents] == [99999]"
 req GET /api/stockvalue "$ACCT"
 expect_jq "[.months[] | select(.period == \"$M11_ST_BP\") | [.status, .valueCents]] == [[\"counted\", null]]" \
   "Accounts sees it waiting for the value"
+expect_jq "[.months[] | select(.period == \"$M11_ST_BP\") | [.adjustmentCents, .adjustmentNote]] == [[null, null]]" \
+  "and not the draft adjustment (section 15.24)"
 req POST "/api/boards/counts/$M11_ST_BP/reopen-count" "$ORDR"
 expect_status 200 "ordr reopens the count"
 expect_jq '.status == "open" and .counted == null' "the count is open again"
@@ -380,6 +439,12 @@ for b in "$M11_ST_B1" "$M11_ST_B2" "$M11_ST_B3"; do
   req PATCH "/api/boards/$b" "$ORDR" '{"active":false}'
   expect_status 200 "ordr deactivates board $b"
 done
+
+req GET "/api/boards?all=1" "$WSMGR"
+expect_status 200 "wsmgr GET /api/boards?all=1"
+expect_jq "[.boards[] | select(.id == $M11_ST_B1)] | length == 0" "wsmgr's ?all=1 still lists active boards only"
+req GET "/api/boards?all=1" "$ORDR"
+expect_jq "[.boards[] | select(.id == $M11_ST_B1)] | length == 1" "ordr's ?all=1 includes the inactive board"
 
 echo "--- the dashboard summary ---"
 req GET /api/stock/summary "$WSMGR"

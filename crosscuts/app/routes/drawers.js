@@ -53,6 +53,11 @@ r.post("/job-records/:id/drawers", "orders.edit", handle((req, res) => {
   res.status(201).json(drawers.createForJob(db, req, idOr404(req.params.id), body(req)));
 }));
 
+// Fill from Joinr (contracts section 15.18): a line for each brand with mapped counts and no live line.
+r.post("/job-records/:id/drawers/fill", "orders.edit", handle((req, res) => {
+  res.status(201).json(drawers.fillForJob(db, req, idOr404(req.params.id)));
+}));
+
 r.put("/orders/:id/drawers", "orders.edit", handle((req, res) => {
   res.json(drawers.updateGrid(db, req, idOr404(req.params.id), body(req)));
 }));
