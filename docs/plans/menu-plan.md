@@ -91,6 +91,26 @@ The "come later" items of 3c arrive in M11 (0.1.15), inside the dropdowns, so th
 - **No new colour.** The Ordering rule stays orange (`--layer-install`); Stock value takes the Accounts rule as the other Accounts items do.
 - **Dashboard:** no menu change. The stock count, board count and drawer reminders are lines on the dashboard (`docs/how-to-do-the-stocktake.md`).
 
+## 3e. M12 Design/PM tools (Todd approved the M12 plan, 2026-10-14)
+
+M12 (0.1.16) adds two items to the **Design/PM** dropdown, after Intake, so the bar's width doesn't change (`docs/plans/m12-contracts.md` §8). The department order and its violet rule are unchanged.
+
+- **Design/PM** now holds, in this order:
+
+| Item | Page | Key |
+|---|---|---|
+| Design/PM | `/design.html` | `design.view` |
+| Jobs | `/jobs.html` | `jobs.view` |
+| Pipeline | `/pipeline.html` | `jobs.view` |
+| Intake | `/intake.html` | `design.view` |
+| Stone orders | `/stone.html` | `design.view` |
+| Batten calculator | `/battens.html` | `design.view` |
+
+- **Who sees what:** admin, Design/PM and Ordering get both new items (Ordering reads stone orders but can't change them: that needs `jobs.edit`). Accounts and Scheduling don't get the items; they see a job's stone orders in its **Benchtops** section and print them and the benchtop sheet from there (`/stoneprint.html`, `jobs.view` or `design.view`, not on the menu). Workshop, Workshop Manager and Showroom see none of it.
+- **The pages carry the shared menu bar** (`#cc-shell`). The print page shows the bar on screen and hides it in print, as every page does.
+- **No new colour.** The two items sit under the Design/PM rule (`--layer-design`, violet).
+- **Dashboard:** no menu change. The Design/PM page gains a **Stone orders** tile (`docs/how-to-order-stone.md`).
+
 ## 4. Build outline (after the answers)
 
 - Scaffold: bump 0.1.10; the colour exception in CLAUDE.md and `style-check.js` if approved.

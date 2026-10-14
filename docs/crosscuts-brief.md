@@ -265,6 +265,27 @@ to build it.
 8. **Edit rights.** Only `design_pm` (and admin) create jobs and move stages.
    Scheduling has the board **quick-add** only (creates a minimal job at
    `ready_to_cut`, `source = board_quick_add`).
+9. **Design/PM tools (M12, approved by Todd 2026-10-14).**
+   - **Stone orders.** A job's **Benchtops** section holds its stone orders:
+     our own form (supplier, job and site, contacts, stone brand and colour,
+     edge height and profile, cabinetry install, measure / template and
+     requested benchtop install dates, notes), filled from the job and printed
+     on our letterhead to the supplier. Each sent revision is frozen, with the
+     sent date typed (never today's date on a reprint); a sent order changed
+     afterwards shows "Changed since rev n" until it is sent again. Cancelled
+     orders are kept and can be restored. A stone order is **not an order
+     line**: it never holds back the 50% invoice or touches Deliveries. A
+     Stone orders list page and a Design/PM dashboard tile. Joinr holds no
+     benchtop details, so the forms are typed in; the job page shows the
+     quote's benchtop text as typed.
+   - **Benchtop sheet.** A printed A4 sheet with the job filled in (or blank)
+     and the edge key, to draw on by hand. An on-screen drawing tool is a
+     future development.
+   - **Batten calculator.** Solves the gap from the number of battens, or the
+     number from a gap, with the set-out; nothing is saved.
+   - No new key: the pages need `design.view`, a job's stone orders `jobs.view`
+     to see and print and `jobs.edit` to change. Detail:
+     `docs/plans/m12-plan.md` §5 and `docs/how-to-order-stone.md`.
 
 ### 5.3 Scheduling / Organisation
 
