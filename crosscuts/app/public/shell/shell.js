@@ -38,6 +38,9 @@
         { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
         { label: "Intake", href: "/intake.html", key: "design.view" },
+        // M12 (docs/plans/m12-contracts.md section 8).
+        { label: "Stone orders", href: "/stone.html", key: "design.view" },
+        { label: "Batten calculator", href: "/battens.html", key: "design.view" },
       ],
     },
     {

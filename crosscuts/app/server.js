@@ -74,6 +74,8 @@ const routers = [
   require("./routes/stock"),
   require("./routes/boards"),
   require("./routes/paint"),
+  // M12 (docs/plans/m12-contracts.md section 5).
+  require("./routes/stone"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

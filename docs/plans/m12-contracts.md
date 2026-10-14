@@ -29,7 +29,7 @@ App root: `crosscuts/app/`. CommonJS, Express 4, `better-sqlite3` (the `node:sql
 | `lib/pages.js` | three page gates (§8) | scaffold |
 | `public/shell/shell.js` | Design/PM menu: Stone orders, Batten calculator (§8) | scaffold |
 | `server.js` | `require("./routes/stone")` after the M11 routes | scaffold |
-| `routes/stone.js` | every §5 route declared with its access; handlers 501 in the scaffold | scaffold, then A |
+| `routes/stone.js` | every §5 route declared with its access; handlers 501 in the scaffold (the summary answers zeros; `GET /api/stone/letterhead` is complete in the scaffold, as it needs nothing from `lib/stone.js`, so B can build the blank sheet against it) | scaffold, then A |
 | `lib/stone.js` | the binding exports of §4 as stubs throwing 501 (`summary()` answers zeros, §4.6) | scaffold stub, then A |
 | `public/stone.html`, `public/stoneprint.html`, `public/battens.html` | placeholder pages (the shell and an `h1`) so the gates and menu can be checked | scaffold, then B / B / C |
 | `ci/smoke.sh` | the M12 source loop (§10.1) | scaffold |

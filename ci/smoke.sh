@@ -1238,6 +1238,8 @@ expect_jq '.user.roles == ["workshop_manager"]' "wsmgr holds the workshop_manage
 for f in "$(dirname "$0")"/smoke-m10-*.sh; do [ -f "$f" ] && source "$f"; done
 # M11 suites (ci/smoke-m11-*.sh, docs/plans/m11-contracts.md section 12): same rules.
 for f in "$(dirname "$0")"/smoke-m11-*.sh; do [ -f "$f" ] && source "$f"; done
+# M12 suites (ci/smoke-m12-*.sh, docs/plans/m12-contracts.md section 10): same rules.
+for f in "$(dirname "$0")"/smoke-m12-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 
