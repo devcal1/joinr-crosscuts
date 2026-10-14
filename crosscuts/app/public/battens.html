@@ -6,16 +6,86 @@
 <title>Batten calculator - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="battens.css">
 </head>
 <body>
   <div id="cc-shell"></div>
 
-  <!-- SCAFFOLD placeholder (docs/plans/m12-contracts.md section 1): replaced in M12 Wave 1. -->
-  <main>
-    <h1>Batten calculator</h1>
+  <!-- The batten calculator (docs/plans/m12-contracts.md section 9.5). The maths is battens.js;
+       nothing here is saved and nothing goes to the server. -->
+  <main class="bn-page">
+    <!-- On paper: the title and the inputs in words (the screen header and form are hidden). -->
+    <div class="bn-printhead" aria-hidden="true">
+      <p class="bn-print-title">Batten set-out</p>
+      <p id="bnPrintInputs" class="bn-print-inputs"></p>
+    </div>
+
+    <div class="bn-head">
+      <h1 id="bnTitle" tabindex="-1">Batten calculator</h1>
+      <button id="bnPrint" class="hs-btn" type="button" disabled>Print</button>
+    </div>
+    <p class="bn-intro">Type the space to fill and either the number of battens or the gap you'd like, and it works out the other. The gap is rounded down to the 0.5 mm, so the run never comes out longer than the space; anything left over sits at the far end. Nothing here is saved.</p>
+
+    <div class="bn-top">
+      <form id="bnForm" class="bn-form" novalidate>
+        <div class="bn-fields">
+          <div class="bn-field">
+            <label class="hs-label" for="bnSpace">Space to fill (mm)</label>
+            <input id="bnSpace" class="hs-input bn-num" type="number" inputmode="decimal" min="1" max="20000" step="0.5" autocomplete="off">
+          </div>
+          <div class="bn-field">
+            <label class="hs-label" for="bnWidth">Batten width (mm)</label>
+            <input id="bnWidth" class="hs-input bn-num" type="number" inputmode="decimal" min="1" max="1000" step="0.5" value="25" autocomplete="off">
+          </div>
+        </div>
+
+        <fieldset class="bn-choice">
+          <legend class="hs-label">Ends</legend>
+          <label class="bn-radio"><input type="radio" name="bnEnds" value="batten" checked> Batten at each end</label>
+          <label class="bn-radio"><input type="radio" name="bnEnds" value="gap"> Gap at each end</label>
+        </fieldset>
+
+        <fieldset class="bn-choice">
+          <legend class="hs-label">Work out</legend>
+          <label class="bn-radio"><input type="radio" name="bnFrom" value="count" checked> The gap, from the number of battens</label>
+          <label class="bn-radio"><input type="radio" name="bnFrom" value="gap"> The number of battens, from the gap you'd like</label>
+        </fieldset>
+
+        <div class="bn-field bn-field-one" id="bnCountField">
+          <label class="hs-label" for="bnCount">Number of battens</label>
+          <input id="bnCount" class="hs-input bn-num" type="number" inputmode="numeric" min="1" max="1000" step="1" autocomplete="off">
+        </div>
+        <div class="bn-field bn-field-one" id="bnGapField" hidden>
+          <label class="hs-label" for="bnGap">Gap you'd like (mm)</label>
+          <input id="bnGap" class="hs-input bn-num" type="number" inputmode="decimal" min="0.5" max="10000" step="0.5" autocomplete="off">
+        </div>
+      </form>
+
+      <section class="bn-result" aria-labelledby="bnResultTitle">
+        <h2 id="bnResultTitle" class="bn-sr">Result</h2>
+        <p id="bnMsg" class="bn-msg" role="status" aria-live="polite"></p>
+        <div id="bnOut" class="bn-out" hidden>
+          <p id="bnLine" class="bn-line"></p>
+          <div id="bnKvt" class="hs-kvt bn-kvt"></div>
+        </div>
+      </section>
+    </div>
+
+    <section id="bnRunSec" class="bn-sec" aria-labelledby="bnRunTitle" hidden>
+      <div class="hs-sectionbar bn-bar"><h2 id="bnRunTitle">The run</h2></div>
+      <div id="bnStrip" class="bn-strip"></div>
+      <div class="bn-scale" aria-hidden="true"><span>0</span><span id="bnScaleEnd"></span></div>
+    </section>
+
+    <section id="bnSetSec" class="bn-sec" aria-labelledby="bnSetTitle" hidden>
+      <div class="hs-sectionbar bn-bar"><h2 id="bnSetTitle">Set-out</h2><span class="bn-bar-note">mm from the start</span></div>
+      <div id="bnSetOut" class="bn-setout"></div>
+    </section>
   </main>
 
   <script src="shared.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="/battens.js"></script>
+  <script src="battenspage.js"></script>
 </body>
 </html>
