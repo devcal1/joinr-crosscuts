@@ -45,14 +45,16 @@ A job can have more than one stone order (for example a second supplier, or a se
 
 Six things are needed before an order can be sent: **Supplier**, **Stone brand**, **Colour**, **Edge height**, **Edge profile** and **Requested benchtop install**. If any is empty, Crosscuts says "Fill in before sending: …" and marks those fields.
 
-1. Press **Print** and send the print to the supplier (email it as a PDF, or hand it over).
-2. Press **Mark sent** and choose the date it was sent. It defaults to today and can't be in the future. Any unsaved changes are saved first.
+1. Press **Mark sent** and choose the date you're sending it. It defaults to today, can't be in the future, and can't be before the order was started. Any unsaved changes are saved first.
+2. Press **Print** and send the print to the supplier (email it as a PDF, or hand it over).
 
-That makes **revision 1**. The date you choose is the **date sent** printed on the order. A reprint always shows that date, never today's.
+Mark sent comes first: that makes **revision 1**, and the print then carries the revision and the **date sent**. A print made before Mark sent says **DRAFT – NOT SENT** and has neither, so don't send that one. A reprint always shows the date sent, never today's.
+
+If someone else changed the order after you opened it, Mark sent stops with "This stone order was changed by someone else" and shows the order as it is now. Check it, then send again.
 
 ### Changing a sent order
 
-Change the form and press **Save**. The order stays sent and shows **Changed since rev n** in orange, on the order, the job and the list, until you send it again. To send the change, print it and press **Send revision n+1**. The sent date can't be before the previous revision's.
+Change the form and press **Save**. The order stays sent and shows **Changed since rev n** in orange, on the order, the job and the list, until you send it again. To send the change, press **Send revision n+1**, then **Print** and send the print. The sent date can't be before the previous revision's.
 
 An order that hasn't changed since its last revision can't be sent again ("Nothing has changed since revision n was sent").
 
@@ -68,20 +70,20 @@ An **archived job** takes no new stone orders and no changes. Its orders can sti
 
 ## The Stone orders page
 
-Open **Design/PM**, then **Stone orders** (Design/PM, Ordering and admin). It lists every stone order, soonest requested install first. The filter is **Open**, **Cancelled** or **All**. The **Requested install** column is orange when the install is within 14 days and the order is still a draft or has unsent changes.
+Open **Design/PM**, then **Stone orders** (Design/PM, Ordering and admin). It lists the open stone orders (drafts and sent orders, on jobs that aren't archived), soonest requested install first. The filter changes this to **Cancelled** or **All**. The **Requested install** column is orange when the install is within 14 days and the order is still a draft or has unsent changes.
 
 There's no New button: a stone order always starts from its job's Benchtops section, so it belongs to a job. **Print blank benchtop sheet** is in the page header.
 
 ## The Design/PM dashboard
 
-The **Stone orders** tile shows how many orders are drafts and how many have changed since they were sent, and, in orange, how many installs are requested in the next two weeks on orders that aren't cancelled. **Open Stone orders** goes to the list.
+The **Stone orders** tile shows how many orders are drafts and how many have changed since they were sent, and, in orange, how many installs are requested in the next two weeks on orders that still need sending (drafts, and orders changed since they were sent), on jobs that aren't archived. **Open Stone orders** goes to the list.
 
 ## The prints
 
 Both prints are A4, black on white, on our letterhead (the banner, then the business address, phone and email). They carry no ABN and no bank details, as the supplier reads them.
 
-- **The stone order:** "Stone benchtop order", who it's to, the revision and date sent, then Job, Contacts, Stone, Dates (the requested benchtop install in bold), the line asking for all details, cut-outs included, to be marked on site before the final measure, the notes, and who ordered it. A print of a draft, or of an order changed since it was sent, says **DRAFT – NOT SENT** at the top, with no revision or sent date.
-- **The benchtop sheet:** the job, client, site address, quote and the Joinr benchtop text, then a large blank box to draw the benchtops in, and the edge key at the foot: `[ ]` square edge, `//` rolled edge, `X` raw edge. **Print benchtop sheet** on the job fills the job in; **Print blank benchtop sheet** on the Stone orders page leaves the lines empty to write on. Always one page.
+- **The stone order:** "Stone benchtop order", who it's to, the revision and date sent, then Job, Contacts, Stone, Dates (the requested benchtop install in bold), the line asking for all details, cut-outs included, to be marked on site before the final measure, the notes, and who ordered it. A print of a draft, or of an order changed since it was sent, says **DRAFT – NOT SENT** at the top, with no revision or sent date. On screen, the draft print of a changed order has a link **Print revision n as sent**, which prints the copy the supplier last received (handy for Accounts and Scheduling, who don't have the Stone orders page). A cancelled order prints with a **CANCELLED** box at the top.
+- **The benchtop sheet:** the job, client, site address, quote and the Joinr benchtop text, then a large blank box to draw the benchtops in, and the edge key at the foot: `[ ]` square edge, `//` rolled edge, `X` raw edge. **Print benchtop sheet** on the job fills the job in; **Print blank benchtop sheet** on the Stone orders page leaves the lines empty to write on. Always one page: very long job details or benchtop text print in smaller type rather than being cut off.
 
 An on-screen drawing tool for the benchtop sheet is a future development (`docs/plans/roadmap.md`).
 

@@ -107,7 +107,7 @@ M12 (0.1.16) adds two items to the **Design/PM** dropdown, after Intake, so the 
 | Batten calculator | `/battens.html` | `design.view` |
 
 - **Who sees what:** admin, Design/PM and Ordering get both new items (Ordering reads stone orders but can't change them: that needs `jobs.edit`). Accounts and Scheduling don't get the items; they see a job's stone orders in its **Benchtops** section and print them and the benchtop sheet from there (`/stoneprint.html`, `jobs.view` or `design.view`, not on the menu). Workshop, Workshop Manager and Showroom see none of it.
-- **The pages carry the shared menu bar** (`#cc-shell`). The print page shows the bar on screen and hides it in print, as every page does.
+- **The pages carry the shared menu bar** (`#cc-shell`). The print page shows the bar on screen and hides it in print. From 0.1.16 every page does: one `@media print` rule in `shell/shell.css` hides the menu bar, the foot rule and dialogs (M12 contracts §12.22; before that, only pages with their own print rules did).
 - **No new colour.** The two items sit under the Design/PM rule (`--layer-design`, violet).
 - **Dashboard:** no menu change. The Design/PM page gains a **Stone orders** tile (`docs/how-to-order-stone.md`).
 

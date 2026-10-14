@@ -491,3 +491,10 @@
   z-index: 150;
 }
 body:has(> .cc-foot-rule) { padding-bottom: var(--rule-h); }
+
+/* Every print leaves out the menu bar, the foot rule and any dialog (M12 contracts section 12.22).
+   The board, Planner, BAS and the print pages already did this in their own print rules. */
+@media print {
+  #cc-shell, .cc-foot-rule, .cc-dialog { display: none !important; }
+  body:has(> .cc-foot-rule) { padding-bottom: 0; }
+}
