@@ -276,7 +276,7 @@ All A4 portrait, black on white, between the `style-check: print-start` / `print
   - The line "Please mark all details, including cut-outs, on site before the final measure."
   - **Notes**, then **Ordered by** (the sender's name) and **Date** (the sent date).
   - A print of the current form when it's a draft or has unsent changes carries **DRAFT – NOT SENT** at the top, with no revision or sent date.
-  - A cancelled order (either mode: `?id=N`, or `?id=N&rev=R` whose `status` is `cancelled`) carries a ruled **CANCELLED** box at the top, as the DRAFT one (§12.19). Both marks show when both apply.
+  - A cancelled order (either mode: `?id=N`, or `?id=N&rev=R` whose `status` is `cancelled`) carries a ruled **CANCELLED** box at the top, as the DRAFT one (§12.19). Both marks show when both apply. Its `document.title` ends in " cancelled", so a saved PDF says so (added at 4.3). A letterhead line with no address, phone or email is left out rather than printing empty values.
   - One page for an ordinary order; very long notes and site access may run on to further pages.
 - **Benchtop sheet** (`document.title` "Benchtop sheet <job name>", or "Benchtop sheet" blank):
   - The banner and address line, then **Job**, **Client**, **Site address**, **Quote**, and **Benchtop** (the Joinr text joined with "; ").
