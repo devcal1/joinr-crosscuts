@@ -1896,9 +1896,16 @@
       const on = it.decidedAt ? " on " + fmtInstant(it.decidedAt) : "";
       items.push(sumItem("Decision", el("span", { class: "jo-sumval", text: (it.state === "linked" ? "Linked" : "Accepted") + who + on })));
     }
-    // M12 (m12-contracts section 9.1): each room's benchtop text as typed in Joinr.
+    // M12 (m12-contracts sections 4.5 and 9.1): each room's benchtop text as typed in Joinr, cleaned
+    // as the server's benchtopText: strings only, trimmed, each cut to 200 (never splitting a
+    // surrogate pair), blanks and duplicates dropped, order kept.
     const raw = it.quote && it.quote.raw && Array.isArray(it.quote.raw.benchtops) ? it.quote.raw.benchtops : [];
-    const tops = [...new Set(raw.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()))];
+    const cut = (s, max) => {
+      if (s.length <= max) return s;
+      const c = s.charCodeAt(max - 1);
+      return s.slice(0, c >= 0xd800 && c <= 0xdbff ? max - 1 : max);
+    };
+    const tops = [...new Set(raw.filter((s) => typeof s === "string").map((s) => s.trim()).filter(Boolean).map((s) => cut(s, 200)))];
     if (tops.length) items.push(sumItem("Benchtop (as typed)", el("span", { class: "jo-sumval jt-astyped", text: tops.join("; ") })));
     const nodes = [el("div", { class: "jo-summary jo-joinr" }, ...items)];
 

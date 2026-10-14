@@ -152,6 +152,10 @@ a.hs-btn:hover { text-decoration: none; }
 .so-msg:empty { display: none; }
 .so-msg-ok { color: var(--go-tint); }
 .so-msg-err { color: var(--orange-tint); }
+.so-msg:focus { outline: none; }
+.so-msg:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+/* a write failed on the network: Reload, instead of "Not saved yet." */
+.so-unsure { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .so-dirty { margin: 8px 0 0; color: var(--orange-tint); font-size: 13px; }
 
 .so-revcard .so-h2 { float: none; }
@@ -198,6 +202,6 @@ a.hs-btn:hover { text-decoration: none; }
   .so-table td.so-c-job > .so-note, .so-table td.so-c-date > .so-attend-tag { grid-column: 2; }
   .so-table td.so-c-open { display: block; padding-top: 8px; text-align: left; }
   .so-table td.so-c-open::before { content: none; }
-  .so-actions .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
+  .so-actions .hs-btn, .so-unsure .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
   .so-push { margin-left: 0; }
 }
