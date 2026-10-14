@@ -887,3 +887,7 @@ From the survey on 2026-10-13: the SQL read already returns each room's whole `q
 10. **Paint quantities are kg or each;** litres show for kg lines only (factor 0.85, a setting).
 11. **The dashboard reminds counters** from the 25th to the 7th of the next month.
 12. **The Joinr wire `contract` stays 1** (an optional added field); only the document's version goes to 2.
+13. **The board adjustment and its note save as they're typed** (Todd, 2026-10-14), before Confirm value, so a reload keeps them. Built in 4.1: a save route under `stock.order` for a counted month, and the Value tab saves on change.
+14. **A drawer line's Edit offers the ordered and received dates** (Todd, 2026-10-14) to the same people as any other line (`orders.mark_ordered` placed, `orders.receive` received), besides notes and expected date. Supplier and description stay refused. Replaces §11.8's "limits edit to notes and expected date".
+15. **A placed drawer order keeps each job's note** (Todd, 2026-10-14) in `grid_json` (an optional `notes` per row, §4.3), so a reprint matches what was sent. No migration.
+16. **The Deliveries print uses one 7-day window** (Todd, 2026-10-14) for job, stock and paint deliveries (overdue included), not "end of next week" (§11.7).
