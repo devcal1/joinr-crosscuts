@@ -114,10 +114,24 @@ function formInput(body) {
   return out;
 }
 
+// The first max UTF-16 units of s (lengths count as the browser's maxlength does), never ending
+// on the first half of a surrogate pair.
+function cut(s, max) {
+  if (s.length <= max) return s;
+  const c = s.charCodeAt(max - 1);
+  return s.slice(0, c >= 0xd800 && c <= 0xdbff ? max - 1 : max);
+}
+
 // A prefill value cut to fit (the job's own columns have no length limit of their own).
 function fit(f, v) {
   if (f.kind === "date") return validDate(v) ? v : null;
-  return typeof v === "string" ? v.trim().slice(0, f.max) : "";
+  return typeof v === "string" ? cut(v.trim(), f.max) : "";
+}
+
+// A body with no keys allowed (cancel and restore): any key is refused.
+function noFields(body) {
+  const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  for (const k of Object.keys(b)) throw bad(`Unknown field: ${k}`);
 }
 
 function formOfRow(row) {
@@ -257,7 +271,7 @@ function benchtopText(db, jobId) {
   const seen = new Set();
   for (const v of list) {
     if (typeof v !== "string") continue;
-    const s = v.trim().slice(0, BENCHTOP_TEXT_MAX);
+    const s = cut(v.trim(), BENCHTOP_TEXT_MAX);
     if (!s || seen.has(s)) continue;
     seen.add(s);
     out.push(s);
@@ -344,27 +358,48 @@ function update(db, req, id, body) {
   })();
 }
 
-// The sent date of a send body: a YYYY-MM-DD string, or null for today.
-function sentDateInput(body) {
+const SEND_KEYS = ["sentDate", "expectUpdatedAt"];
+
+// A send body's shape (section 4.3): {sentDate?, expectUpdatedAt?}, expectUpdatedAt text.
+function sendBody(body) {
   const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
   for (const k of Object.keys(b)) {
-    if (k !== "sentDate") throw bad(`Unknown field: ${k}`);
+    if (!SEND_KEYS.includes(k)) throw bad(`Unknown field: ${k}`);
   }
+  if (Object.prototype.hasOwnProperty.call(b, "expectUpdatedAt") && typeof b.expectUpdatedAt !== "string") {
+    throw bad("expectUpdatedAt must be text");
+  }
+  return b;
+}
+
+// The sent date of a send body: a YYYY-MM-DD string, or null for today.
+function sentDateInput(b) {
   const v = b.sentDate;
   if (v === undefined || v === null || (typeof v === "string" && v.trim() === "")) return null;
   if (typeof v !== "string" || !validDate(v.trim())) throw fieldError("Sent date must be a date", ["sentDate"]);
   return v.trim();
 }
 
+// Check order (section 4.3): 404; 409 cancelled or archived; 400 the body's shape; 409 a stale
+// copy; 400 the date rules and missing fields; 409 nothing changed.
 function send(db, req, id, body) {
   return db.transaction(() => {
     const row = orderRowOr404(db, id);
     editable(row);
-    const sentDate = sentDateInput(body);
+    const b = sendBody(body);
+    if (b.expectUpdatedAt !== undefined && b.expectUpdatedAt !== row.updated_at) {
+      throw conflict("This stone order was changed by someone else");
+    }
+    const sentDate = sentDateInput(b);
     const today = sydneyToday();
     const date = sentDate || today;
     if (date > today) throw fieldError("The sent date can't be in the future", ["sentDate"]);
     const n = Number(row.revision) || 0;
+    if (n === 0) {
+      // §12.16: the first send is not before the order was started (created_at as a Sydney date).
+      const started = sydneyToday(new Date(row.created_at));
+      if (date < started) throw fieldError(`The sent date can't be before the order was started (${dayLabel(started)})`, ["sentDate"]);
+    }
     if (n > 0 && row.rev_sent_date && date < row.rev_sent_date) {
       throw fieldError(`The sent date can't be before revision ${n} (${dayLabel(row.rev_sent_date)})`, ["sentDate"]);
     }
@@ -388,10 +423,11 @@ function send(db, req, id, body) {
   })();
 }
 
-function cancel(db, req, id) {
+function cancel(db, req, id, body = {}) {
   return db.transaction(() => {
     const row = orderRowOr404(db, id);
     if (row.status === "cancelled") throw conflict("This stone order is already cancelled");
+    noFields(body);
     const now = nowIso();
     const uid = userId(req);
     db.prepare(
@@ -402,11 +438,12 @@ function cancel(db, req, id) {
   })();
 }
 
-function restore(db, req, id) {
+function restore(db, req, id, body = {}) {
   return db.transaction(() => {
     const row = orderRowOr404(db, id);
     if (row.status !== "cancelled") throw conflict("Only a cancelled stone order can be restored");
     if (Number(row.job_archived) !== 0) throw conflict("The job is archived");
+    noFields(body);
     const status = (Number(row.revision) || 0) >= 1 ? "sent" : "draft";
     const now = nowIso();
     db.prepare(
@@ -431,6 +468,7 @@ function revision(db, req, id, rev) {
     orderId: row.id,
     jobId: row.job_id,
     jobName: row.job_name,
+    status: row.status,
     revision: r.revision,
     sentDate: r.sent_date,
     sentAt: r.sent_at,
@@ -443,13 +481,20 @@ function revision(db, req, id, rev) {
 
 const OPEN_WHERE = "so.status IN ('draft', 'sent') AND j.archived = 0";
 
-function list(db, { status = "open" } = {}) {
+// The form keys left out of the list for a caller without jobs.view (section 4.4, §12.18).
+const CLIENT_KEYS = ["clientName", "clientPhone", "siteAddress", "siteAccess"];
+
+function list(db, { status = "open", withClient = true } = {}) {
   if (!LIST_STATUSES.includes(status)) throw bad(`status must be one of ${LIST_STATUSES.join(", ")}`);
   const where = status === "open" ? `WHERE ${OPEN_WHERE}` : status === "cancelled" ? "WHERE so.status = 'cancelled'" : "";
-  return db
+  const orders = db
     .prepare(`${ORDER_SQL} ${where} ORDER BY so.requested_install_date IS NULL, so.requested_install_date, so.id`)
     .all()
     .map(toOrder);
+  if (!withClient) {
+    for (const o of orders) for (const k of CLIENT_KEYS) delete o.form[k];
+  }
+  return orders;
 }
 
 function summary(db, today = sydneyToday()) {
@@ -461,8 +506,10 @@ function summary(db, today = sydneyToday()) {
     const o = toOrder(row);
     if (o.status === "draft") drafts++;
     else if (o.changedSinceSent) changed++;
+    // §12.21: installsSoon counts only orders still needing sending (draft, or changed since sent).
+    const needsSending = o.status === "draft" || o.changedSinceSent;
     const d = o.form.requestedInstallDate;
-    if (d && d >= today && d <= until) installsSoon++;
+    if (needsSending && d && d >= today && d <= until) installsSoon++;
   }
   return { date: today, drafts, changed, installsSoon };
 }
