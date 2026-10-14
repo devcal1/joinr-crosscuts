@@ -1,6 +1,6 @@
 # M12 Design/PM tools: plan
 
-Status: **M12 · 1.2 plan written (2026-10-14); questions put to Todd one at a time** (section 3). Nothing here is approved until the Decisions section (5) is filled in.
+Status: **M12 · 1.3 done: Todd answered every question (2026-10-14); plan approved** (Decisions in section 5; every answer was the recommended option, so sections 2 and 4 stand as written).
 
 Scope (Todd, 2026-10-12, `jobs-master-tabs.md`): three Design/PM tabs of the jobs master workbook: the **Stone Order** form (needs the design's edge and profile details), the **Benchtop Letterhead** (a printable benchtop drawing sheet with the edge key, attached to the job) and **Calc-Batons** (a small batten spacing calculator).
 
@@ -102,6 +102,12 @@ None of the three tabs has formulas that refer to another tab.
 5. The requested benchtop install date is not put on the board or the Planner in M12.
 6. The From Joinr section on the job page starts showing the raw benchtop text (it's already sent).
 
-## 5. Decisions
+## 5. Decisions (Todd, 2026-10-14)
 
-Not yet.
+1. **Stone order: its own Benchtops section on the job**, off the job's Orders. It never holds back the 50% progress invoice and doesn't appear on Orders or Deliveries (§2.1).
+2. **The printed stone form: our letterhead**, addressed to whichever stone supplier is chosen on the order (§2.1).
+3. **Benchtop sheet: the printed sheet** with the job's details, drawn on by hand and photographed onto the job's Photos, plus a blank sheet (§2.2). **An on-screen drawing tool is flagged as a future development** (not in M12; listed in `roadmap.md`).
+4. **Batten calculator: in the Design/PM menu, for design.view holders** (admin, Design/PM, Ordering); it solves the gap or the number of battens, shows the set-out and prints it; nothing is saved (§2.3).
+5. **Keys: no new key.** jobs.view to see a job's stone orders, jobs.edit to make, edit, send and cancel; design.view for the Stone orders page and the calculator. The count stays at 27, no role changes (§2.4).
+
+The lead's defaults in section 4 stand.

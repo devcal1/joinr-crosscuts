@@ -121,5 +121,6 @@ This follows brief §9. The reasoning: money first, because it is the reason for
 | **M6** Joinr intake | pull sync of accepted quotes, contract document shared with tenon-quotr, intake inbox vs auto-create | |
 | **Backup** | weekly copy to the offsite NAS over Tailscale, with a tested restore runbook | As soon as Todd supplies the NAS details; can slot in anywhere |
 | **Staff planner** (future, not yet scoped) | a schedule / monthly planner for all staff members (Todd, 2026-10-11) | **Discussion with Todd first**, before any `mN-plan.md`: who it covers, what goes on it, and how it relates to the board, leave/availability (M5), the lookahead and tasks (M4). Not started and not approved |
+| **Benchtop drawing tool** (future, not yet scoped) | draw benchtop shapes and mark each edge on screen, then print, in place of M12's hand-drawn benchtop sheet (Todd, 2026-10-14) | Flagged at M12 · 1.3 as a future development; discussion with Todd first |
 
 Each milestone gets its own `mN-plan.md` at stage 1. Nothing above is approved until that plan is.
