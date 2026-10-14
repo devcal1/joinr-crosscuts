@@ -49,6 +49,8 @@ body {
 .bn-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .bn-field-one { max-width: calc(50% - 7px); }
 .bn-num { font-variant-numeric: tabular-nums; }
+/* Shown under the batten width while it is empty: the sums then use the default (25 mm). */
+.bn-note { margin: 0; color: var(--label); font-size: 12px; }
 .bn-choice { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .bn-choice legend { padding: 0; margin-bottom: 6px; }
 .bn-radio { display: inline-flex; align-items: center; gap: 8px; color: var(--body); cursor: pointer; }
@@ -84,6 +86,9 @@ body {
 .bn-strip { padding: 10px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
 .bn-svg { display: block; width: 100%; height: 56px; overflow: visible; }
 .bn-batten { fill: var(--body); }
+/* A 1 px line down the middle of every batten, so a batten too thin to show at the strip's scale
+   is still drawn (the stroke does not scale with the run; inside a wider batten it is hidden). */
+.bn-batten-min { fill: none; stroke: var(--body); stroke-width: 1px; shape-rendering: crispEdges; }
 .bn-left { fill: var(--raised); }
 .bn-frame { fill: none; stroke: var(--label); stroke-width: 1px; }
 .bn-scale { display: flex; justify-content: space-between; padding: 4px 10px 0; color: var(--label); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -167,16 +172,16 @@ body {
   .bn-strip { padding: 0; background: #fff; border: 0; break-inside: avoid; }
   .bn-svg { height: 12mm; }
   .bn-batten { fill: #000; }
+  .bn-batten-min { stroke: #000; }
   .bn-left { fill: #fff; }
   .bn-frame { stroke: #000; }
   .bn-scale { padding: 1mm 0 0; color: #000; font-size: 9pt; }
   .bn-setout { max-width: 70mm; }
   .bn-setout-long { max-width: none; columns: 4; column-gap: 5mm; }
   .bn-table { margin-bottom: 3mm; background: #fff; border: 0.2mm solid #000; border-radius: 0; font-size: 8.5pt; }
-  .bn-table thead th { padding: 0.8mm 1.5mm; background: #fff; color: #000; font-size: 6.5pt; letter-spacing: 0.02em; white-space: normal; vertical-align: bottom; border-bottom: 0.3mm solid #000; }
+  .bn-table thead th { padding: 0.8mm 1mm; background: #fff; color: #000; font-size: 6.5pt; letter-spacing: 0.06em; white-space: normal; vertical-align: bottom; border-bottom: 0.3mm solid #000; }
   .bn-table tbody th, .bn-table td { padding: 0.5mm 1.5mm; color: #000; border-bottom: 0.1mm solid #000; }
   .bn-table tr { break-inside: avoid; }
-  .bn-table .bn-c-n { width: 21%; }
-  .bn-table thead th { padding-left: 1mm; padding-right: 1mm; letter-spacing: 0; }
+  .bn-table .bn-c-n { width: 30%; } /* room for BATTEN, letterspaced, in four columns on A4 */
 }
 /* style-check: print-end */
