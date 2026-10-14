@@ -88,6 +88,10 @@ r.put("/orders/:period/order", "stock.order", handle((req, res) => {
   res.json(stock.saveOrder(db, req, periodOr400(req.params.period), body(req).lines));
 }));
 
+r.post("/orders/:period/nothing", "stock.order", handle((req, res) => {
+  res.json(stock.nothingToOrder(db, req, periodOr400(req.params.period), req.body));
+}));
+
 r.post("/orders/:period/groups/received", "orders.receive", handle((req, res) => {
   res.json(stock.groupReceived(db, req, periodOr400(req.params.period), body(req)));
 }));

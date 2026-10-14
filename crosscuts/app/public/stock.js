@@ -16,6 +16,7 @@
     ordering: ["Ordering", "hs-badge-check"],
     ordered: ["Ordered", "hs-badge-teal"],
     received: ["Received", "hs-badge-go"],
+    nothing: ["Nothing to order", "hs-badge-na"],
   };
 
   // ------------------------------------------------------------------ helpers ---
@@ -305,6 +306,7 @@
       else if (view.state === "ordering") text += ` ${ordered.length} of ${plural(toOrder.length, "supplier", "suppliers")} ordered.`;
       else if (view.state === "ordered") text += " Every supplier is ordered; waiting on delivery.";
       else if (view.state === "received") text += " Everything ordered has been received.";
+      else if (view.state === "nothing") text += " Nothing to order this month.";
     }
     $("stStateText").textContent = text;
     $("stMonthLabel").textContent = P.longLabel(period);
@@ -406,6 +408,18 @@
     return el("span", { class: "hs-badge hs-badge-na", text: "Nothing to order" });
   }
 
+  // "Nothing to order this month": offered on a counted month with no quantities; once marked, a
+  // line says who and when, with Undo (docs/plans/m11-contracts.md section 15.19).
+  function setNothingControls() {
+    const edit = canOrder();
+    const none = !allLines().some((l) => l.order > 0);
+    $("stNothing").hidden = !(edit && view.state === "counted" && none);
+    const n = view.nothingToOrder;
+    $("stNothingLine").hidden = !(view.state === "nothing" && n);
+    if (n) $("stNothingText").textContent = `Nothing to order: ${personName(n.by)}, ${fmtStamp(n.at)}`;
+    $("stNothingUndo").hidden = !edit;
+  }
+
   function renderOrder() {
     const edit = canOrder();
     const toOrder = view.groups.filter((g) => g.lines.some((l) => l.order > 0));
@@ -413,11 +427,14 @@
       ? `${plural(toOrder.length, "supplier", "suppliers")} with something to order`
       : "Nothing to order yet";
     $("stReopen").hidden = !(edit && view.state === "counted");
+    setNothingControls();
     $("stPrintAll").disabled = !toOrder.length;
     const note = $("stOrderNote");
     if (view.state === "counting") {
       note.hidden = false;
       note.textContent = "The count isn't finished yet. Order can be typed now; a supplier can be marked ordered once the count is finished.";
+    } else if (view.state === "nothing") {
+      note.hidden = true;
     } else if (view.state !== "counted" && edit) {
       note.hidden = false;
       note.textContent = "The count can be reopened once no supplier is marked ordered (Undo each one first).";
@@ -430,7 +447,7 @@
       return;
     }
     host.replaceChildren(...view.groups.map((g, gi) => {
-      const locked = !!g.ordered;
+      const locked = !!g.ordered || view.state === "nothing";
       const has = g.lines.some((l) => l.order > 0);
       const acts = el("div", { class: "st-bar-acts" });
       if (edit && !g.ordered && has && view.state !== "counting") {
@@ -640,6 +657,7 @@
       const toOrder = view.groups.filter((g) => g.lines.some((l) => l.order > 0));
       $("stOrderSummary").textContent = toOrder.length ? `${plural(toOrder.length, "supplier", "suppliers")} with something to order` : "Nothing to order yet";
       $("stPrintAll").disabled = !toOrder.length;
+      setNothingControls();
     }
   }
 
@@ -690,6 +708,34 @@
     setStatus(`The count for ${P.longLabel(period)} is open again.`, "ok");
     await reload();
     $("stTitle").focus({ preventScroll: true });
+  }
+
+  async function markNothing() {
+    await queue;
+    if (allLines().some((l) => l.order > 0)) return;
+    const ok = await dialog({
+      title: `Nothing to order for ${P.longLabel(period)}?`,
+      note: "The month is closed and leaves the dashboard. Undo brings it back if that was a mistake.",
+      submit: "Nothing to order",
+      focus: "cancel",
+      run: async () => { view = await send("POST", `/api/stock/orders/${period}/nothing`, {}); },
+    });
+    if (!ok) return;
+    setStatus(`${P.longLabel(period)} is marked nothing to order.`, "ok");
+    await reload();
+  }
+
+  async function undoNothing() {
+    const ok = await dialog({
+      title: `Undo nothing to order for ${P.longLabel(period)}?`,
+      note: "The month goes back to counted, to order.",
+      submit: "Undo",
+      focus: "cancel",
+      run: async () => { view = await send("POST", `/api/stock/orders/${period}/nothing`, { undo: true }); },
+    });
+    if (!ok) return;
+    setStatus(`${P.longLabel(period)} is no longer marked nothing to order.`, "ok");
+    await reload();
   }
 
   // The group as it is now, by supplier: a save still in the queue changes the month's lines.
@@ -1028,6 +1074,8 @@
   $("stMonth").addEventListener("change", (e) => goPeriod(e.target.value));
   $("stFinish").addEventListener("click", once(finishCount));
   $("stReopen").addEventListener("click", once(reopenCount));
+  $("stNothing").addEventListener("click", once(markNothing));
+  $("stNothingUndo").addEventListener("click", once(undoNothing));
   $("stPrintBlank").addEventListener("click", once(() => printSheet("blank")));
   $("stPrintAll").addEventListener("click", once(() => printSheet("all")));
   $("stAdd").addEventListener("click", once(async () => {

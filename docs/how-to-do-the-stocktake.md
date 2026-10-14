@@ -43,7 +43,8 @@ Once the count is finished, Have can't be changed. Ordering can reopen it (below
 2. For each supplier group, press **Mark ordered**. Set the date it was ordered and, if you know it, the expected date. A group can be marked once the count is finished and at least one of its items has an Order above zero.
 3. **Print order** prints one supplier group: only its items with an Order above zero (code, item, quantity). **Print all orders** prints one page per supplier group.
 
-- A supplier group with nothing to order (every Order empty or zero) needs no action. The month is finished (ordered) once **every group that has something to order** is marked ordered, and a month needing nothing is finished as soon as the count is.
+- A finished count stays "counted, to order" on the dashboard until Ordering acts. Once you mark a supplier group ordered, any group with nothing to order (every Order empty or zero) needs no action, so the month is finished (ordered) once **every group that has something to order** is marked ordered.
+- If the month needs nothing at all (no Order quantity anywhere), press **Nothing to order this month** on the Order tab. The month is closed, the page shows "Nothing to order: <name>, <date>", and the dashboard line goes. **Undo** brings it back to counted. The button only shows while no quantity is typed and no group is ordered; while the month is marked, Order quantities can't be typed and the count can't be reopened until you undo it.
 - A group that's marked ordered is locked: **Undo** it first to change its quantities ("<supplier> has already been ordered").
 - **Reopen count** takes the count back to counting, so the Workshop Manager can change a Have and finish it again. It works only while no supplier is marked ordered.
 
@@ -115,7 +116,7 @@ Once ordered, an order can't be edited. Undo ordered first.
 - **The Workshop Manager and Ordering (counting):** from the **25th of a month to the 7th of the next**, the dashboard shows "Stock count: <Month> not done" and "Board count: <Month> not done" for the month just ending, until each count is finished. The link opens that month.
 - **Ordering (placing and confirming):** the dashboard also shows
   - "Drawers: N to order · N waiting for check" when there are any,
-  - "Stock order <Month>: counted, to order" once a count is finished and until every group with something to order is marked ordered (it never shows for a month that needs nothing), and
+  - "Stock order <Month>: counted, to order" once a count is finished and until Ordering acts: a supplier group is marked ordered (then it shows "ordering" until every group with something to order is), or the month is marked **Nothing to order this month**, and
   - "Board count <Month>: value to confirm" once a board count is finished.
 
   These stay until the work is done.
