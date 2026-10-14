@@ -230,10 +230,10 @@ a:hover { text-decoration: underline; }
 .bd-p-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; align-items: start; }
 .bd-p-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .bd-pc-qty { width: 11mm; }
-.bd-pc-sup { width: 8mm; }
+.bd-pc-sup { width: 18mm; }
 .bd-pc-thick { width: 8mm; }
 .bd-pc-name { width: auto; }
-.bd-pc-finish { width: 19mm; }
+.bd-pc-finish { width: 17mm; }
 .bd-p-table th, .bd-p-table td {
   height: 5.6mm;
   padding: 0 1mm;
