@@ -454,6 +454,8 @@
       // A counted month's adjustment, ready to confirm (kept after an admin reopens it).
       $("bdAdj").value = view.adjustmentCents ? P.dollars(view.adjustmentCents).replace("$", "") : "";
       $("bdAdjNote").value = view.adjustmentNote || "";
+      adjSaved = { cents: view.adjustmentCents || 0, note: view.adjustmentNote || "" };
+      $("bdAdjSaved").textContent = "";
       $("bdConfirmErr").textContent = "";
     }
     render();
@@ -590,6 +592,40 @@
     setStatus(`The value for ${P.longLabel(period)} is open again.`, "ok");
     await reload();
     $("bdTitle").focus({ preventScroll: true });
+  }
+
+  // The adjustment and its note save when either changes (contracts section 15.13), so a reload
+  // keeps them. A note may be missing while drafting; Confirm value still asks for it.
+  let adjSaved = { cents: 0, note: "" };
+  function saveAdjustment() {
+    const err = $("bdConfirmErr");
+    const out = $("bdAdjSaved");
+    if (!view || view.status !== "counted") return;
+    const adj = typedAdjustment();
+    const note = $("bdAdjNote").value.trim();
+    if (Number.isNaN(adj)) {
+      out.textContent = "";
+      err.textContent = "The adjustment must be dollars and cents, such as -125.50.";
+      return;
+    }
+    err.textContent = "";
+    if (adj === adjSaved.cents && note === adjSaved.note) return;
+    const forPeriod = period;
+    queue = queue.then(async () => {
+      if (forPeriod !== period || !view || view.status !== "counted") return;
+      out.textContent = "Saving...";
+      try {
+        const v = await send("PUT", `/api/boards/counts/${period}/adjustment`, { adjustmentCents: adj, adjustmentNote: note });
+        if (forPeriod !== period) return;
+        adjSaved = { cents: adj, note };
+        view.adjustmentCents = v.adjustmentCents;
+        view.adjustmentNote = v.adjustmentNote;
+        out.textContent = "Saved";
+      } catch (e) {
+        out.textContent = "";
+        err.textContent = `The adjustment wasn't saved: ${errText(e)}`;
+      }
+    });
   }
 
   async function confirmValue(e) {
@@ -848,6 +884,8 @@
   $("bdPrintBlank").addEventListener("click", once(printBlank));
   $("bdConfirm").addEventListener("submit", once(confirmValue));
   $("bdAdj").addEventListener("input", updateTotal);
+  $("bdAdj").addEventListener("change", saveAdjustment);
+  $("bdAdjNote").addEventListener("change", saveAdjustment);
   $("bdAdd").addEventListener("click", once(async () => {
     if (!boards) await loadList();
     if (await boardDialog(null)) {

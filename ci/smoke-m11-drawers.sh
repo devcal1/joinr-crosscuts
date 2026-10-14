@@ -133,8 +133,7 @@ m11dw_me "$WSMGR"; M11_DW_WSMGR_ID=$M11_DW_ID
 
 echo "--- access ---"
 req GET /drawers.html "$ORDR"
-# 200 once the page itself lands (Wave 2 D); until then the gate lets ordr through to a 404.
-case $STATUS in 200 | 404) ok ;; *) fail "ordr GET /drawers.html: expected 200 (or 404 before the page exists), got $STATUS" ;; esac
+expect_status 200 "ordr GET /drawers.html"
 req GET /drawers.html "$WSMGR"
 expect_status 403 "wsmgr GET /drawers.html"
 req GET /drawers.html "$DPM"
@@ -268,6 +267,7 @@ expect_jq ".drawerOrder.brand == \"edge\" and .drawerOrder.supplier == \"$M11_DW
   "the placed order: brand, supplier, dates"
 expect_jq "any(.drawerOrder.grid.rows[]; .orderId == $M11_DW_LA) and .drawerOrder.grid.stock == [{\"height\":93,\"length\":450,\"qty\":2}] and .drawerOrder.stockReceived == null" \
   "the frozen grid holds the line and the stock row"
+expect_jq ".drawerOrder.grid.rows[] | select(.orderId == $M11_DW_LA) | .notes == \"M11 soft close, grey\""   "the frozen grid keeps the job's note (section 15.15)"
 m11dw_order "$M11_DW_LA" "$M11_DW_JA"
 printf '%s' "$M11_DW_OUT" | jq -e ".status == \"ordered\" and .orderedDate == \"$M11_DW_TODAY\" and .expectedDate == \"$M11_DW_LATER\" and .drawers.drawerOrderId == $M11_DW_P1" >/dev/null \
   || fail "the line is ordered today, expected on the date given, linked to the order: $M11_DW_OUT"
@@ -286,6 +286,37 @@ expect_status 200 "ordr lists the placed EDGE orders"
 expect_jq ".placed[0].id == $M11_DW_P1 and .placed[0].undoable == true and (.placed[0] | has(\"grid\") | not)" "newest first, without the grid"
 req GET "/api/drawers/placed/$M11_DW_P1" "$WSMGR"
 expect_status 403 "wsmgr GET a placed order"
+req GET "/api/drawers/placed/$M11_DW_P1" "$ORDR"
+expect_status 200 "ordr GET the placed order"
+expect_jq "(.grid.rows | map(select(.orderId == $M11_DW_LA)) | .[0].notes) == \"M11 soft close, grey\" and ([.grid.rows[] | select(.orderId != $M11_DW_LA) | has(\"notes\")] | any | not)"   "GET shows the note on its row and none on rows without one"
+
+echo "--- editing a placed drawer line's dates (section 15.14) ---"
+M11_DW_YDAY=$(m11dw_day -1)
+req PATCH "/api/orders/$M11_DW_LA" "$ORDR" "{\"orderedDate\":\"$M11_DW_YDAY\"}"
+expect_status 200 "ordr (mark_ordered) edits the ordered date of a placed drawer line"
+expect_jq ".order.orderedDate == \"$M11_DW_YDAY\" and .order.status == \"ordered\"" "the ordered date moved"
+req PATCH "/api/orders/$M11_DW_LA" "$ORDR" "{\"receivedDate\":\"$M11_DW_YDAY\"}"
+expect_status 409 "a received date on a line not yet received"
+req PATCH "/api/orders/$M11_DW_LA" "$ORDR" "{\"supplier\":\"M11 Other Supplier\",\"orderedDate\":\"$M11_DW_TODAY\"}"
+expect_status 409 "the supplier stays refused alongside a date"
+expect_jq '.error == "The drawer grid sets this line; change the grid"' "with the same sentence"
+req PATCH "/api/orders/$M11_DW_LA" "$ORDR" "{\"description\":\"M11 other description\"}"
+expect_status 409 "the description stays refused"
+req PATCH "/api/orders/$M11_DW_LA" "$WSMGR" "{\"orderedDate\":\"$M11_DW_TODAY\"}"
+expect_status 403 "wsmgr (no mark_ordered) edits the ordered date"
+req PATCH "/api/orders/$M11_DW_LA" "$SCHED" "{\"orderedDate\":\"$M11_DW_TODAY\"}"
+expect_status 403 "sched edits the ordered date"
+req PATCH "/api/orders/$M11_DW_LA" "$WSMGR" '{"status":"received"}'
+expect_status 200 "wsmgr receives the drawer line"
+req PATCH "/api/orders/$M11_DW_LA" "$WSMGR" "{\"receivedDate\":\"$M11_DW_YDAY\"}"
+expect_status 200 "wsmgr (orders.receive) edits the received date of a received drawer line"
+expect_jq ".order.receivedDate == \"$M11_DW_YDAY\" and .order.status == \"received\"" "the received date moved"
+req PATCH "/api/orders/$M11_DW_LA" "$ORDR" "{\"orderedDate\":\"$M11_DW_TODAY\"}"
+expect_status 400 "an ordered date after the received date"
+req PATCH "/api/orders/$M11_DW_LA" "$WSMGR" '{"status":"ordered"}'
+expect_status 200 "wsmgr undoes the receiving"
+req PATCH "/api/orders/$M11_DW_LA" "$ORDR" "{\"orderedDate\":\"$M11_DW_TODAY\"}"
+expect_status 200 "ordr puts the ordered date back"
 
 echo "--- receiving, and undoing the order ---"
 req GET /api/orders/deliveries "$WSMGR"

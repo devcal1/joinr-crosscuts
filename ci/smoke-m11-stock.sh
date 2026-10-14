@@ -272,6 +272,9 @@ expect_jq '[.lines[] | has("priceCents")] | any | not' "the answer has no prices
 req PUT "/api/boards/counts/$M11_ST_BP/lines" "$ORDR" "{\"lines\":[{\"boardId\":$M11_ST_B2,\"qty\":1}]}"
 expect_status 200 "ordr (stock.count too) saves a line"
 expect_jq '.provisional == true and .unpriced == 1' "ordr's answer is provisional, one unpriced"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":-500,"adjustmentNote":"M11 early"}'
+expect_status 409 "ordr saves an adjustment on an open month"
+expect_jq '.error == "Finish the count first"' "with the sentence"
 req POST "/api/boards/counts/$M11_ST_BP/counted" "$WSMGR"
 expect_status 200 "wsmgr finishes the board count"
 expect_jq ".status == \"counted\" and .counted.by.id == $M11_ST_WSMGR_ID" "counted by wsmgr"
@@ -283,6 +286,32 @@ req PUT "/api/boards/counts/$M11_ST_BP/lines" "$WSMGR" "{\"lines\":[{\"boardId\"
 expect_status 409 "wsmgr qty after counting"
 expect_jq '.error == "The count is finished"' "with the sentence"
 
+echo "--- the adjustment saves as typed (section 15.13) ---"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$WSMGR" '{"adjustmentCents":-500,"adjustmentNote":"M11 wsmgr"}'
+expect_status 403 "wsmgr (stock.count only) saves an adjustment"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ACCT" '{"adjustmentCents":-500,"adjustmentNote":"M11 acct"}'
+expect_status 403 "acct saves an adjustment"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":12.5}'
+expect_status 400 "a fractional cent adjustment"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":"-5"}'
+expect_status 400 "an adjustment typed as text"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":1000000001}'
+expect_status 400 "an adjustment beyond the limit"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" "$(jq -nc --arg n "$(printf 'x%.0s' $(seq 1 501))" '{adjustmentCents:-500,adjustmentNote:$n}')"
+expect_status 400 "a note of 501 characters"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":-500}'
+expect_status 200 "ordr saves an adjustment with no note yet (drafting)"
+expect_jq '.status == "counted" and .adjustmentCents == -500 and .adjustmentNote == "" and .provisional == true' "saved, still counted"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":-500,"adjustmentNote":"M11 offcuts written off"}'
+expect_status 200 "ordr saves the note"
+req GET "/api/boards/counts/$M11_ST_BP" "$ORDR"
+expect_jq '.status == "counted" and .adjustmentCents == -500 and .adjustmentNote == "M11 offcuts written off" and .valueCents == (.subtotalCents - 500)'   "the counted month reads the saved adjustment back"
+req GET "/api/boards/counts/$M11_ST_BP" "$WSMGR"
+expect_jq 'has("adjustmentCents") | not' "wsmgr's view has no adjustment"
+req GET "/api/audit?action=board_count.adjustment&entityId=$M11_ST_BP&limit=20" "$ADMIN"
+expect_status 200 "admin GET the audit log for the adjustment"
+expect_jq '.total == 2' "the two adjustment saves are audited"
+
 echo "--- the value ---"
 req POST "/api/boards/counts/$M11_ST_BP/value" "$WSMGR" '{}'
 expect_status 403 "wsmgr confirms the value"
@@ -293,11 +322,15 @@ req PATCH "/api/boards/$M11_ST_B3" "$ORDR" '{"priceCents":1001}'
 expect_status 200 "ordr prices board 3"
 req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{"adjustmentCents":-500}'
 expect_status 400 "an adjustment without a note"
-req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{"adjustmentCents":-500,"adjustmentNote":"M11 offcuts written off"}'
-expect_status 200 "ordr confirms the value with an adjustment"
+req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{}'
+expect_status 200 "ordr confirms the value with no body adjustment: the saved one is used"
 # round(2.5 x 12345) + 1 x 6789 + 3 x 1001 - 500 = 30863 + 6789 + 3003 - 500
 expect_jq '.status == "valued" and .valueCents == 40155 and .subtotalCents == 40655 and .adjustmentCents == -500 and .provisional == false' \
-  "value_cents is the exact sum"
+  "value_cents is the exact sum, with the saved adjustment and note"
+expect_jq '.adjustmentNote == "M11 offcuts written off"' "the saved note is kept"
+req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":-100,"adjustmentNote":"M11 late"}'
+expect_status 409 "an adjustment saved on a valued month"
+expect_jq '.error == "The value is already confirmed"' "with the sentence"
 req GET "/api/notifications?limit=100" "$ACCT"
 expect_status 200 "acct GET /api/notifications"
 expect_jq "[.rows[] | select(.kind == \"boards.valued\" and .title == \"Board stock value: $M11_ST_BPL\" and .link == \"/stockvalue.html\")] | length == 1" \
@@ -324,6 +357,12 @@ expect_status 409 "ordr reopens the count of a valued month"
 req POST "/api/boards/counts/$M11_ST_BP/reopen" "$ADMIN"
 expect_status 200 "admin reopens it"
 expect_jq '.status == "counted" and .valued == null and .provisional == true' "counted again, provisional"
+expect_jq '.adjustmentCents == -500 and .adjustmentNote == "M11 offcuts written off"' "the saved adjustment is kept for the next confirm"
+req POST "/api/boards/counts/$M11_ST_BP/value" "$ORDR" '{"adjustmentCents":-100,"adjustmentNote":"M11 override"}'
+expect_status 200 "a body adjustment overrides the saved one"
+expect_jq '.status == "valued" and .adjustmentCents == -100 and .adjustmentNote == "M11 override" and .valueCents == (.subtotalCents - 100)'   "valued with the body's adjustment"
+req POST "/api/boards/counts/$M11_ST_BP/reopen" "$ADMIN"
+expect_status 200 "admin reopens it again"
 expect_jq "[.lines[] | select(.boardId == $M11_ST_B1) | .priceCents] == [99999]" "the price is today's again"
 req GET /api/stockvalue "$ACCT"
 expect_jq "[.months[] | select(.period == \"$M11_ST_BP\") | [.status, .valueCents]] == [[\"counted\", null]]" \

@@ -355,10 +355,12 @@ Counts everywhere are `[{height, length, qty}]` with `qty` a whole number from 1
 
 ```js
 { brand: "edge", supplier, orderedDate, expectedDate,
-  rows: [ { orderId, jobId, jobName, counts: [...] }, ... ],   // by job name (case-blind), then orderId
+  rows: [ { orderId, jobId, jobName, notes?, counts: [...] }, ... ],   // by job name (case-blind), then orderId
   stock: [ {height, length, qty} ],                             // the stock row, may be empty
   totals: [ {height, length, qty} ], total: n }
 ```
+
+`notes` is the line's notes at the moment of placing, set only when it has some (§15.15, Todd 2026-10-14); orders placed before that have none. The placed sheet and its reprint show it under the job's name.
 
 The print layout is the workbook's:
 - One block per height, with the seven lengths across.
@@ -582,7 +584,8 @@ The state is worked out, in this order:
 | `PUT /api/boards/counts/:period/lines` | `stock.count` | `{lines: [{boardId, qty}]}` (`qty` 0–9999 in 0.5 steps, null clears); open only (409 `"The count is finished"`) |
 | `POST /api/boards/counts/:period/counted` | `stock.count` | open → counted; notice §8.1 |
 | `POST /api/boards/counts/:period/reopen-count` | `stock.order` | counted → open (before it's valued) |
-| `POST /api/boards/counts/:period/value` | `stock.order` | `{adjustmentCents?, adjustmentNote?}` (a note is required when the adjustment isn't 0); refused 409 `"<n> counted board(s) have no price"` while any counted line with qty > 0 is unpriced; freezes each line's `price_cents` and `value_cents = Σ round(qty × price) + adjustment`; counted → valued; notice §8.1 |
+| `PUT /api/boards/counts/:period/adjustment` | `stock.order` | `{adjustmentCents?, adjustmentNote?}` saves the adjustment and its note on a **counted** month as they are typed (added in 4.1, §15.13); same validation as `value` (whole cents within ±$10,000,000, note up to 500 characters), but a nonzero adjustment may have no note while drafting; 409 `"Finish the count first"` when open, `"The value is already confirmed"` when valued; audited `board_count.adjustment`; answers the month as `GET` does |
+| `POST /api/boards/counts/:period/value` | `stock.order` | `{adjustmentCents?, adjustmentNote?}` (a note is required when the adjustment isn't 0; with neither field in the body the saved adjustment is used, and fields given override it); refused 409 `"<n> counted board(s) have no price"` while any counted line with qty > 0 is unpriced; freezes each line's `price_cents` and `value_cents = Σ round(qty × price) + adjustment`; counted → valued; notice §8.1 |
 | `POST /api/boards/counts/:period/reopen` | `users.admin` | valued → counted (clears the frozen prices and value); audited |
 | `GET /api/stockvalue` | `accounts.view` | `{months: [{period, status, valueCents (valued only), counted: {at, by}, valued: {at, by}, adjustmentCents, adjustmentNote}]}`, newest first |
 
@@ -732,7 +735,7 @@ All pages:
 
 - **`OrderUI.actions(line)`:**
   - For `kind: "paint"` it returns no actions except a link "Open paint order <id>".
-  - For `kind: "drawers"` it omits `markOrdered` and limits `edit` to notes and expected date.
+  - For `kind: "drawers"` it omits `markOrdered`. **`edit` offers notes, expected date and the ordered and received dates to the same people as any other line, but not the supplier or description (§15.14, Todd 2026-10-14; replaces "notes and expected date only").** `lib/orders.js` already allows those date edits on a drawer line in a plain call.
 - **`OrderUI.noteBlock` is unchanged.** The Orders page and job page show a small "PAINT ORDER <id>" or "DRAWERS" label (uppercase, letterspaced, grey) under the description.
 - **Dashboard (`public/index.js`)** gets lines like the Deliveries line, each hidden when there's nothing to say:
   - **`stock.count`:**

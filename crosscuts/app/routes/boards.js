@@ -85,6 +85,11 @@ r.post("/boards/counts/:period/reopen-count", "stock.order", handle((req, res) =
   res.json(boards.reopenCount(db, req, periodOr400(req.params.period)));
 }));
 
+// Saves the adjustment and its note as they're typed, on a counted month (contracts section 15.13).
+r.put("/boards/counts/:period/adjustment", "stock.order", handle((req, res) => {
+  res.json(boards.saveAdjustment(db, req, periodOr400(req.params.period), body(req)));
+}));
+
 r.post("/boards/counts/:period/value", "stock.order", handle((req, res) => {
   res.json(boards.value(db, req, periodOr400(req.params.period), body(req)));
 }));

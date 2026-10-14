@@ -675,7 +675,7 @@
           el("span", { class: "dw-sbar-note", text: "As sent" })),
         el("div", { class: "dw-bar" }, kv, acts),
         el("div", { class: "dw-wrap" }, sheetTable({ brand: p.brand, rows: grid.rows, stock: grid.stock, totals: grid.totals, total: grid.total },
-          { idSuffix: "-placed" })),
+          { idSuffix: "-placed", notes: true })),
         el("p", { class: "dw-foot" }, "Total drawers ", el("b", { text: String(p.total) }))));
   }
 
@@ -1109,6 +1109,7 @@
     const stock = cellMap(sheet.stock);
     const totals = cellMap(sheet.totals);
     const table = el("table", { class: "dw-p-table" });
+    const noted = new Set(); // a job's note prints once, under its name in the first block it appears in
     table.append(el("colgroup", null, el("col", { class: "dw-pc-job" }), ...D.LENGTHS.map(() => el("col", { class: "dw-pc-n" })), el("col", { class: "dw-pc-n" })));
     for (const h of b.heights) {
       const tb = el("tbody", { class: "dw-p-block" });
@@ -1118,7 +1119,10 @@
         const t = sumHeight(r.counts, h.mm);
         if (!t) continue;
         const m = cellMap(r.counts);
-        tb.append(el("tr", null, el("td", { class: "dw-p-job", text: r.jobName }),
+        const showNote = r.notes && !noted.has(r.orderId);
+        noted.add(r.orderId);
+        tb.append(el("tr", null, el("td", { class: "dw-p-job" }, document.createTextNode(r.jobName || ""),
+            showNote ? el("span", { class: "dw-p-note", text: r.notes }) : null),
           ...D.LENGTHS.map((l) => el("td", { class: "dw-p-n", text: m[h.mm + "x" + l] ? String(m[h.mm + "x" + l]) : "" })),
           el("td", { class: "dw-p-n dw-p-strong", text: String(t) })));
       }
