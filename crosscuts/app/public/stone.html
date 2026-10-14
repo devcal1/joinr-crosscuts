@@ -6,16 +6,58 @@
 <title>Stone orders - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
+<link rel="stylesheet" href="stone.css">
 </head>
 <body>
   <div id="cc-shell"></div>
 
-  <!-- SCAFFOLD placeholder (docs/plans/m12-contracts.md section 1): replaced in M12 Wave 1. -->
-  <main>
-    <h1>Stone orders</h1>
+  <main class="so-page" id="soPage">
+    <div class="so-head">
+      <h1 id="soTitle" tabindex="-1">Stone orders</h1>
+      <div id="soHeadActions" class="so-head-actions"></div>
+    </div>
+    <p id="soStatus" class="so-status" role="status" aria-live="polite">Loading...</p>
+
+    <!-- The list (/stone.html): open, cancelled or all, kept in the hash -->
+    <section id="soList" class="so-list" aria-labelledby="soTitle" hidden>
+      <p class="so-intro">Start a stone order from its job's Benchtops section.</p>
+      <div class="so-tools">
+        <label class="so-inline">
+          <span class="hs-label">Show</span>
+          <select id="soFilter" class="hs-input so-filter">
+            <option value="open">Open</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+      </div>
+      <p id="soEmpty" class="so-empty" hidden></p>
+      <div id="soListWrap" class="so-wrap" hidden>
+        <table class="so-table so-table-list">
+          <thead>
+            <tr>
+              <th scope="col" class="so-c-job">Job</th>
+              <th scope="col" class="so-c-sup">Supplier</th>
+              <th scope="col" class="so-c-stone">Stone</th>
+              <th scope="col" class="so-c-state">State</th>
+              <th scope="col" class="so-c-date">Measure</th>
+              <th scope="col" class="so-c-date">Requested install</th>
+              <th scope="col" class="so-c-open"><span class="so-sr">Open</span></th>
+            </tr>
+          </thead>
+          <tbody id="soRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- One stone order (?id=N) or a new one for a job (?job=N), built by stone.js -->
+    <section id="soOrder" class="so-order" aria-labelledby="soTitle" hidden></section>
   </main>
 
   <script src="shared.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="stone.js"></script>
 </body>
 </html>

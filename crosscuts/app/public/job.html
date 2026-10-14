@@ -9,6 +9,14 @@
 <link rel="stylesheet" href="jobs.css">
 <link rel="stylesheet" href="tasks.css">
 <link rel="stylesheet" href="drawerspage.css">
+<style>
+  /* M12 Benchtops section and the From Joinr benchtop text (jobstone.js, job.js), prefix jt-. */
+  .jt-attend { margin: 0 0 10px; color: var(--orange-tint); font-weight: 700; }
+  .jt-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .jt-table { min-width: 680px; }
+  .jt-table td.jt-state { min-width: 150px; }
+  .jt-astyped { min-width: 0; overflow-wrap: anywhere; }
+</style>
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -69,6 +77,17 @@
         </div>
         <div class="jo-actions"><button id="oAdd" class="hs-btn hs-btn-primary" type="submit">Add line</button></div>
       </form>
+    </section>
+
+    <!-- M12: the job's stone orders (jobstone.js; docs/plans/m12-contracts.md section 9.1) -->
+    <section id="benchtops" class="jo-sec" aria-labelledby="benchtops-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="benchtops-h">Benchtops</h2>
+        <button id="jtShowCancelled" class="hs-btn hs-btn-quiet" type="button" aria-pressed="false">Show cancelled</button>
+      </div>
+      <p id="jtStatus" class="jo-status muted" role="status"></p>
+      <div id="jtBody"></div>
+      <div id="jtTools" class="jt-tools"></div>
     </section>
 
     <section id="inspection" class="jo-sec" aria-labelledby="inspection-h" hidden>
@@ -163,6 +182,7 @@
   <script src="orderui.js"></script>
   <script src="drawers.js"></script>
   <script src="job.js"></script>
+  <script src="jobstone.js"></script>
   <script src="/shell/shell.js"></script>
 </body>
 </html>
