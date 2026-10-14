@@ -43,6 +43,7 @@ App root: `crosscuts/app/`. CommonJS, Express 4, `better-sqlite3` (the `node:sql
 | `public/battens.html`, `battens.css`, `battenspage.js` | the Batten calculator page (§9.5), prefix `bn-` | C |
 | `ci/smoke-m12-battens.sh` | §10.3 | C |
 | `docs/how-to-order-stone.md` (new), `docs/plans/menu-plan.md` (who sees what), `tools/screenshots/shoot.js`, `tools/screenshots/seed.js` | docs, screenshots and made-up data | integrator, 4.1 |
+| `public/shell/shell.css` | the `@media print` rule of §12.22 | integrator, 4.3 |
 
 **Boundaries.**
 - Every rule about stone orders lives in `lib/stone.js`: routes declare the coarse access and pass the body on; pages only hide controls.
@@ -162,10 +163,11 @@ create(db, req, jobId, body)    // -> order with revisions
 get(db, req, id)                // -> order with revisions (404 when none)
 update(db, req, id, body)       // -> order with revisions
 send(db, req, id, body)         // -> order with revisions
-cancel(db, req, id)             // -> order with revisions
-restore(db, req, id)            // -> order with revisions
-revision(db, req, id, rev)      // -> {orderId, jobId, jobName, revision, sentDate, sentAt, sentBy, form}
-list(db, { status })            // -> orders (no revisions)
+cancel(db, req, id, body = {}) // -> order with revisions
+restore(db, req, id, body = {})// -> order with revisions
+revision(db, req, id, rev)      // -> {orderId, jobId, jobName, status, revision, sentDate, sentAt, sentBy, form}
+                                //    status: the order's status now (section 7, §12.19)
+list(db, { status, withClient = true })  // -> orders (no revisions); withClient false: section 4.4
 summary(db, today = sydneyToday())  // -> {date, drafts, changed, installsSoon}
 suggestions(db)                 // -> {suppliers, brands}
 benchtopSheet(db, req, jobId)   // -> {job, benchtopText}
@@ -178,16 +180,18 @@ benchtopText(db, jobId)         // -> string[]
 |---|---|
 | **create** | The job must exist (404) and not be archived (409 `"The job is archived"`). Body keys as §3; **a key left out takes the prefill**, a key sent as `''` or `null` stays empty. Status `draft`, revision 0. Several orders per job are allowed. 201. |
 | **update** | The keys present change; the rest stay. Cancelled → 409 `"This stone order is cancelled"`; job archived → 409 `"The job is archived"`. A `draft` stays draft; a `sent` order stays `sent` (it then reads `changedSinceSent`). Nothing changed → 200, no audit row. |
-| **send** | Body `{sentDate?}`: default today (Sydney); not a date → 400; in the future → 400 `"The sent date can't be in the future"`; before the last revision's sent date → 400 `"The sent date can't be before revision <n> (<d Mon yyyy>)"`. Cancelled or archived → 409 as update. Missing needed fields (§3) → 400 `"Fill in before sending: <Label>, <Label>"`. A sent order with no change since its last revision → 409 `"Nothing has changed since revision <n> was sent"`. Otherwise writes revision `n + 1` (`form_json` = the form, `sent_by` = the user), sets `revision`, `status = 'sent'`. 200. |
-| **cancel** | From draft or sent; already cancelled → 409 `"This stone order is already cancelled"`. Allowed on an archived job. Sets `cancelled_at`/`cancelled_by`. Nothing is deleted. |
-| **restore** | Only a cancelled order (else 409 `"Only a cancelled stone order can be restored"`); job archived → 409. Back to `draft` (revision 0) or `sent` (revision ≥ 1); clears `cancelled_*`. |
+| **send** | Body `{sentDate?, expectUpdatedAt?}`; any other key → 400 `"Unknown field: <key>"`. `sentDate`: default today (Sydney); not a date → 400 `"Sent date must be a date"`; in the future → 400 `"The sent date can't be in the future"`; on the first send, before the order was started (its `created_at` as a Sydney date) → 400 `"The sent date can't be before the order was started (<d Mon yyyy>)"` (§12.16); on a later send, before the last revision's sent date → 400 `"The sent date can't be before revision <n> (<d Mon yyyy>)"`. `expectUpdatedAt` (§12.17): when present it must be a string (else 400 `"expectUpdatedAt must be text"`), and if it isn't the order's `updated_at` → 409 `"This stone order was changed by someone else"`; left out, no check. Check order: 404; 409 cancelled or archived (as update); 400 for the body's shape; 409 stale copy; 400 the date rules and missing fields; 409 nothing changed. Missing needed fields (§3) → 400 `"Fill in before sending: <Label>, <Label>"`. A sent order with no change since its last revision → 409 `"Nothing has changed since revision <n> was sent"`. Otherwise writes revision `n + 1` (`form_json` = the form, `sent_by` = the user), sets `revision`, `status = 'sent'`. 200. |
+| **cancel** | Body empty or `{}`; any key → 400 `"Unknown field: <key>"`. From draft or sent; already cancelled → 409 `"This stone order is already cancelled"`. Allowed on an archived job. Sets `cancelled_at`/`cancelled_by`. Nothing is deleted. |
+| **restore** | Body as cancel. Only a cancelled order (else 409 `"Only a cancelled stone order can be restored"`); job archived → 409. Back to `draft` (revision 0) or `sent` (revision ≥ 1); clears `cancelled_*`. |
 | **revision** | 404 when the order or that revision doesn't exist. |
 
 Every write sets `updated_at`/`updated_by`. Audit, entity `stone_order`: `stone.create` (after: the form), `stone.update` (before/after: only the changed keys), `stone.send` (after: `{revision, sentDate}`), `stone.cancel`, `stone.restore` (before/after: status).
 
 ### 4.4 The list
 
-`list(db, {status})`, `status` one of `open` (default: draft and sent, on jobs not archived), `cancelled`, `all` (everything); anything else → 400. Sorted by `requested_install_date` ascending with NULLs last, then id.
+`list(db, {status, withClient})`, `status` one of `open` (default: draft and sent, on jobs not archived), `cancelled`, `all` (everything); anything else → 400. Sorted by `requested_install_date` ascending with NULLs last, then id.
+
+`withClient` (§12.18): the route passes `can(req, "jobs.view")`. When false, each order's `form` leaves out the keys `clientName`, `clientPhone`, `siteAddress` and `siteAccess` (absent, not empty); everything else is as with `true`. No preset has design.view without jobs.view today; this covers an override.
 
 ### 4.5 The prefill and the benchtop text
 
@@ -201,7 +205,7 @@ Every write sets `updated_at`/`updated_by`. Audit, entity `stone_order`: `stone.
 
 ### 4.6 The summary and suggestions
 
-- `summary(db, today)`: over open orders (§4.4), `drafts` = status draft; `changed` = sent with `changedSinceSent`; `installsSoon` = **not cancelled** orders whose `requested_install_date` is from today to today + 13. `date` = today. The scaffold stub answers `{date, drafts: 0, changed: 0, installsSoon: 0}`.
+- `summary(db, today)`: over open orders (§4.4), `drafts` = status draft; `changed` = sent with `changedSinceSent`; `installsSoon` (§12.21) = open orders **still needing sending** (draft, or sent with `changedSinceSent`) whose `requested_install_date` is from today to today + 13. A sent, unchanged order isn't counted. `date` = today. The scaffold stub answers `{date, drafts: 0, changed: 0, installsSoon: 0}`.
 - `suggestions(db)`: `{suppliers, brands}`, each the distinct non-empty values used on any stone order (case-blind, the most recently updated spelling), most recent first, at most 50.
 
 ## 5. Routes (`routes/stone.js`, `defineRoutes("/api")`)
@@ -225,6 +229,8 @@ Literal paths are registered before `/:id` ones. Ids are positive integers; anyt
 | `GET /api/stone/:id/revisions/:rev` | `jobs.view` | `revision` plus `business` |
 
 `business` is `{tradingName, legalName, address, phone, email}` from `settings.business(db)`, as `routes/paint.js` `withBusiness` (no ABN, no bank details). A body that isn't a JSON object → 400 `"JSON body required"` (send, cancel and restore accept an empty body).
+
+`GET /api/stone` passes `withClient: can(req, "jobs.view")` to `list` (§4.4). `POST /api/stone/:id/send` takes `{sentDate?, expectUpdatedAt?}`, and cancel and restore pass their body on (§4.3).
 
 ## 6. `public/battens.js` (C, complete)
 
@@ -256,11 +262,12 @@ All A4 portrait, black on white, between the `style-check: print-start` / `print
   - The line "Please mark all details, including cut-outs, on site before the final measure."
   - **Notes**, then **Ordered by** (the sender's name) and **Date** (the sent date).
   - A print of the current form when it's a draft or has unsent changes carries **DRAFT – NOT SENT** at the top, with no revision or sent date.
-  - One page; long notes may run to a second.
+  - A cancelled order (either mode: `?id=N`, or `?id=N&rev=R` whose `status` is `cancelled`) carries a ruled **CANCELLED** box at the top, as the DRAFT one (§12.19). Both marks show when both apply.
+  - One page for an ordinary order; very long notes and site access may run on to further pages.
 - **Benchtop sheet** (`document.title` "Benchtop sheet <job name>", or "Benchtop sheet" blank):
   - The banner and address line, then **Job**, **Client**, **Site address**, **Quote**, and **Benchtop** (the Joinr text joined with "; ").
   - Then a large ruled-border blank drawing area filling the rest of the page, and at the foot the **edge key**: `[ ]` Square edge, `//` Rolled edge, `X` Raw edge.
-  - The blank sheet has the same lines with empty space to write on. Always one page.
+  - The blank sheet has the same lines with empty space to write on. Always one page: when the job lines or the benchtop text are long, their type gets smaller so nothing is cut off (B-m6).
 
 ## 8. Pages, menu and access (scaffold)
 
@@ -316,13 +323,14 @@ All pages:
   - Supplier and stone brand have datalists from `GET /api/stone/suggestions`. Edge height and profile are selects with **Other…** revealing a text input; a stored value not on the list shows as Other with its text.
   - Buttons (`jobs.edit`, by state):
     - **Save** (PATCH with only what changed);
-    - **Mark sent** (never sent) or **Send revision n+1** (sent with changes): a dialog with the sent date (default today, max today), which saves unsaved changes first, then sends;
+    - **Mark sent** (never sent) or **Send revision n+1** (sent with changes): a dialog with the sent date (default today, max today; min the order's started date on a first send, else the last revision's sent date), which saves unsaved changes first, then sends with `expectUpdatedAt` = the `updatedAt` the page holds (after the save, the save's answer). A 409 from the save or the send reloads the order as Save does (§12.17);
     - **Print** (`stoneprint.html?id=…`);
     - **Cancel order** (a confirm);
     - **Restore** (cancelled).
   - **Revisions:** a list of "Revision n, sent d Mon yyyy by Name", each with **Print** (`&rev=n`).
   - Read-only (inputs disabled, no buttons but Print) without `jobs.edit`, on a cancelled order, or on an archived job. With `jobs.edit`, a cancelled order on a job that isn't archived also keeps **Restore**, and an order on an archived job keeps **Cancel order**, as §4.3 and §12.7 allow (clarified at 4.1, 2026-10-15).
   - A refused request shows its sentence by the buttons; a 400 naming fields marks those fields.
+  - **After a 409** (Save, or the send dialog's save or send): the order is reloaded, the message adds "Your unsaved changes weren't kept." when there were any, and focus moves to the message (B-m1, B-m2). A network failure leaves the form as typed and never shows "Not saved yet." over a save that may have gone through: it says the request couldn't be checked and offers **Reload** (B-m3).
 
 ### 9.3 `/stoneprint.html` (B, prefix `sp-`)
 
@@ -332,12 +340,13 @@ All pages:
   - `?sheet=<jobId>` (`GET /api/job-records/:id/benchtop-sheet`).
   - `?sheet=blank` (`GET /api/stone/letterhead`).
 - On screen: the sheet as it will print (on a white paper box), with **Print** and **Back**. Prints as §7.
+- `?id=N` on an order with revision ≥ 1 whose form differs from that revision (the draft print of a changed order) shows, on screen only, a link **Print revision n as sent** (`?id=N&rev=n`) (§12.20), so a viewer without the Stone orders page reaches the sent copy. Any note on the job page or the print that sends viewers to Revisions points to this link instead.
 - No access or 404: a sentence.
 
 ### 9.4 Design/PM dashboard (B, `design.html`)
 
 A second tile, **Stone orders**, from `GET /api/stone/summary`:
-- "<n> drafts · <n> changed since sent", plus "<n> installs in the next 2 weeks" when not 0 (in orange).
+- "<n> drafts · <n> changed since sent", plus "<n> installs in the next 2 weeks" when not 0 (in orange): orders still needing sending only, as §4.6 (§12.21).
 - Link **Open Stone orders**. If the call fails, the tile is just the link.
 
 ### 9.5 `/battens.html` (C, prefix `bn-`)
@@ -389,6 +398,15 @@ M-suite rules apply: sourced, no shebang, no `set`, the shared helpers and jars 
   - `GET /api/stone/letterhead`: ordr 200, wsmgr 403.
 - **Orders untouched:** the job's `GET /api/job-records/<id>/orders` has no lines, and its `materialsOrderedDate` is still null.
 - **Audit:** `stone.create`, `stone.update`, `stone.send`, `stone.cancel` and `stone.restore` rows for the order.
+- **Added at 4.3** (review C-m2–C-m4 and §12.16–21):
+  - **Benchtop text from real Joinr data:** insert a `joinr_intake` row for the job (state `accepted`, `raw.benchtops` with a duplicate, a blank and a 250-character entry) into the container's database, then assert the cleaned list (order kept, duplicate and blank dropped, the long one cut to 200) on both the job route and the benchtop sheet.
+  - **Summary by difference:** read the summary first, then assert the exact change in `drafts`, `changed` and `installsSoon` after each step (a new draft; send; a change after sending; send again; cancel). A sent, unchanged order with a requested install in 3 days adds nothing to `installsSoon` (§12.21).
+  - **The other §4.3 rules:** restore on an archived job 409; send on a cancelled order 409; restore of an order that isn't cancelled 409; a never-sent order restores to `draft`; a PATCH changing nothing writes no audit row; `stone.update` before/after hold only the changed keys; cancel again gives its sentence; an unknown key on send, cancel or restore 400.
+  - **§12.16:** a first send dated before the order was started → 400 with the sentence.
+  - **§12.17:** send with a wrong `expectUpdatedAt` → 409 with the sentence and no revision written; with the right one → 200; a non-string → 400.
+  - **§12.18:** `GET /api/stone` as dpm has `form.clientName`. The absence without jobs.view is proved in the node replay (no preset lacks it), not the smoke.
+  - **§12.19:** `GET /api/stone/<id>/revisions/1` of a cancelled order has `status: "cancelled"`.
+  - The `has()` check at the old line 204 asserts what its message says.
 
 ### 10.3 `ci/smoke-m12-battens.sh` (C), `step "m12. batten calculator"`
 
@@ -399,6 +417,7 @@ M-suite rules apply: sourced, no shebang, no `set`, the shared helpers and jars 
   - gap ends `{space: 1000, width: 50, count: 9}` → 10 gaps of 55, batten 1 starts at 55;
   - each refusal of §6 gives `ok: false` with its sentence;
   - a tie picks more battens: `{space: 100, width: 10, gap: 27.5}` (3 battens give 35, 4 give 20) → count 4.
+  - **added at 4.3 (C-m5):** the `ends` refusal (a value other than `batten`/`gap`), the over-1000 refusal from a gap, and the singular sentence for one batten.
 
 ### 10.4 Pages (B, C): local checks
 
@@ -433,6 +452,17 @@ As M11 §12.4:
 - **One wave** (plan §2.5): the three tasks share no file.
 - **Worktree base:** each agent resets to the commit the integrator names, and junctions `crosscuts/app/node_modules` from the main checkout (PowerShell `New-Item -ItemType Junction` if `cmd //c mklink` is refused). Junctions are unlinked before a worktree is removed.
 - Scratch goes in the agent's scratchpad, and is copied into `.dev/` by the integrator.
+
+### 11.1 M12 · 4.3 Fix (2026-10-15)
+
+| Task | Owns (only these files) | Fixes |
+|---|---|---|
+| **A: backend** (worktree) | `lib/stone.js`, `routes/stone.js`, `ci/smoke-m12-stone.sh` | §12.16, 17, 18, 19 (`status` on `revision()`), 21; nits: `fit()` never splits a surrogate pair; unknown keys on cancel/restore; the sentences in §4.3; the §10.2 4.3 additions |
+| **B: stone pages and prints** (worktree) | `public/stone.{html,css,js}`, `public/stoneprint.{html,css,js}`, `public/jobstone.js`, `public/jobstone.css`, `public/job.js` (From Joinr benchtop text only), `public/design.html`, `public/index.css` (the tile rule only) | §12.17 (page side), 19, 20, 21 (tile words unchanged); B-m1, B-m2, B-m3, B-m6; nits: the archived note "printed or cancelled", the job's From Joinr text cut to 200 as the server does |
+| **C: batten calculator** (worktree) | `public/battens.js`, `public/battens.{html,css}`, `public/battenspage.js`, `ci/smoke-m12-battens.sh` | C-m5 and §6's missing sentences; nits: print headers spaced, an empty width says it uses 25 mm, very thin battens still drawn (at least 1 px) |
+| **Integrator** | `public/shell/shell.css` (§12.22), the docs, contracts, STATUS | §12.15 and 22, C-m6, how-to nits; merges; the whole adapted smoke |
+
+**Deferred at 4.3 (reasons in STATUS):** years 0100–0999 in dates (the app's shared `validDate` accepts them everywhere; a change belongs to all date inputs, not one milestone); lengths count UTF-16 units (as the browser's `maxlength`, so the page and server agree); the Sydney-midnight race in the smoke (as every earlier suite); the batten solver's behaviour for a gap far larger than the space (§6 literal, a refusal either way).
 
 ## 12. Points the integrator decided (Todd can change any)
 
