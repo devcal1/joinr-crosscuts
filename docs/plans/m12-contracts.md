@@ -185,6 +185,8 @@ benchtopText(db, jobId)         // -> string[]
 | **restore** | Body as cancel. Only a cancelled order (else 409 `"Only a cancelled stone order can be restored"`); job archived → 409. Back to `draft` (revision 0) or `sent` (revision ≥ 1); clears `cancelled_*`. |
 | **revision** | 404 when the order or that revision doesn't exist. |
 
+As built at 4.3 (clarifications): cancel and restore check 404, then their 409 state rules, then the unknown-key 400; on send a malformed `sentDate` counts with the date rules (after the stale-copy 409), and `expectUpdatedAt: null` is a 400 (present, not a string). Values cut to a maximum (the prefill, the benchtop text) never end on the first half of a surrogate pair.
+
 Every write sets `updated_at`/`updated_by`. Audit, entity `stone_order`: `stone.create` (after: the form), `stone.update` (before/after: only the changed keys), `stone.send` (after: `{revision, sentDate}`), `stone.cancel`, `stone.restore` (before/after: status).
 
 ### 4.4 The list
