@@ -457,19 +457,61 @@ function reopenCount(db, req, period) {
   return count(db, period, { withPrices: true }, today);
 }
 
-// {adjustmentCents?, adjustmentNote?}: counted -> valued, freezing each line's price and the value.
-function value(db, req, period, body) {
-  const today = sydneyToday();
-  periodOk(period, today);
+// Reads {adjustmentCents?, adjustmentNote?} from a body: whole cents within the limit, a note of
+// 500 characters at most. Absent fields read as 0 and "". Whether a note is needed is the caller's
+// question (saving a draft allows none; confirming the value requires one for a nonzero adjustment).
+function adjustmentOf(body) {
   const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
   const adj = b.adjustmentCents === undefined || b.adjustmentCents === null ? 0 : b.adjustmentCents;
   if (!Number.isInteger(adj) || Math.abs(adj) > ADJUSTMENT_MAX) throw bad("adjustmentCents must be a whole number of cents");
   const note = textField("The adjustment note", b.adjustmentNote, NOTE_MAX);
-  if (adj !== 0 && !note) throw bad("Give a note for the adjustment");
+  return { adj, note };
+}
+
+// {adjustmentCents?, adjustmentNote?}: saves the adjustment on a counted month as it's typed
+// (contracts section 15.13), before Confirm value. A nonzero adjustment with no note is allowed
+// here; Confirm value still asks for the note. Open and valued months are 409.
+function saveAdjustment(db, req, period, body) {
+  const today = sydneyToday();
+  periodOk(period, today);
+  const { adj, note } = adjustmentOf(body);
   db.transaction(() => {
     const row = countRow(db, period);
     if (!row || row.status === "open") throw conflict("Finish the count first");
     if (row.status === "valued") throw conflict("The value is already confirmed");
+    if (row.adjustment_cents === adj && row.adjustment_note === note) return;
+    db.prepare("UPDATE board_counts SET adjustment_cents = ?, adjustment_note = ?, updated_at = ? WHERE id = ?").run(
+      adj,
+      note,
+      nowIso(),
+      row.id
+    );
+    audit.log(req, {
+      action: "board_count.adjustment",
+      entityType: "board_count",
+      entityId: period,
+      before: { adjustment_cents: row.adjustment_cents, adjustment_note: row.adjustment_note },
+      after: { adjustment_cents: adj, adjustment_note: note },
+    });
+  })();
+  return count(db, period, { withPrices: true }, today);
+}
+
+// {adjustmentCents?, adjustmentNote?}: counted -> valued, freezing each line's price and the value.
+// With neither field in the body the saved adjustment is used; fields given override it.
+function value(db, req, period, body) {
+  const today = sydneyToday();
+  periodOk(period, today);
+  const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  const given = b.adjustmentCents !== undefined || b.adjustmentNote !== undefined;
+  const fromBody = adjustmentOf(b);
+  db.transaction(() => {
+    const row = countRow(db, period);
+    if (!row || row.status === "open") throw conflict("Finish the count first");
+    if (row.status === "valued") throw conflict("The value is already confirmed");
+    const adj = given ? fromBody.adj : row.adjustment_cents;
+    const note = given ? fromBody.note : row.adjustment_note;
+    if (adj !== 0 && !note) throw bad("Give a note for the adjustment");
     const lines = db
       .prepare(
         `SELECT l.board_id, l.qty, b.price_cents
@@ -561,4 +603,4 @@ function stockValue(db) {
   return { months };
 }
 
-module.exports = { list, create, update, reorder, counts, count, saveLines, counted, reopenCount, value, reopen, stockValue };
+module.exports = { list, create, update, reorder, counts, count, saveLines, counted, reopenCount, saveAdjustment, value, reopen, stockValue };

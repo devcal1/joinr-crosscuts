@@ -67,7 +67,8 @@
             <input id="bdAdjNote" class="hs-input" type="text" maxlength="500" autocomplete="off" aria-describedby="bdAdjHelp bdConfirmErr">
           </div>
         </div>
-        <p id="bdAdjHelp" class="bd-help">Optional: a correction to the worked-out figure (negative to take off), for damaged sheets or offcuts, say. A note is needed when it isn't zero.</p>
+        <p id="bdAdjHelp" class="bd-help">Optional: a correction to the worked-out figure (negative to take off), for damaged sheets or offcuts, say. A note is needed when it isn't zero. It is saved as you type, so a reload keeps it.</p>
+        <p id="bdAdjSaved" class="bd-help bd-adj-saved" role="status" aria-live="polite"></p>
         <p id="bdConfirmErr" class="cc-dialog-error bd-err" role="alert"></p>
         <div class="bd-confirm-acts">
           <button id="bdConfirmBtn" class="hs-btn hs-btn-primary" type="submit">Confirm value</button>

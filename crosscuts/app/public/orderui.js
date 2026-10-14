@@ -22,7 +22,8 @@
 // "paint"`) is managed entirely by that order, so actions() offers none of its own, only `link`
 // ({href, text}, or null when the user can't open the paint order page). A job's drawer line
 // (`kind: "drawers"`) is ordered from the Drawer order page, so it gets no markOrdered, and its
-// Edit changes only the notes and the expected date (the grid sets the supplier and description).
+// Edit offers the notes and the three dates to the same people as any other line (contracts section
+// 15.14), but not the supplier or description (the grid sets them).
 //
 // `line` is an order object (lib/orders.js present(), with jobName when the list has it). Each
 // dialog resolves to the server's response, or null when the user cancels (Cancel, Escape, the
@@ -286,7 +287,9 @@
         receive: s === "ordered" && receive,
         note: placed && receive,
         undoReceived: s === "received" && receive,
-        edit: live && edit, // notes and expected date only
+        // The same people as any other line (contracts section 15.14); the dialog leaves supplier and
+        // description out, as the grid sets them.
+        edit: live && (edit || (placed && mark) || (s === "received" && receive)),
         markOrdered: false, // ordered from the Drawer order page
         undoOrdered: s === "ordered" && mark,
         cancel: live && edit,
@@ -419,8 +422,8 @@
     const read = []; // [key, input, before, kind], in the order they show
     let list = null;
     const editText = can("orders.edit");
-    // A drawer line: its grid sets the supplier and description, and it is ordered from the
-    // Drawer order page, so only the expected date and the notes are offered here.
+    // A drawer line: its grid sets the supplier and description, so those two aren't offered; the
+    // dates and notes are, to the same people as any other line (contracts section 15.14).
     const drawers = line.kind === "drawers";
     if (editText && drawers) {
       const exp = dateInput(line.expectedDate || "", null, null);
@@ -443,12 +446,12 @@
     // other as it is changed.
     let od = null;
     let rd = null;
-    if (!drawers && placed && can("orders.mark_ordered")) {
+    if (placed && can("orders.mark_ordered")) {
       od = dateInput(line.orderedDate || "", null, received ? earlier(today, line.receivedDate) : today);
       dates.push(fieldBox("Ordered", od));
       read.push(["orderedDate", od, line.orderedDate || null, "date"]);
     }
-    if (!drawers && received && can("orders.receive")) {
+    if (received && can("orders.receive")) {
       rd = dateInput(line.receivedDate || "", line.orderedDate || null, today);
       dates.push(fieldBox("Received", rd));
       read.push(["receivedDate", rd, line.receivedDate || null, "date"]);

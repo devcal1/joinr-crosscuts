@@ -627,7 +627,14 @@ function place(db, req, body) {
       supplier: current.supplier,
       orderedDate,
       expectedDate,
-      rows: current.rows.map((r) => ({ orderId: r.orderId, jobId: r.jobId, jobName: r.jobName, counts: r.counts })),
+      // A job's note goes into the frozen grid when it has one, so a reprint matches what was sent
+      // (contracts section 4.3, 15.15). Orders placed before this have none.
+      rows: current.rows.map((r) => {
+        const row = { orderId: r.orderId, jobId: r.jobId, jobName: r.jobName, counts: r.counts };
+        const note = typeof r.notes === "string" ? r.notes.trim() : "";
+        if (note) row.notes = note;
+        return row;
+      }),
       stock: current.stock,
       totals: current.totals,
       total: current.total,

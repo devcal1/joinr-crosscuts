@@ -51,9 +51,12 @@ m11_p_me "$WSMGR"
 M11_P_WSMGR_ID=$M11_P_ID
 
 echo "--- access ---"
-# The page itself is Wave 2's (F); its access gate is the scaffold's, and refuses first.
 req GET /paint.html "$ACCT"
 expect_status 403 "acct GET /paint.html"
+req GET /paint.html "$ORDR"
+expect_status 200 "ordr GET /paint.html"
+req GET /paint.html "$WSMGR"
+expect_status 200 "wsmgr GET /paint.html"
 req GET /api/paint/items "$ORDR"
 expect_status 200 "ordr GET /api/paint/items"
 req GET /api/paint/items "$WSMGR"

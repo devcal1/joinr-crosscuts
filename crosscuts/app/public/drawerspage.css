@@ -409,6 +409,7 @@ td.dw-ignored { color: var(--label); }
 .dw-p-hl { text-align: left; font-size: 9pt; }
 .dw-p-n { text-align: right; }
 .dw-p-job { text-align: left; }
+.dw-p-note { display: block; margin-top: 0.5mm; font-size: 8pt; font-weight: 400; white-space: pre-line; }
 .dw-p-strong { font-weight: 700; }
 .dw-p-tot td { font-weight: 700; border-bottom: 0.5mm solid #000; }
 .dw-p-foot { display: flex; justify-content: space-between; gap: 10mm; margin-top: 5mm; padding-top: 2mm; font-size: 11pt; }
