@@ -1,0 +1,156 @@
+/* The stone order and benchtop sheet prints (/stoneprint.html; docs/plans/m12-contracts.md sections
+   7 and 9.3). On screen: the house-style frame with the sheet as a white A4 box on the ink ground (a
+   document, so dark on white). On paper: only the sheet, A4 portrait, black on white, on its own named
+   page (spsheet) so nothing here can reach another page's print. Sizes are in mm and pt so the screen
+   box and the printed page match. Colours come from tokens.css, except in the print block. Page
+   classes are sp-. */
+body.sp-body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--body);
+  font-family: var(--font);
+}
+
+.sp-page {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.sp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 14px;
+}
+.sp-status { flex: 1 1 260px; margin: 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.sp-status:empty { display: none; }
+
+/* the sheet scrolls inside its own box on a narrow screen, never the page */
+.sp-scroll { overflow-x: auto; }
+
+/* ---------- the sheet (screen) ---------- */
+
+.sp-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 10pt;
+  line-height: 1.35;
+}
+.sp-sheet :where(h1, h2, p, dl, dd, ul) { margin: 0; }
+.sp-sheet-error { min-height: 0; }
+.sp-loading, .sp-error { font-size: 12pt; }
+.sp-error { font-weight: 700; }
+
+.sp-banner { display: block; width: 100%; height: auto; }
+.sp-bizline { margin-top: 2mm; padding-bottom: 2.5mm; border-bottom: 0.5mm solid var(--ink); font-size: 8.5pt; text-align: center; overflow-wrap: anywhere; }
+
+.sp-label { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.sp-strong { font-weight: 700; }
+.sp-pre { white-space: pre-line; overflow-wrap: anywhere; }
+
+/* the stone order */
+.sp-draft {
+  margin-top: 4mm;
+  padding: 2mm 4mm;
+  border: 0.6mm solid var(--ink);
+  font-size: 14pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+.sp-titlerow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  margin-top: 5mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.5mm solid var(--ink);
+}
+.sp-titlebox { min-width: 0; }
+.sp-h1 { font-size: 17pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
+.sp-to { display: flex; align-items: baseline; gap: 3mm; margin-top: 2mm; }
+.sp-toname { font-size: 13pt; font-weight: 700; overflow-wrap: anywhere; }
+.sp-meta { display: grid; grid-template-columns: auto auto; gap: 1mm 4mm; flex: none; font-size: 10pt; }
+.sp-meta dt { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; align-self: center; }
+.sp-meta dd { font-weight: 700; }
+
+.sp-blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5mm 8mm; margin-top: 5mm; }
+.sp-block { min-width: 0; break-inside: avoid; page-break-inside: avoid; }
+.sp-blockh {
+  padding-bottom: 1mm;
+  margin-bottom: 1.5mm;
+  border-bottom: 0.3mm solid var(--ink);
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.sp-kv { display: grid; grid-template-columns: 34mm minmax(0, 1fr); gap: 0; }
+.sp-kv dt, .sp-kv dd { padding: 1.2mm 0; border-bottom: 0.2mm solid var(--ink); min-height: 7mm; }
+.sp-kv dt { padding-right: 2mm; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.6; }
+.sp-kv dd { white-space: pre-line; overflow-wrap: anywhere; }
+
+.sp-mark {
+  margin-top: 6mm;
+  padding: 2.5mm 4mm;
+  border: 0.4mm solid var(--ink);
+  font-size: 10.5pt;
+  font-weight: 700;
+  text-align: center;
+}
+.sp-notes { margin-top: 6mm; }
+.sp-notes .sp-pre { min-height: 30mm; }
+.sp-sign {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8mm;
+  margin-top: 8mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.sp-sign p { display: flex; align-items: baseline; gap: 3mm; padding-bottom: 1mm; border-bottom: 0.3mm solid var(--ink); min-height: 8mm; }
+.sp-signval { font-size: 11pt; font-weight: 700; overflow-wrap: anywhere; }
+
+/* the benchtop sheet: always one page, the drawing area takes what's left */
+.sp-sheet-bt { padding: 12mm; }
+.sp-bt { display: flex; flex-direction: column; height: 271mm; overflow: hidden; }
+.sp-lines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin-top: 3mm; flex: none; }
+.sp-line-right { padding-left: 8mm; }
+.sp-line { display: flex; align-items: baseline; gap: 3mm; min-height: 9mm; padding: 2mm 0 1mm; border-bottom: 0.3mm solid var(--ink); min-width: 0; }
+.sp-line-wide { grid-column: 1 / -1; }
+.sp-line .sp-label { flex: none; min-width: 24mm; }
+.sp-lineval { font-size: 11pt; font-weight: 700; overflow-wrap: anywhere; max-height: 15mm; overflow: hidden; }
+.sp-draw { flex: 1 1 auto; min-height: 60mm; margin-top: 5mm; border: 0.5mm solid var(--ink); }
+.sp-key { display: flex; flex-wrap: wrap; align-items: center; gap: 2mm 8mm; margin-top: 4mm; flex: none; }
+.sp-keylist { display: flex; flex-wrap: wrap; gap: 2mm 10mm; padding: 0; list-style: none; font-size: 10.5pt; }
+.sp-keylist li { display: flex; align-items: baseline; gap: 2.5mm; }
+.sp-glyph { min-width: 7mm; font-size: 12pt; font-weight: 700; text-align: center; }
+
+@media (max-width: 600px) {
+  .sp-page { padding: 12px 8px 32px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+.sp-sheet { page: spsheet; }
+@page spsheet {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html:has(> body.sp-body), body.sp-body { background: #fff; color: #000; }
+  body.sp-body > :not(main) { display: none !important; }
+  body.sp-body .sp-toolbar { display: none !important; }
+  .sp-page { max-width: none; margin: 0; padding: 0; }
+  .sp-scroll { overflow: visible; }
+  .sp-sheet { width: auto; min-height: 0; padding: 0; background: #fff; color: #000; }
+  .sp-sheet-bt { padding: 0; }
+  .sp-sheet *:not(img) { color: #000; border-color: #000; background: #fff; }
+}
+/* style-check: print-end */

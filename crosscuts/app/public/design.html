@@ -6,6 +6,10 @@
 <title>Design/PM - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="index.css">
+<style>
+  /* The Stone orders tile's "installs in the next 2 weeks": orange, attend to this (M12). */
+  .tile-stat.stone-soon { color: var(--orange-tint); font-weight: 700; }
+</style>
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -23,6 +27,13 @@
           <p class="tile-text">Quotes won in Joinr, waiting to become jobs.</p>
           <p class="tile-stat" id="joinrStat" hidden></p>
           <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/intake.html">Open New from Joinr</a></div>
+        </article>
+        <article class="tile hs-card" id="stoneTile">
+          <h3 class="tile-title">Stone orders</h3>
+          <p class="tile-text">Stone benchtop orders on jobs: drafts, changes not yet sent, and installs coming up.</p>
+          <p class="tile-stat" id="stoneStat" hidden></p>
+          <p class="tile-stat" id="stoneSoon" hidden></p>
+          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/stone.html">Open Stone orders</a></div>
         </article>
       </div>
     </section>
@@ -51,6 +62,32 @@
             stat.append(document.createTextNode(" "), b);
           }
           stat.hidden = false;
+        })
+        .catch(function () { /* just the link */ });
+    })();
+
+    // The Stone orders tile (docs/plans/m12-contracts.md section 9.4): drafts and unsent changes,
+    // and installs requested in the next two weeks (orange, "attend to this") when there are any.
+    // If the call fails the tile is just the link.
+    (function () {
+      var stat = document.getElementById("stoneStat");
+      var soon = document.getElementById("stoneSoon");
+      fetch("/api/stone/summary", { headers: { Accept: "application/json" } })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (s) {
+          if (!s || typeof s.drafts !== "number" || typeof s.changed !== "number") return;
+          var d = document.createElement("strong");
+          d.textContent = String(s.drafts);
+          var c = document.createElement("strong");
+          c.textContent = String(s.changed);
+          stat.replaceChildren(d, document.createTextNode(s.drafts === 1 ? " draft · " : " drafts · "),
+            c, document.createTextNode(" changed since sent"));
+          stat.hidden = false;
+          if (typeof s.installsSoon === "number" && s.installsSoon > 0) {
+            soon.textContent = s.installsSoon + (s.installsSoon === 1 ? " install" : " installs") + " in the next 2 weeks";
+            soon.className = "tile-stat stone-soon";
+            soon.hidden = false;
+          }
         })
         .catch(function () { /* just the link */ });
     })();

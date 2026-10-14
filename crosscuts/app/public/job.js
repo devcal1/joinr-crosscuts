@@ -525,6 +525,7 @@
       fill();
       renderMeta();
       renderInspection(); // two-pac may have changed
+      if (window.JobStone) window.JobStone.refresh(); // M12: the benchtop or archived flag may have changed
       if (stageError) {
         setStatus((hasFields ? "Saved, but the stage was not changed: " : "The stage was not changed: ") + stageError, "err");
       } else {
@@ -1895,6 +1896,10 @@
       const on = it.decidedAt ? " on " + fmtInstant(it.decidedAt) : "";
       items.push(sumItem("Decision", el("span", { class: "jo-sumval", text: (it.state === "linked" ? "Linked" : "Accepted") + who + on })));
     }
+    // M12 (m12-contracts section 9.1): each room's benchtop text as typed in Joinr.
+    const raw = it.quote && it.quote.raw && Array.isArray(it.quote.raw.benchtops) ? it.quote.raw.benchtops : [];
+    const tops = [...new Set(raw.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()))];
+    if (tops.length) items.push(sumItem("Benchtop (as typed)", el("span", { class: "jo-sumval jt-astyped", text: tops.join("; ") })));
     const nodes = [el("div", { class: "jo-summary jo-joinr" }, ...items)];
 
     if (it.changed) {
@@ -2016,6 +2021,8 @@
         $("addDrawers").addEventListener("click", (ev) => runDrawerAction("add", null, ev.currentTarget));
         tasks.push(loadDrawers());
       }
+      // M12: the Benchtops section (jobstone.js), before the #benchtops jump.
+      if (window.JobStone) tasks.push(window.JobStone.start({ jobId, can }));
     }
     if (can("jobs.view") || can("scheduling.view")) {
       $("inspectionForm").addEventListener("submit", onBook);
