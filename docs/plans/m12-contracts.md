@@ -321,7 +321,7 @@ All pages:
     - **Cancel order** (a confirm);
     - **Restore** (cancelled).
   - **Revisions:** a list of "Revision n, sent d Mon yyyy by Name", each with **Print** (`&rev=n`).
-  - Read-only (inputs disabled, no buttons but Print) without `jobs.edit`, on a cancelled order, or on an archived job.
+  - Read-only (inputs disabled, no buttons but Print) without `jobs.edit`, on a cancelled order, or on an archived job. With `jobs.edit`, a cancelled order on a job that isn't archived also keeps **Restore**, and an order on an archived job keeps **Cancel order**, as §4.3 and §12.7 allow (clarified at 4.1, 2026-10-15).
   - A refused request shows its sentence by the buttons; a 400 naming fields marks those fields.
 
 ### 9.3 `/stoneprint.html` (B, prefix `sp-`)
