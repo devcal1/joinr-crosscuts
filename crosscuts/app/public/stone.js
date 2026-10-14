@@ -340,7 +340,7 @@
 
   function control(f, value, on) {
     const id = "so-f-" + f.key;
-    const label = f.label + (f.needed ? " *" : "");
+    const label = f.label + (f.needed && on ? " *" : ""); // the * goes with the "Needed to send" note (editable only)
     const box = el("div", { class: "so-field" + (f.wide ? " so-wide" : "") });
     const c = { box };
     if (f.kind === "edge") {
@@ -487,7 +487,7 @@
     const box = el("div", { class: "so-actionbox", id: "soActions" }, bar);
     box.append(el("p", { class: "so-msg" + (msg.kind ? " so-msg-" + msg.kind : ""), id: "soMsg", role: "status", "aria-live": "polite", text: msg.text }));
     if (on && order && dirty) box.append(el("p", { class: "so-dirty", text: "Not saved yet." + (st === "sent" ? " Saving keeps it sent; it then shows as changed until you send the next revision." : "") }));
-    if (on && order && bar.querySelector("#soSend")) box.append(el("p", { class: "so-note", text: sendLabel() + " saves your changes first." }));
+    if (on && order && dirty && bar.querySelector("#soSend")) box.append(el("p", { class: "so-note", text: sendLabel() + " saves your changes first." }));
     if (on && order && dirty && bar.querySelector("#soPrint")) box.append(el("p", { class: "so-note", text: "Print shows the order as saved." }));
     return box;
   }

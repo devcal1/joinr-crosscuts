@@ -9,14 +9,7 @@
 <link rel="stylesheet" href="jobs.css">
 <link rel="stylesheet" href="tasks.css">
 <link rel="stylesheet" href="drawerspage.css">
-<style>
-  /* M12 Benchtops section and the From Joinr benchtop text (jobstone.js, job.js), prefix jt-. */
-  .jt-attend { margin: 0 0 10px; color: var(--orange-tint); font-weight: 700; }
-  .jt-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-  .jt-table { min-width: 680px; }
-  .jt-table td.jt-state { min-width: 150px; }
-  .jt-astyped { min-width: 0; overflow-wrap: anywhere; }
-</style>
+<link rel="stylesheet" href="jobstone.css">
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -85,7 +78,7 @@
         <h2 id="benchtops-h">Benchtops</h2>
         <button id="jtShowCancelled" class="hs-btn hs-btn-quiet" type="button" aria-pressed="false">Show cancelled</button>
       </div>
-      <p id="jtStatus" class="jo-status muted" role="status"></p>
+      <p id="jtStatus" class="jo-status muted" role="status" hidden></p>
       <div id="jtBody"></div>
       <div id="jtTools" class="jt-tools"></div>
     </section>
