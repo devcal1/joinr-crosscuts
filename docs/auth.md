@@ -1,4 +1,4 @@
-# How login works Yes | Yes |  | |  | | Yes | |  | |  | | Yes | |  | |  | |  | |  | | Yes | | Yes | | Yes | |  | |  | |  | | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |  | |  | |
+# How login works
 
 The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plans/m1-contracts.md` is the source of truth. If this page disagrees with it, the contract wins and this page needs fixing.
 
@@ -30,7 +30,7 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 
 A role is a preset: a set of feature keys. A user's effective permissions are the union of their roles' keys, then each override is applied. A **grant** adds a key; a **revoke** removes it. Unknown keys in overrides are refused (400).
 
-`accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`. M7 (Staff planner) adds `planner.view` and `planner.edit` and the **workshop** role (`board.view` and `planner.view` only). Which planner layers a person sees and posts to is decided by their **roles**, not their keys (`lib/planner/layers.js`): see `docs/plans/m7-contracts.md` section 5. M8 (Pay runs) adds no key: the pay-run pages and `/api/payruns` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes), and reopening a finalised pay run needs `users.admin`: see `docs/plans/m8-contracts.md`. M9 (BAS sales and supplier accounts) adds no key: the BAS and supplier pages and `/api/bas` and `/api/suppliers` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes; a supplier statement file downloads with `accounts.view`), and reopening a lodged BAS month needs `users.admin`: see `docs/plans/m9-contracts.md`. M10 (New roles) adds `orders.view` (see order lines without the job pages: the Orders page, `GET /api/orders`, the Ordering menu; the job page's Orders section stays under `jobs.view`) and `orders.receive` (receive a line, undo it, change its received date, write a delivery note; the Deliveries page), and the **ordering** and **workshop_manager** roles. Ordering marks lines ordered, so marking a job's last line ordered makes its progress invoice due: see `docs/plans/m10-contracts.md`.
+`accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`. M7 (Staff planner) adds `planner.view` and `planner.edit` and the **workshop** role (`board.view` and `planner.view` only). Which planner layers a person sees and posts to is decided by their **roles**, not their keys (`lib/planner/layers.js`): see `docs/plans/m7-contracts.md` section 5. M8 (Pay runs) adds no key: the pay-run pages and `/api/payruns` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes), and reopening a finalised pay run needs `users.admin`: see `docs/plans/m8-contracts.md`. M9 (BAS sales and supplier accounts) adds no key: the BAS and supplier pages and `/api/bas` and `/api/suppliers` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes; a supplier statement file downloads with `accounts.view`), and reopening a lodged BAS month needs `users.admin`: see `docs/plans/m9-contracts.md`. M10 (New roles) adds `orders.view` (see order lines without the job pages: the Orders page, `GET /api/orders`, the Ordering menu; the job page's Orders section stays under `jobs.view`) and `orders.receive` (receive a line, undo it, change its received date, write a delivery note; the Deliveries page), and the **ordering** and **workshop_manager** roles. Ordering marks lines ordered, so marking a job's last line ordered makes its progress invoice due: see `docs/plans/m10-contracts.md`. M11 (Ordering pages) adds `stock.count` (type Have on the monthly stock order and quantities on the board stocktake, and see those lists without board prices) and `stock.order` (keep the stock, paint and board lists and the drawer name list, set board prices, type the stock order, run the Drawer order page and paint orders, confirm the board stock value), making **27 keys**: see `docs/plans/m11-contracts.md`. No role is added or changed, and no migration is needed for a key. The pages and what gates them are in "Ordering pages" below.
 
 | Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom | Workshop | Ordering | Workshop Manager |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -59,6 +59,38 @@ A role is a preset: a set of feature keys. A user's effective permissions are th
 | `audit.view` | Yes | | | | | | | |
 | `orders.view` | Yes | Yes | Yes | Yes | | | Yes | Yes |
 | `orders.receive` | Yes | | Yes | | | | Yes | Yes |
+| `stock.count` | Yes | | | | | | Yes | Yes |
+| `stock.order` | Yes | | | | | | Yes | |
+
+### Ordering pages (M11)
+
+| Page | Menu | Needs |
+|---|---|---|
+| `/drawers.html` (Drawer order) | Ordering | `stock.order` |
+| `/stock.html` (Stock order) | Ordering | `stock.count` or `stock.order` |
+| `/boards.html` (Board stocktake) | Ordering | `stock.count` or `stock.order` |
+| `/paint.html` (Paint order) | Ordering | `stock.order` or `orders.receive` |
+| `/stockvalue.html` (Stock value) | Accounts | `accounts.view` |
+
+The menu entries are by key: Drawer order and Paint order show for `stock.order`, Stock order and Board stocktake for `stock.count`, Stock value for `accounts.view`. So the Workshop Manager sees Orders, Deliveries, Stock order and Board stocktake under Ordering, and no Drawer order or Paint order. Someone with only `orders.receive` (the Workshop Manager, and Design/PM) can still open a paint order from a link on Deliveries, to read it and mark it received.
+
+What the keys and the keys already there decide on these pages:
+
+| Action | Key |
+|---|---|
+| Type Have on the stock order; type board quantities; finish either count | `stock.count` |
+| Edit the stock, paint and board lists, board prices and the drawer name list; type the stock order's Order column; mark a stock supplier group ordered; reopen a stock count or a board count before it is valued | `stock.order` |
+| See board prices, and a board count's worked-out value | `stock.order` (the Workshop Manager and everyone else get no price in the answer) |
+| Confirm a board stock value | `stock.order` |
+| Reopen a confirmed board stock value | `users.admin` |
+| See the confirmed board stock values (Stock value) | `accounts.view` (a month waiting to be confirmed shows no figure) |
+| Add or edit a job's drawer grid; refill it from Joinr | `orders.edit` |
+| Check or uncheck a drawer grid | `jobs.edit` |
+| Use the Drawer order page; set the drawer supplier names; set the litres factor | `stock.order` |
+| Place a drawer order, undo one, mark a paint order with job lines ordered (or undo that) | `stock.order` and `orders.mark_ordered` |
+| Receive a stock supplier group, a paint order, a drawer order's stock row (and undo it) | `orders.receive` |
+
+Drawer lines and paint job lines are ordinary order lines, so `orders.view` shows them. A drawer line can't be marked ordered from the Orders page, and a paint job line can't be changed there at all: they are managed from the Drawer order and Paint order pages.
 
 ### Planner layers
 

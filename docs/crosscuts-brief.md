@@ -109,8 +109,8 @@ reachable from home over Tailscale.
 | Sam | Scheduling | The organiser. His Chromebook drives the workshop TV. |
 | Michael | Scheduling | Same permissions as Sam. |
 | Showroom | Showroom (view photos only) | A shared account for the showroom device, since the photo search is now behind login. |
-| Ordering (M10) | Ordering | Places orders and marks order lines ordered; marking a job's last line ordered makes its progress invoice due (Todd, 2026-10-13; M10). Before M10, Todd was the only orderer. |
-| Workshop Manager (M10) | Workshop Manager | Runs the workshop floor, a different person from the Scheduler. Views the board, receives deliveries (Todd, 2026-10-13; M10). |
+| Ordering (M10) | Ordering | Places orders and marks order lines ordered; marking a job's last line ordered makes its progress invoice due (Todd, 2026-10-13; M10). Before M10, Todd was the only orderer. From M11 also runs the Ordering pages: the drawer order, the monthly stock order, paint orders and the board stocktake with its prices (approved by Todd 2026-10-13; M11). |
+| Workshop Manager (M10) | Workshop Manager | Runs the workshop floor, a different person from the Scheduler. Views the board, receives deliveries (Todd, 2026-10-13; M10). From M11 also does the monthly stock and board counts, without seeing prices (approved by Todd 2026-10-13; M11). |
 | Floor crew | Workshop (optional) | They watch the TV, which runs on Sam's login (Todd, 2026-10-13). A floor login, if wanted, gets the Workshop role: the board and Planner to view (M7). |
 
 Nobody outside the business gets a login. All users are on laptops or
@@ -126,6 +126,12 @@ Chromebooks (Chrome). No touch input is required.
   `photos.admin`, `users.admin`, `audit.view`, …). Each preset maps to a set
   of keys. Each user may carry **overrides** (grant or revoke individual keys).
   Effective permission = union of role keys, then overrides applied.
+- **M11 keys (approved by Todd 2026-10-13):** `stock.count` (type the monthly
+  stock "have" and the board quantities; Workshop Manager, Ordering, admin) and
+  `stock.order` (the stock, paint and board lists, board prices, the drawer
+  order, paint orders, confirming the board stock value; Ordering, admin).
+  Accounts sees each month's confirmed board stock value through
+  `accounts.view`. 27 keys in all.
 - Enforce on the **server** on every route; the UI merely hides what the user
   can't do. Logged-out requests to any API route must be refused, not
   redirected to a page.
@@ -220,6 +226,36 @@ to build it.
    the job's orders as placed (a job-level **"Materials ordered"** action, or
    all lines reaching *ordered*), the 50% invoice prompt fires. *Received*
    lines feed the board's "materials in" indicator.
+
+   **Ordering pages (M11, approved by Todd 2026-10-13).** Four more pages under
+   the Ordering menu, beside Orders and Deliveries:
+   - **Drawer order.** Each job has a **drawer grid** (a drawer line on its
+     Orders: brand, heights × runner lengths, counts, a note). The counts come
+     from Joinr: the won quote's Drawers and Inner Drawers lines, mapped to a
+     brand, height and length through a name list Ordering keeps. Design/PM
+     checks and corrects the grid at design sign-off; jobs without Joinr data get
+     it typed in. The page adds up the checked grids per brand (EDGE and DTC),
+     with a stock row for the shelf, prints the sheet, and **Mark ordered**
+     places the order: it marks each job's drawer line ordered, so the 50%
+     invoice rule applies as for any line. The Workshop Manager receives each
+     job's drawers and the stock row on Deliveries.
+   - **Stock order.** The monthly hardware order: the Workshop Manager counts
+     "have", Ordering types what to order and marks each supplier group ordered,
+     and the Workshop Manager receives each group on Deliveries. It is not a job
+     order line and has no invoice effect.
+   - **Paint order.** A paint order has lines in kg or each, with litres worked
+     out. **Paint is ordered per job:** a line with a job becomes an order line
+     on that job (counting toward "all ordered" and the 50% invoice); lines with
+     no job are workshop stock. Received on Deliveries.
+   - **Board stocktake.** The Workshop Manager counts the boards monthly.
+     Ordering keeps a price per sheet (ex GST) and confirms the value: counts ×
+     prices, plus an optional adjustment and note. Accounts sees each confirmed
+     month on **Stock value** in its menu (no prices, no history before the first
+     count in Crosscuts).
+
+   The lists (stock items, paints, boards) are typed in by hand. Orders and counts
+   start fresh. Detail: `docs/plans/m11-plan.md` §5 and
+   `docs/how-to-order-drawers.md`, `docs/how-to-do-the-stocktake.md`.
 5. **Client inspection booking.** For painted jobs: date/time, host, notes.
    Visible on the scheduling side.
 6. **Tasks and comments on the job**, same mechanism as accounts.
@@ -310,6 +346,10 @@ Requirements regardless of method:
   or land it in a "New from Joinr" inbox for Design/PM to accept/ignore.
   State the trade-off and pick one in the plan.
 - Never let a Joinr outage or a bad payload affect the rest of the app.
+- **M11 (approved by Todd 2026-10-13):** the intake item also carries the won
+  quote's drawer lines, as an optional `drawers` field (contract document version
+  2; the wire `contract` stays 1). An older Joinr that doesn't send it is
+  treated as "no drawer data".
 
 ### 6.5 Remote access and devices
 

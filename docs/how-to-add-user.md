@@ -15,13 +15,19 @@ The steps below describe the screen as it is planned. Button and menu names may 
 ## Roles, in plain English
 
 - **Admin:** everything, including users and the audit log.
-- **Accounts:** bookkeeping, invoices, job values, photo search.
-- **Design/PM:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view.
+- **Accounts:** bookkeeping, invoices, job values, photo search. From M11 it also sees each month's board stock value, on **Accounts**, then **Stock value** (the value, not the prices).
+- **Design/PM:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view. From M11 it also **checks each job's drawer grid** (Joinr's drawer counts, or ones typed in) before the grid goes on the Drawer order.
 - **Scheduling:** the board (moving jobs, workers, leave).
 - **Showroom:** photo search only. Used for the shared showroom account.
 - **Workshop:** the board and the Planner (Company-wide, Install & hardware and Workshop, read-only). For workshop logins (the floor crew, if they get one). It can't edit the board.
-- **Ordering:** places orders: adds order lines and marks them ordered (marking a job's last line ordered makes its progress invoice due), sees jobs and design, receives deliveries. Gets the delivery notes and the "materials in" alerts.
-- **Workshop Manager:** runs the workshop floor: the board to view, order lines to view and receive (the **Deliveries** page), the Planner (adds to Workshop), tasks and messages. No job pages, so no client details.
+- **Ordering:** places orders: adds order lines and marks them ordered (marking a job's last line ordered makes its progress invoice due), sees jobs and design, receives deliveries. Gets the delivery notes and the "materials in" alerts. **From M11 it also runs the Ordering pages:**
+  - the **Drawer order** (adds up the checked drawer grids, places the order, keeps the drawer name list),
+  - the monthly **Stock order** (types what to order and marks each supplier ordered),
+  - **Paint orders**, and
+  - the **Board stocktake** (keeps the board list and its prices, and confirms each month's stock value).
+
+  Ordering can count too, so it can fill in for the Workshop Manager. It sees board prices.
+- **Workshop Manager:** runs the workshop floor: the board to view, order lines to view and receive (the **Deliveries** page), the Planner (adds to Workshop), tasks and messages. No job pages, so no client details. **From M11 it also does the monthly counts:** it types **Have** on the **Stock order** and the sheet quantities on the **Board stocktake**, and finishes each count. It never sees board prices, and it has no Drawer order or Paint order page. It receives the stock, paint and drawer deliveries on **Deliveries**.
 
 The office roles (Admin, Accounts, Design/PM, Scheduling, Ordering, Workshop Manager) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
 
@@ -34,6 +40,8 @@ An override gives one person one extra permission, or takes one away, without ch
 3. To go back to the role's normal rights, remove the override.
 
 Example: to stop Michael moving rows on the board while keeping his other scheduling rights, add a **Revoke** override for `board.edit`.
+
+**From M11, two keys cover the Ordering pages:** `stock.count` (type Have and board quantities; Workshop Manager, Ordering and admin) and `stock.order` (the lists, board prices, the stock order's Order column, the Drawer order, paint orders, and confirming the board value; Ordering and admin). To let one person count stock without the Workshop Manager role, grant them `stock.count`. No role changed, so nobody needs a new override because of M11. The pages and what gates them are in [auth.md](auth.md).
 
 **From M10, orders have their own keys.** Seeing the Orders page is `orders.view` (not `jobs.view`), and receiving deliveries is `orders.receive` (not `orders.edit`). If you had set an override on `jobs.view` or `orders.edit` to control someone's access to orders, set it again on the new key.
 
@@ -70,12 +78,12 @@ This is the plan from the brief (section 3.1).
 | Sam | Scheduling | Chromebook drives the workshop TV |
 | Michael | Scheduling | |
 | Showroom | Showroom | One shared account for the showroom device |
-| Ordering | Ordering | Whoever places the orders (M10) |
-| Workshop Manager | Workshop Manager | Runs the floor and receives deliveries; not the Scheduler (M10) |
+| Ordering | Ordering | Whoever places the orders (M10), and runs the drawer, stock and paint orders and the board stocktake (M11) |
+| Workshop Manager | Workshop Manager | Runs the floor, receives deliveries and does the monthly stock and board counts; not the Scheduler (M10, M11) |
 | Floor crew | None (or Workshop) | They watch the TV. A floor login, if wanted, gets Workshop |
 
 **Tip for Sam's Chromebook:** at login, tick **Remember this device**. The login then lasts 30 days and keeps sliding, so the TV device does not log out during daily use. Sam can also set a PIN, so that after pressing **Lock** he can unlock with the PIN instead of the password.
 
 Use the same tick on the showroom device, so it stays logged in.
 
-**The workshop TV runs on Sam's own login** (Scheduling; Todd, 2026-10-13). Don't give Sam the Workshop role or take his Scheduling role away for it. The TV shows only the board: the board has no menu bar. **Workshop logins** for the floor crew, if wanted, see the board and the Planner and change nothing.
+**The workshop TV runs on Sam's own login** (Scheduling; Todd, 2026-10-13). Don't give Sam the Workshop role or take his Scheduling role away for it. The TV shows the board, with the shared menu bar above it (from 0.1.14). **Workshop logins** for the floor crew, if wanted, see the board and the Planner and change nothing.

@@ -70,6 +70,27 @@ Ships as 0.1.10. The board's own bar (`.nav`, `--nav-h`, rule 7) is not touched;
 
 From the jobs master review (`docs/plans/jobs-master-tabs.md`): Ordering is its own department. Added to the menu before release: an **Ordering** menu after Design/PM holding **Orders** (moved out of Design/PM); the drawer, stock and paint orders and an Ordering role come later. Its rule is **orange** (`--layer-install`, the Planner's Install & hardware colour), added to the fourth named exception in CLAUDE.md and `ci/style-check.js`. Order: Scheduling, Design/PM, Ordering, Accounts, Photos, Admin.
 
+## 3d. M11 Ordering pages (Todd approved the M11 plan, 2026-10-13)
+
+The "come later" items of 3c arrive in M11 (0.1.15), inside the dropdowns, so the bar's width doesn't change (`docs/plans/m11-contracts.md` §10). The department order and its orange rule are unchanged.
+
+- **Ordering** now holds, in this order (each item shows only to someone who holds its key):
+
+| Item | Page | Key |
+|---|---|---|
+| Orders | `/orders.html` | `orders.view` |
+| Deliveries | `/deliveries.html` | `orders.receive` |
+| Drawer order | `/drawers.html` | `stock.order` |
+| Stock order | `/stock.html` | `stock.count` |
+| Paint order | `/paint.html` | `stock.order` |
+| Board stocktake | `/boards.html` | `stock.count` |
+
+- **Accounts** gains **Stock value** (`/stockvalue.html`, `accounts.view`), after BAS sales. Its order is now Accounts, Pay runs, BAS sales, Stock value, Supplier accounts, Reports.
+- **Who sees what:** the Workshop Manager sees Ordering with Orders, Deliveries, Stock order and Board stocktake. Ordering and admin see all six. A receiver without `stock.order` has no Paint order entry and opens a paint order from a link on Deliveries (the page itself is gated by `stock.order` or `orders.receive`).
+- **The pages carry the shared menu bar** (`#cc-shell`), like every page except login, setup and photo search.
+- **No new colour.** The Ordering rule stays orange (`--layer-install`); Stock value takes the Accounts rule as the other Accounts items do.
+- **Dashboard:** no menu change. The stock count, board count and drawer reminders are lines on the dashboard (`docs/how-to-do-the-stocktake.md`).
+
 ## 4. Build outline (after the answers)
 
 - Scaffold: bump 0.1.10; the colour exception in CLAUDE.md and `style-check.js` if approved.
