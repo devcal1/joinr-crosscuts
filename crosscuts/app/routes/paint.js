@@ -8,6 +8,7 @@ const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const { bad, notFound, sendError } = require("../lib/httperror");
 const paint = require("../lib/paint");
+const settings = require("../lib/settings");
 
 const r = defineRoutes("/api/paint");
 
@@ -26,6 +27,16 @@ function idOr404(v) {
   const id = Number(v);
   if (!Number.isSafeInteger(id)) throw notFound();
   return id;
+}
+
+// One order with the letterhead lines for its print (m11-contracts section 11.6). Only the name,
+// address, phone and email: a receiver may read an order, and the bank details aren't theirs.
+function withBusiness(order) {
+  const b = settings.business(db);
+  return {
+    ...order,
+    business: { tradingName: b.tradingName, legalName: b.legalName, address: b.address, phone: b.phone, email: b.email },
+  };
 }
 
 function body(req) {
@@ -65,31 +76,31 @@ r.get("/orders", "stock.order", handle((req, res) => {
 }));
 
 r.post("/orders", "stock.order", handle((req, res) => {
-  res.status(201).json(paint.create(db, req, body(req)));
+  res.status(201).json(withBusiness(paint.create(db, req, body(req))));
 }));
 
 r.get("/orders/:id", ["stock.order", "orders.receive"], handle((req, res) => {
-  res.json(paint.get(db, idOr404(req.params.id)));
+  res.json(withBusiness(paint.get(db, idOr404(req.params.id))));
 }));
 
 r.put("/orders/:id", "stock.order", handle((req, res) => {
-  res.json(paint.update(db, req, idOr404(req.params.id), body(req)));
+  res.json(withBusiness(paint.update(db, req, idOr404(req.params.id), body(req))));
 }));
 
 r.post("/orders/:id/ordered", "stock.order", handle((req, res) => {
-  res.json(paint.ordered(db, req, idOr404(req.params.id), body(req)));
+  res.json(withBusiness(paint.ordered(db, req, idOr404(req.params.id), body(req))));
 }));
 
 r.post("/orders/:id/undo-ordered", "stock.order", handle((req, res) => {
-  res.json(paint.undoOrdered(db, req, idOr404(req.params.id)));
+  res.json(withBusiness(paint.undoOrdered(db, req, idOr404(req.params.id))));
 }));
 
 r.post("/orders/:id/received", "orders.receive", handle((req, res) => {
-  res.json(paint.received(db, req, idOr404(req.params.id), body(req)));
+  res.json(withBusiness(paint.received(db, req, idOr404(req.params.id), body(req))));
 }));
 
 r.post("/orders/:id/cancel", "stock.order", handle((req, res) => {
-  res.json(paint.cancel(db, req, idOr404(req.params.id)));
+  res.json(withBusiness(paint.cancel(db, req, idOr404(req.params.id))));
 }));
 
 module.exports = r.router;

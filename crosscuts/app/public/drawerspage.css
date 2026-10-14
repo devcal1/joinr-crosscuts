@@ -321,15 +321,6 @@ td.dw-ignored { color: var(--label); }
 .dw-jmap-miss { color: var(--orange-tint); font-weight: 700; }
 .dw-jchanged { margin: 8px 0 0; color: var(--orange-tint); font-size: 13px; font-weight: 700; }
 .dw-jjoinr p { margin: 6px 0 0; font-size: 13px; color: var(--label); }
-.dw-kind-label {
-  display: block;
-  margin-top: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--label);
-}
 
 /* ---------- narrow screens ---------- */
 @media (max-width: 760px) {

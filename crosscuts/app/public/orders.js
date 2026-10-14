@@ -134,6 +134,8 @@
       if (o.receivedDate) received.append(document.createTextNode(fmtDate(o.receivedDate)));
       if (o.receivedDate && o.receivedBy && o.receivedBy.name) received.append(el("span", { class: "or-by", text: o.receivedBy.name }));
       const desc = el("td", { class: "or-text" }, el("span", { text: o.description || "" }));
+      const kind = window.OrderUI.kindLabel(o);
+      if (kind) desc.append(kind);
       const note = window.OrderUI.noteBlock(o);
       if (note) desc.append(note);
       const tr = el(
@@ -162,6 +164,7 @@
             text: a.label,
           }));
         }
+        if (may.link) box.append(el("a", { class: "hs-btn", href: may.link.href, text: may.link.text }));
         tr.append(el("td", { class: "or-acts" }, box));
       }
       rowsEl.append(tr);

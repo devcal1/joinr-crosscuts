@@ -228,6 +228,7 @@ echo "--- receiving ---"
 req GET "/api/paint/orders/$M11_P_PO" "$WSMGR"
 expect_status 200 "wsmgr GET the paint order"
 expect_jq "(.lines | length) == 3 and .lines[0].litres == 3.4" "with its lines and litres"
+expect_jq '(.business | keys) == ["address","email","legalName","phone","tradingName"]' "the letterhead lines for the print, no bank details"
 req POST "/api/paint/orders/$M11_P_PO/received" "$ORDR" '{"receivedDate":"2000-01-01"}'
 expect_status 400 "a received date before it was ordered"
 req POST "/api/paint/orders/$M11_P_PO/received" "$WSMGR" "$(jq -nc --arg n "$M11_P_NOTE" '{deliveryNote:$n}')"

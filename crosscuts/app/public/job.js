@@ -724,12 +724,12 @@
       // The description, the line's notes and its delivery note (OrderUI's block).
       const note = window.OrderUI ? window.OrderUI.noteBlock(o) : null;
       // M11 section 11.8: a line that belongs to a drawer grid or a paint order says so.
-      const kindLabel = o.kind === "drawers" ? "Drawers" : o.kind === "paint" && o.paintOrderId ? "Paint order " + o.paintOrderId : "";
+      const kindLabel = window.OrderUI ? window.OrderUI.kindLabel(o) : null;
       const desc = el(
         "td",
         { class: "jo-text" },
         document.createTextNode(o.description || ""),
-        kindLabel ? el("span", { class: "dw-kind-label", text: kindLabel }) : null,
+        kindLabel,
         o.notes ? el("span", { class: "jo-note", text: o.notes }) : null,
         note ? el("div", { class: "jo-note" }, note) : null
       );
@@ -760,6 +760,7 @@
             text: a.label,
           }));
         }
+        if (may.link) box.append(el("a", { class: "hs-btn", href: may.link.href, text: may.link.text }));
         if (box.childElementCount) {
           tr.classList.add("jo-hasacts");
           tb.append(el("tr", { class: "jo-actrow", "data-for": String(o.id) }, el("td", { colspan: String(heads.length) }, box)));
