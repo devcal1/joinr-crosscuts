@@ -170,9 +170,12 @@ async function api(method, path, body) {
         for (let k = 0; k < 40; k++) { try { await fetch(jb + "/_control/requests"); break; } catch { await new Promise(r => setTimeout(r, 150)); } }
         fs.writeFileSync(keyFile, key + "\n"); fs.writeFileSync(baseFile, jb + "\n");
         const root = "5eed0000-0000-4000-8000-000000000011";
+        // M12: a stone benchtop and its room text as typed in Joinr (made up), for the job page's
+        // "Benchtop (as typed)" line and the printed benchtop sheet.
         const quote = drawers => fetch(jb + "/_control/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
           rootQuoteId: root, quoteId: root, quoteNumber: "Q-DEMO-0042", siteAddress: "Demo Cooper pantry", clientName: "Cooper (made up)",
-          wonAt: "2026-10-01T01:00:00Z", updatedAt: "2026-10-01T01:00:00Z", drawers }) });
+          wonAt: "2026-10-01T01:00:00Z", updatedAt: "2026-10-01T01:00:00Z", drawers,
+          spec: { benchtop: "stone" }, raw: { benchtops: ["Pantry: M12 Stone Brand 20 mm, Example White", "Island: M12 Stone Brand 40 mm mitred, Example White", "Pantry: M12 Stone Brand 20 mm, Example White"] } }) });
         const list = high => [{ section: "drawers", name: "Demo Drawer Box Mid 500", qty: 6 }, { section: "drawers", name: "Demo Drawer Box High 500", qty: high },
           { section: "drawers", name: "Demo Runner Set (not a drawer)", qty: 10 }, { section: "innerDrawers", name: "Demo Pot Drawer 600", qty: 2 }];
         await quote(list(4));
@@ -194,10 +197,12 @@ async function api(method, path, body) {
       await drawerLine(smith, "edge", [c(126, 500, 8), c(174, 500, 6), c(93, 400, 2)], "Soft-close, white. Check the inner depth.", true),
       await drawerLine(nguyen, "edge", [c(126, 450, 4), c(174, 500, 4)], "Laundry: two wide drawers.", true)];
     await api("PUT", "/api/drawers/stock", { brand: "edge", counts: [c(126, 500, 6), c(174, 500, 4), c(93, 400, 2)] });
-    await api("POST", "/api/drawers/place", { brand: "edge", orderedDate: day(-6), expectedDate: day(3), orderIds: edgeIds });
+    // Placing sends the sheet's key as the page does (M11 · 4.3: refused if the sheet changed).
+    const sheetKey = async brand => (await api("GET", "/api/drawers?brand=" + brand)).sheetKey;
+    await api("POST", "/api/drawers/place", { brand: "edge", orderedDate: day(-6), expectedDate: day(3), orderIds: edgeIds, sheetKey: await sheetKey("edge") });
     const dtcIds = [await drawerLine(patel, "dtc", [c(127, 450, 5), c(178, 500, 3)], "Robes: the deep drawers go in the centre run.", true)];
     await api("PUT", "/api/drawers/stock", { brand: "dtc", counts: [c(127, 450, 4)] });
-    const dtcPlaced = await api("POST", "/api/drawers/place", { brand: "dtc", orderedDate: day(-12), expectedDate: day(-5), orderIds: dtcIds });
+    const dtcPlaced = await api("POST", "/api/drawers/place", { brand: "dtc", orderedDate: day(-12), expectedDate: day(-5), orderIds: dtcIds, sheetKey: await sheetKey("dtc") });
     await api("POST", `/api/drawers/placed/${dtcPlaced.drawerOrder.id}/stock-received`, { receivedDate: day(-4), deliveryNote: "Stock row came with the job boxes" });
 
     // Still to order. EDGE: the Joinr job (checked), the vanity (checked), the bathroom (waiting for
@@ -262,5 +267,41 @@ async function api(method, path, body) {
       { paintItemId: paint.green, qty: 4.5, jobId: nguyen.id }, { paintItemId: paint.prime, qty: 6 }, { paintItemId: paint.abr, qty: 20 },
       { name: "Demo one-off tint", unit: "each", qty: 1, jobId: lee.id }] });
   }
+  // M12: made-up stone orders (M12 Test Job, M12 Stone Supplier, M12 Stone Brand), through the
+  // real routes. On M12 Test Job (benchtop stone): a draft (requested install in 9 days), one sent
+  // (revision 1), one sent twice then changed ("Changed since rev 2", install in 5 days) and a
+  // cancelled one. M12 Waiting Job has benchtop stone and no stone order (the orange line). The
+  // Joinr job above carries the benchtop text. A made-up letterhead is set if none is.
+  const stoneSeed = { orders: 0 };
+  if (!(await api("GET", "/api/stone?status=all")).orders.length) {
+    const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+    const set = await api("GET", "/api/settings");
+    if (!(set.business && (set.business.tradingName || set.business.legalName))) {
+      await api("PUT", "/api/settings", { business: { tradingName: "Example Joinery (made up)", address: "1 Sample Lane, Nowhere NSW 2000", phone: "02 0000 0012", email: "orders@example.com" } });
+    }
+    const mk = async (name, extra) => (await api("POST", "/api/job-records", { name, benchtop: "stone", ...extra })).id;
+    const testJob = await mk("M12 Test Job", { quoteNumber: "Q-M12-0001", siteAddress: "12 Made Up Street, Nowhere", clientName: "M12 Test Client", clientPhone: "0400 000 012", promisedInstallDate: day(20) });
+    await mk("M12 Waiting Job", { quoteNumber: "Q-M12-0002", siteAddress: "14 Made Up Street, Nowhere", clientName: "M12 Other Client", promisedInstallDate: day(30) });
+    const stoneForm = (colour, req, extra) => ({ supplier: "M12 Stone Supplier", brand: "M12 Stone Brand", colour, edgeHeight: "20 mm", edgeProfile: "Aris",
+      measureDate: day(-12), requestedInstallDate: req, siteAccess: "Side gate; park on the street", ...extra });
+    const order = async body => (await api("POST", `/api/job-records/${testJob}/stone`, body)).id;
+    // A draft: needed fields part filled, install soon (orange on the list).
+    await order({ supplier: "M12 Stone Supplier", brand: "M12 Stone Brand", colour: "", edgeHeight: "40 mm", requestedInstallDate: day(9), notes: "Island top: waiting on the colour choice" });
+    // Sent once, unchanged.
+    const sent = await order(stoneForm("Example White", day(30), { notes: "Kitchen run: one undermount sink cut-out, one cooktop cut-out." }));
+    await api("POST", `/api/stone/${sent}/send`, { sentDate: day(-6) });
+    // Sent as revision 1 and 2, then changed again (not sent).
+    const changed = await order(stoneForm("Example Grey", day(5), { edgeHeight: "36 mm", edgeProfile: "6x6 round", notes: "Laundry top." }));
+    await api("POST", `/api/stone/${changed}/send`, { sentDate: day(-10) });
+    await api("PATCH", `/api/stone/${changed}`, { colour: "Example Charcoal", measureDate: day(-4) });
+    await api("POST", `/api/stone/${changed}/send`, { sentDate: day(-3) });
+    await api("PATCH", `/api/stone/${changed}`, { edgeProfile: "10x10 round", notes: "Laundry top. Client asked for a softer edge." });
+    // Cancelled.
+    const gone = await order(stoneForm("Example Black", day(40), { notes: "Vanity top: moved to a solid surface instead." }));
+    await api("POST", `/api/stone/${gone}/cancel`, {});
+    stoneSeed.orders = 4;
+  }
+  const sum = await api("GET", "/api/stone/summary");
+  console.log("stone orders seeded", stoneSeed.orders, "summary", JSON.stringify(sum));
   console.log("seeded; week", wk, "workers", workers.length);
 })().catch(e => { console.error(e.message); process.exit(1); });
