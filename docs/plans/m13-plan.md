@@ -1,6 +1,6 @@
 # M13 Owner-only: plan
 
-Status: **M13 · 1.1 audit and 1.2 plan done (2026-10-16); waiting for Todd's answers (section 3)**. Nothing here is approved until Todd answers.
+Status: **M13 · 1.3 done: Todd answered every question (2026-10-16); plan approved** (Decisions in section 5 are binding and win over sections 2 and 4. Todd chose differently from the recommendation on question 2: **the alarm codes are stored**, encrypted; see Decision 2.)
 
 Scope (Todd, 2026-10-12, `jobs-master-tabs.md`): a kind of key the admin preset does not get by default (today `admin` gets every key), then three tabs of the jobs master workbook: **Bonuses** and **Alarms** (Admin, owner only) and **Loan Balances** (Accounts, behind its own key).
 
@@ -78,7 +78,7 @@ None of the three tabs is referred to by a formula on any other tab, and they re
 
 ### 2.3 Alarm holders (questions 2, 6)
 
-- An **Alarms** page (Admin menu, owner-only key): the slot list (slot number, holder: a staff person or a typed name for a temp/outsider, type office/staff/temp, date given, date removed, a note). **No codes and no monitoring password** (kept in a password manager or the alarm company's portal).
+- An **Alarms** page (Admin menu, owner-only key): the slot list (slot number, holder: a staff person or a typed name for a temp/outsider, type office/staff/temp, date given, date removed, a note). *(Superseded by Decision 2: the codes are stored too, encrypted and masked; the monitoring password is not.)*
 - **Leavers:** when a holder's staff record is archived (they've left) and their slot isn't marked removed, the page and the owner's dashboard say in orange "<name> has left: change or remove slot n".
 - **The alarm company:** company name, account number, contact name and phone (no password).
 - **The weekly arm/disarm times**, one row per day, if Todd wants them kept.
@@ -124,4 +124,18 @@ None of the three tabs is referred to by a formula on any other tab, and they re
 
 ## 5. Decisions
 
-(To be filled in from Todd's answers.)
+Todd, 2026-10-16:
+
+1. **The owner:** one owner marked on Todd's login (`users.is_owner`, additive). Only the owner holds the owner-only keys by default and can grant or revoke them; only the owner can change, reset, disable or end the sessions of the owner's login; ownership is handed over only by the owner. (Recommended.)
+2. **Alarm codes are stored in Crosscuts** (not the recommendation). Lead's protections, binding unless Todd says otherwise:
+   - each code (and nothing else) is **encrypted in the database** (AES-256-GCM) with a key kept in a file under `CONFIG_DIR`, never in the database, so the plain pre-migration copies on the Umbrel hold only ciphertext. The key file goes into the encrypted nightly archive with the rest of `config/` (a restore needs both, as the Joinr key already does);
+   - codes are **stored as text** (a leading 0 is kept) and **masked on screen** until the owner (or a holder of the alarms key) chooses Show; each Show writes an audit row that never contains the code;
+   - **the audit log never holds a code**: a change records "code changed" only;
+   - **the monitoring password is not stored** (Todd's answer to question 6).
+3. **The bonus rule as the workbook:** rate × job price × (checks ticked ÷ 7), the seven checks at equal weight, fixed share points per person, a job's shares frozen when its bonus is confirmed. (Recommended.)
+4. **Hours:** quoted factory and install hours from the job's Joinr quote (Joinr's halved factory and site figures doubled back; no Joinr change), actual hours typed in, the Hours check suggested from them and changeable. (Recommended.)
+5. **Paying:** each person's share marked paid with a date (optionally the pay run), with earned, paid and owed totals per person; bonuses stay out of the pay run. (Recommended.)
+6. **Alarm extras:** keep the alarm company's details (name, account number, contact, phone) and the weekly times; **not** the monitoring password. The weekly times **arm in the evening and disarm in the morning** (the tab's headings are swapped): labelled "Arms at" and "Disarms at".
+7. **Loans:** both current loans are **lent to the business** (the business repays them); each loan still records its direction so a later one could run the other way (lead's default). Interest worked out monthly from a rate history and changeable to match a statement; the balance always calculated; the owner by default, grantable to an Accounts login. (Recommended.)
+8. **Data:** start empty; at cutover the owner types in the unpaid bonuses, the alarm holders and codes, and each loan's balance at cutover as its opening balance. No import of the workbook's history. (Recommended.)
+
