@@ -1,7 +1,6 @@
-// Alarm holders and codes (docs/plans/m13-contracts.md section 7.2). SCAFFOLD (M13 · 2.2): every
-// route is declared with its access; the handlers call lib/alarms.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 C fills in both
-// files. The summary answers empty (section 7.2). Literal paths are registered before /:id ones.
+// Alarm holders and codes (docs/plans/m13-contracts.md section 7.2). Wave 1 C. Every route declares
+// only the coarse access value; every rule lives in lib/alarms.js (and the key in lib/alarmcode.js).
+// Literal paths are registered before /:id ones.
 //
 // alarms.manage is an owner-only key (section 3). No alarm code ever appears in a log line, an error,
 // a URL or a GET answer: only POST /slots/:id/reveal answers with one (section 5.3).
@@ -19,8 +18,8 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
+      // A 4xx answers its sentence; anything else is logged and hidden. Nothing in lib/alarms.js or
+      // lib/alarmcode.js throws an error holding a code or the key (section 1, Boundaries).
       sendError(res, e, "[alarms]");
     }
   };
@@ -85,10 +84,10 @@ r.post("/slots/:id/restore", KEY, handle((req, res) => {
 }));
 
 r.post("/slots/:id/reveal", KEY, handle((req, res) => {
+  res.set("Cache-Control", "no-store"); // on the refusals too
   const id = idOr404(req.params.id);
   body(req, { emptyOk: true });
-  const out = alarms.reveal(db, req, id);
-  res.set("Cache-Control", "no-store").json(out);
+  res.json(alarms.reveal(db, req, id));
 }));
 
 module.exports = r.router;
