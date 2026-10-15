@@ -1,6 +1,5 @@
-// Loans (docs/plans/m13-contracts.md section 7.3). SCAFFOLD (M13 · 2.2): every route is declared
-// with its access; the handlers call lib/loans.js, whose stubs throw HttpError(501, "Not built"), so
-// each answers 501 {"error":"Not built"} until Wave 1 D fills in both files. Literal paths are
+// Loans (docs/plans/m13-contracts.md section 7.3). Wave 1 D: every route is declared with its
+// access; the handlers call lib/loans.js and map its errors with sendError. Literal paths are
 // registered before /:id ones.
 //
 // loans.manage is an owner-only key (section 3); the owner can grant it to an Accounts login.
@@ -19,8 +18,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[loans]");
     }
   };
