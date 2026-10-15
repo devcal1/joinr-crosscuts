@@ -989,6 +989,9 @@ function putSettings(db, req, body) {
 }
 
 module.exports = {
+  // M13 (docs/plans/m13-contracts.md section 1, Problem 3): for the bonus and alarm holders.
+  ensureWorkerRow,
+  personById,
   rules,
   currentStart,
   listPeople,

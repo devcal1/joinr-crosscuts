@@ -43,6 +43,12 @@ const PAGE_ACCESS = {
   "/stone.html": "design.view",
   "/stoneprint.html": ["jobs.view", "design.view"],
   "/battens.html": "design.view",
+  // M13 (docs/plans/m13-contracts.md section 9).
+  "/bonuses.html": "bonuses.manage",
+  "/bonusprint.html": "bonuses.manage",
+  "/alarms.html": "alarms.manage",
+  "/loans.html": "loans.manage",
+  "/loanprint.html": "loans.manage",
 };
 
 // Any .html page not listed above.

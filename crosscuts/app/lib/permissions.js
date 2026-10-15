@@ -33,12 +33,22 @@ const KEYS = [
   // (drawer order, stock order, paint order, the lists and board prices).
   "stock.count",
   "stock.order",
+  // M13 (docs/plans/m13-contracts.md section 3): owner-only keys (OWNER_ONLY_KEYS below).
+  "bonuses.manage",
+  "alarms.manage",
+  "loans.manage",
 ];
+
+// M13 (docs/plans/m13-contracts.md section 3): owner-only keys. The admin preset doesn't get them;
+// the owner holds every key; only the owner grants or revokes them.
+const OWNER_ONLY_KEYS = ["bonuses.manage", "alarms.manage", "loans.manage"];
+const OWNER_ONLY_SET = new Set(OWNER_ONLY_KEYS);
 
 const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"];
 
 const PRESETS = {
-  admin: [...KEYS],
+  // M13: every key except the owner-only ones (27 keys).
+  admin: KEYS.filter((k) => !OWNER_ONLY_SET.has(k)),
   accounts: [
     "board.view", "jobs.view", "jobs.value", "photos.search", "accounts.view",
     "invoices.edit", "reports.upload", "tasks.use", "messages.use",
@@ -75,7 +85,10 @@ const KEY_SET = new Set(KEYS);
 
 // roles: array of role names. overrides: array of {feature_key, effect} where
 // effect is 'grant' or 'revoke'. Unknown roles and unknown keys are ignored.
-function computeEffective(roles, overrides) {
+// isOwner true (M13, docs/plans/m13-contracts.md section 3.1): every key, whatever the roles and
+// overrides.
+function computeEffective(roles, overrides, isOwner = false) {
+  if (isOwner) return new Set(KEYS);
   const effective = new Set();
   for (const role of roles || []) {
     for (const key of PRESETS[role] || []) effective.add(key);
@@ -88,4 +101,4 @@ function computeEffective(roles, overrides) {
   return effective;
 }
 
-module.exports = { KEYS, ROLES, PRESETS, computeEffective };
+module.exports = { KEYS, ROLES, PRESETS, OWNER_ONLY_KEYS, computeEffective };

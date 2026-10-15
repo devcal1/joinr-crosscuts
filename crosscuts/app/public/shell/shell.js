@@ -69,6 +69,8 @@
         { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
         { label: "Stock value", href: "/stockvalue.html", key: "accounts.view" },
         { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
+        // M13 (docs/plans/m13-contracts.md section 9): owner-only key, grantable to an Accounts login.
+        { label: "Loans", href: "/loans.html", key: "loans.manage" },
         { label: "Reports", href: "/reports.html", key: "accounts.view" },
       ],
     },
@@ -86,6 +88,9 @@
       items: [
         { label: "Users", href: "/users.html", key: "users.admin" },
         { label: "Audit", href: "/audit.html", key: "audit.view" },
+        // M13 (docs/plans/m13-contracts.md section 9): owner-only keys.
+        { label: "Bonuses", href: "/bonuses.html", key: "bonuses.manage" },
+        { label: "Alarms", href: "/alarms.html", key: "alarms.manage" },
       ],
     },
   ];
@@ -96,6 +101,9 @@
     "/invoice.html": "/accounts.html",
     "/payrun.html": "/payruns.html",
     "/payprint.html": "/payruns.html",
+    // M13 (docs/plans/m13-contracts.md section 9).
+    "/bonusprint.html": "/bonuses.html",
+    "/loanprint.html": "/loans.html",
     "/index.html": "/",
   };
 

@@ -76,6 +76,10 @@ const routers = [
   require("./routes/paint"),
   // M12 (docs/plans/m12-contracts.md section 5).
   require("./routes/stone"),
+  // M13 (docs/plans/m13-contracts.md section 7).
+  require("./routes/bonuses"),
+  require("./routes/alarms"),
+  require("./routes/loans"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
