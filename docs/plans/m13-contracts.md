@@ -936,6 +936,38 @@ As M12 §10.5:
 - Scratch goes in the agent's scratchpad, and is copied into `.dev/` by the integrator.
 - **tenon-quotr is never touched** (CLAUDE.md rule 12); no agent is sent to it.
 
+### 12.1 As built in Wave 1 (2026-10-16): clarifications for Wave 2 and the review
+
+Decided by the Wave 1 agents where this file was silent; binding for Wave 2 unless the integrator or Todd changes them.
+
+- **A (owner, users, audit):**
+  - Any PATCH on the owner's login by someone else is refused, even one that changes nothing.
+  - In the override routes the user lookup and the owner guards come before the key check, so a missing user with an unknown key is 404.
+  - Only a **grant** override counts as holding an owner-only key for the password-reset rule (Todd's rule, §3.4); a revoke override doesn't.
+  - Transfer: a password over 200 characters is wrong (403) without a hash check; the transaction re-checks the actor is still the owner. The old owner keeps any grant override left from before; the new owner can delete it.
+- **B (bonuses):**
+  - Extra sentences: "Share holders must be a list", "Share holder must be a person from the pay list", "Unknown field: checks.<key>", "Checks must be an object", "Note must be text", "jobId is required", "bonusIds must be a list of bonus ids", "undo must be true or false"; unknown keys in the settings, confirm, paid and mark-all-paid bodies → "Unknown field: <key>".
+  - Check order: 404, 409 state, then 400 values (confirm: already confirmed 409, date 400, price 400, points 409; markPaid: draft 409, no share 404, already paid / not paid 409, then date and pay run 400).
+  - A draft's share preview lists only shares above 0 cents (exactly what confirm writes); no price → `[]`. §11.3's "reopen → draft, no shares" means no share rows (the preview still shows).
+  - The Hours check: `hoursCheck.setByHand` is true when the frozen value differs from the suggestion; reopen puts `check_hours` back to NULL when it matched the suggestion and keeps a differing hand value.
+  - Joinr hours over 600,000 minutes are null. `quotedFromJoinr` is 1 on create only when both quoted values were left out and a Joinr record exists.
+  - Mark all paid checks the paid date against the person's latest confirmed date and names it.
+  - **Integrator, after the merge:** `bonuses.id` has no AUTOINCREMENT (026, not edited: rule 5), so `create` gives a new bonus an id past both the highest live id and any `bonus` id in the audit log; a deleted draft's id is never reused.
+- **C (alarms):**
+  - A key file that exists but isn't a valid key counts as `missing` even with no codes stored ("never overwritten" wins over "none").
+  - Extra sentences: "Holder must be a person from the pay list", "Note must be text", "Note must be 500 characters or fewer", "<Label> must be text" for the company fields.
+  - Check order: update 404 → removed 409 → 400s → in-use 409; remove 404 → unknown field → already removed 409 → dates 400; create 400s → person → in-use 409.
+  - An empty string for `givenDate`, `removedDate` or a time is null; an empty `code` is 400. Clearing a code also clears `code_set_by`.
+  - `alarm_times.update` audit rows have no entity id; `alarm_company.update` uses entity id 1. The time regex is copied into `lib/alarms.js` (`lib/time.js` doesn't export `TIME_RE`).
+  - **Integrator, after the merge (`server.js`):** a body `express.json` can't parse answers 400 `{"error":"JSON body required"}` (413 `{"error":"Request too large"}` when too large) and is never logged, so no fragment of a code can reach the log through Express's default handler.
+- **D (loans):**
+  - Extra sentences: "The paid date must be a date", "The paid date can't be in the future", "The from date must be a date", "The principal must be whole cents from $0 to $100,000,000" (and the same for "The interest"), "<Label> must be text" / "<Label> must be N characters or fewer" for Other party, Note, Reference, "Archived must be true or false". A rate's note is at most 500 characters.
+  - `principalCents` left out on add is 0 (an interest-only repayment); `interestCents` left out on an edit keeps the stored figure.
+  - With no rate, the suggestion and `workedOutInterestCents` are null even if interest was charged that month.
+  - Check order on rate and repayment writes: 404 → archived 409 → 400 → below-zero or same-date 409.
+  - An archived loan still takes PATCH of its name, note and details (only rate and repayment writes are barred); the page is read-only for it.
+  - Audit before/after hold the whole row for rates and repayments (entity `loan`, the loan's id); `loan.update` only the changed keys.
+
 ## 13. Points the integrator decided (Todd can change any)
 
 1. **Key names:** `bonuses.manage`, `alarms.manage`, `loans.manage`, appended to the list (30 keys). One key per area, no view/edit pair, because each area has one or two people who both read and record.
