@@ -1,7 +1,5 @@
-// Job bonuses (docs/plans/m13-contracts.md section 7.1). SCAFFOLD (M13 · 2.2): every route is
-// declared with its access; the handlers call lib/bonuses.js, whose stubs throw
-// HttpError(501, "Not built"), so each answers 501 {"error":"Not built"} until Wave 1 B fills in both
-// files. The summary answers empty (section 7.1). Literal paths are registered before /:id ones.
+// Job bonuses (docs/plans/m13-contracts.md section 7.1): every route declared with its access, the
+// handlers calling lib/bonuses.js (Wave 1 B). Literal paths are registered before /:id ones.
 //
 // bonuses.manage is an owner-only key (section 3): the owner holds it, and only the owner can grant
 // it. Every other rule lives in lib/bonuses.js.
@@ -19,8 +17,6 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      // sendError hides anything that isn't a 4xx; the scaffold stubs' 501 is answered as it is.
-      if (e && e.status === 501) return res.status(501).json({ error: e.message || "Not built" });
       sendError(res, e, "[bonuses]");
     }
   };
