@@ -631,7 +631,16 @@ function create(db, req, body) {
     }
     const now = nowIso();
     const uid = userId(req);
+    // bonuses.id has no AUTOINCREMENT (026) and a draft can be deleted, so a new bonus never
+    // takes an id that was used before: past the highest live id and past any id in the audit log.
+    const { nextId } = db
+      .prepare(
+        `SELECT MAX(COALESCE((SELECT MAX(id) FROM bonuses), 0),
+                    COALESCE((SELECT MAX(CAST(entity_id AS INTEGER)) FROM audit_log WHERE entity_type = 'bonus'), 0)) + 1 AS nextId`
+      )
+      .get();
     const data = {
+      id: Number(nextId),
       job_id: jobId,
       status: "draft",
       price_cents: null,
