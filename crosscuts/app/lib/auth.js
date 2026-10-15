@@ -111,12 +111,15 @@ function loadUser(userId) {
   const overrides = db()
     .prepare("SELECT feature_key, effect FROM permission_overrides WHERE user_id = ?")
     .all(row.id);
+  // M13 (docs/plans/m13-contracts.md section 3.2): the owner holds every key.
+  const isOwner = Number(row.is_owner) === 1;
   return {
     id: row.id,
     username: row.username,
     displayName: row.display_name,
     roles,
-    perms: computeEffective(roles, overrides),
+    isOwner,
+    perms: computeEffective(roles, overrides, isOwner),
     mustChangePassword: !!row.must_change_password,
     // Why: "expired" (six months old) or "admin" (set by an administrator; no
     // stamp, since a reset clears it). Null when no change is needed.
@@ -131,6 +134,7 @@ function publicUser(user) {
     username: user.username,
     displayName: user.displayName,
     roles: user.roles,
+    isOwner: !!user.isOwner,
     perms: [...user.perms].sort(),
     mustChangePassword: !!user.mustChangePassword,
     passwordReason: user.passwordReason || null,

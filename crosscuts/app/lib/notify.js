@@ -17,9 +17,10 @@ function toUser(db, userId, { kind, title, body, link, entityType, entityId }) {
   );
 }
 
-// Every enabled user whose effective permissions include featureKey.
+// Every enabled user whose effective permissions include featureKey. M13
+// (docs/plans/m13-contracts.md section 3.2): the owner counts as a holder of every key.
 function usersWithKey(db, featureKey) {
-  const users = db.prepare("SELECT id FROM users WHERE disabled = 0").all();
+  const users = db.prepare("SELECT id, is_owner FROM users WHERE disabled = 0").all();
   const rolesOf = db.prepare("SELECT role FROM user_roles WHERE user_id = ?");
   const overridesOf = db.prepare(
     "SELECT feature_key, effect FROM permission_overrides WHERE user_id = ?"
@@ -27,7 +28,7 @@ function usersWithKey(db, featureKey) {
   return users
     .filter((u) => {
       const roles = rolesOf.all(u.id).map((r) => r.role);
-      return computeEffective(roles, overridesOf.all(u.id)).has(featureKey);
+      return computeEffective(roles, overridesOf.all(u.id), Number(u.is_owner) === 1).has(featureKey);
     })
     .map((u) => u.id);
 }

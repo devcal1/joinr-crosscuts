@@ -192,8 +192,11 @@ r.post("/setup", "public", wrap(async (req, res) => {
     // Re-check inside the transaction: two simultaneous setups can't both win.
     userId = db().transaction(() => {
       if (userCount() > 0) throw Object.assign(new Error("exists"), { code: "SETUP_DONE" });
+      // M13 (docs/plans/m13-contracts.md section 3.3): the first admin is always the owner.
       const info = db()
-        .prepare("INSERT INTO users (username, display_name, password_hash, password_changed_at) VALUES (?, ?, ?, ?)")
+        .prepare(
+          "INSERT INTO users (username, display_name, password_hash, password_changed_at, is_owner) VALUES (?, ?, ?, ?, 1)"
+        )
         .run(username, displayName, hash, nowIso());
       const id = Number(info.lastInsertRowid);
       db().prepare("INSERT INTO user_roles (user_id, role) VALUES (?, 'admin')").run(id);

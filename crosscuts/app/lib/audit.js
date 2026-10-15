@@ -86,4 +86,26 @@ function log(req, entry) {
   }
 }
 
-module.exports = { log };
+// M13 (docs/plans/m13-contracts.md section 3.6): entity types whose audit rows only the matching
+// key's holders may read. A new private area needs only a line here.
+const PRIVATE_ENTITY_TYPES = Object.freeze({
+  bonus: "bonuses.manage",
+  bonus_settings: "bonuses.manage",
+  alarm_slot: "alarms.manage",
+  alarm_company: "alarms.manage",
+  alarm_times: "alarms.manage",
+  loan: "loans.manage",
+});
+
+// The private entity types the user may NOT read (perms: a Set or an array of keys).
+function hiddenEntityTypes(perms) {
+  const has =
+    perms instanceof Set
+      ? (k) => perms.has(k)
+      : Array.isArray(perms)
+        ? (k) => perms.includes(k)
+        : () => false;
+  return Object.keys(PRIVATE_ENTITY_TYPES).filter((t) => !has(PRIVATE_ENTITY_TYPES[t]));
+}
+
+module.exports = { log, PRIVATE_ENTITY_TYPES, hiddenEntityTypes };
