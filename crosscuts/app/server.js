@@ -16,6 +16,13 @@ app.set("trust proxy", 1);
 
 // Middleware order is part of the contract (docs/plans/m1-contracts.md).
 app.use(express.json());
+// A body express.json can't parse answers as the routes do, and is never logged: Express's
+// default handler would log part of the body, which may hold an alarm code (M13 contracts §1).
+app.use((err, req, res, next) => {
+  if (err && err.type === "entity.parse.failed") return res.status(400).json({ error: "JSON body required" });
+  if (err && err.type === "entity.too.large") return res.status(413).json({ error: "Request too large" });
+  return next(err);
+});
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 app.use(auth.originCheck);
 app.use(auth.authenticate);
