@@ -1,6 +1,7 @@
 // /api/audit -- read-only view of audit_log (all routes need audit.view).
 const { defineRoutes } = require("../lib/routes");
 const db = require("../db");
+const { hiddenEntityTypes } = require("../lib/audit");
 
 const r = defineRoutes("/api/audit");
 
@@ -42,9 +43,26 @@ function str(v) {
   return typeof v === "string" ? v.trim() : "";
 }
 
+// M13 (docs/plans/m13-contracts.md section 3.6): the private entity types the caller may not read,
+// as a WHERE clause and its arguments (null when nothing is hidden). Hidden rows count in neither
+// rows nor total, and their action names aren't listed.
+function hiddenClause(req) {
+  const hidden = hiddenEntityTypes(req.user ? req.user.perms : []);
+  if (!hidden.length) return null;
+  return {
+    sql: `(entity_type IS NULL OR entity_type NOT IN (${hidden.map(() => "?").join(", ")}))`,
+    args: hidden,
+  };
+}
+
 r.get("/", "audit.view", (req, res) => {
   const where = [];
   const args = [];
+  const hidden = hiddenClause(req);
+  if (hidden) {
+    where.push(hidden.sql);
+    args.push(...hidden.args);
+  }
 
   const actor = str(req.query.actor);
   if (actor) {
@@ -134,7 +152,10 @@ r.get("/", "audit.view", (req, res) => {
 });
 
 r.get("/actions", "audit.view", (req, res) => {
-  const rows = db.prepare("SELECT DISTINCT action FROM audit_log ORDER BY action").all();
+  const hidden = hiddenClause(req);
+  const rows = hidden
+    ? db.prepare(`SELECT DISTINCT action FROM audit_log WHERE ${hidden.sql} ORDER BY action`).all(...hidden.args)
+    : db.prepare("SELECT DISTINCT action FROM audit_log ORDER BY action").all();
   res.json(rows.map((x) => x.action));
 });
 
