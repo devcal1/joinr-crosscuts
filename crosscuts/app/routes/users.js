@@ -6,6 +6,7 @@ const { defineRoutes } = require("../lib/routes");
 const permissions = require("../lib/permissions");
 const { hashSecret, verifySecret } = require("../lib/password");
 const audit = require("../lib/audit");
+const auth = require("../lib/auth");
 
 const r = defineRoutes("/api/users");
 
@@ -483,6 +484,52 @@ r.post(
   })
 );
 
+const NOT_ENABLED_ADMIN = "The new owner must be an enabled admin";
+
+// M13 · 4.3 (review A-m3): the transfer's password check counts like /api/auth/password's
+// (routes/auth.js rejectIfBadCurrentPassword): the same lockout (10 failures per username and IP,
+// 30 per IP, in 15 minutes: 429 "Too many failed attempts. Try again later."), the same attempt
+// record in auth_attempts, the scrypt concurrency cap (429 "Busy, try again"), and a failure audit
+// row (auth.login_failed, context owner_transfer). A wrong password stays 403 "That password isn't
+// right" (section 3.4). Returns true when the answer was sent.
+async function rejectIfBadOwnerPassword(req, res, password) {
+  const user = req.user;
+  const ip = auth.clientIp(req);
+  const lock = auth.passwordLockout(user.username, ip);
+  if (lock) {
+    auth.sendLockout(res, lock);
+    return true;
+  }
+  const deviceId = req.session ? req.session.deviceId : null;
+  const tooLong = password.length > MAX_PASSWORD; // wrong without a hash check (section 12.1)
+  if (!tooLong && !auth.tryAcquireScrypt()) {
+    auth.sendBusy(res);
+    return true;
+  }
+  const attemptId = auth.reserveAttempt({ kind: "password", username: user.username, userId: user.id, deviceId, ip });
+  let ok = false;
+  if (!tooLong) {
+    try {
+      const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(user.id);
+      ok = !!row && !!(await verifySecret(password, row.password_hash));
+    } finally {
+      auth.releaseScrypt();
+    }
+  }
+  if (ok) {
+    auth.settleAttempt(attemptId);
+    return false;
+  }
+  audit.log(req, {
+    action: "auth.login_failed",
+    entityType: "user",
+    entityId: String(user.id),
+    after: { context: "owner_transfer" },
+  });
+  res.status(403).json({ error: "That password isn't right" });
+  return true;
+}
+
 // M13 (section 3.4): the owner hands ownership to another enabled admin. Body
 // {confirmUsername, password}: the new owner's username typed, and the owner's own password.
 r.post(
@@ -502,15 +549,12 @@ r.post(
     const fromId = actorId(req);
     if (id === fromId) throw new HttpError(409, "You're already the owner");
     if (target.disabled || !target.roles.includes("admin")) {
-      throw new HttpError(409, "The new owner must be an enabled admin");
+      throw new HttpError(409, NOT_ENABLED_ADMIN);
     }
     if (body.confirmUsername.trim().toLowerCase() !== String(target.username).toLowerCase()) {
       throw new HttpError(400, `Type ${target.username} to confirm`);
     }
-    const actorRow = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(fromId);
-    const passwordOk =
-      !!actorRow && body.password.length <= MAX_PASSWORD && (await verifySecret(body.password, actorRow.password_hash));
-    if (!passwordOk) throw new HttpError(403, "That password isn't right");
+    if (await rejectIfBadOwnerPassword(req, res, body.password)) return;
 
     db.transaction(() => {
       // Re-checked inside the transaction: the actor must still be the owner. The old owner is
@@ -519,7 +563,16 @@ r.post(
         .prepare("UPDATE users SET is_owner = 0, updated_at = ? WHERE id = ? AND is_owner = 1")
         .run(nowIso(), fromId).changes;
       if (cleared !== 1) throw new HttpError(403, "Only the owner can hand over ownership");
-      db.prepare("UPDATE users SET is_owner = 1, updated_at = ? WHERE id = ?").run(nowIso(), id);
+      // M13 · 4.3 (review A-M1): the target is re-checked by the UPDATE itself, because it may have
+      // been disabled, or lost the admin role, while the password was being checked. The throw
+      // rolls the whole transaction back, the old owner's clear with it.
+      const made = db
+        .prepare(
+          "UPDATE users SET is_owner = 1, updated_at = ? WHERE id = ? AND disabled = 0 AND " +
+            "EXISTS (SELECT 1 FROM user_roles WHERE user_id = users.id AND role = 'admin')"
+        )
+        .run(nowIso(), id).changes;
+      if (made !== 1) throw new HttpError(409, NOT_ENABLED_ADMIN);
       audit.log(req, {
         action: "user.owner",
         entityType: "user",
