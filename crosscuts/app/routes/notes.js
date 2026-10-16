@@ -1,4 +1,4 @@
-// Department notes: /api/notes. See docs/plans/notes-contracts.md section 3. Every route is
+// Department notes: /api/notes. See docs/plans/notes-contracts.md section 5. Every route is
 // open to anyone holding any of the five department keys; the department's own key is checked
 // inside lib/notes.js (403 without it).
 const db = require("../db");
@@ -38,14 +38,12 @@ function single(req, name) {
 }
 
 r.get("/", ANY_DEPT, handle((req, res) => {
-  res.json(
-    notes.list(db, req, single(req, "dept"), { before: single(req, "before"), limit: single(req, "limit") })
-  );
+  res.json(notes.list(db, req, single(req, "dept"), { week: single(req, "week") }));
 }));
 
 r.post("/", ANY_DEPT, handle((req, res) => {
   const b = body(req);
-  res.status(201).json(notes.create(db, req, b.dept, b.body));
+  res.status(201).json(notes.create(db, req, b.dept, b.date, b.body));
 }));
 
 r.patch("/:id", ANY_DEPT, handle((req, res) => {
@@ -54,12 +52,21 @@ r.patch("/:id", ANY_DEPT, handle((req, res) => {
   if (b.updatedAt !== undefined && b.updatedAt !== null && typeof b.updatedAt !== "string") {
     throw bad("updatedAt must be text");
   }
-  res.json(notes.update(db, req, id, b.body, b.updatedAt));
+  res.json(notes.update(db, req, id, { body: b.body, date: b.date }, b.updatedAt));
 }));
 
 r.delete("/:id", ANY_DEPT, handle((req, res) => {
   notes.remove(db, req, idOr404(req.params.id));
   res.status(204).end();
+}));
+
+// Thumbs-up: PUT gives it, DELETE takes it back. Both answer with the note.
+r.put("/:id/ack", ANY_DEPT, handle((req, res) => {
+  res.json(notes.acknowledge(db, req, idOr404(req.params.id), true));
+}));
+
+r.delete("/:id/ack", ANY_DEPT, handle((req, res) => {
+  res.json(notes.acknowledge(db, req, idOr404(req.params.id), false));
 }));
 
 module.exports = r.router;

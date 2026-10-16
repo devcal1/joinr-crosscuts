@@ -45,6 +45,11 @@
   --layer-workshop: var(--muted);
   --layer-personal: var(--label);  /* drawn as a hollow outline, never a fill; the quiet label grey (M7 · 4.3) */
 
+  /* Notes paper: the named exception in CLAUDE.md "Look and feel" (Todd, 2026-10-16). The cream of
+     a sticky note, with --ink as its text. Used only by notes.html, notes.css and notes.js;
+     ci/style-check.js enforces that. */
+  --paper: #e9e4c9;
+
   /* 16% fills, for badges, hovers, selected rows and highlights */
   --teal-16: rgba(23, 200, 160, 0.16);
   --orange-16: rgba(249, 115, 22, 0.16);

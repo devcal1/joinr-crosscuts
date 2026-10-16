@@ -10,7 +10,7 @@
 //   - a font weight other than 400 or 700
 //   - the Inter font, or Phosphor icons outside the board
 //
-// Exceptions, all named in CLAUDE.md and approved by Todd on 2026-10-10 and 2026-10-11:
+// Exceptions, all named in CLAUDE.md and approved by Todd on 2026-10-10 to 2026-10-16:
 //   - tokens.css defines the colours
 //   - worker colours: oklch() in shared.js (each worker's own hue)
 //   - board icons: Phosphor in schedule.html and schedule.js
@@ -19,6 +19,8 @@
 //   - menu department rules: --layer-scheduling, --layer-design, --layer-install (Ordering) and
 //     --layer-accounts, only in
 //     shell/shell.css (approved by Todd on 2026-10-12)
+//   - Notes paper and thumbs-up (approved by Todd on 2026-10-16), only in notes.html, notes.css and
+//     notes.js: the --paper token (cream sticky notes) and the Phosphor thumbs-up icon
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"
 // If this check fails, fix the page, not the check.
@@ -28,7 +30,8 @@ const path = require("path");
 
 const ROOT = path.join(__dirname, "..", "crosscuts", "app", "public");
 const TOKENS = "tokens.css";
-const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js"]);
+const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js", "notes.html", "notes.js"]);
+const PAPER_OK = new Set(["tokens.css", "notes.html", "notes.css", "notes.js"]);
 const OKLCH_OK = new Set(["shared.js"]);
 const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.js"]);
 const DEPT_FILE = "shell/shell.css";
@@ -76,6 +79,9 @@ for (const file of walk(ROOT)) {
         (code.match(/--layer-[\w-]+/g) || []).every(t => DEPT_LAYERS.has(t)));
     if (/--layer-/.test(code) && !layerOk) {
       problems.push(`${rel}:${i + 1}: planner layer token outside the planner: ${raw.trim().slice(0, 140)}`);
+    }
+    if (/--paper\b/.test(code) && !PAPER_OK.has(rel)) {
+      problems.push(`${rel}:${i + 1}: Notes paper token outside the Notes page: ${raw.trim().slice(0, 140)}`);
     }
     // Token references (var(--orange)) are how colours should be used.
     const line = code.replace(/var\(--[\w-]+\)/g, "var()");

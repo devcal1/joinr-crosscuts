@@ -6,6 +6,7 @@
 <title>Notes - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="vendor/phosphor/style.css">
 <link rel="stylesheet" href="notes.css">
 </head>
 <body class="nt-body">
@@ -14,37 +15,39 @@
   <main class="nt-page">
     <div class="nt-head">
       <h1 id="title">Notes</h1>
-      <p id="sub" class="nt-hint">Notes for the people in this department. Each week starts a fresh sheet.</p>
+      <p id="sub" class="nt-hint">Notes for the people in this department, stuck on the day they are for.</p>
     </div>
 
     <p id="message" class="nt-message" role="status" hidden></p>
 
-    <div id="sheets" hidden>
-      <section class="nt-week" aria-labelledby="thisHead">
-        <h2 id="thisHead" class="nt-week-head">This week <span id="thisLabel" class="nt-week-of"></span></h2>
-        <form id="composer" class="nt-composer" autocomplete="off">
-          <label class="nt-sr" for="body">New note</label>
-          <textarea id="body" class="hs-input nt-body-input" rows="3" maxlength="2000" placeholder="Leave a note for the team"></textarea>
-          <div class="nt-composer-row">
-            <span id="count" class="nt-count"></span>
-            <button id="add" type="submit" class="hs-btn hs-btn-primary">Add note</button>
-          </div>
-        </form>
-        <p id="error" class="nt-error" role="alert"></p>
-        <ol id="thisList" class="nt-list"></ol>
-        <p id="thisEmpty" class="nt-empty" hidden>No notes</p>
-      </section>
-
-      <section class="nt-week" aria-labelledby="lastHead">
-        <h2 id="lastHead" class="nt-week-head">Last week <span id="lastLabel" class="nt-week-of"></span></h2>
-        <ol id="lastList" class="nt-list"></ol>
-        <p id="lastEmpty" class="nt-empty" hidden>No notes</p>
-      </section>
-
-      <div id="older"></div>
-      <div class="nt-more-wrap">
-        <button id="olderBtn" type="button" class="hs-btn" hidden>Older weeks</button>
+    <div id="board" hidden>
+      <div class="nt-bar">
+        <h2 id="weekHead" class="nt-week-head"></h2>
+        <div class="nt-nav">
+          <button id="lastBtn" type="button" class="hs-btn">Last week</button>
+          <button id="thisBtn" type="button" class="hs-btn">This week</button>
+          <button id="nextBtn" type="button" class="hs-btn">Next week</button>
+          <button id="addBtn" type="button" class="hs-btn hs-btn-primary">Add note</button>
+        </div>
       </div>
+
+      <form id="composer" class="nt-composer" autocomplete="off" hidden>
+        <label class="nt-sr" for="body">New note</label>
+        <textarea id="body" class="hs-input nt-body-input" rows="3" maxlength="2000" placeholder="Leave a note for the team"></textarea>
+        <div class="nt-composer-row">
+          <label class="nt-day-pick" for="day"><span class="hs-label">Day</span>
+            <select id="day" class="hs-input"></select>
+          </label>
+          <span id="count" class="nt-count"></span>
+          <span class="nt-composer-btns">
+            <button id="post" type="submit" class="hs-btn hs-btn-primary">Post note</button>
+            <button id="cancel" type="button" class="hs-btn">Cancel</button>
+          </span>
+        </div>
+        <p id="error" class="nt-error" role="alert"></p>
+      </form>
+
+      <div id="wall" class="nt-wall"></div>
     </div>
   </main>
 

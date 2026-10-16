@@ -1,34 +1,57 @@
-# M15 smoke: department notes (docs/plans/notes-contracts.md), a weekly sheet per department
-# where its people leave signed notes for each other.
+# M15 smoke: department notes (docs/plans/notes-contracts.md), a week wall per department where
+# its people stick signed notes on a weekday for each other and give them a thumbs-up.
 # Sourced by ci/smoke.sh after the M14 suites, so it shares that script's helpers (step, req, hdr,
 # expect_status, expect_jq, expect_eq, jqr, fail, ok, sydney_monday), the cookie jars ($ADMIN
 # $SCHED $ACCT $ACCT2 $DPM $SHOW $WSHOP $WSMGR), $BASE, $REQ_ORIGIN, $BODY_FILE, $HDR_FILE, $WORK
 # and $CONTAINER. No shebang and no `set`: the caller owns both.
-# It does not assume a pristine database: its notes carry a run tag in their text, it reads counts
-# as the notes carrying that tag, and the old-week rows it seeds sit in weeks the app never writes
-# to. Made-up names only (this repo is public). Modelled on smoke-m4-tasks.sh and smoke-m14-*.sh.
+# It does not assume a pristine database, and it works on any day of the week (the dates it uses
+# are worked out from Sydney's today): its notes carry a run tag in their text, it reads counts as
+# the notes carrying that tag, and the old-week rows it seeds sit in weeks the app never writes to.
+# Made-up names only (this repo is public). Modelled on smoke-m4-tasks.sh and smoke-m14-*.sh.
 
 # ============================================================================
-step "m15-notes. department notes: one weekly sheet per department"
+step "m15-notes. department notes: a week wall per department, with thumbs-up"
 # ============================================================================
 
 M15N_TAG="m15n$(date +%s)"
+M15N_TODAY=$(TZ=Australia/Sydney date +%F)
+M15N_DOW=$(TZ=Australia/Sydney date +%u)   # 1 = Monday .. 7 = Sunday
 M15N_THIS=$(sydney_monday)
-m15n_back() { date -u -d "$M15N_THIS - $(($1 * 7)) days" +%F; }
-M15N_LAST=$(m15n_back 1)
+# m15n_plus DATE +N|-N: the date N days from DATE. m15n_monday_of DATE: that week's Monday.
+m15n_plus() { date -u -d "$1 $2 days" +%F; }
+m15n_monday_of() { local d; d=$(date -u -d "$1" +%u); date -u -d "$1 -$((d - 1)) days" +%F; }
+M15N_LAST=$(m15n_plus "$M15N_THIS" -7)
+M15N_NEXT=$(m15n_plus "$M15N_THIS" +7)
+# The next weekday after today (Fri -> Monday, Sat -> Monday, Sun -> Monday), and the day a note
+# written now sits under when no day is named (today on a weekday, else the next Monday).
+case $M15N_DOW in 5) M15N_STEP=3 ;; 6) M15N_STEP=2 ;; *) M15N_STEP=1 ;; esac
+M15N_NEXTWD=$(m15n_plus "$M15N_TODAY" "+$M15N_STEP")
+if [ "$M15N_DOW" -le 5 ]; then M15N_DAY0=$M15N_TODAY; else M15N_DAY0=$M15N_NEXTWD; fi
+M15N_W0=$(m15n_monday_of "$M15N_DAY0")      # the week the default day is in
+M15N_WNEXTWD=$(m15n_monday_of "$M15N_NEXTWD")
+M15N_PASTFRI=$(m15n_plus "$M15N_THIS" -3)   # last Friday: always a past weekday
+M15N_SAT=$(m15n_plus "$M15N_THIS" +5)
+M15N_SUN=$(m15n_plus "$M15N_THIS" +6)
+M15N_NEXTWED=$(m15n_plus "$M15N_NEXT" +2)   # a Wednesday in next week: always a future weekday
+M15N_NEXTFRI=$(m15n_plus "$M15N_NEXT" +4)
+M15N_LASTWED=$(m15n_plus "$M15N_LAST" +2)
 
-# m15n_seed DEPT WEEK BODY AUTHOR_ID [REMOVED]: inserts a row straight into dept_notes (the app only
-# writes the current week, so older weeks are seeded); prints nothing, sets M15N_SEEDED to its id.
+# m15n_seed DEPT DATE BODY AUTHOR_ID [REMOVED]: inserts a row straight into dept_notes (the app lets
+# a note go on today or later only, so past days are seeded); sets M15N_SEEDED to its id.
 m15n_seed() {
   M15N_SEEDED=$(docker exec "$CONTAINER" node -e '
 const D = require("better-sqlite3");
 const d = new D("/data/db/photos.db");
 d.pragma("busy_timeout = 5000");
-const [dept, week, body, author, removed] = process.argv.slice(1);
-const at = week + "T01:00:00.000Z";
+const [dept, date, body, author, removed] = process.argv.slice(1);
+const dt = new Date(date + "T00:00:00Z");
+const dow = dt.getUTCDay();
+dt.setUTCDate(dt.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+const week = dt.toISOString().slice(0, 10);
+const at = date + "T01:00:00.000Z";
 const info = d.prepare(
-  "INSERT INTO dept_notes (dept, week_start, body, author_id, created_at, updated_at, removed_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-).run(dept, week, body, Number(author), at, at, removed ? at : null);
+  "INSERT INTO dept_notes (dept, note_date, week_start, body, author_id, created_at, updated_at, removed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+).run(dept, date, week, body, Number(author), at, at, removed ? at : null);
 console.log(String(info.lastInsertRowid));
 d.close();' "$1" "$2" "$3" "$4" "${5:-}" | tr -d '\r') || fail "seeding a dept_notes row failed"
   [ -n "$M15N_SEEDED" ] || fail "seeding a dept_notes row gave no id"
@@ -38,9 +61,18 @@ d.close();' "$1" "$2" "$3" "$4" "${5:-}" | tr -d '\r') || fail "seeding a dept_n
 m15n_get() {
   req GET "/api/notes?dept=$2${3:-}" "$1"
 }
+# m15n_week JAR DEPT MONDAY: the same, for one week.
+m15n_week() {
+  req GET "/api/notes?dept=$2&week=$3" "$1"
+}
+# m15n_note ID: a jq expression for that note in the last answer.
+m15n_note() {
+  printf '([.days[].notes[] | select(.id == %s)][0])' "$1"
+}
 
 req GET /api/auth/me "$ADMIN"
 M15N_ADMIN_ID=$(jqr '.user.id')
+M15N_ADMIN_NAME=$(jqr '.user.displayName')
 req GET /api/auth/me "$ACCT"
 M15N_ACCT_ID=$(jqr '.user.id')
 M15N_ACCT_NAME=$(jqr '.user.displayName')
@@ -62,8 +94,8 @@ done
 req GET "/notes.html?dept=accounts"
 expect_status 302 "logged out GET /notes.html"
 for M15N_J in "$ACCT" "$SCHED" "$DPM" "$ADMIN" "$WSMGR" "$ORDR"; do
-  req GET "/notes.html?dept=accounts" "$M15N_J"
-  expect_status 200 "a department login GET /notes.html"
+  req GET "/notes.html?dept=accounts&week=$M15N_LAST" "$M15N_J"
+  expect_status 200 "a department login GET /notes.html (with a week in the address)"
 done
 printf '%s' "$BODY" | grep -q 'id="cc-shell"' || fail "notes.html carries no #cc-shell"
 ok
@@ -79,10 +111,12 @@ req GET /api/notes?dept=accounts
 expect_status 401 "logged out GET /api/notes"
 req POST /api/notes "" '{"dept":"accounts","body":"x"}'
 expect_status 401 "logged out POST /api/notes"
+req PUT /api/notes/1/ack ""
+expect_status 401 "logged out PUT /api/notes/1/ack"
 # Each department has its own key: acct holds notes.accounts only, sched notes.scheduling, dpm
 # notes.design, ordr and wsmgr notes.ordering, admin all five, show and wshop none.
 m15n_get "$ACCT" accounts;   expect_status 200 "acct GET accounts notes"
-expect_jq '.dept == "accounts" and .deptLabel == "Accounts" and (.weeks | length) == 2 and (.weeks[0].current == true) and (.weeks[1].current == false)' "the answer's shape: this week then last week"
+expect_jq '.dept == "accounts" and .deptLabel == "Accounts" and (.days | length) == 5 and .current == true and .past == false' "the answer's shape: this week as five days"
 for M15N_D in scheduling design ordering admin; do
   m15n_get "$ACCT" "$M15N_D"; expect_status 403 "acct GET $M15N_D notes (no orders.view or other key opens it)"
 done
@@ -119,6 +153,8 @@ expect_status 200 "remove the grant"
 m15n_get "$ACCT2" ordering; expect_status 403 "acct2 loses ordering notes without the grant"
 req PATCH "/api/notes/$M15N_NG" "$ACCT2" '{"body":"x"}'
 expect_status 403 "acct2 can't edit its ordering note any more"
+req PUT "/api/notes/$M15N_NG/ack" "$ACCT"
+expect_status 403 "acct (no ordering key) can't thumbs-up an ordering note"
 req PUT "/api/users/$ACCT2_ID/overrides/notes.accounts" "$ADMIN" '{"effect":"revoke"}'
 expect_status 200 "revoke notes.accounts from acct2"
 m15n_get "$ACCT2" accounts; expect_status 403 "acct2 loses accounts notes with the revoke"
@@ -143,21 +179,45 @@ expect_status 400 "POST a note for an unknown department"
 req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG no dept" '{body:$b}')"
 expect_status 400 "POST a note with no department"
 
+echo "--- the week wall ---"
+m15n_get "$ACCT" accounts
+expect_jq ".thisWeek == \"$M15N_THIS\" and .weekStart == \"$M15N_THIS\" and .today == \"$M15N_TODAY\" and .prev == \"$M15N_LAST\" and .next == \"$M15N_NEXT\"" "this week is the Sydney Monday, with the Mondays either side"
+expect_jq ".heading | startswith(\"Week of Mon \")" "the heading names the Monday"
+expect_jq "[.days[].name] == [\"Mon\",\"Tue\",\"Wed\",\"Thu\",\"Fri\"] and .days[0].date == \"$M15N_THIS\" and .days[4].date == \"$(m15n_plus "$M15N_THIS" +4)\"" "five days, Monday to Friday"
+expect_jq '[.days[].label] | all(test("^(Mon|Tue|Wed|Thu|Fri) [0-9]{1,2} [A-Z][a-z]{2}$"))' "each day is headed like Tue 13 Oct"
+if [ "$M15N_DOW" -le 5 ]; then
+  expect_jq "[.days[] | select(.today)] | length == 1 and .[0].date == \"$M15N_TODAY\"" "today's column is marked"
+else
+  expect_jq '[.days[] | select(.today)] | length == 0' "no column is today on a weekend"
+fi
+expect_jq "[.days[] | select(.canAdd == (.date >= \"$M15N_TODAY\"))] | length == 5" "a day takes a new note when it is today or later"
+expect_jq ".canAdd == true and (.formDays | length) >= 1 and .defaultDate == \"$M15N_DAY0\"" "the add form offers days and defaults to today (or the next Monday on a weekend)"
+expect_jq "[.formDays[].date] | all(. >= \"$M15N_TODAY\")" "the form offers no past day"
+
 echo "--- writing and reading ---"
 M15N_B1="$M15N_TAG first note, with <b>tags</b> & a <script>x</script>
 second line"
 req POST /api/notes "$ACCT" "$(jq -nc --arg b "  $M15N_B1  " '{dept:"accounts",body:$b}')"
-expect_status 201 "acct leaves a note"
+expect_status 201 "acct leaves a note, naming no day"
 M15N_N1=$(jqr '.id')
-expect_jq ".dept == \"accounts\" and .weekStart == \"$M15N_THIS\" and .author.id == $M15N_ACCT_ID and .author.name == \"$M15N_ACCT_NAME\" and .canEdit == true and .edited == false and (.createdAt | type == \"string\") and (.body | endswith(\"second line\"))" \
-  "the note is signed by acct, filed under this week, and trimmed"
+expect_jq ".dept == \"accounts\" and .date == \"$M15N_DAY0\" and .weekStart == \"$M15N_W0\" and .author.id == $M15N_ACCT_ID and .author.name == \"$M15N_ACCT_NAME\" and .canEdit == true and .canAck == false and .edited == false and (.createdAt | type == \"string\") and (.body | endswith(\"second line\"))" \
+  "the note is signed by acct, sits under today (or the next Monday), and is trimmed"
+expect_jq '.acks.count == 0 and .acks.names == [] and .acks.mine == false' "a new note has no thumbs-up"
 printf '%s' "$BODY" | jq -e --arg b "$M15N_B1" '.body == $b' >/dev/null \
   || fail "the stored text differs from what was sent (line break kept, markup not touched): ${BODY:0:300}"
 ok
-req POST /api/notes "$ACCT2" "$(jq -nc --arg b "$M15N_TAG second note" '{dept:"accounts",body:$b}')"
-expect_status 201 "acct2 leaves a note"
+req POST /api/notes "$ACCT2" "$(jq -nc --arg b "$M15N_TAG second note" --arg d "$M15N_DAY0" '{dept:"accounts",date:$d,body:$b}')"
+expect_status 201 "acct2 leaves a note on the same day"
 M15N_N2=$(jqr '.id')
-expect_jq ".author.id == $M15N_ACCT2_ID and .author.name == \"$M15N_ACCT2_NAME\"" "the second note is signed by acct2"
+expect_jq ".author.id == $M15N_ACCT2_ID and .author.name == \"$M15N_ACCT2_NAME\" and .date == \"$M15N_DAY0\"" "the second note is signed by acct2"
+req POST /api/notes "$ACCT2" "$(jq -nc --arg b "$M15N_TAG a later day" --arg d "$M15N_NEXTWD" '{dept:"accounts",date:$d,body:$b}')"
+expect_status 201 "acct2 leaves a note on a later day"
+M15N_NF=$(jqr '.id')
+expect_jq ".date == \"$M15N_NEXTWD\" and .weekStart == \"$M15N_WNEXTWD\"" "it is filed under that day's week"
+req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG next week" --arg d "$M15N_NEXTWED" '{dept:"accounts",date:$d,body:$b}')"
+expect_status 201 "acct leaves a note on a day of next week"
+M15N_NFW=$(jqr '.id')
+expect_jq ".date == \"$M15N_NEXTWED\" and .weekStart == \"$M15N_NEXT\"" "it is filed under next week"
 req POST /api/notes "$SCHED" "$(jq -nc --arg b "$M15N_TAG scheduling note" '{dept:"scheduling",body:$b}')"
 expect_status 201 "sched leaves a scheduling note"
 M15N_NS=$(jqr '.id')
@@ -167,24 +227,63 @@ M15N_NA=$(jqr '.id')
 req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG admin note" '{dept:"admin",body:$b}')"
 expect_status 403 "acct can't write on the admin sheet"
 
-m15n_get "$ACCT" accounts
-expect_status 200 "acct reads the accounts sheet"
-expect_jq "[.weeks[0].notes[] | select(.body | contains(\"$M15N_TAG\"))] | length == 2" "this week holds both accounts notes"
-expect_jq "[.weeks[0].notes[] | select(.body | contains(\"$M15N_TAG\")) | .id] == [$M15N_N2, $M15N_N1]" "newest first"
-expect_jq ".weeks[0].weekStart == \"$M15N_THIS\" and .weeks[1].weekStart == \"$M15N_LAST\" and .thisWeek == \"$M15N_THIS\"" "this week and last week are the Sydney Mondays"
-expect_jq "(.weeks[0].notes[] | select(.id == $M15N_N1) | .canEdit) == true and (.weeks[0].notes[] | select(.id == $M15N_N2) | .canEdit) == false" "acct may edit only the note acct wrote"
-m15n_get "$ACCT2" accounts
-expect_jq "(.weeks[0].notes[] | select(.id == $M15N_N2) | .canEdit) == true and (.weeks[0].notes[] | select(.id == $M15N_N1) | .canEdit) == false" "acct2 may edit only the note acct2 wrote"
-m15n_get "$ADMIN" accounts
-expect_jq "[.weeks[0].notes[] | select(.body | contains(\"$M15N_TAG\")) | .canEdit] | all(. == false)" "admin may edit neither"
-m15n_get "$ADMIN" scheduling
-expect_jq "[.weeks[0].notes[] | select(.body | contains(\"$M15N_TAG\"))] | length == 1" "the sheets don't mix: scheduling holds only its own note"
-m15n_get "$ADMIN" ordering
-expect_jq "[.weeks[] | .notes[] | select(.body | contains(\"$M15N_TAG\"))] | length == 0" "ordering holds none of them"
-m15n_get "$SCHED" scheduling
-expect_jq "(.weeks[0].notes[] | select(.id == $M15N_NS) | .author.name) == \"CI Scheduling\"" "the scheduling note is signed CI Scheduling"
-m15n_get "$SCHED" scheduling
-expect_jq '.more == false' "no older notes in scheduling, so no Older weeks"
+m15n_week "$ACCT" accounts "$M15N_W0"
+expect_status 200 "acct reads the accounts wall"
+expect_jq "[.days[] | select(.date == \"$M15N_DAY0\") | .notes[] | select(.id == $M15N_N1 or .id == $M15N_N2) | .id] == [$M15N_N1, $M15N_N2]" "a day's notes stack in the order posted"
+expect_jq "$(m15n_note "$M15N_N1").canEdit == true and $(m15n_note "$M15N_N2").canEdit == false" "acct may edit only the note acct wrote"
+expect_jq "$(m15n_note "$M15N_N1").canAck == false and $(m15n_note "$M15N_N2").canAck == true" "acct may thumbs-up only the note acct2 wrote"
+m15n_week "$ACCT2" accounts "$M15N_W0"
+expect_jq "$(m15n_note "$M15N_N2").canEdit == true and $(m15n_note "$M15N_N1").canEdit == false" "acct2 may edit only the note acct2 wrote"
+m15n_week "$ADMIN" accounts "$M15N_W0"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\")) | .canEdit] | all(. == false)" "admin may edit neither"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\")) | .canAck] | all(. == true)" "admin may thumbs-up both"
+m15n_week "$ACCT" accounts "$M15N_WNEXTWD"
+expect_jq "[.days[].notes[] | select(.id == $M15N_NF)] | length == 1" "the later-day note is on its own week's wall"
+m15n_week "$ACCT" accounts "$M15N_NEXT"
+expect_jq "[.days[] | select(.date == \"$M15N_NEXTWED\") | .notes[] | select(.id == $M15N_NFW)] | length == 1" "the next-week note sits under its Wednesday"
+m15n_week "$ADMIN" scheduling "$M15N_W0"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\"))] | length == 1" "the sheets don't mix: scheduling holds only its own note"
+m15n_week "$ADMIN" ordering "$M15N_W0"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\"))] | length == 0" "ordering holds none of them"
+m15n_week "$SCHED" scheduling "$M15N_W0"
+expect_jq "$(m15n_note "$M15N_NS").author.name == \"CI Scheduling\"" "the scheduling note is signed CI Scheduling"
+
+echo "--- which days a note may go on ---"
+req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG past" --arg d "$M15N_PASTFRI" '{dept:"accounts",date:$d,body:$b}')"
+expect_status 400 "a note on a past day"
+expect_jq '.error == "Notes can only go on today or a later day"' "the past-day sentence"
+for M15N_WE in "$M15N_SAT" "$M15N_SUN" "$(m15n_plus "$M15N_NEXT" +5)"; do
+  req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG weekend" --arg d "$M15N_WE" '{dept:"accounts",date:$d,body:$b}')"
+  expect_status 400 "a note on the weekend date $M15N_WE"
+  expect_jq '.error == "Notes go on a weekday, Monday to Friday"' "the weekend sentence"
+done
+for M15N_BADDATE in '"yesterday"' '"2030-02-30"' '"2030-1-5"' '12' 'true'; do
+  req POST /api/notes "$ACCT" "{\"dept\":\"accounts\",\"date\":$M15N_BADDATE,\"body\":\"$M15N_TAG bad date\"}"
+  expect_status 400 "a note with the date $M15N_BADDATE"
+  expect_jq '.error == "Choose a day for the note"' "the bad-date sentence"
+done
+if [ "$M15N_DOW" -le 5 ]; then
+  req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG today" --arg d "$M15N_TODAY" '{dept:"accounts",date:$d,body:$b}')"
+  expect_status 201 "a note on today"
+  M15N_NT=$(jqr '.id')
+else
+  req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG today" --arg d "$M15N_TODAY" '{dept:"accounts",date:$d,body:$b}')"
+  expect_status 400 "a note on today when today is a weekend day"
+  req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG weekend default" '{dept:"accounts",body:$b}')"
+  expect_status 201 "a note naming no day on a weekend"
+  M15N_NT=$(jqr '.id')
+  expect_jq ".date == \"$M15N_NEXTWD\"" "it goes under the next Monday"
+fi
+if [ "$M15N_DOW" -ge 2 ]; then
+  m15n_week "$ACCT" accounts "$M15N_THIS"
+  expect_jq "[.days[] | select(.date == \"$M15N_THIS\") | .canAdd] == [false]" "an earlier day of this week takes no new note"
+  req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG earlier this week" --arg d "$M15N_THIS" '{dept:"accounts",date:$d,body:$b}')"
+  expect_status 400 "a note on an earlier day of this week"
+fi
+M15N_UNIT=$(docker exec "$CONTAINER" node -e '
+const n = require("/app/lib/notes.js");
+console.log(["2030-01-04", "2030-01-05", "2030-01-06", "2030-01-07", "2030-01-08"].map(n.defaultDate).join(" "));' | tr -d '\r') || fail "the default-day check failed to run"
+expect_eq "$M15N_UNIT" "2030-01-04 2030-01-07 2030-01-07 2030-01-07 2030-01-08" "a weekend note defaults to the next Monday (Fri, Sat, Sun, Mon, Tue)"
 
 echo "--- limits ---"
 for M15N_BAD in '{"dept":"accounts"}' '{"dept":"accounts","body":""}' '{"dept":"accounts","body":"  \n  "}' '{"dept":"accounts","body":12}' '{"dept":"accounts","body":null}'; do
@@ -210,24 +309,71 @@ M15N_N4=$(jqr '.id')
 req DELETE "/api/notes/$M15N_N4" "$ACCT"
 expect_status 204 "acct removes the one-character note"
 
-echo "--- editing and removing, in the week ---"
+echo "--- editing, moving and removing ---"
 req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg b "$M15N_TAG first note, edited" '{body:$b}')"
-expect_status 200 "the author edits the note this week"
-expect_jq ".id == $M15N_N1 and .body == \"$M15N_TAG first note, edited\" and .edited == true and .canEdit == true and .author.id == $M15N_ACCT_ID and .weekStart == \"$M15N_THIS\"" "the edited note keeps its author and week and says it was edited"
+expect_status 200 "the author edits the note"
+expect_jq ".id == $M15N_N1 and .body == \"$M15N_TAG first note, edited\" and .edited == true and .canEdit == true and .author.id == $M15N_ACCT_ID and .date == \"$M15N_DAY0\"" "the edited note keeps its author and day and says it was edited"
 M15N_U1=$(jqr '.updatedAt')
 req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg b "$M15N_TAG stale" --arg u "2020-01-01T00:00:00.000Z" '{body:$b,updatedAt:$u}')"
 expect_status 409 "an edit from a stale copy"
 expect_jq '.error == "This note was changed somewhere else; reload it"' "the stale sentence"
 req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg b "$M15N_TAG with the current copy" --arg u "$M15N_U1" '{body:$b,updatedAt:$u}')"
 expect_status 200 "an edit from the current copy"
+M15N_U1=$(jqr '.updatedAt')
+req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg b "$M15N_TAG with the current copy" '{body:$b}')"
+expect_status 200 "an edit that changes nothing"
+expect_jq ".updatedAt == \"$M15N_U1\"" "changes nothing, moves nothing"
 req PATCH "/api/notes/$M15N_N1" "$ACCT" '{"body":"   "}'
 expect_status 400 "an edit to nothing"
 req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg b "$M15N_2001" '{body:$b}')"
 expect_status 400 "an edit past 2000 characters"
 req PATCH "/api/notes/$M15N_N1" "$ACCT" '{"body":"x","updatedAt":5}'
 expect_status 400 "a non-text updatedAt"
+req PATCH "/api/notes/$M15N_N1" "$ACCT" '{}'
+expect_status 400 "an edit that names nothing to change"
+expect_jq '.error == "Nothing to change"' "the nothing-to-change sentence"
+# moving to another day
+req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg d "$M15N_NEXTWED" '{date:$d}')"
+expect_status 200 "the author moves the note to a day of next week"
+expect_jq ".date == \"$M15N_NEXTWED\" and .weekStart == \"$M15N_NEXT\" and .edited == true and .canEdit == true and (.body | contains(\"current copy\"))" "it moved, kept its text, and a note in a future week stays editable"
+m15n_week "$ACCT" accounts "$M15N_NEXT"
+expect_jq "[.days[] | select(.date == \"$M15N_NEXTWED\") | .notes[] | select(.id == $M15N_N1)] | length == 1" "the wall shows it under the new day"
+req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg d "$M15N_NEXTFRI" '{date:$d}')"
+expect_status 200 "the author moves it again, to the Friday"
+req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg d "$M15N_DAY0" --arg b "$M15N_TAG moved back" '{date:$d,body:$b}')"
+expect_status 200 "the author moves it back and edits the text in one go"
+expect_jq ".date == \"$M15N_DAY0\" and .body == \"$M15N_TAG moved back\"" "both took"
+req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg d "$M15N_PASTFRI" '{date:$d}')"
+expect_status 400 "a move to a past day"
+expect_jq '.error == "Notes can only go on today or a later day"' "the past-day sentence for a move"
+req PATCH "/api/notes/$M15N_N1" "$ACCT" "$(jq -nc --arg d "$M15N_SAT" '{date:$d}')"
+expect_status 400 "a move to a Saturday"
+req PATCH "/api/notes/$M15N_N1" "$ACCT" '{"date":"someday"}'
+expect_status 400 "a move to nothing like a date"
+req PATCH "/api/notes/$M15N_N1" "$ACCT" '{"date":5}'
+expect_status 400 "a move to a number"
+m15n_week "$ACCT" accounts "$M15N_W0"
+expect_jq "$(m15n_note "$M15N_N1").date == \"$M15N_DAY0\" and $(m15n_note "$M15N_N1").body == \"$M15N_TAG moved back\"" "the refused moves changed nothing"
+# a note on an earlier day of the current week: its text may change, it may move on, never back
+m15n_seed accounts "$M15N_THIS" "$M15N_TAG on Monday" "$M15N_ACCT_ID"
+M15N_NMON=$M15N_SEEDED
+req PATCH "/api/notes/$M15N_NMON" "$ACCT" "$(jq -nc --arg b "$M15N_TAG on Monday, edited" '{body:$b}')"
+expect_status 200 "the author edits a note that sits on an earlier day of this week"
+req PATCH "/api/notes/$M15N_NMON" "$ACCT" "$(jq -nc --arg b "$M15N_TAG on Monday, edited again" --arg d "$M15N_THIS" '{body:$b,date:$d}')"
+expect_status 200 "an edit that names the day it is already on"
+req PATCH "/api/notes/$M15N_NMON" "$ACCT" "$(jq -nc --arg d "$M15N_NEXTWD" '{date:$d}')"
+expect_status 200 "the author moves it forward"
+if [ "$M15N_DOW" -ge 2 ]; then
+  req PATCH "/api/notes/$M15N_NMON" "$ACCT" "$(jq -nc --arg d "$M15N_THIS" '{date:$d}')"
+  expect_status 400 "the author can't move it back onto a past day"
+fi
+req DELETE "/api/notes/$M15N_NMON" "$ACCT"
+expect_status 204 "the author removes it"
+# other people
 req PATCH "/api/notes/$M15N_N2" "$ACCT" "$(jq -nc --arg b "$M15N_TAG hijack" '{body:$b}')"
 expect_status 403 "acct edits acct2's note"
+req PATCH "/api/notes/$M15N_N2" "$ACCT" "$(jq -nc --arg d "$M15N_NEXTWD" '{date:$d}')"
+expect_status 403 "acct moves acct2's note"
 req PATCH "/api/notes/$M15N_N2" "$ADMIN" "$(jq -nc --arg b "$M15N_TAG hijack" '{body:$b}')"
 expect_status 403 "an admin edits acct2's note"
 req DELETE "/api/notes/$M15N_N2" "$ACCT"
@@ -242,30 +388,37 @@ req PATCH "/api/notes/$M15N_N2" "$SHOW" '{"body":"x"}'
 expect_status 403 "show edits a note"
 req PATCH "/api/notes/$M15N_N2" "" '{"body":"x"}'
 expect_status 401 "logged out PATCH"
-m15n_get "$ACCT2" accounts
-expect_jq "(.weeks[0].notes[] | select(.id == $M15N_N2) | .body) == \"$M15N_TAG second note\"" "acct2's note is unchanged"
+m15n_week "$ACCT2" accounts "$M15N_W0"
+expect_jq "$(m15n_note "$M15N_N2").body == \"$M15N_TAG second note\" and $(m15n_note "$M15N_N2").date == \"$M15N_DAY0\"" "acct2's note is unchanged"
 req PATCH /api/notes/999999999 "$ACCT" '{"body":"x"}'
 expect_status 404 "PATCH an unknown note"
 req DELETE /api/notes/abc "$ACCT"
 expect_status 404 "DELETE a non-numeric id"
 req DELETE /api/notes/999999999 "$ACCT"
 expect_status 404 "DELETE an unknown note"
-
-# A third note by acct, removed in the week: gone from the sheet.
+# removing
 req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG to be removed" '{dept:"accounts",body:$b}')"
 expect_status 201 "acct leaves a note to remove"
 M15N_NR=$(jqr '.id')
 req DELETE "/api/notes/$M15N_NR" "$ACCT"
-expect_status 204 "the author removes it this week"
-m15n_get "$ACCT" accounts
-expect_jq "[.weeks[].notes[] | select(.id == $M15N_NR)] | length == 0" "a removed note is never shown"
+expect_status 204 "the author removes it"
+m15n_week "$ACCT" accounts "$M15N_W0"
+expect_jq "[.days[].notes[] | select(.id == $M15N_NR)] | length == 0" "a removed note is never shown"
 req DELETE "/api/notes/$M15N_NR" "$ACCT"
 expect_status 404 "removing it again"
 req PATCH "/api/notes/$M15N_NR" "$ACCT" '{"body":"back again"}'
 expect_status 404 "editing a removed note"
+req PUT "/api/notes/$M15N_NR/ack" "$ACCT2"
+expect_status 404 "a thumbs-up on a removed note"
+# a future-week note can be removed
+req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG future remove" --arg d "$M15N_NEXTWED" '{dept:"accounts",date:$d,body:$b}')"
+expect_status 201 "acct leaves a note for next week"
+M15N_NFR=$(jqr '.id')
+req DELETE "/api/notes/$M15N_NFR" "$ACCT"
+expect_status 204 "the author removes a note of a future week"
 
-echo "--- the week rolls over ---"
-# A note written this week, then the week ends: file it under last week as the clock would have.
+echo "--- past weeks are read-only ---"
+# A note written now, then its week ends: file it under last Wednesday as the clock would have.
 req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG written before the rollover" '{dept:"accounts",body:$b}')"
 expect_status 201 "acct writes a note that will be rolled over"
 M15N_NROLL=$(jqr '.id')
@@ -273,96 +426,187 @@ docker exec "$CONTAINER" node -e '
 const D = require("better-sqlite3");
 const d = new D("/data/db/photos.db");
 d.pragma("busy_timeout = 5000");
-d.prepare("UPDATE dept_notes SET week_start = ? WHERE id = ?").run(process.argv[1], Number(process.argv[2]));
-d.close();' "$M15N_LAST" "$M15N_NROLL" || fail "moving the note to last week failed"
+d.prepare("UPDATE dept_notes SET note_date = ?, week_start = ? WHERE id = ?").run(process.argv[1], process.argv[2], Number(process.argv[3]));
+d.close();' "$M15N_LASTWED" "$M15N_LAST" "$M15N_NROLL" || fail "moving the note to last week failed"
+m15n_week "$ACCT" accounts "$M15N_LAST"
+expect_jq "$(m15n_note "$M15N_NROLL").canEdit == false and $(m15n_note "$M15N_NROLL").weekStart == \"$M15N_LAST\" and $(m15n_note "$M15N_NROLL").date == \"$M15N_LASTWED\"" "it sits under last Wednesday and is locked"
+expect_jq '.past == true and .current == false and .canAdd == false and .formDays == [] and ([.days[].canAdd] | all(. == false))' "last week offers no way to add a note"
 m15n_get "$ACCT" accounts
-expect_jq "[.weeks[0].notes[] | select(.id == $M15N_NROLL)] | length == 0" "the note has left this week's sheet"
-expect_jq "(.weeks[1].notes[] | select(.id == $M15N_NROLL)) | .canEdit == false and .weekStart == \"$M15N_LAST\"" "it sits under last week and is locked"
+expect_jq "[.days[].notes[] | select(.id == $M15N_NROLL)] | length == 0" "the note has left this week's wall"
 req PATCH "/api/notes/$M15N_NROLL" "$ACCT" "$(jq -nc --arg b "$M15N_TAG too late" '{body:$b}')"
 expect_status 409 "the author edits it after the week ended"
 expect_jq '.error == "That week is over, so the note can no longer be changed or removed"' "the locked sentence"
+req PATCH "/api/notes/$M15N_NROLL" "$ACCT" "$(jq -nc --arg d "$M15N_NEXTWD" '{date:$d}')"
+expect_status 409 "the author moves it after the week ended"
 req DELETE "/api/notes/$M15N_NROLL" "$ACCT"
 expect_status 409 "the author removes it after the week ended"
 req PATCH "/api/notes/$M15N_NROLL" "$ADMIN" '{"body":"x"}'
 expect_status 403 "an admin can't change it either"
-m15n_get "$ACCT" accounts
-expect_jq "(.weeks[1].notes[] | select(.id == $M15N_NROLL) | .body) == \"$M15N_TAG written before the rollover\"" "the locked note is untouched"
+m15n_week "$ACCT" accounts "$M15N_LAST"
+expect_jq "$(m15n_note "$M15N_NROLL").body == \"$M15N_TAG written before the rollover\"" "the locked note is untouched"
+req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG into the past" --arg d "$M15N_LASTWED" '{dept:"accounts",date:$d,body:$b}')"
+expect_status 400 "no new note goes on a day of last week"
 # And a row seeded long ago, by acct2, in the same department.
-m15n_seed accounts "$(m15n_back 2)" "$M15N_TAG two weeks back" "$M15N_ACCT2_ID"
+m15n_seed accounts "$(m15n_plus "$M15N_LASTWED" -7)" "$M15N_TAG two weeks back" "$M15N_ACCT2_ID"
 M15N_NOLD=$M15N_SEEDED
 req PATCH "/api/notes/$M15N_NOLD" "$ACCT2" "$(jq -nc --arg b "$M15N_TAG too late" '{body:$b}')"
 expect_status 409 "acct2 edits a note from two weeks back"
 req DELETE "/api/notes/$M15N_NOLD" "$ACCT2"
 expect_status 409 "acct2 removes a note from two weeks back"
 
-echo "--- older weeks ---"
-# Weeks back 3, 4, 5, 6, 7 hold one note each, week 9 holds one, week 8 holds only a removed one.
-for M15N_W in 3 4 5 6 7 9; do
-  m15n_seed accounts "$(m15n_back $M15N_W)" "$M15N_TAG week -$M15N_W" "$M15N_ACCT_ID"
+echo "--- walking through the weeks ---"
+# Weeks back 3, 4, 5 hold one seeded note each; week 6 holds only a removed one.
+for M15N_W in 3 4 5; do
+  m15n_seed accounts "$(m15n_plus "$M15N_THIS" "-$((M15N_W * 7 - 4))")" "$M15N_TAG week -$M15N_W" "$M15N_ACCT_ID"
 done
-m15n_seed accounts "$(m15n_back 8)" "$M15N_TAG removed week -8" "$M15N_ACCT_ID" removed
-m15n_get "$ACCT" accounts
-expect_jq '.more == true' "older notes exist, so Older weeks shows"
-expect_jq ".next == \"$M15N_LAST\"" "the cursor is last week's Monday"
-m15n_get "$ACCT" accounts "&before=$M15N_LAST"
-expect_status 200 "the first Older weeks press"
-expect_jq ".weeks | length == 4" "four weeks at a time"
-expect_jq "[.weeks[].weekStart] == [\"$(m15n_back 2)\", \"$(m15n_back 3)\", \"$(m15n_back 4)\", \"$(m15n_back 5)\"]" "newest first, starting just before last week"
-expect_jq '.more == true' "more remain"
-M15N_NEXT=$(jqr '.next')
-expect_eq "$M15N_NEXT" "$(m15n_back 5)" "the cursor is the oldest week returned"
-expect_jq '[.weeks[].notes[] | .canEdit] | all(. == false)' "older weeks are locked"
-m15n_get "$ACCT" accounts "&before=$M15N_NEXT"
-expect_jq "[.weeks[].weekStart] == [\"$(m15n_back 6)\", \"$(m15n_back 7)\", \"$(m15n_back 9)\"]" "the next press: the rest, skipping the week with only a removed note"
-expect_jq '.more == false' "nothing older is left"
-expect_jq "[.weeks[].notes[] | select(.body | contains(\"removed\"))] | length == 0" "a removed note is hidden in the older weeks too"
-m15n_get "$ACCT" accounts "&before=$M15N_LAST&limit=2"
-expect_jq '(.weeks | length) == 2 and .more == true' "limit=2 gives two weeks and more"
-m15n_get "$ACCT" accounts "&before=$(m15n_back 9)"
-expect_jq '.weeks == [] and .more == false' "before the oldest week: nothing"
-m15n_get "$ACCT" accounts "&before=yesterday"
-expect_status 400 "a before that isn't a date"
-m15n_get "$ACCT" accounts "&before=$M15N_LAST&limit=0"
-expect_status 400 "limit=0"
-m15n_get "$ACCT" scheduling "&before=$M15N_LAST"
-expect_status 403 "older weeks of a department without the key"
-m15n_get "$ADMIN" ordering "&before=$M15N_LAST"
-expect_jq '.weeks == []' "older weeks of another department hold none of these"
+m15n_seed accounts "$(m15n_plus "$M15N_THIS" -38)" "$M15N_TAG removed week -6" "$M15N_ACCT_ID" removed
+M15N_M3=$(m15n_plus "$M15N_THIS" -21)
+m15n_week "$ACCT" accounts "$M15N_M3"
+expect_status 200 "three weeks back"
+expect_jq ".weekStart == \"$M15N_M3\" and .past == true and .current == false and .prev == \"$(m15n_plus "$M15N_M3" -7)\" and .next == \"$(m15n_plus "$M15N_M3" +7)\"" "the week and its neighbours"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG week -3\"))] | length == 1 and .[0].canEdit == false and .[0].date == \"$(m15n_plus "$M15N_M3" +4)\"" "its note sits under Friday and is locked"
+m15n_week "$ACCT" accounts "$(m15n_plus "$M15N_THIS" -42)"
+expect_jq "[.days[].notes[] | select(.body | contains(\"removed\"))] | length == 0" "a removed note is hidden in the past weeks too"
+m15n_week "$ACCT" accounts "$(m15n_plus "$M15N_THIS" -$((52 * 7)))"
+expect_status 200 "a year back"
+expect_jq '([.days[].notes[]] | length) == 0 and (.days | length) == 5' "an empty week is five empty days"
+m15n_week "$ACCT" accounts "$(m15n_plus "$M15N_THIS" +$((104 * 7)))"
+expect_status 200 "two years ahead"
+expect_jq '.past == false and .current == false and .canAdd == true and ([.days[].canAdd] | all(. == true))' "any future day takes a note"
+m15n_week "$ACCT" accounts "$M15N_NEXT"
+expect_jq '.past == false and .current == false and .canAdd == true and ([.days[].today] | all(. == false))' "next week"
+m15n_week "$ACCT" accounts "$M15N_THIS"
+expect_jq '.current == true and .past == false and .canAdd == true' "this week"
+m15n_week "$ACCT" accounts "$(m15n_plus "$M15N_THIS" +1)"
+expect_status 400 "a week that isn't a Monday"
+expect_jq '.error == "week must be a Monday"' "the not-a-Monday sentence"
+m15n_week "$ACCT" accounts yesterday
+expect_status 400 "a week that isn't a date"
+m15n_week "$ACCT" accounts 2030-02-30
+expect_status 400 "a week that isn't a real date"
+m15n_week "$ACCT" scheduling "$M15N_LAST"
+expect_status 403 "a past week of a department without the key"
+m15n_week "$ADMIN" ordering "$M15N_LAST"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\"))] | length == 0" "a past week of another department holds none of these"
+
+echo "--- the thumbs-up ---"
+req POST /api/notes "$ACCT" "$(jq -nc --arg b "$M15N_TAG to acknowledge" '{dept:"accounts",body:$b}')"
+expect_status 201 "acct leaves a note to be acknowledged"
+M15N_NK=$(jqr '.id')
+req PUT "/api/notes/$M15N_NK/ack" "$ACCT2"
+expect_status 200 "acct2 gives it a thumbs-up"
+expect_jq ".id == $M15N_NK and .acks.count == 1 and .acks.names == [\"$M15N_ACCT2_NAME\"] and .acks.mine == true and .canAck == true" "one thumbs-up, from acct2, shown as mine"
+req PUT "/api/notes/$M15N_NK/ack" "$ACCT2"
+expect_status 200 "a second press of the same thumbs-up"
+expect_jq '.acks.count == 1' "still one"
+m15n_week "$ACCT" accounts "$M15N_W0"
+expect_jq "$(m15n_note "$M15N_NK").acks.count == 1 and $(m15n_note "$M15N_NK").acks.names == [\"$M15N_ACCT2_NAME\"] and $(m15n_note "$M15N_NK").acks.mine == false and $(m15n_note "$M15N_NK").canAck == false" "the author sees who acknowledged, and can't acknowledge"
+req PUT "/api/notes/$M15N_NK/ack" "$ADMIN"
+expect_status 200 "an admin gives it a thumbs-up too"
+expect_jq ".acks.count == 2 and .acks.names == [\"$M15N_ACCT2_NAME\", \"$M15N_ADMIN_NAME\"]" "names in the order they were given"
+req PUT "/api/notes/$M15N_NK/ack" "$ACCT"
+expect_status 403 "the author thumbs-up their own note"
+expect_jq '.error == "You can'"'"'t acknowledge your own note"' "the own-note sentence"
+req DELETE "/api/notes/$M15N_NK/ack" "$ACCT"
+expect_status 403 "the author takes back a thumbs-up on their own note"
+req PUT "/api/notes/$M15N_NS/ack" "$ACCT"
+expect_status 403 "acct thumbs-up a scheduling note (no scheduling key)"
+req PUT "/api/notes/$M15N_NK/ack" "$SHOW"
+expect_status 403 "show thumbs-up a note"
+req PUT "/api/notes/$M15N_NK/ack" "$SCHED"
+expect_status 403 "sched thumbs-up an accounts note"
+req DELETE "/api/notes/$M15N_NK/ack" "$ACCT2"
+expect_status 200 "acct2 takes the thumbs-up back"
+expect_jq ".acks.count == 1 and .acks.names == [\"$M15N_ADMIN_NAME\"] and .acks.mine == false" "only the admin's is left"
+req DELETE "/api/notes/$M15N_NK/ack" "$ACCT2"
+expect_status 200 "taking it back again"
+expect_jq '.acks.count == 1' "nothing changes"
+# a thumbs-up doesn't count as an edit
+req GET "/api/notes?dept=accounts&week=$M15N_W0" "$ACCT"
+M15N_UK=$(jqr "$(m15n_note "$M15N_NK").updatedAt")
+req PATCH "/api/notes/$M15N_NK" "$ACCT" "$(jq -nc --arg b "$M15N_TAG to acknowledge, edited" --arg u "$M15N_UK" '{body:$b,updatedAt:$u}')"
+expect_status 200 "an edit from a copy that predates the thumbs-ups"
+expect_jq '.acks.count == 1' "the thumbs-up stays through an edit"
+# any week, past included, and future weeks
+req PUT "/api/notes/$M15N_NROLL/ack" "$ACCT2"
+expect_status 200 "acct2 thumbs-up a note of a past week"
+m15n_week "$ACCT" accounts "$M15N_LAST"
+expect_jq "$(m15n_note "$M15N_NROLL").acks.count == 1 and $(m15n_note "$M15N_NROLL").canEdit == false" "it shows on the past week, which is otherwise read-only"
+req DELETE "/api/notes/$M15N_NROLL/ack" "$ACCT2"
+expect_status 200 "acct2 takes it back"
+req PUT "/api/notes/$M15N_NOLD/ack" "$ACCT"
+expect_status 200 "acct thumbs-up a note from two weeks back"
+req PUT "/api/notes/$M15N_NFW/ack" "$ACCT2"
+expect_status 200 "acct2 thumbs-up a note of next week"
+req PUT "/api/notes/$M15N_NA/ack" "$ACCT"
+expect_status 403 "acct thumbs-up an admin-sheet note"
+req PUT /api/notes/999999999/ack "$ACCT2"
+expect_status 404 "a thumbs-up on an unknown note"
+req PUT /api/notes/abc/ack "$ACCT2"
+expect_status 404 "a thumbs-up on a non-numeric id"
+req DELETE /api/notes/999999999/ack "$ACCT2"
+expect_status 404 "taking back a thumbs-up on an unknown note"
 
 echo "--- the audit trail ---"
 req GET "/api/audit?action=note.&entityType=dept_note&limit=500" "$ADMIN"
 expect_status 200 "admin reads the note audit rows"
-expect_jq "[.rows[] | select(.action == \"note.create\" and .entityId == \"$M15N_N1\" and .after.dept == \"accounts\" and .after.weekStart == \"$M15N_THIS\" and (.after.body | startswith(\"$M15N_TAG first note\")))] | length == 1" "a note.create row with the text"
-expect_jq "[.rows[] | select(.action == \"note.update\" and .entityId == \"$M15N_N1\" and (.before.body | contains(\"edited\")) and (.after.body | contains(\"current copy\")))] | length == 1" "a note.update row with before and after"
-expect_jq "[.rows[] | select(.action == \"note.update\" and .entityId == \"$M15N_N1\")] | length == 2" "one row per successful edit (none for the refused ones)"
+expect_jq "[.rows[] | select(.action == \"note.create\" and .entityId == \"$M15N_N1\" and .after.dept == \"accounts\" and .after.date == \"$M15N_DAY0\" and .after.weekStart == \"$M15N_W0\" and (.after.body | startswith(\"$M15N_TAG first note\")))] | length == 1" "a note.create row with the day and the text"
+expect_jq "[.rows[] | select(.action == \"note.update\" and .entityId == \"$M15N_N1\" and .before.date == \"$M15N_DAY0\" and .after.date == \"$M15N_NEXTWED\" and .after.weekStart == \"$M15N_NEXT\")] | length == 1" "a note.update row for the move, with both days"
+expect_jq "[.rows[] | select(.action == \"note.update\" and .entityId == \"$M15N_N1\" and (.before.body | contains(\"edited\")) and (.after.body | contains(\"current copy\")))] | length == 1" "a note.update row for the edit, with before and after"
+expect_jq "[.rows[] | select(.action == \"note.update\" and .entityId == \"$M15N_N1\")] | length == 5" "one row per change that did something (none for the refused ones or the no-op)"
 expect_jq "[.rows[] | select(.action == \"note.remove\" and .entityId == \"$M15N_NR\" and (.before.body | contains(\"to be removed\")))] | length == 1" "a note.remove row with the text"
-expect_jq "[.rows[] | select(.entityId == \"$M15N_NROLL\" and .action != \"note.create\")] | length == 0" "no audit rows for the refused rollover edits"
+expect_jq "[.rows[] | select(.action == \"note.remove\" and .entityId == \"$M15N_NFR\")] | length == 1" "a note.remove row for the future-week note"
+expect_jq "[.rows[] | select(.entityId == \"$M15N_NROLL\" and (.action == \"note.update\" or .action == \"note.remove\"))] | length == 0" "no edit or remove rows for the refused locked-week requests"
 expect_jq "[.rows[] | select(.action == \"note.update\" and .entityId == \"$M15N_N2\")] | length == 0" "no rows for the refused edits of acct2's note"
 expect_jq "[.rows[] | select(.action == \"note.create\" and .entityId == \"$M15N_NA\")] | length == 1" "the admin sheet's note is audited too"
+expect_jq "[.rows[] | select(.action == \"note.ack\" and .entityId == \"$M15N_NK\" and .actorUserId == $M15N_ACCT2_ID)] | length == 1" "a note.ack row for acct2 (the repeat wrote none)"
+expect_jq "[.rows[] | select(.action == \"note.ack\" and .entityId == \"$M15N_NK\" and .actorUserId == $M15N_ADMIN_ID)] | length == 1" "a note.ack row for the admin"
+expect_jq "[.rows[] | select(.action == \"note.unack\" and .entityId == \"$M15N_NK\")] | length == 1" "one note.unack row (taking it back twice wrote one)"
+expect_jq "[.rows[] | select(.action == \"note.ack\" and .entityId == \"$M15N_NK\" and .actorUserId == $M15N_ACCT_ID)] | length == 0" "nothing for the refused own-note thumbs-up"
+expect_jq "[.rows[] | select(.action == \"note.ack\" and .entityId == \"$M15N_NROLL\")] | length == 1" "a thumbs-up on a past week is recorded"
 expect_jq "[.rows[] | select(.entityId == \"$M15N_N1\")] | all(.entityType == \"dept_note\")" "the entity type is dept_note"
 
-echo "--- the table's own checks ---"
+echo "--- the tables' own checks ---"
 M15N_DB=$(docker exec "$CONTAINER" node -e '
 const D = require("better-sqlite3");
 const d = new D("/data/db/photos.db");
+d.pragma("foreign_keys = ON");
+const ins = d.prepare("INSERT INTO dept_notes (dept, note_date, week_start, body, author_id) VALUES (?, ?, ?, ?, 1)");
 const tries = [
-  ["bogus dept", ["bogus", "2024-01-01", "x"]],
-  ["empty body", ["accounts", "2024-01-01", ""]],
-  ["blank body", ["accounts", "2024-01-01", "   "]],
-  ["2001 chars", ["accounts", "2024-01-01", "a".repeat(2001)]],
-  ["bad week", ["accounts", "next monday", "x"]],
+  ["bogus dept", ["bogus", "2024-01-03", "2024-01-01", "x"]],
+  ["empty body", ["accounts", "2024-01-03", "2024-01-01", ""]],
+  ["blank body", ["accounts", "2024-01-03", "2024-01-01", "   "]],
+  ["2001 chars", ["accounts", "2024-01-03", "2024-01-01", "a".repeat(2001)]],
+  ["bad date", ["accounts", "next monday", "2024-01-01", "x"]],
+  ["not a date", ["accounts", "2024-02-30", "2024-01-01", "x"]],
+  ["saturday", ["accounts", "2024-01-06", "2024-01-01", "x"]],
+  ["sunday", ["accounts", "2024-01-07", "2024-01-01", "x"]],
+  ["wrong week", ["accounts", "2024-01-03", "2024-01-08", "x"]],
+  ["bad week", ["accounts", "2024-01-03", "last week", "x"]],
+  ["monday", ["accounts", "2024-01-01", "2024-01-01", "x"], true],
+  ["friday", ["accounts", "2024-01-05", "2024-01-01", "x"], true],
 ];
 const out = [];
-for (const [name, [dept, week, body]] of tries) {
+let okId = 0;
+for (const [name, args, shouldPass] of tries) {
   try {
-    d.prepare("INSERT INTO dept_notes (dept, week_start, body, author_id) VALUES (?, ?, ?, 1)").run(dept, week, body);
-    out.push(name + ":accepted");
+    const id = Number(ins.run(...args).lastInsertRowid);
+    if (shouldPass) { out.push(name + ":accepted"); d.prepare("DELETE FROM dept_notes WHERE id = ?").run(id); }
+    else out.push(name + ":ACCEPTED");
   } catch (e) {
     out.push(name + ":refused");
   }
 }
+const note = Number(ins.run("accounts", "2024-01-03", "2024-01-01", "ack target").lastInsertRowid);
+const ack = d.prepare("INSERT INTO dept_note_acks (note_id, user_id, created_at) VALUES (?, ?, ?)");
+ack.run(note, 1, "2024-01-03T00:00:00.000Z");
+for (const [name, args] of [["duplicate ack", [note, 1, "x"]], ["ack of no note", [999999999, 1, "x"]], ["ack by no user", [note, 999999999, "x"]]]) {
+  try { ack.run(...args); out.push(name + ":ACCEPTED"); } catch (e) { out.push(name + ":refused"); }
+}
+d.prepare("DELETE FROM dept_note_acks WHERE note_id = ?").run(note);
+d.prepare("DELETE FROM dept_notes WHERE id = ?").run(note);
 const idx = d.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = ? AND name = ?").get("index", "idx_dept_notes_dept_week").n;
 out.push("index:" + idx);
 console.log(out.join(" "));
 d.close();' | tr -d '\r') || fail "the table checks failed to run"
-expect_eq "$M15N_DB" "bogus dept:refused empty body:refused blank body:refused 2001 chars:refused bad week:refused index:1" "dept_notes refuses a bad department, body or week; the index exists"
+expect_eq "$M15N_DB" "bogus dept:refused empty body:refused blank body:refused 2001 chars:refused bad date:refused not a date:refused saturday:refused sunday:refused wrong week:refused bad week:refused monday:accepted friday:accepted duplicate ack:refused ack of no note:refused ack by no user:refused index:1" "dept_notes refuses a bad department, body, weekend or mismatched week; dept_note_acks refuses a duplicate or a stranger; the index exists"

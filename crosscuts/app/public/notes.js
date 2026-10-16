@@ -1,11 +1,13 @@
-// Department notes page: /notes.html?dept=<id>. Talks to /api/notes (routes/notes.js,
-// docs/plans/notes-contracts.md). Every piece of note text is set with textContent; line breaks
-// are kept by the CSS (white-space: pre-wrap), never by markup.
+// Department notes page: /notes.html?dept=<id>&week=<Monday>. A week wall, one column per weekday,
+// of sticky notes. Talks to /api/notes (routes/notes.js, docs/plans/notes-contracts.md). Every
+// piece of note text is set with textContent; line breaks are kept by the CSS (white-space:
+// pre-wrap), never by markup.
 (function () {
   "use strict";
 
   var BODY_MAX = 2000;
-  var dept = new URLSearchParams(location.search).get("dept") || "";
+  var params = new URLSearchParams(location.search);
+  var dept = params.get("dept") || "";
 
   function el(tag, props) {
     var node = document.createElement(tag);
@@ -24,55 +26,112 @@
 
   var titleEl = $("title");
   var messageEl = $("message");
-  var sheetsEl = $("sheets");
+  var boardEl = $("board");
+  var wallEl = $("wall");
   var composer = $("composer");
   var bodyEl = $("body");
-  var addBtn = $("add");
+  var dayEl = $("day");
+  var postBtn = $("post");
   var countEl = $("count");
   var errorEl = $("error");
-  var olderEl = $("older");
-  var olderBtn = $("olderBtn");
+  var addBtn = $("addBtn");
 
-  var state = { weeks: [], more: false, next: null };
-  var editing = 0; // id of the note being edited (the lists are not redrawn while one is)
+  var data = null;     // the week on screen, as the server sent it
+  var editing = 0;     // id of the note being edited or removed (the wall is not redrawn while one is)
 
   // ---------- times ----------
 
-  function weekOf(weekStart) {
-    var d = new Date(weekStart + "T00:00:00Z");
-    return "Week of " + d.toLocaleDateString("en-AU", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+  var SYD = "Australia/Sydney";
+  function sydDate(iso) {
+    return new Date(iso).toLocaleDateString("en-CA", { timeZone: SYD });
   }
-  function signedAt(iso) {
-    return new Date(iso).toLocaleString("en-AU", {
-      timeZone: "Australia/Sydney", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
-    });
+  // "11:20 am"; with the day in front ("Mon 12 Oct 9:10 am") when it was posted on another day
+  // than the one the note sits under.
+  function signedAt(iso, noteDate) {
+    var d = new Date(iso);
+    var time = d.toLocaleTimeString("en-AU", { timeZone: SYD, hour: "numeric", minute: "2-digit" });
+    if (sydDate(iso) === noteDate) return time;
+    return d.toLocaleDateString("en-AU", { timeZone: SYD, weekday: "short", day: "numeric", month: "short" }).replace(",", "") + " " + time;
+  }
+
+  function plusDays(date, n) {
+    return new Date(Date.parse(date + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+  }
+  function dayLabel(date) {
+    return new Date(date + "T00:00:00Z").toLocaleDateString("en-AU", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).replace(",", "");
   }
 
   function showMessage(text) {
     messageEl.textContent = text;
     messageEl.hidden = false;
-    sheetsEl.hidden = true;
+    boardEl.hidden = true;
   }
 
   // ---------- one note ----------
 
+  function dayOptions(select, days, selected) {
+    select.replaceChildren();
+    days.forEach(function (d) {
+      var o = el("option", { value: d.date, text: d.label });
+      if (d.date === selected) o.selected = true;
+      select.append(o);
+    });
+  }
+
   function noteItem(n) {
-    var li = el("li", { class: "nt-note" + (n.canEdit ? " nt-mine" : ""), "data-id": n.id });
+    var li = el("article", { class: "nt-note", "data-id": n.id });
     li.append(el("p", { class: "nt-text", text: n.body }));
-    var sign = el("div", { class: "nt-sign" });
-    sign.append(el("span", { class: "nt-author", text: n.author.name }));
-    sign.append(el("span", { class: "nt-time", text: signedAt(n.createdAt) + (n.edited ? " (edited)" : "") }));
+    var sign = el("div", { class: "nt-sign" }, n.author.name + " · " + signedAt(n.createdAt, n.date));
+    if (n.edited) sign.append(el("span", { class: "nt-edited", text: " (edited)" }));
+    li.append(sign);
+    var foot = el("div", { class: "nt-foot" });
+    foot.append(ackButton(li, n));
+    if (n.acks.names.length) foot.append(el("span", { class: "nt-ackers", text: n.acks.names.join(", ") }));
     if (n.canEdit) {
       var actions = el("div", { class: "nt-actions" });
-      var edit = el("button", { type: "button", class: "hs-btn hs-btn-quiet", text: "Edit" });
-      var remove = el("button", { type: "button", class: "hs-btn hs-btn-quiet", text: "Remove" });
+      var edit = el("button", { type: "button", class: "hs-btn", text: "Edit" });
+      var remove = el("button", { type: "button", class: "hs-btn", text: "Remove" });
       edit.addEventListener("click", function () { startEdit(li, n); });
       remove.addEventListener("click", function () { askRemove(li, n); });
       actions.append(edit, remove);
-      sign.append(actions);
+      foot.append(actions);
     }
-    li.append(sign);
+    li.append(foot);
     return li;
+  }
+
+  // The thumbs-up: a button for anyone but the author (whose own mark is shown but inactive).
+  function ackButton(li, n) {
+    var mine = n.acks.mine;
+    var btn = el("button", {
+      type: "button",
+      class: "nt-ack",
+      "aria-pressed": n.canAck ? (mine ? "true" : "false") : false,
+      "aria-label": !n.canAck ? "Thumbs-up (you can't acknowledge your own note)" : mine ? "Take back your thumbs-up" : "Give this note a thumbs-up",
+      title: !n.canAck ? "You can't acknowledge your own note" : mine ? "Take back your thumbs-up" : "Thumbs-up",
+      disabled: !n.canAck,
+    });
+    btn.append(el("i", { class: "ph ph-thumbs-up", "aria-hidden": "true" }));
+    btn.append(el("span", { class: "nt-ack-count", text: n.acks.count ? String(n.acks.count) : "" }));
+    if (n.canAck) {
+      btn.addEventListener("click", async function () {
+        btn.disabled = true;
+        try {
+          var saved = await api("/api/notes/" + n.id + "/ack", { method: mine ? "DELETE" : "PUT" });
+          li.replaceWith(noteItem(saved));
+        } catch (e) {
+          btn.disabled = false;
+          flash(li, e.message);
+        }
+      });
+    }
+    return btn;
+  }
+
+  function flash(li, text) {
+    var old = li.querySelector(".nt-flash");
+    if (old) old.remove();
+    li.append(el("p", { class: "nt-edit-msg nt-flash", role: "alert", text: text }));
   }
 
   function startEdit(li, n) {
@@ -80,12 +139,24 @@
     editing = n.id;
     var text = el("textarea", { class: "hs-input nt-body-input", rows: "4", maxlength: String(BODY_MAX), "aria-label": "Edit note" });
     text.value = n.body;
+    // The days a note may move to: its own day, today and later this week, and the week after
+    // (so a Friday note can still go to Monday).
+    var days = [];
+    function addDay(d) { if (!days.some(function (x) { return x.date === d.date; })) days.push(d); }
+    data.days.forEach(function (d) { if (d.date === n.date) addDay({ date: d.date, label: d.label }); });
+    data.formDays.forEach(addDay);
+    for (var i = 0; i < 5; i++) {
+      var date = plusDays(data.weekStart, 7 + i);
+      if (data.formDays.length && date > data.formDays[0].date) addDay({ date: date, label: dayLabel(date) });
+    }
+    days.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var day = el("select", { class: "hs-input", "aria-label": "Day" });
+    dayOptions(day, days, n.date);
     var msg = el("span", { class: "nt-edit-msg", role: "alert" });
-    var save = el("button", { type: "button", class: "hs-btn hs-btn-primary", text: "Save" });
+    var save = el("button", { type: "button", class: "hs-btn", text: "Save" });
     var cancel = el("button", { type: "button", class: "hs-btn", text: "Cancel" });
-    var row = el("div", { class: "nt-edit-row" }, save, cancel, msg);
-    var box = el("div", { class: "nt-edit" }, text, row);
-    li.replaceChildren(box);
+    var row = el("div", { class: "nt-edit-row" }, day, save, cancel, msg);
+    li.replaceChildren(el("div", { class: "nt-edit" }, text, row));
     text.focus();
     cancel.addEventListener("click", function () { editing = 0; li.replaceWith(noteItem(n)); });
     save.addEventListener("click", async function () {
@@ -94,10 +165,11 @@
       try {
         var saved = await api("/api/notes/" + n.id, {
           method: "PATCH",
-          body: JSON.stringify({ body: text.value, updatedAt: n.updatedAt }),
+          body: JSON.stringify({ body: text.value, date: day.value, updatedAt: n.updatedAt }),
         });
         editing = 0;
-        li.replaceWith(noteItem(saved));
+        // A note moved to a day of another week takes you to that week.
+        await load(saved.weekStart, saved.weekStart !== data.weekStart ? "push" : null);
       } catch (e) {
         msg.textContent = e.message;
         save.disabled = false;
@@ -107,18 +179,20 @@
 
   function askRemove(li, n) {
     if (editing) return;
+    editing = n.id;
     var sure = el("span", { class: "nt-sure", text: "Remove this note?" });
-    var yes = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Remove" });
+    var yes = el("button", { type: "button", class: "hs-btn", text: "Remove" });
     var keep = el("button", { type: "button", class: "hs-btn", text: "Keep" });
     var msg = el("span", { class: "nt-edit-msg", role: "alert" });
     var actions = li.querySelector(".nt-actions");
     actions.replaceChildren(sure, yes, keep, msg);
-    keep.addEventListener("click", function () { li.replaceWith(noteItem(n)); });
+    keep.addEventListener("click", function () { editing = 0; li.replaceWith(noteItem(n)); });
     yes.addEventListener("click", async function () {
       yes.disabled = true;
       try {
         await api("/api/notes/" + n.id, { method: "DELETE" });
-        await reload();
+        editing = 0;
+        await load(data.weekStart);
       } catch (e) {
         msg.textContent = e.message;
         yes.disabled = false;
@@ -126,77 +200,69 @@
     });
   }
 
-  // ---------- the sheets ----------
-
-  function fillList(listEl, emptyEl, week) {
-    listEl.replaceChildren();
-    week.notes.forEach(function (n) { listEl.append(noteItem(n)); });
-    emptyEl.hidden = week.notes.length > 0;
-  }
+  // ---------- the wall ----------
 
   function render() {
-    var thisWeek = state.weeks[0];
-    var lastWeek = state.weeks[1];
-    $("thisLabel").textContent = weekOf(thisWeek.weekStart);
-    $("lastLabel").textContent = weekOf(lastWeek.weekStart);
-    fillList($("thisList"), $("thisEmpty"), thisWeek);
-    fillList($("lastList"), $("lastEmpty"), lastWeek);
-    olderBtn.hidden = !state.more;
+    $("weekHead").textContent = data.heading;
+    $("thisBtn").disabled = data.current;
+    addBtn.hidden = !data.canAdd;
+    wallEl.replaceChildren();
+    data.days.forEach(function (d) {
+      var head = el("h2", { class: "nt-day-head" }, d.label);
+      if (d.today) head.append(el("span", { text: " · today" }));
+      var stack = el("div", { class: "nt-stack" });
+      d.notes.forEach(function (n) { stack.append(noteItem(n)); });
+      var col = el("section", { class: "nt-day" + (d.today ? " nt-day-today" : ""), "data-date": d.date }, head, stack);
+      if (d.canAdd) {
+        var add = el("button", { type: "button", class: "nt-new", text: "+ New note" });
+        add.addEventListener("click", function () { openComposer(d.date); });
+        col.append(add);
+      } else if (!d.notes.length) {
+        col.append(el("p", { class: "nt-none", text: "No notes" }));
+      }
+      wallEl.append(col);
+    });
   }
 
-  function olderSection(week) {
-    var list = el("ol", { class: "nt-list" });
-    week.notes.forEach(function (n) { list.append(noteItem(n)); });
-    return el(
-      "section", { class: "nt-week" },
-      el("h2", { class: "nt-week-head" }, weekOf(week.weekStart)),
-      list
-    );
+  function urlFor(week) {
+    return "?dept=" + encodeURIComponent(dept) + "&week=" + encodeURIComponent(week);
   }
 
-  // Takes a fresh answer for this and last week. Older weeks already opened stay, unless the
-  // week has rolled over since (then the sheet starts again from the new last week).
-  function apply(data) {
-    var same = state.weeks.length && state.weeks[0].weekStart === data.weeks[0].weekStart;
-    state.weeks = data.weeks;
-    if (!same || !olderEl.children.length) {
-      state.more = data.more;
-      state.next = data.next;
-      olderEl.replaceChildren();
-    }
-    render();
-  }
-
-  async function load() {
-    var data = await api("/api/notes?dept=" + encodeURIComponent(dept));
-    titleEl.textContent = data.deptLabel + " notes";
-    document.title = data.deptLabel + " notes - Crosscuts";
+  // Loads a week (a Monday; none = this week) and draws it. `push` adds a history entry.
+  async function load(week, push) {
+    var q = "/api/notes?dept=" + encodeURIComponent(dept) + (week ? "&week=" + encodeURIComponent(week) : "");
+    var d = await api(q);
+    var changed = !data || data.weekStart !== d.weekStart;
+    data = d;
+    titleEl.textContent = d.deptLabel + " notes";
+    document.title = d.deptLabel + " notes - Crosscuts";
     messageEl.hidden = true;
-    sheetsEl.hidden = false;
-    apply(data);
+    boardEl.hidden = false;
+    if (changed) closeComposer();
+    render();
+    if (push === "push") history.pushState(null, "", urlFor(d.weekStart));
+    else if (push === "replace") history.replaceState(null, "", urlFor(d.weekStart));
   }
 
-  async function reload() {
+  async function go(week, push) {
     editing = 0;
-    await load();
-  }
-
-  async function loadOlder() {
-    olderBtn.disabled = true;
     try {
-      var data = await api("/api/notes?dept=" + encodeURIComponent(dept) + "&before=" + encodeURIComponent(state.next));
-      data.weeks.forEach(function (w) { olderEl.append(olderSection(w)); });
-      state.more = data.more;
-      state.next = data.next;
-      olderBtn.hidden = !state.more;
+      await load(week, push);
     } catch (e) {
-      errorEl.textContent = e.message;
-    } finally {
-      olderBtn.disabled = false;
+      messageEl.textContent = e.message;
+      messageEl.hidden = false;
     }
   }
 
-  // ---------- the composer ----------
+  $("lastBtn").addEventListener("click", function () { if (data) go(data.prev, "push"); });
+  $("nextBtn").addEventListener("click", function () { if (data) go(data.next, "push"); });
+  $("thisBtn").addEventListener("click", function () { if (data) go(data.thisWeek, "push"); });
+  window.addEventListener("popstate", function () {
+    var w = new URLSearchParams(location.search).get("week");
+    go(w || null);
+  });
+
+  // ---------- the add form ----------
 
   function updateCount() {
     var n = bodyEl.value.length;
@@ -204,6 +270,26 @@
     countEl.className = "nt-count" + (n > BODY_MAX - 200 ? " nt-count-near" : "");
   }
   bodyEl.addEventListener("input", updateCount);
+
+  function openComposer(date) {
+    if (!data || !data.formDays.length) return;
+    var pick = date && data.formDays.some(function (d) { return d.date === date; }) ? date : data.defaultDate;
+    dayOptions(dayEl, data.formDays, pick);
+    errorEl.textContent = "";
+    composer.hidden = false;
+    composer.scrollIntoView({ block: "nearest" });
+    bodyEl.focus();
+  }
+  function closeComposer() {
+    composer.hidden = true;
+    bodyEl.value = "";
+    errorEl.textContent = "";
+    updateCount();
+  }
+
+  addBtn.addEventListener("click", function () { if (composer.hidden) openComposer(); else bodyEl.focus(); });
+  $("cancel").addEventListener("click", closeComposer);
+  composer.addEventListener("keydown", function (e) { if (e.key === "Escape") closeComposer(); });
 
   composer.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -213,29 +299,27 @@
       bodyEl.focus();
       return;
     }
-    addBtn.disabled = true;
+    postBtn.disabled = true;
     try {
-      await api("/api/notes", { method: "POST", body: JSON.stringify({ dept: dept, body: bodyEl.value }) });
-      bodyEl.value = "";
-      updateCount();
-      await reload();
+      var saved = await api("/api/notes", {
+        method: "POST",
+        body: JSON.stringify({ dept: dept, date: dayEl.value, body: bodyEl.value }),
+      });
+      closeComposer();
+      // A note for a day in another week (a weekend post goes to Monday) takes you to that week.
+      var other = saved.weekStart !== data.weekStart;
+      await load(saved.weekStart, other ? "push" : null);
     } catch (err) {
       errorEl.textContent = err.message;
     } finally {
-      addBtn.disabled = false;
+      postBtn.disabled = false;
     }
   });
 
-  olderBtn.addEventListener("click", loadOlder);
-
-  // A tab left open over a week change shows the new sheet when it is next looked at.
+  // A tab left open shows fresh notes (and the right "today") when it is next looked at.
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState !== "visible" || sheetsEl.hidden || editing) return;
-    if (document.activeElement === bodyEl && bodyEl.value) return;
-    api("/api/notes?dept=" + encodeURIComponent(dept)).then(function (data) {
-      if (editing || !state.weeks.length) return;
-      apply(data);
-    }).catch(function () {});
+    if (document.visibilityState !== "visible" || boardEl.hidden || editing || !composer.hidden) return;
+    load(data.weekStart).catch(function () {});
   });
 
   // ---------- start ----------
@@ -246,11 +330,13 @@
       return;
     }
     try {
-      await load();
+      await load(params.get("week") || null, "replace");
     } catch (e) {
       if (/^Forbidden/.test(e.message)) showMessage("These notes are only for the people in that department. You don't have access to them.");
       else if (/Unknown department/.test(e.message)) showMessage("There is no Notes page for that department. Choose one from the menu.");
-      else showMessage(e.message);
+      else if (/^week must be/.test(e.message)) {
+        try { await load(null, "replace"); } catch (e2) { showMessage(e2.message); }
+      } else showMessage(e.message);
     }
   })();
 })();
