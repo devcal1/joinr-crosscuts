@@ -379,7 +379,8 @@ async function api(method, path, body) {
         checks: { drawn: true, ordered: true, assembled: true, installed: true, noFuss: true, onTime: true },
         note: "Made-up bonus: factory ran over the quoted hours." });
       const confirmed = await api("POST", `/api/bonuses/${conf.id}/confirm`, { confirmedDate: day(-21) });
-      const runs = (await api("GET", "/api/payruns")).payRuns;
+      // Bonus shares are paid against finalised pay runs only (M13 contracts §12.2 item 1).
+      const runs = (await api("GET", "/api/payruns")).payRuns.filter((r) => r.status === "finalised");
       const paidShare = confirmed.shares.find(s => s.name === w1.name) || confirmed.shares[0];
       await api("POST", `/api/bonuses/${conf.id}/shares/${paidShare.personId}/paid`, { paidDate: day(-14), payRunId: runs.length ? runs[0].id : null });
 
