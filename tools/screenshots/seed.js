@@ -121,6 +121,21 @@ async function api(method, path, body) {
       await api("PUT", `/api/suppliers/months/${lastMonth}/${line.supplier.id}`, { totalCents: null, note: "", reconciled: false, paid: false, myob: false, ...want, updatedAt: line.updatedAt });
     }
   }
+  // Admin accounts (the BAS, Workcover and insurance statements; made-up amounts): three accounts and a month of mixed lines.
+  if (!(await api("GET", "/api/admin-accounts")).suppliers.length) {
+    for (const name of ["BAS", "Workcover", "Business insurance"]) await api("POST", "/api/admin-accounts", { name, fromPeriod: P.addMonths(thisMonth, -3) });
+    const am = await api("GET", `/api/admin-accounts/months/${lastMonth}`);
+    const alines = [
+      { state: "have", totalCents: 1284000, reconciled: true, paid: true, myob: true, note: "Quarterly BAS" },
+      { state: "have", totalCents: 318650, reconciled: false, paid: false, myob: false, note: "Premium notice, due end of month" },
+      { state: "waiting" },
+    ];
+    for (const [n, line] of am.lines.entries()) {
+      const want = alines[n % alines.length];
+      if (want.state === "waiting") continue;
+      await api("PUT", `/api/admin-accounts/months/${lastMonth}/${line.supplier.id}`, { totalCents: null, note: "", reconciled: false, paid: false, myob: false, ...want, updatedAt: line.updatedAt });
+    }
+  }
   // M10: made-up order lines in every state on the first job, for the Orders and Deliveries pages:
   // overdue, due today, due this week (with a delivery note), no date yet, received, still to order.
   if (job && !(await api("GET", `/api/job-records/${job.id}/orders?all=1`)).length) {

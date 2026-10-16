@@ -22,6 +22,9 @@ const BATTENS = mode => `(function(){var f=document.getElementById('bnForm'),v=f
   v('bnSpace','1768');${mode === "gap" ? "f.querySelector('input[name=bnEnds][value=gap]').click();f.querySelector('input[name=bnFrom][value=gap]').click();v('bnGap','58');" : "v('bnCount','22');"}f.dispatchEvent(new Event('change',{bubbles:true}))})()`;
 // M13: scrolls the Users page's override list to its end, where the three owner-only keys are.
 const OVERRIDES_END = "(function(){var o=document.getElementById('overrideList');if(o)o.scrollTop=o.scrollHeight})()";
+// 0.1.18: opens the Planner New event dialog and chooses Every year; opens the Accounts menu in the bar.
+const PLANNER_YEAR = "(function(){document.getElementById('plNew').click();setTimeout(function(){var s=[].find.call(document.querySelectorAll('dialog select, .cc-dialog select'),function(x){return [].some.call(x.options,function(o){return o.value==='annually'})});s.value='annually';s.dispatchEvent(new Event('change',{bubbles:true}));s.scrollIntoView({block:'center'})},300)})()";
+const ACCOUNTS_MENU = "(function(){var b=[].find.call(document.querySelectorAll('#cc-shell button, #cc-shell a'),function(e){return e.textContent.trim()==='Accounts'});b.click()})()";
 const PAGES = [
   ["login", "/login.html", 1440, false], ["dashboard", "/", 1440, true], ["search", "/search.html", 1440, true],
   ["photo-admin", "/admin.html", 1440, true], ["users", "/users.html", 1440, true], ["audit", "/audit.html", 1440, true],
@@ -118,6 +121,12 @@ const PAGES = [
   ["phone-loans", "/loans.html", 375, true], ["phone-loan", c => "/loans.html?id=" + c.loanA, 375, true],
   ["loanprint", c => "/loanprint.html?id=" + c.loanA + "&from=" + c.stmtFrom + "&to=" + c.today, 1440, true],
   ["loans-accounts", "/loans.html", 1440, true, "loans_acct"], ["dashboard-loans-accounts", "/", 1440, true, "loans_acct"],
+  // 0.1.18: the Planner dialog with Every year chosen, the by-hand BAS sales (year table with a Not entered month, and a month with the sales form), Admin accounts, and the Accounts menu (no Stock value).
+  ["planner-repeat-year", "/planner.html", 1440, true, undefined, undefined, { js: PLANNER_YEAR, viewport: true }],
+  ["bas-year-0118", "/bas.html", 1440, true],
+  ["bas-month-0118", c => "/bas.html#" + c.basOpen, 1440, true],
+  ["adminaccounts-0118", c => "/adminaccounts.html#" + c.lastMonth, 1440, true],
+  ["accounts-menu-0118", "/", 1440, true, undefined, undefined, { js: ACCOUNTS_MENU, viewport: true }],
   ["dashboard-leavers", "/", 1440, true, undefined, ".dash-lines"], ["phone-dashboard-leavers", "/", 375, true, undefined, ".dash-lines"],
 ];
 // seed.js's own M13 logins, by the role name an entry gives (made with the throwaway password
@@ -179,7 +188,7 @@ async function findIds(admin) {
   c.bonusDraft = bid("M13 Draft Bonus Job"); c.bonusConfirmed = bid("M13 Confirmed Bonus Job"); c.bonusReopened = bid("M13 Reopened Bonus Job");
   c.loanA = (((await get("/api/loans")).loans || []).find(l => l.name === "M13 Lender A loan") || {}).id;
   c.loanOld = (((await get("/api/loans?archived=1")).loans || []).find(l => l.name === "M13 Old Loan") || {}).id;
-  c.today = today; c.stmtFrom = P.addMonths(thisMonth, -6) + "-01";
+  c.basOpen = P.addMonths(thisMonth, -4); c.today = today; c.stmtFrom = P.addMonths(thisMonth, -6) + "-01";
   return c;
 }
 (async () => {
