@@ -331,12 +331,10 @@ function pageGate(req, res, next) {
 }
 
 // ---------------------------------------------------------------- password attempts
-// The password-attempt rules of routes/auth.js (login lockout, the attempt record in
-// auth_attempts, the scrypt concurrency cap and their answers), exported for other routes that
-// re-check a password: the ownership transfer in routes/users.js (M13 · 4.3, review A-m3).
-// The same limits, the same table and the same answers as routes/auth.js. routes/auth.js still
-// has its own copies (not changed in 4.3); the two share the lockout and the attempt record
-// through auth_attempts, and each has its own in-process scrypt cap.
+// The password-attempt rules (login lockout, the attempt record in auth_attempts, the scrypt
+// concurrency cap on password and PIN checks, and their answers), shared by routes/auth.js and
+// the ownership transfer in routes/users.js (M13 · 4.3, review A-m3), so they count against the
+// same limits and one global cap.
 
 const PASSWORD_MAX_FAILURES = 10;
 const PASSWORD_IP_MAX_FAILURES = 30; // per IP, across all usernames

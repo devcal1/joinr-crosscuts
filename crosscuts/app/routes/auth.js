@@ -9,10 +9,6 @@ const r = defineRoutes("/api/auth");
 
 const { db } = auth;
 
-const PASSWORD_MAX_FAILURES = 10;
-const PASSWORD_IP_MAX_FAILURES = 30; // per IP, across all usernames
-const PASSWORD_WINDOW_MS = 15 * 60 * 1000;
-const SCRYPT_MAX_INFLIGHT = 4; // global cap on concurrent password/PIN verifications
 const MIN_PASSWORD = 8;
 const MAX_SECRET_LEN = 200; // keeps scrypt input bounded
 
@@ -33,82 +29,10 @@ function str(v) {
 
 // ---- attempts / rate limiting (auth_attempts table)
 
-// Limits are checked, then the attempt is reserved (inserted as a failure)
-// BEFORE any await, so concurrent bursts count against the limits while their
-// scrypt runs. A success flips the row with settleAttempt().
-function reserveAttempt({ kind, username, userId, deviceId, ip }) {
-  try {
-    const info = db()
-      .prepare(
-        "INSERT INTO auth_attempts (kind, username, user_id, device_id, ip, success) VALUES (?, ?, ?, ?, ?, 0)"
-      )
-      .run(kind, username ? String(username).toLowerCase().slice(0, 100) : null, userId || null, deviceId || null, ip || null);
-    return Number(info.lastInsertRowid);
-  } catch (e) {
-    console.error("[auth] could not record attempt:", e);
-    return null;
-  }
-}
-
-function settleAttempt(id) {
-  if (id == null) return;
-  try {
-    db().prepare("UPDATE auth_attempts SET success = 1 WHERE id = ?").run(id);
-  } catch (e) {
-    console.error("[auth] could not settle attempt:", e);
-  }
-}
-
-// Global cap on concurrent scrypt verifications. Callers that get false send
-// sendBusy() and record nothing; callers that get true must releaseScrypt().
-let scryptInFlight = 0;
-function tryAcquireScrypt() {
-  if (scryptInFlight >= SCRYPT_MAX_INFLIGHT) return false;
-  scryptInFlight++;
-  return true;
-}
-function releaseScrypt() {
-  scryptInFlight--;
-}
-
-function sendBusy(res) {
-  res.set("Retry-After", "2");
-  return res.status(429).json({ error: "Busy, try again", retryAfterSec: 2 });
-}
-
-// Returns null, or { retryAfterSec } when 10 password failures for this
-// username+IP, or 30 for this IP across any usernames, fall inside the last
-// 15 minutes. In-flight (reserved) attempts count as failures.
-function passwordLockout(username, ip) {
-  const since = new Date(Date.now() - PASSWORD_WINDOW_MS).toISOString();
-  const uname = String(username).toLowerCase().slice(0, 100);
-  const byUser = failureLockout("username = ? AND ip IS ?", [uname, ip || null], since, PASSWORD_MAX_FAILURES);
-  const byIp = failureLockout("ip IS ?", [ip || null], since, PASSWORD_IP_MAX_FAILURES);
-  if (byUser && byIp) return { retryAfterSec: Math.max(byUser.retryAfterSec, byIp.retryAfterSec) };
-  return byUser || byIp;
-}
-
-function failureLockout(where, params, since, max) {
-  const rows = db()
-    .prepare(
-      `SELECT at FROM auth_attempts
-       WHERE kind = 'password' AND success = 0 AND ${where} AND at > ?
-       ORDER BY at DESC LIMIT ?`
-    )
-    .all(...params, since, max);
-  if (rows.length < max) return null;
-  // The lockout lifts when the max-th most recent failure leaves the window.
-  const liftsAt = Date.parse(rows[max - 1].at) + PASSWORD_WINDOW_MS;
-  return { retryAfterSec: Math.max(1, Math.ceil((liftsAt - Date.now()) / 1000)) };
-}
-
-function sendLockout(res, lock) {
-  res.set("Retry-After", String(lock.retryAfterSec));
-  return res.status(429).json({
-    error: "Too many failed attempts. Try again later.",
-    retryAfterSec: lock.retryAfterSec,
-  });
-}
+// The lockout, the attempt record, the scrypt concurrency cap and their answers live in
+// lib/auth.js, shared with the ownership transfer (routes/users.js), so both count against
+// the same limits and one cap (M13 · 4.3).
+const { reserveAttempt, settleAttempt, tryAcquireScrypt, releaseScrypt, sendBusy, passwordLockout, sendLockout } = auth;
 
 // Verifies against a throwaway hash when the user doesn't exist, so response
 // time doesn't reveal which usernames are real.
