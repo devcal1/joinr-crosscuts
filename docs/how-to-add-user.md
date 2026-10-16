@@ -43,7 +43,7 @@ One login is **the owner**: Todd's. The Users page shows an **OWNER** mark by it
 
 **Who sees what:**
 - **The owner** sees all three, and their rows in the audit log.
-- **Another admin** sees none of them: no menu items, the pages refused, and their rows left out of the audit log. Users and Audit work as before. Their effective permissions read "(27 of 30)".
+- **Another admin** sees none of them: no menu items, the pages refused, and their rows left out of the audit log. Users and Audit work as before. Their effective permissions read "(32 of 35)".
 - **Someone the owner grants a key to** sees that page only. For example, an Accounts login granted `loans.manage` sees **Loans** under Accounts, and nothing else of the owner's.
 
 **What another admin can't do:**

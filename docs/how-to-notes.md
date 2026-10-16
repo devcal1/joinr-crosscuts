@@ -8,7 +8,7 @@ Open your department's menu (Scheduling, Design/PM, Ordering, Accounts or Admin)
 
 Only the people in that department can open and use its sheet. If you open another department's Notes page you get a short message and no notes.
 
-Who counts as "in the department" follows the keys each department's pages already use: Scheduling is `scheduling.view`, Design/PM is `design.view`, Ordering is `orders.view`, Accounts is `accounts.view` and Admin is `users.admin`. So someone who can see the Ordering orders can also open the Ordering sheet, even if they work in another department.
+Each department's sheet has its own permission: `notes.scheduling`, `notes.design`, `notes.ordering`, `notes.accounts` and `notes.admin`. People get theirs with their role (Scheduling, Design/PM, Ordering and Workshop Manager, Accounts; admins have all five). To give someone another department's sheet, or take theirs away, an admin opens them on the Users page and grants or revokes the key. Showroom and Workshop logins have none.
 
 ## Leave a note
 

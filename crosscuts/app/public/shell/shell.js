@@ -22,7 +22,7 @@
       label: "Scheduling",
       dept: "scheduling",
       items: [
-        { label: "Notes", href: "/notes.html?dept=scheduling", key: "scheduling.view" },
+        { label: "Notes", href: "/notes.html?dept=scheduling", key: "notes.scheduling" },
         { label: "Board", href: "/schedule.html", key: "board.view" },
         { label: "Scheduling", href: "/scheduling.html", key: "scheduling.view" },
         { label: "Lookahead", href: "/lookahead.html", key: "scheduling.view" },
@@ -35,7 +35,7 @@
       label: "Design/PM",
       dept: "design",
       items: [
-        { label: "Notes", href: "/notes.html?dept=design", key: "design.view" },
+        { label: "Notes", href: "/notes.html?dept=design", key: "notes.design" },
         { label: "Design/PM", href: "/design.html", key: "design.view" },
         { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
@@ -53,7 +53,7 @@
       label: "Ordering",
       dept: "ordering",
       items: [
-        { label: "Notes", href: "/notes.html?dept=ordering", key: "orders.view" },
+        { label: "Notes", href: "/notes.html?dept=ordering", key: "notes.ordering" },
         { label: "Orders", href: "/orders.html", key: "orders.view" },
         { label: "Deliveries", href: "/deliveries.html", key: "orders.receive" },
         { label: "Drawer order", href: "/drawers.html", key: "stock.order" },
@@ -67,7 +67,7 @@
       label: "Accounts",
       dept: "accounts",
       items: [
-        { label: "Notes", href: "/notes.html?dept=accounts", key: "accounts.view" },
+        { label: "Notes", href: "/notes.html?dept=accounts", key: "notes.accounts" },
         { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
         { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
         { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
@@ -90,7 +90,7 @@
       id: "admin",
       label: "Admin",
       items: [
-        { label: "Notes", href: "/notes.html?dept=admin", key: "users.admin" },
+        { label: "Notes", href: "/notes.html?dept=admin", key: "notes.admin" },
         { label: "Users", href: "/users.html", key: "users.admin" },
         { label: "Audit", href: "/audit.html", key: "audit.view" },
         // M13 (docs/plans/m13-contracts.md section 9): owner-only keys.

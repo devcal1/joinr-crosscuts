@@ -52,7 +52,7 @@ M15N_SCHED_ID=$(jqr '.user.id')
 
 echo "--- the menu and the pages ---"
 M15N_SHELL=$(curl -s "$BASE/shell/shell.js")
-for M15N_PAIR in scheduling:scheduling.view design:design.view ordering:orders.view accounts:accounts.view admin:users.admin; do
+for M15N_PAIR in scheduling:notes.scheduling design:notes.design ordering:notes.ordering accounts:notes.accounts admin:notes.admin; do
   M15N_D=${M15N_PAIR%%:*}
   M15N_K=${M15N_PAIR#*:}
   printf '%s\n' "$M15N_SHELL" | grep -A1 'items: \[' | grep -q "{ label: \"Notes\", href: \"/notes.html?dept=$M15N_D\", key: \"$M15N_K\" }" \
@@ -61,7 +61,7 @@ for M15N_PAIR in scheduling:scheduling.view design:design.view ordering:orders.v
 done
 req GET "/notes.html?dept=accounts"
 expect_status 302 "logged out GET /notes.html"
-for M15N_J in "$ACCT" "$SCHED" "$DPM" "$ADMIN" "$WSMGR"; do
+for M15N_J in "$ACCT" "$SCHED" "$DPM" "$ADMIN" "$WSMGR" "$ORDR"; do
   req GET "/notes.html?dept=accounts" "$M15N_J"
   expect_status 200 "a department login GET /notes.html"
 done
@@ -79,26 +79,57 @@ req GET /api/notes?dept=accounts
 expect_status 401 "logged out GET /api/notes"
 req POST /api/notes "" '{"dept":"accounts","body":"x"}'
 expect_status 401 "logged out POST /api/notes"
-# acct holds accounts.view and orders.view (not scheduling.view, design.view or users.admin).
+# Each department has its own key: acct holds notes.accounts only, sched notes.scheduling, dpm
+# notes.design, ordr and wsmgr notes.ordering, admin all five, show and wshop none.
 m15n_get "$ACCT" accounts;   expect_status 200 "acct GET accounts notes"
 expect_jq '.dept == "accounts" and .deptLabel == "Accounts" and (.weeks | length) == 2 and (.weeks[0].current == true) and (.weeks[1].current == false)' "the answer's shape: this week then last week"
-m15n_get "$ACCT" ordering;   expect_status 200 "acct GET ordering notes (orders.view)"
-m15n_get "$ACCT" scheduling; expect_status 403 "acct GET scheduling notes"
-m15n_get "$ACCT" design;     expect_status 403 "acct GET design notes"
-m15n_get "$ACCT" admin;      expect_status 403 "acct GET admin notes"
-# sched holds scheduling.view and orders.view.
+for M15N_D in scheduling design ordering admin; do
+  m15n_get "$ACCT" "$M15N_D"; expect_status 403 "acct GET $M15N_D notes (no orders.view or other key opens it)"
+done
 m15n_get "$SCHED" scheduling; expect_status 200 "sched GET scheduling notes"
-m15n_get "$SCHED" accounts;   expect_status 403 "sched GET accounts notes"
-m15n_get "$SCHED" admin;      expect_status 403 "sched GET admin notes"
-# wsmgr holds orders.view only; show holds none.
+for M15N_D in design ordering accounts admin; do
+  m15n_get "$SCHED" "$M15N_D"; expect_status 403 "sched GET $M15N_D notes"
+done
+m15n_get "$DPM" design;     expect_status 200 "dpm GET design notes"
+m15n_get "$DPM" scheduling; expect_status 403 "dpm holds scheduling.view but not notes.scheduling"
+m15n_get "$DPM" ordering;   expect_status 403 "dpm holds orders.view but not notes.ordering"
+m15n_get "$ORDR" ordering;  expect_status 200 "ordr GET ordering notes"
+m15n_get "$ORDR" design;    expect_status 403 "ordr holds design.view but not notes.design"
 m15n_get "$WSMGR" ordering; expect_status 200 "wsmgr GET ordering notes"
 m15n_get "$WSMGR" accounts; expect_status 403 "wsmgr GET accounts notes"
 for M15N_D in scheduling design ordering accounts admin; do
   m15n_get "$SHOW" "$M15N_D"
   expect_status 403 "show GET $M15N_D notes"
+  m15n_get "$WSHOP" "$M15N_D"
+  expect_status 403 "wshop GET $M15N_D notes"
   m15n_get "$ADMIN" "$M15N_D"
   expect_status 200 "admin GET $M15N_D notes"
 done
+echo "--- per-person grant and revoke ---"
+req PUT "/api/users/$ACCT2_ID/overrides/notes.ordering" "$ADMIN" '{"effect":"grant"}'
+expect_status 200 "grant notes.ordering to acct2"
+m15n_get "$ACCT2" ordering; expect_status 200 "acct2 reads ordering notes with the grant"
+req POST /api/notes "$ACCT2" "$(jq -nc --arg b "grant check ${M15N_TAG#m15n}" '{dept:"ordering",body:$b}')"
+expect_status 201 "acct2 leaves an ordering note with the grant"
+M15N_NG=$(jqr '.id')
+req GET "/notes.html?dept=ordering" "$ACCT2"
+expect_status 200 "acct2 opens the page"
+req DELETE "/api/users/$ACCT2_ID/overrides/notes.ordering" "$ADMIN"
+expect_status 200 "remove the grant"
+m15n_get "$ACCT2" ordering; expect_status 403 "acct2 loses ordering notes without the grant"
+req PATCH "/api/notes/$M15N_NG" "$ACCT2" '{"body":"x"}'
+expect_status 403 "acct2 can't edit its ordering note any more"
+req PUT "/api/users/$ACCT2_ID/overrides/notes.accounts" "$ADMIN" '{"effect":"revoke"}'
+expect_status 200 "revoke notes.accounts from acct2"
+m15n_get "$ACCT2" accounts; expect_status 403 "acct2 loses accounts notes with the revoke"
+req DELETE "/api/users/$ACCT2_ID/overrides/notes.accounts" "$ADMIN"
+expect_status 200 "remove the revoke"
+m15n_get "$ACCT2" accounts; expect_status 200 "acct2 has accounts notes again"
+req GET /api/users/meta "$ADMIN"
+expect_jq '.keys | (index("notes.scheduling") != null and index("notes.design") != null and index("notes.ordering") != null and index("notes.accounts") != null and index("notes.admin") != null)' "the five notes keys are in the key list"
+expect_jq '.presets.accounts | index("notes.accounts") != null' "the accounts preset has notes.accounts"
+expect_jq '[.presets.accounts, .presets.design_pm, .presets.scheduling, .presets.ordering, .presets.workshop_manager] | map(map(select(startswith("notes.")))) == [["notes.accounts"],["notes.design"],["notes.scheduling"],["notes.ordering"],["notes.ordering"]]' "each role has just its own department's notes key"
+expect_jq '[.presets.showroom, .presets.workshop] | map(map(select(startswith("notes.")))) == [[],[]]' "showroom and workshop have none"
 m15n_get "$ACCT" nowhere; expect_status 400 "an unknown department"
 expect_jq '.error == "Unknown department"' "the unknown-department sentence"
 req GET /api/notes "$ACCT"

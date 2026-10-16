@@ -22,22 +22,22 @@ Index `idx_dept_notes_dept_week` on `(dept, week_start)`. No existing table chan
 
 ## 2. Who may use which sheet
 
-One map, in `lib/notes.js` (`DEPTS`). No new permission keys, no role-preset changes.
+Five new feature keys (Todd, 2026-10-16: reusing existing keys let too many roles in; for example everyone with `orders.view` would have read the Ordering notes). They are ordinary keys, added to `KEYS` in `lib/permissions.js`. Nothing in the database constrains key names (`permission_overrides.feature_key` is free text, checked against `KEYS` by the Users routes), so migration 029 only creates the table. The map is in one place, `lib/notes.js` (`DEPTS`).
 
 | dept | key |
 |---|---|
-| `scheduling` | `scheduling.view` |
-| `design` | `design.view` |
-| `ordering` | `orders.view` |
-| `accounts` | `accounts.view` |
-| `admin` | `users.admin` |
+| `scheduling` | `notes.scheduling` |
+| `design` | `notes.design` |
+| `ordering` | `notes.ordering` |
+| `accounts` | `notes.accounts` |
+| `admin` | `notes.admin` |
+
+Role presets: scheduling has `notes.scheduling`; design_pm `notes.design`; ordering and workshop_manager `notes.ordering`; accounts `notes.accounts`; the admin preset has all five (it is every non-owner key); showroom and workshop have none. Admins grant or revoke any of them per person on the Users page. Total keys 35; admin preset 32.
 
 The same keys are used by:
 - the page gate: `/notes.html` is open to anyone holding any of the five keys (`lib/pages.js`);
 - every `/api/notes` route: declared with the five keys as an array (any one gets in), then the department's own key is checked inside (403 without it);
-- the menu: `public/shell/shell.js` has `{ label: "Notes", href: "/notes.html?dept=<id>", key: <key> }` as the first item of each of the five departments. The shell is static browser code, so it repeats the keys; the smoke suite checks the five lines match.
-
-Consequence of reusing the keys as they are: whoever holds `orders.view` can use the Ordering sheet, and the stock roles give that key to Accounts, Scheduling, Design/PM, Ordering and Workshop Manager. Likewise Design/PM holds `scheduling.view` and Ordering holds `design.view`. To narrow a sheet later, change its key in `DEPTS` (and the menu line), not the roles.
+- the menu: `public/shell/shell.js` has `{ label: "Notes", href: "/notes.html?dept=<id>", key: "notes.<id>" }` as the first item of each of the five departments. The shell is static browser code, so it repeats the keys; the smoke suite checks the five lines match.
 
 Admins have no special power over other people's notes (see section 4).
 
@@ -83,4 +83,4 @@ Entity `dept_note`, entity id the note's id. `note.create` (after: dept, weekSta
 
 ## 8. Tests
 
-`ci/smoke-m15-notes.sh`, sourced by `ci/smoke.sh` after the M14 suites. It seeds older weeks straight into the table (the app writes only the current week), and moves a note's week back to prove the lock after a rollover.
+`ci/smoke-m15-notes.sh`, sourced by `ci/smoke.sh` after the M14 suites. It checks access per role, a per-person grant and revoke through the Users overrides, and the presets. `ci/smoke.sh` steps a and d count 35 keys and the 32-key admin preset. It seeds older weeks straight into the table (the app writes only the current week), and moves a note's week back to prove the lock after a rollover.

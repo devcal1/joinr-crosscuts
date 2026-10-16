@@ -6,13 +6,13 @@ const audit = require("./audit");
 const { bad, forbidden, notFound, conflict, can } = require("./httperror");
 const { sydneyToday, sydneyMonday, addDays, weekLabel } = require("./time");
 
-// id -> { label, key }. No new permission keys: each department uses the key its own pages use.
+// id -> { label, key }. One feature key per department (lib/permissions.js).
 const DEPTS = {
-  scheduling: { label: "Scheduling", key: "scheduling.view" },
-  design: { label: "Design/PM", key: "design.view" },
-  ordering: { label: "Ordering", key: "orders.view" },
-  accounts: { label: "Accounts", key: "accounts.view" },
-  admin: { label: "Admin", key: "users.admin" },
+  scheduling: { label: "Scheduling", key: "notes.scheduling" },
+  design: { label: "Design/PM", key: "notes.design" },
+  ordering: { label: "Ordering", key: "notes.ordering" },
+  accounts: { label: "Accounts", key: "notes.accounts" },
+  admin: { label: "Admin", key: "notes.admin" },
 };
 const DEPT_IDS = Object.keys(DEPTS);
 const DEPT_KEYS = DEPT_IDS.map((id) => DEPTS[id].key);
