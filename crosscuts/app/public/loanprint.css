@@ -1,0 +1,122 @@
+/* The loan statement print (/loanprint.html; docs/plans/m13-contracts.md sections 8.2 and 10.6). On
+   screen: the house-style frame with the sheet as a white A4 box on the ink ground (a document, so
+   dark on white). On paper: only the sheet, A4 portrait, black on white, no letterhead, on its own
+   named page (lpsheet); a long table runs on with its header repeated. Sizes are in mm and pt so the
+   screen box and the printed page match. Colours come from tokens.css, except in the print block.
+   Page classes are lp-. */
+body.lp-body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--body);
+  font-family: var(--font);
+}
+
+.lp-page {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.lp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 14px;
+}
+.lp-status { flex: 1 1 260px; margin: 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.lp-status:empty { display: none; }
+
+/* the sheet scrolls inside its own box on a narrow screen, never the page */
+.lp-scroll { overflow-x: auto; }
+
+/* ---------- the sheet (screen) ---------- */
+.lp-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 10pt;
+  line-height: 1.35;
+}
+.lp-sheet :where(h1, h2, p, dl, dd, ul) { margin: 0; }
+.lp-sheet-error { min-height: 0; }
+.lp-loading, .lp-error { font-size: 12pt; }
+.lp-error { font-weight: 700; }
+
+.lp-label { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.lp-titlerow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.5mm solid var(--ink);
+}
+.lp-titlebox { min-width: 0; }
+.lp-h1 { font-size: 17pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
+.lp-name { margin-top: 2mm; font-size: 13pt; font-weight: 700; overflow-wrap: anywhere; }
+.lp-meta { display: grid; grid-template-columns: auto minmax(0, auto); gap: 1mm 4mm; flex: none; max-width: 95mm; font-size: 10pt; }
+.lp-meta dt { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; align-self: center; }
+.lp-meta dd { font-weight: 700; overflow-wrap: anywhere; }
+
+.lp-balline {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6mm;
+  padding: 2mm 0;
+  border-bottom: 0.3mm solid var(--ink);
+}
+.lp-start { margin-top: 5mm; }
+.lp-end { margin-top: 3mm; border-top: 0.5mm solid var(--ink); border-bottom: 0.5mm solid var(--ink); }
+.lp-balval { font-size: 12pt; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.lp-table { width: 100%; margin-top: 4mm; border-collapse: collapse; table-layout: fixed; }
+.lp-table thead { display: table-header-group; }
+.lp-table th, .lp-table td { padding: 1.4mm 1.5mm; border-bottom: 0.2mm solid var(--ink); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.lp-table thead th { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 0.4mm solid var(--ink); }
+.lp-table tr { break-inside: avoid; page-break-inside: avoid; }
+.lp-c-date { width: 25mm; white-space: nowrap; }
+.lp-c-ref { width: auto; }
+.lp-c-num { width: 27mm; text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lp-total th, .lp-total td { font-weight: 700; border-top: 0.4mm solid var(--ink); border-bottom: 0; }
+.lp-total th { font-size: 7.5pt; letter-spacing: 0.1em; text-transform: uppercase; }
+.lp-none { font-style: normal; }
+
+.lp-rates { margin-top: 6mm; break-inside: avoid; page-break-inside: avoid; }
+.lp-blockh {
+  padding-bottom: 1mm;
+  margin-bottom: 1.5mm;
+  border-bottom: 0.3mm solid var(--ink);
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.lp-ratelist { padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 1mm 10mm; }
+.lp-foot { margin-top: 6mm; font-size: 8.5pt; }
+
+@media (max-width: 600px) {
+  .lp-page { padding: 12px 8px 32px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+.lp-sheet { page: lpsheet; }
+@page lpsheet {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html:has(> body.lp-body), body.lp-body { background: #fff; color: #000; }
+  body.lp-body > :not(main) { display: none !important; }
+  body.lp-body .lp-toolbar { display: none !important; }
+  .lp-page { max-width: none; margin: 0; padding: 0; }
+  .lp-scroll { overflow: visible; }
+  .lp-sheet { width: auto; min-height: 0; padding: 0; background: #fff; color: #000; }
+  .lp-sheet * { color: #000; border-color: #000; background: #fff; }
+}
+/* style-check: print-end */
