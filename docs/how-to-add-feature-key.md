@@ -28,7 +28,7 @@ Adding a key changes code, so it ships in a release. Follow [CLAUDE.md](../CLAUD
    - one role that the key permits, returning 200;
    - one role without it, returning 403.
 
-   Put these in the milestone's own suite, `ci/smoke-mN-*.sh`. **Also update the two key-count assertions in `ci/smoke.sh`** (the setup user's perms and `/api/users/meta`), and any exact preset assertion there, including the admin preset's count (every key except the owner-only ones).
+   Put these in the milestone's own suite, `ci/smoke-mN-*.sh`. **Also update the two key-count assertions in `ci/smoke.sh`** (the setup user's perms and `/api/users/meta`), and any exact preset assertion there, including the admin preset's count (every key except the owner-only ones). `ci/smoke-m13-owner.sh` (the owner suite) also counts keys, but it reads the key count, the admin preset's count and the owner-only list from `GET /api/users/meta`, so it needs no change for a new key; run it with the rest of the smoke to be sure.
 
 7. **Update the docs:** the key-by-role table and the intro paragraph in [auth.md](auth.md), and the plain-English roles in [how-to-add-user.md](how-to-add-user.md).
 

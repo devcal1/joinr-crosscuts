@@ -330,6 +330,94 @@ function pageGate(req, res, next) {
   res.status(403).set("Content-Type", "text/html; charset=utf-8").send(FORBIDDEN_PAGE);
 }
 
+// ---------------------------------------------------------------- password attempts
+// The password-attempt rules of routes/auth.js (login lockout, the attempt record in
+// auth_attempts, the scrypt concurrency cap and their answers), exported for other routes that
+// re-check a password: the ownership transfer in routes/users.js (M13 · 4.3, review A-m3).
+// The same limits, the same table and the same answers as routes/auth.js. routes/auth.js still
+// has its own copies (not changed in 4.3); the two share the lockout and the attempt record
+// through auth_attempts, and each has its own in-process scrypt cap.
+
+const PASSWORD_MAX_FAILURES = 10;
+const PASSWORD_IP_MAX_FAILURES = 30; // per IP, across all usernames
+const PASSWORD_WINDOW_MS = 15 * 60 * 1000;
+const SCRYPT_MAX_INFLIGHT = 4; // cap on concurrent password verifications
+
+// Inserts the attempt as a failure BEFORE any await, so concurrent bursts count against the
+// limits while their scrypt runs. A success flips the row with settleAttempt(). Returns its id.
+function reserveAttempt({ kind, username, userId, deviceId, ip }) {
+  try {
+    const info = db()
+      .prepare(
+        "INSERT INTO auth_attempts (kind, username, user_id, device_id, ip, success) VALUES (?, ?, ?, ?, ?, 0)"
+      )
+      .run(kind, username ? String(username).toLowerCase().slice(0, 100) : null, userId || null, deviceId || null, ip || null);
+    return Number(info.lastInsertRowid);
+  } catch (e) {
+    console.error("[auth] could not record attempt:", e);
+    return null;
+  }
+}
+
+function settleAttempt(id) {
+  if (id == null) return;
+  try {
+    db().prepare("UPDATE auth_attempts SET success = 1 WHERE id = ?").run(id);
+  } catch (e) {
+    console.error("[auth] could not settle attempt:", e);
+  }
+}
+
+// Callers that get false send sendBusy() and record nothing; callers that get true must
+// releaseScrypt().
+let scryptInFlight = 0;
+function tryAcquireScrypt() {
+  if (scryptInFlight >= SCRYPT_MAX_INFLIGHT) return false;
+  scryptInFlight++;
+  return true;
+}
+function releaseScrypt() {
+  scryptInFlight--;
+}
+
+function sendBusy(res) {
+  res.set("Retry-After", "2");
+  return res.status(429).json({ error: "Busy, try again", retryAfterSec: 2 });
+}
+
+function failureLockout(where, params, since, max) {
+  const rows = db()
+    .prepare(
+      `SELECT at FROM auth_attempts
+       WHERE kind = 'password' AND success = 0 AND ${where} AND at > ?
+       ORDER BY at DESC LIMIT ?`
+    )
+    .all(...params, since, max);
+  if (rows.length < max) return null;
+  // The lockout lifts when the max-th most recent failure leaves the window.
+  const liftsAt = Date.parse(rows[max - 1].at) + PASSWORD_WINDOW_MS;
+  return { retryAfterSec: Math.max(1, Math.ceil((liftsAt - Date.now()) / 1000)) };
+}
+
+// Returns null, or { retryAfterSec } when 10 password failures for this username+IP, or 30 for
+// this IP across any usernames, fall inside the last 15 minutes. Reserved attempts count.
+function passwordLockout(username, ip) {
+  const since = new Date(Date.now() - PASSWORD_WINDOW_MS).toISOString();
+  const uname = String(username).toLowerCase().slice(0, 100);
+  const byUser = failureLockout("username = ? AND ip IS ?", [uname, ip || null], since, PASSWORD_MAX_FAILURES);
+  const byIp = failureLockout("ip IS ?", [ip || null], since, PASSWORD_IP_MAX_FAILURES);
+  if (byUser && byIp) return { retryAfterSec: Math.max(byUser.retryAfterSec, byIp.retryAfterSec) };
+  return byUser || byIp;
+}
+
+function sendLockout(res, lock) {
+  res.set("Retry-After", String(lock.retryAfterSec));
+  return res.status(429).json({
+    error: "Too many failed attempts. Try again later.",
+    retryAfterSec: lock.retryAfterSec,
+  });
+}
+
 // ---------------------------------------------------------------- PIN state
 
 const DEVICE_PIN_MAX_FAILURES = 5;
@@ -393,4 +481,12 @@ module.exports = {
   passwordExpired,
   DEVICE_PIN_MAX_FAILURES,
   hashToken,
+  // password attempts (M13 · 4.3 A-m3), for routes/users.js's ownership transfer
+  reserveAttempt,
+  settleAttempt,
+  tryAcquireScrypt,
+  releaseScrypt,
+  sendBusy,
+  passwordLockout,
+  sendLockout,
 };
