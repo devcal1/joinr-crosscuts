@@ -1,21 +1,20 @@
-// BAS sales by month: the financial year, a month's detail, the comparison, the CSV, hand amounts
-// and lodging (docs/plans/m9-contracts.md section 5).
+// BAS sales by month: the financial year, a month's detail, the comparison, the month CSV, the
+// month's hand-typed figure and lodging (docs/plans/m9-contracts.md sections 5 and 6, and its
+// 2026-10-16 note: sales are entered by hand and invoices no longer count).
 //
-// Cash basis (m9-plan Decision 1): a month's sales are the invoices with status 'paid' and a
-// paid_date inside the month, plus the month's hand amount. Every function takes db first and
-// nothing here requires ../db. All month and financial-year arithmetic comes from
-// ../public/periods. BAS only reads invoices and jobs; every write (bas_months) runs in one
-// db.transaction with its audit row.
+// Every month's sales (GST included) and its GST are typed in by hand. They live in the
+// bas_months hand columns (hand_cents, hand_gst_cents, hand_note); a month with no hand_cents is
+// "not entered" and shows blank. Every function takes db first and nothing here requires ../db.
+// All month and financial-year arithmetic comes from ../public/periods. Every write (bas_months)
+// runs in one db.transaction with its audit row.
 const audit = require("./audit");
 const Periods = require("../public/periods");
 const { bad, notFound, conflict } = require("./httperror");
 const { sydneyToday } = require("./time");
 
-const HAND_MAX = 1000000000;
+const AMOUNT_MAX = 1000000000;
 const NOTE_MAX = 500;
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const KIND_WORDS = { deposit: "Deposit", progress: "Progress", final: "Final", extra: "Extra" };
-const CSV_HEADER = ["Invoice", "Client", "Job", "Kind", "Issued", "Paid", "Total inc GST", "GST", "Ex GST", "Entered in MYOB"];
+const CSV_HEADER = ["Month", "Sales inc GST", "GST", "Ex GST", "Note"];
 
 // ---------------------------------------------------------------- helpers ---
 
@@ -25,13 +24,6 @@ function nowIso() {
 
 function userId(req) {
   return (req && req.user && req.user.id) || null;
-}
-
-// '2026-09-03' -> '3 Sep 2026'.
-function dayLabel(s) {
-  if (!s) return "";
-  const [y, m, d] = String(s).split("-").map(Number);
-  return `${d} ${MONTH_NAMES[m - 1]} ${y}`;
 }
 
 // The first financial year anything can be shown for (FY 2023).
@@ -48,19 +40,18 @@ function monthOr404(period, today) {
   if (!Periods.validPeriod(period) || !inRange(period, today)) throw notFound();
 }
 
-function emptyFigures() {
+// A month's figures. Not entered: entered false, every amount null and the note ''.
+function figuresOf(row) {
+  if (!row || row.hand_cents === null || row.hand_cents === undefined) {
+    return { entered: false, salesCents: null, gstCents: null, exGstCents: null, note: "" };
+  }
+  const gst = row.hand_gst_cents === null || row.hand_gst_cents === undefined ? null : row.hand_gst_cents;
   return {
-    invoiceCount: 0,
-    invoiceCents: 0,
-    invoiceGstCents: 0,
-    handCents: null,
-    handGstCents: null,
-    handNote: "",
-    salesCents: 0,
-    gstCents: 0,
-    exGstCents: 0,
-    notInMyobCount: 0,
-    kind: "empty",
+    entered: true,
+    salesCents: row.hand_cents,
+    gstCents: gst,
+    exGstCents: gst === null ? null : row.hand_cents - gst,
+    note: row.hand_note || "",
   };
 }
 
@@ -70,237 +61,74 @@ function bmRow(db, period) {
   return db.prepare("SELECT * FROM bas_months WHERE period = ?").get(period) || null;
 }
 
-// The month's paid invoices as invoice rows (section 6.2), by paid date then number (shorter
-// numbers first, so CC-999 comes before CC-1000), then id. INDEXED BY: without ANALYZE the planner
-// picks idx_invoices_status and sorts the whole status range; the paid-date index is partial
-// (WHERE status = 'paid'), which the query's own status = 'paid' satisfies.
-function liveInvoices(db, period) {
-  return db
-    .prepare(
-      `SELECT i.id, i.number, i.kind, i.bill_to_name, i.issue_date, i.paid_date, i.total_cents, i.gst_cents,
-              i.myob_entered_date, i.job_id, j.name AS job_name, j.client_name
-         FROM invoices i INDEXED BY idx_invoices_paid_date
-         LEFT JOIN jobs j ON j.id = i.job_id
-        WHERE i.status = 'paid' AND i.paid_date >= ? AND i.paid_date <= ?
-        ORDER BY i.paid_date, length(i.number), i.number, i.id`
-    )
-    .all(Periods.firstDay(period), Periods.lastDay(period))
-    .map((r) => {
-      const total = r.total_cents || 0;
-      const gst = r.gst_cents || 0;
-      return {
-        id: r.id,
-        number: r.number,
-        kind: r.kind,
-        client: r.bill_to_name || r.client_name || "",
-        job: { id: r.job_id, name: r.job_name || "" },
-        issueDate: r.issue_date,
-        paidDate: r.paid_date,
-        totalCents: total,
-        gstCents: gst,
-        exGstCents: total - gst,
-        myobEnteredDate: r.myob_entered_date || null,
-      };
-    });
-}
-
-function handOf(row) {
-  return {
-    handCents: row && row.hand_cents !== null && row.hand_cents !== undefined ? row.hand_cents : null,
-    handGstCents: row && row.hand_gst_cents !== null && row.hand_gst_cents !== undefined ? row.hand_gst_cents : null,
-    handNote: (row && row.hand_note) || "",
-  };
-}
-
-// A month's figures from its invoice rows and its hand fields (section 5).
-function figuresOf(invoices, hand) {
-  const invoiceCents = invoices.reduce((s, i) => s + i.totalCents, 0);
-  const invoiceGstCents = invoices.reduce((s, i) => s + i.gstCents, 0);
-  const hasHand = hand.handCents !== null;
-  const salesCents = invoiceCents + (hasHand ? hand.handCents : 0);
-  const gstCents = hasHand && hand.handGstCents === null ? null : invoiceGstCents + (hand.handGstCents || 0);
-  let kind = "empty";
-  if (invoices.length && hasHand) kind = "mixed";
-  else if (invoices.length) kind = "invoices";
-  else if (hasHand) kind = "imported";
-  return {
-    invoiceCount: invoices.length,
-    invoiceCents,
-    invoiceGstCents,
-    handCents: hand.handCents,
-    handGstCents: hand.handGstCents,
-    handNote: hand.handNote,
-    salesCents,
-    gstCents,
-    exGstCents: gstCents === null ? null : salesCents - gstCents,
-    notInMyobCount: invoices.filter((i) => !i.myobEnteredDate).length,
-    kind,
-  };
-}
-
-function frozenOf(row) {
-  if (!row || !row.lodged_json) return null;
-  try {
-    const f = JSON.parse(row.lodged_json);
-    return { figures: f.figures || emptyFigures(), invoices: Array.isArray(f.invoices) ? f.invoices : [] };
-  } catch (_) {
-    return { figures: emptyFigures(), invoices: [] };
-  }
-}
-
 function lodgedBy(db, row) {
   if (!row || !row.lodged_at) return null;
   const u = row.lodged_by ? db.prepare("SELECT id, display_name FROM users WHERE id = ?").get(row.lodged_by) : null;
   return { at: row.lodged_at, by: u ? { id: u.id, name: u.display_name } : null };
 }
 
-function money(cents) {
-  return cents === null || cents === undefined ? "not known" : Periods.dollars(cents);
-}
-
-// What changed in a lodged month since it was lodged, as sentences (section 5). Compared: each
-// invoice's id, paidDate, totalCents and gstCents, and the three hand fields.
-function changesOf(db, frozen, live) {
-  const out = [];
-  const liveById = new Map(live.invoices.map((i) => [i.id, i]));
-  const frozenById = new Map(frozen.invoices.map((i) => [i.id, i]));
-  const name = (i) => i.number || `Invoice ${i.id}`;
-  for (const f of frozen.invoices) {
-    const l = liveById.get(f.id);
-    if (!l) {
-      // Gone from this month: unmarked paid, or its paid date moved to another month.
-      const now = db.prepare("SELECT status, paid_date FROM invoices WHERE id = ?").get(f.id);
-      if (now && now.status === "paid" && now.paid_date && now.paid_date !== f.paidDate) {
-        out.push(`${name(f)}'s paid date moved from ${dayLabel(f.paidDate)} to ${dayLabel(now.paid_date)}`);
-      } else {
-        out.push(`${name(f)} is no longer paid in this month`);
-      }
-      continue;
-    }
-    if (l.paidDate !== f.paidDate) {
-      out.push(`${name(f)}'s paid date moved from ${dayLabel(f.paidDate)} to ${dayLabel(l.paidDate)}`);
-    }
-    if (l.totalCents !== f.totalCents) {
-      out.push(`${name(f)}'s total changed from ${money(f.totalCents)} to ${money(l.totalCents)}`);
-    }
-    if (l.gstCents !== f.gstCents) {
-      out.push(`${name(f)}'s GST changed from ${money(f.gstCents)} to ${money(l.gstCents)}`);
-    }
-  }
-  for (const l of live.invoices) {
-    if (!frozenById.has(l.id)) out.push(`${name(l)} was marked paid in this month after lodging`);
-  }
-  const fh = frozen.figures;
-  const lh = live.figures;
-  const fCents = fh.handCents === undefined ? null : fh.handCents;
-  const fGst = fh.handGstCents === undefined ? null : fh.handGstCents;
-  if (fCents !== lh.handCents) {
-    if (fCents === null) out.push(`A hand amount of ${money(lh.handCents)} was added`);
-    else if (lh.handCents === null) out.push(`The hand amount of ${money(fCents)} was removed`);
-    else out.push(`The hand amount changed from ${money(fCents)} to ${money(lh.handCents)}`);
-  } else if (fGst !== lh.handGstCents) {
-    out.push(`The hand amount's GST changed from ${money(fGst)} to ${money(lh.handGstCents)}`);
-  }
-  if ((fh.handNote || "") !== lh.handNote) out.push("The hand amount's note changed");
-  return out;
-}
-
-// Everything about one month: {row (month row), live {figures, invoices}, frozen, changes}.
-// A future month, and a month before HISTORY_START (FY 2023's Jul 2022 to May 2023), has empty
-// figures and is never read from the database; only the future one says future: true.
-function load(db, period, today) {
+// One month as the year table and the detail show it. A future month, and a month before
+// HISTORY_START (FY 2023's Jul 2022 to May 2023), is never read from the database and is not
+// entered; only the future one says future: true. `row` is the month's bas_months row or null.
+function monthRow(db, period, today, row) {
   const future = period > Periods.currentPeriod(today);
-  if (future || period < Periods.HISTORY_START) {
-    return {
-      row: {
-        period,
-        label: Periods.label(period),
-        quarter: Periods.quarterOf(period),
-        future,
-        figures: emptyFigures(),
-        live: emptyFigures(),
-        lodged: null,
-        changed: false,
-      },
-      live: { figures: emptyFigures(), invoices: [] },
-      frozen: null,
-      changes: [],
-    };
-  }
-  const bm = bmRow(db, period);
-  const invoices = liveInvoices(db, period);
-  const live = { figures: figuresOf(invoices, handOf(bm)), invoices };
-  const frozen = frozenOf(bm);
-  const changes = frozen ? changesOf(db, frozen, live) : [];
+  const live = !future && period >= Periods.HISTORY_START;
+  const bm = live ? row : null;
   return {
-    row: {
-      period,
-      label: Periods.label(period),
-      quarter: Periods.quarterOf(period),
-      future: false,
-      figures: frozen ? frozen.figures : live.figures,
-      live: live.figures,
-      lodged: frozen ? lodgedBy(db, bm) : null,
-      changed: changes.length > 0,
-    },
-    live,
-    frozen,
-    changes,
+    period,
+    label: Periods.label(period),
+    quarter: Periods.quarterOf(period),
+    future,
+    figures: figuresOf(bm),
+    lodged: lodgedBy(db, bm),
   };
 }
 
-// The as-lodged invoice rows with each invoice's current myobEnteredDate (section 12 point 11:
-// Not in MYOB stays live on a lodged month), looked up by id even when the invoice has left the
-// month. Only the response changes; lodged_json is never rewritten.
-function withLiveMyob(db, invoices) {
-  const get = db.prepare("SELECT myob_entered_date FROM invoices WHERE id = ?");
-  return invoices.map((i) => {
-    const now = get.get(i.id);
-    return now ? { ...i, myobEnteredDate: now.myob_entered_date || null } : i;
-  });
-}
-
 function detail(db, period, today) {
-  const m = load(db, period, today);
   return {
-    month: m.row,
-    invoices: m.live.invoices,
-    lodgedInvoices: m.frozen ? withLiveMyob(db, m.frozen.invoices) : null,
-    changes: m.changes,
+    month: monthRow(db, period, today, bmRow(db, period)),
     prev: period <= Periods.HISTORY_START ? null : Periods.addMonths(period, -1),
     next: period >= Periods.currentPeriod(today) ? null : Periods.addMonths(period, 1),
   };
 }
 
-// The sums of a quarter or the year: each month's figures (frozen when lodged).
+// The sums of a quarter or the year: the months that have been entered. With none entered the
+// sums are null; the GST sum is null when any entered month has no GST typed.
 function sumOf(rows) {
-  const anyNullGst = rows.some((r) => r.figures.gstCents === null);
-  const salesCents = rows.reduce((s, r) => s + r.figures.salesCents, 0);
-  const gstCents = anyNullGst ? null : rows.reduce((s, r) => s + r.figures.gstCents, 0);
+  const entered = rows.filter((r) => r.figures.entered);
+  const lodgedCount = rows.filter((r) => r.lodged).length;
+  if (!entered.length) {
+    return { salesCents: null, gstCents: null, exGstCents: null, enteredCount: 0, lodgedCount };
+  }
+  const salesCents = entered.reduce((s, r) => s + r.figures.salesCents, 0);
+  const gstCents = entered.some((r) => r.figures.gstCents === null)
+    ? null
+    : entered.reduce((s, r) => s + r.figures.gstCents, 0);
   return {
     salesCents,
     gstCents,
     exGstCents: gstCents === null ? null : salesCents - gstCents,
-    invoiceCount: rows.reduce((s, r) => s + r.figures.invoiceCount, 0),
-    lodgedCount: rows.filter((r) => r.lodged).length,
+    enteredCount: entered.length,
+    lodgedCount,
   };
 }
 
 // ------------------------------------------------------------ the views ---
 
+// The financial year: all twelve months (future ones blank), the quarters and the year total.
 function year(db, fy, today = sydneyToday()) {
   const first = firstFy();
   const current = Periods.fyOf(Periods.currentPeriod(today));
   const y = fy === undefined || fy === null ? current : fy;
   if (!Number.isInteger(y) || y < first) throw bad(`Choose a financial year from ${Periods.fyLabel(first)}`);
   if (y > current) throw bad(`${Periods.fyLabel(y)} hasn't started yet`);
-  const months = Periods.fyMonths(y).map((p) => load(db, p, today).row);
-  // The sums leave out the months before HISTORY_START (as the comparison's null).
-  const counted = months.filter((m) => m.period >= Periods.HISTORY_START);
+  const rows = new Map(db.prepare("SELECT * FROM bas_months").all().map((r) => [r.period, r]));
+  const months = Periods.fyMonths(y).map((p) => monthRow(db, p, today, rows.get(p) || null));
+  // The sums leave out the months before HISTORY_START and the future ones (they are never entered).
   const quarters = [1, 2, 3, 4].map((q) => ({
     q,
     label: Periods.quarterLabel(y, q),
-    ...sumOf(counted.filter((m) => m.quarter === q)),
+    ...sumOf(months.filter((m) => m.quarter === q)),
   }));
   return {
     fy: y,
@@ -310,7 +138,7 @@ function year(db, fy, today = sydneyToday()) {
     currentFy: current,
     months,
     quarters,
-    total: sumOf(counted),
+    total: sumOf(months),
   };
 }
 
@@ -319,11 +147,18 @@ function month(db, period, today = sydneyToday()) {
   return detail(db, period, today);
 }
 
+// Sales inc GST for the same month in each financial year; null where a month isn't entered.
 function compare(db, today = sydneyToday()) {
   const first = firstFy();
   const current = Periods.fyOf(Periods.currentPeriod(today));
   const fys = [];
   for (let fy = first; fy <= current; fy++) fys.push(fy);
+  const sales = new Map(
+    db
+      .prepare("SELECT period, hand_cents FROM bas_months WHERE hand_cents IS NOT NULL")
+      .all()
+      .map((r) => [r.period, r.hand_cents])
+  );
   const byFy = {};
   for (const fy of fys) byFy[fy] = Periods.fyMonths(fy);
   const rows = [];
@@ -331,7 +166,7 @@ function compare(db, today = sydneyToday()) {
     const values = {};
     for (const fy of fys) {
       const p = byFy[fy][i];
-      values[fy] = inRange(p, today) ? load(db, p, today).row.figures.salesCents : null;
+      values[fy] = inRange(p, today) && sales.has(p) ? sales.get(p) : null;
     }
     rows.push({ monthIndex: i, label: Periods.label(byFy[first][i]).slice(0, 3), values });
   }
@@ -362,43 +197,23 @@ function csvLine(cells) {
   return cells.map(csvCell).join(",") + "\r\n";
 }
 
-function csv(db, period) {
-  const today = sydneyToday();
-  monthOr404(period, today);
-  const bm = bmRow(db, period);
-  const invoices = liveInvoices(db, period);
+// The financial year as a CSV: one line per month up to the current one, with the figures typed
+// for it (blank where not entered).
+function csv(db, fy, today = sydneyToday()) {
+  const y = year(db, fy, today);
   let out = "﻿" + csvLine(CSV_HEADER);
-  for (const i of invoices) {
+  for (const m of y.months) {
+    if (m.future || m.period < Periods.HISTORY_START) continue;
+    const f = m.figures;
     out += csvLine([
-      csvText(i.number),
-      csvText(i.client),
-      csvText(i.job.name),
-      csvText(KIND_WORDS[i.kind] || i.kind),
-      i.issueDate || "",
-      i.paidDate || "",
-      csvMoney(i.totalCents),
-      csvMoney(i.gstCents),
-      csvMoney(i.exGstCents),
-      i.myobEnteredDate || "",
+      m.label,
+      csvMoney(f.salesCents),
+      csvMoney(f.gstCents),
+      csvMoney(f.exGstCents),
+      csvText(f.note),
     ]);
   }
-  const hand = handOf(bm);
-  if (hand.handCents !== null) {
-    const ex = hand.handGstCents === null ? null : hand.handCents - hand.handGstCents;
-    out += csvLine([
-      "",
-      csvText(hand.handNote),
-      "",
-      "Hand amount",
-      "",
-      "",
-      csvMoney(hand.handCents),
-      csvMoney(hand.handGstCents),
-      csvMoney(ex),
-      "",
-    ]);
-  }
-  return out;
+  return { fy: y.fy, label: y.label, text: out };
 }
 
 // ------------------------------------------------------------- writing ---
@@ -406,71 +221,70 @@ function csv(db, period) {
 function centsField(v, what) {
   if (v === undefined || v === null) return null;
   if (!Number.isInteger(v)) throw bad(`${what} must be a whole number of cents`);
-  if (v < -HAND_MAX || v > HAND_MAX) throw bad("That amount is too large");
+  if (v < -AMOUNT_MAX || v > AMOUNT_MAX) throw bad("That amount is too large");
   return v;
 }
 
-function setHand(db, req, period, body) {
+// Types, changes or clears a month's sales: body {salesCents, gstCents, note}. salesCents null
+// clears the month (and its GST and note). 0 is a real entry (a month with no sales). A negative
+// amount is allowed (net refunds). gstCents null means the GST isn't known.
+function setSales(db, req, period, body) {
   const today = sydneyToday();
   if (!Periods.validPeriod(period)) throw notFound();
   if (!inRange(period, today)) {
-    throw bad(`Hand amounts go from ${Periods.label(Periods.HISTORY_START)} to this month`);
+    throw bad(`Sales go from ${Periods.label(Periods.HISTORY_START)} to this month`);
   }
   const lodgedMsg = "This month is lodged; an admin can reopen it";
   const existing = bmRow(db, period);
   if (existing && existing.lodged_at) throw conflict(lodgedMsg);
 
   const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
-  const handCents = centsField(b.handCents, "handCents");
-  if (handCents === 0) throw bad("Enter an amount, or clear it");
-  let handGstCents = centsField(b.handGstCents, "handGstCents");
-  if (handCents === null && handGstCents !== null) throw bad("Enter an amount for the GST to go with");
-  if (handGstCents !== null && handGstCents !== 0 && handGstCents < 0 !== handCents < 0) {
-    throw bad("GST must have the same sign as the amount");
+  const salesCents = centsField(b.salesCents, "salesCents");
+  let gstCents = centsField(b.gstCents, "gstCents");
+  if (salesCents === null && gstCents !== null) throw bad("Enter the sales for the GST to go with");
+  if (gstCents !== null && gstCents !== 0 && gstCents < 0 !== salesCents < 0) {
+    throw bad("GST must have the same sign as the sales");
   }
-  if (handGstCents !== null && Math.abs(handGstCents) > Math.round(Math.abs(handCents) / 11)) {
-    throw bad("GST can't be more than a tenth of the amount before GST");
+  if (gstCents !== null && Math.abs(gstCents) > Math.round(Math.abs(salesCents) / 11)) {
+    throw bad("GST can't be more than a tenth of the sales before GST");
   }
-  let handNote = "";
-  if (b.handNote !== undefined && b.handNote !== null) {
-    if (typeof b.handNote !== "string") throw bad("handNote must be text");
-    handNote = b.handNote.trim();
-    if (handNote.length > NOTE_MAX) throw bad(`The note can be at most ${NOTE_MAX} characters`);
+  let note = "";
+  if (b.note !== undefined && b.note !== null) {
+    if (typeof b.note !== "string") throw bad("note must be text");
+    note = b.note.trim();
+    if (note.length > NOTE_MAX) throw bad(`The note can be at most ${NOTE_MAX} characters`);
   }
-  // Clearing the amount clears its GST and note too: the note belongs to the hand amount.
-  if (handCents === null) {
-    handGstCents = null;
-    handNote = "";
+  // Clearing the sales clears their GST and note too: the note belongs to the figure.
+  if (salesCents === null) {
+    gstCents = null;
+    note = "";
   }
-  const after = { handCents, handGstCents, handNote };
+  const after = { salesCents, gstCents, note };
 
   db.transaction(() => {
     const row = bmRow(db, period);
     if (row && row.lodged_at) throw conflict(lodgedMsg);
-    const before = handOf(row);
-    if (
-      before.handCents === after.handCents &&
-      before.handGstCents === after.handGstCents &&
-      before.handNote === after.handNote
-    ) {
+    const f = figuresOf(row);
+    const before = { salesCents: f.salesCents, gstCents: f.gstCents, note: f.note };
+    if (before.salesCents === after.salesCents && before.gstCents === after.gstCents && before.note === after.note) {
       return; // nothing changed: no stamp, no audit
     }
     if (!row) {
       db.prepare("INSERT INTO bas_months (period, hand_cents, hand_gst_cents, hand_note) VALUES (?, ?, ?, ?)").run(
         period,
-        handCents,
-        handGstCents,
-        handNote
+        salesCents,
+        gstCents,
+        note
       );
-    } else if (handCents === null) {
-      // Not lodged (checked above) and no hand amount: the month has no row.
+    } else if (salesCents === null) {
+      // Not lodged (checked above) and nothing entered: the month has no row.
       db.prepare("DELETE FROM bas_months WHERE period = ?").run(period);
     } else {
       db.prepare(
         "UPDATE bas_months SET hand_cents = ?, hand_gst_cents = ?, hand_note = ?, updated_at = ? WHERE period = ?"
-      ).run(handCents, handGstCents, handNote, nowIso(), period);
+      ).run(salesCents, gstCents, note, nowIso(), period);
     }
-    audit.log(req, { action: "bas.hand", entityType: "bas_month", entityId: period, before, after });
+    audit.log(req, { action: "bas.sales", entityType: "bas_month", entityId: period, before, after });
   })();
   return detail(db, period, today);
 }
@@ -481,23 +295,17 @@ function lodge(db, req, period, today = sydneyToday()) {
   db.transaction(() => {
     const row = bmRow(db, period);
     if (row && row.lodged_at) throw conflict("This month is already lodged");
-    const invoices = liveInvoices(db, period);
-    const figures = figuresOf(invoices, handOf(row));
-    const json = JSON.stringify({ figures, invoices });
+    const figures = figuresOf(row);
+    if (!figures.entered) throw conflict("Enter this month's sales before lodging it");
+    const json = JSON.stringify({ figures });
     const now = nowIso();
-    if (row) {
-      db.prepare("UPDATE bas_months SET lodged_at = ?, lodged_by = ?, lodged_json = ?, updated_at = ? WHERE period = ?").run(
-        now,
-        userId(req),
-        json,
-        now,
-        period
-      );
-    } else {
-      db.prepare(
-        "INSERT INTO bas_months (period, lodged_at, lodged_by, lodged_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(period, now, userId(req), json, now, now);
-    }
+    db.prepare("UPDATE bas_months SET lodged_at = ?, lodged_by = ?, lodged_json = ?, updated_at = ? WHERE period = ?").run(
+      now,
+      userId(req),
+      json,
+      now,
+      period
+    );
     audit.log(req, { action: "bas.lodge", entityType: "bas_month", entityId: period, after: figures });
   })();
   return detail(db, period, today);
@@ -509,23 +317,18 @@ function reopen(db, req, period) {
   db.transaction(() => {
     const row = bmRow(db, period);
     if (!row || !row.lodged_at) throw conflict("This month isn't lodged");
-    const frozen = frozenOf(row);
-    if (row.hand_cents === null || row.hand_cents === undefined) {
-      // No hand amount and no longer lodged: the month has no row.
-      db.prepare("DELETE FROM bas_months WHERE period = ?").run(period);
-    } else {
+    const before = figuresOf(row);
+    if (before.entered) {
       db.prepare(
         "UPDATE bas_months SET lodged_at = NULL, lodged_by = NULL, lodged_json = NULL, updated_at = ? WHERE period = ?"
       ).run(nowIso(), period);
+    } else {
+      // Lodged before sales had to be entered (nothing typed): no figure and no longer lodged, so no row.
+      db.prepare("DELETE FROM bas_months WHERE period = ?").run(period);
     }
-    audit.log(req, {
-      action: "bas.reopen",
-      entityType: "bas_month",
-      entityId: period,
-      before: frozen ? frozen.figures : null,
-    });
+    audit.log(req, { action: "bas.reopen", entityType: "bas_month", entityId: period, before });
   })();
   return detail(db, period, today);
 }
 
-module.exports = { year, month, compare, csv, setHand, lodge, reopen };
+module.exports = { year, month, compare, csv, setSales, lodge, reopen };

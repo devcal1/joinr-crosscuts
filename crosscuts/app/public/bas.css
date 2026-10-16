@@ -1,5 +1,5 @@
-/* BAS sales (bas.html): the financial year's sales by month (cash basis) with quarter and year
-   totals, a month's detail, and the same month compared across financial years
+/* BAS sales (bas.html): the financial year's sales by month (typed in by hand) with quarter and
+   year totals, a month's detail, and the same month compared across financial years
    (docs/plans/m9-contracts.md section 9.1). Tokens come from tokens.css, hs- components from
    components.css, and fields from the shell's cc-field. Page classes here are prefixed ba-. */
 html, body { margin: 0; min-height: 100%; background: var(--ink); }
@@ -46,9 +46,6 @@ a.hs-btn:hover { text-decoration: none; }
   text-transform: uppercase;
   color: var(--white);
 }
-.ba-attend { color: var(--orange-tint); }
-/* a count or a cell to attend to keeps its orange inside the tables (hs-table and the sum rows set td colours) */
-.ba-wrap .ba-table td.ba-attend { color: var(--orange-tint); }
 
 /* ---------- tables ---------- */
 .ba-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
@@ -78,7 +75,7 @@ a.hs-btn:hover { text-decoration: none; }
 .ba-year tfoot th, .ba-year tfoot td { background: var(--raised); }
 
 /* the year table */
-.ba-year { min-width: 860px; }
+.ba-year { min-width: 640px; }
 .ba-year th:first-child, .ba-year td:first-child { width: 190px; }
 .ba-mcell { white-space: nowrap; }
 .ba-monthbtn {
@@ -108,7 +105,7 @@ a.hs-btn:hover { text-decoration: none; }
 .ba-qrow td.ba-st { font-weight: 400; color: var(--label); }
 .ba-yrow td.ba-st { font-weight: 400; color: var(--label); }
 .ba-st { white-space: nowrap; }
-.ba-badge + .ba-badge, .ba-badge + .ba-st-word { margin-left: 6px; }
+.ba-badge + .ba-st-word { margin-left: 6px; }
 .ba-st-word { color: var(--label); font-size: 13px; }
 
 /* ---------- a month's detail ---------- */
@@ -150,39 +147,19 @@ a.hs-btn:hover { text-decoration: none; }
   border-bottom: 1px solid var(--hairline);
 }
 .ba-figs .ba-fig-main td { color: var(--white); font-weight: 700; font-size: 15px; }
-.ba-figs td.ba-attend { color: var(--orange-tint); }
 
 .ba-detail-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.ba-changes p, .ba-change-list { margin: 0; }
-.ba-change-list { padding-left: 18px; color: var(--orange-tint); }
-.ba-change-list li + li { margin-top: 4px; }
 .ba-month-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .ba-detail-side > .ba-hint { margin: 0; }
 
-.ba-hand { display: grid; gap: 10px; padding: 14px 16px; }
-.ba-hand .ba-hand-help { margin: 0; color: var(--label); }
-.ba-hand-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-.ba-hand-note { grid-column: 1 / -1; }
-.ba-hand .hs-input { min-height: 36px; }
+.ba-entry { display: grid; gap: 10px; padding: 14px 16px; }
+.ba-entry .ba-entry-help { margin: 0; color: var(--label); }
+.ba-entry-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.ba-entry-note { grid-column: 1 / -1; }
+.ba-entry .hs-input { min-height: 36px; }
 .ba-num { font-variant-numeric: tabular-nums; }
-.ba-hand-err:empty { min-height: 0; }
-.ba-hand-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-
-.ba-invbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 8px; }
-.ba-invtools { display: flex; flex-wrap: wrap; gap: 8px; }
-.ba-invtools .hs-btn[aria-pressed="true"] { border-color: var(--teal); color: var(--teal-tint); background: var(--teal-16); }
-.ba-csv-note { margin: -2px 0 8px; text-align: right; }
-.ba-inv { min-width: 900px; }
-.ba-inv td { overflow-wrap: anywhere; }
-.ba-inv td.ba-when { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.ba-inv td.ba-invno { white-space: nowrap; font-weight: 700; }
-.ba-inv td.ba-client { color: var(--white); }
-.ba-inv tbody tr:hover { background: var(--raised); }
-.ba-inv tfoot .ba-hand-row th, .ba-inv tfoot .ba-hand-row td { font-weight: 400; color: var(--body); }
-.ba-inv tfoot .ba-hand-row th { color: var(--white); }
-.ba-inv tfoot .ba-total-row th, .ba-inv tfoot .ba-total-row td { border-top-color: var(--na); }
-.ba-inv tfoot .ba-hand-row + .ba-total-row th, .ba-inv tfoot .ba-hand-row + .ba-total-row td { border-top-color: var(--hairline); }
-.ba-empty { padding: 22px 14px; text-align: center; color: var(--label); }
+.ba-entry-err:empty { min-height: 0; }
+.ba-entry-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
 /* ---------- the comparison ---------- */
 .ba-compare-note { margin: 0 0 8px; }
@@ -216,12 +193,11 @@ a.hs-btn:hover { text-decoration: none; }
 @media (max-width: 640px) {
   .ba-head h1 { font-size: 20px; }
   .ba-actions { margin-left: 0; width: 100%; }
-  .ba-hand-grid { grid-template-columns: minmax(0, 1fr); }
+  .ba-entry-grid { grid-template-columns: minmax(0, 1fr); }
   .ba-detail .hs-sectionbar { flex-wrap: wrap; }
   .ba-barbtns { justify-content: flex-start; }
-  .ba-csv-note { text-align: left; }
   .ba-table th, .ba-table td { padding: 8px 10px; }
-  /* the figures (lodged beside now) fit the phone: values may wrap, the box never sticks out */
+  /* the figures fit the phone: values may wrap, the box never sticks out */
   .ba-figs-box { overflow-x: auto; }
   .ba-figs { width: 100%; }
   .ba-figs th, .ba-figs td { padding: 8px 8px; }
@@ -231,7 +207,7 @@ a.hs-btn:hover { text-decoration: none; }
   .ba-year th:first-child, .ba-year td:first-child { width: auto; position: sticky; left: 0; z-index: 1; background: var(--surface); }
   .ba-year thead th:first-child, .ba-year .ba-qrow th { background: var(--raised); }
   .ba-year .ba-mrow.ba-open th { background: var(--surface); }
-  .ba-year { min-width: 760px; }
+  .ba-year { min-width: 560px; }
 }
 
 /* style-check: print-start (paper colours: pure black on white) */
@@ -275,7 +251,7 @@ a.hs-btn:hover { text-decoration: none; }
   .ba-year .ba-qrow th { font-size: 7.5pt; }
   .ba-monthbtn, .ba-mlabel, .ba-mrow.ba-open .ba-monthbtn { color: #000; font-weight: 400; padding: 0; text-decoration: none; }
   .ba-mrow.ba-open { background: #fff; }
-  .ba-mrow.ba-future td, .ba-mrow.ba-future .ba-mlabel, .ba-year td.ba-sales, .ba-attend, .ba-wrap .ba-table td.ba-attend, .ba-st-word { color: #000; }
+  .ba-mrow.ba-future td, .ba-mrow.ba-future .ba-mlabel, .ba-year td.ba-sales, .ba-st-word { color: #000; }
   .ba-year .ba-qrow th, .ba-year .ba-qrow td, .ba-year tfoot th, .ba-year tfoot td { background: #fff; color: #000; }
   .ba-qrow th, .ba-qrow td { font-weight: 700; border-bottom: 0.4mm solid #000; }
   .ba-qrow td.ba-st, .ba-yrow td.ba-st { font-weight: 400; color: #000; }
@@ -288,7 +264,6 @@ a.hs-btn:hover { text-decoration: none; }
     padding: 0;
     font-size: 7pt;
   }
-  .ba-badge + .ba-badge::before { content: "· "; }
   .ba-hint { color: #000; font-size: 8.5pt; margin-top: 2mm; }
 }
 /* style-check: print-end */

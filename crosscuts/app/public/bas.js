@@ -1,8 +1,8 @@
-// BAS sales (bas.html[?fy=2027][#2026-09]): the financial year's sales by month on a cash basis,
-// with quarter and year totals; a month's detail (figures, lodging, the hand amount, its invoice
-// list and CSV); and the same month compared across financial years. Talks to /api/bas
-// (routes/bas.js, docs/plans/m9-contracts.md sections 6 and 9.1). Money is integer cents on the
-// wire; it is shown and typed only through Periods (public/periods.js).
+// BAS sales (bas.html[?fy=2027][#2026-09]): the financial year's sales by month, each typed in by
+// hand, with quarter and year totals; a month's detail (figures, lodging, the form where its sales
+// are typed); and the same month compared across financial years. Talks to /api/bas
+// (routes/bas.js, docs/plans/m9-contracts.md sections 6 and 9.1 and its 2026-10-16 note). Money is
+// integer cents on the wire; it is shown and typed only through Periods (public/periods.js).
 (function () {
   "use strict";
 
@@ -62,7 +62,6 @@
   }
 
   const money = (c) => (c === null || c === undefined ? DASH : P.dollars(c));
-  const num = (c) => (c === null || c === undefined ? "" : String(c));
 
   function showError(e) {
     toast(`Error: ${e && e.message ? e.message : e}`);
@@ -98,7 +97,6 @@
   let year = null; // GET /api/bas?fy=
   let detail = null; // GET /api/bas/months/:period
   let openPeriod = null; // the month whose detail is open
-  let showLive = false; // a lodged month: show the current list instead of the frozen one
   let compareData = null;
   let yearSeq = 0;
   let detailSeq = 0;
@@ -134,32 +132,24 @@
     const f = m.figures || {};
     if (m.lodged) {
       td.append(el("span", { class: "hs-badge hs-badge-na ba-badge", text: `Lodged ${shortDay(m.lodged.at)}` }));
-      if (m.changed) td.append(el("span", { class: "hs-badge hs-badge-check ba-badge", text: "Changed since lodged" }));
     }
     let word = "";
-    if (m.period === current) word = "Not ended";
-    else if (f.kind === "imported") word = "Imported";
-    else if (f.kind === "mixed") word = "Includes a hand amount";
+    if (!f.entered) word = m.period === current ? "Not entered yet" : "Not entered";
+    else if (m.period === current) word = "Not ended";
     if (word) td.append(el("span", { class: "ba-st-word", text: word }));
     return td;
   }
 
-  // Not in MYOB is a to-do signal, not a BAS figure: it is always the live count (a lodged
-  // month's other figures stay frozen). Pass it as liveMic.
-  function figureCells(f, blank, liveMic) {
-    if (blank) return ["", "", "", "", ""].map(() => el("td", { class: "num" }));
-    const mic = liveMic === undefined ? f.notInMyobCount || 0 : liveMic || 0;
+  // The three figure cells of a month: blank when it isn't entered (or is outside the table's
+  // range), a dash for a GST that wasn't typed.
+  function figureCells(f, blank) {
+    if (blank || !f.entered) return ["", "", ""].map(() => el("td", { class: "num" }));
     return [
       el("td", { class: "num ba-sales", text: money(f.salesCents) }),
       el("td", { class: "num", text: money(f.gstCents) }),
       el("td", { class: "num", text: money(f.exGstCents) }),
-      el("td", { class: "num", text: num(f.invoiceCount) }),
-      el("td", { class: "num" + (mic > 0 ? " ba-attend" : ""), text: String(mic) }),
     ];
   }
-
-  // A month's live Not in MYOB count (the frozen one only if the live figures are missing).
-  const liveMic = (m) => ((m.live || m.figures || {}).notInMyobCount || 0);
 
   function renderYear() {
     const y = year;
@@ -183,8 +173,8 @@
     y.months.forEach((m, i) => {
       const blank = m.future || beforeHistory(m.period);
       const f = m.figures || {};
-      // GST unknown, even when the month's sales net to $0 (a hand amount and a refund)
-      if (!blank && (f.gstCents === null || f.exGstCents === null)) dash = true;
+      // an entered month whose GST wasn't typed
+      if (!blank && f.entered && (f.gstCents === null || f.exGstCents === null)) dash = true;
       const tr = el("tr", { class: "ba-mrow" + (m.future ? " ba-future" : "") + (m.period === openPeriod ? " ba-open" : "") });
       tr.dataset.period = m.period;
       const th = el("th", { scope: "row", class: "ba-mcell" });
@@ -202,43 +192,30 @@
       } else {
         th.append(el("span", { class: "ba-mlabel", text: label }));
       }
-      tr.append(th, ...figureCells(f, blank, liveMic(m)), statusCell(m, current));
+      tr.append(th, ...figureCells(f, blank), statusCell(m, current));
       body.append(tr);
       // A quarter subtotal after every third month.
       if (i % 3 === 2) {
         const q = quarters[(i - 2) / 3];
-        const qMonths = y.months.slice(i - 2, i + 1);
-        if (q) body.append(sumRow("ba-qrow", q.label || P.quarterLabel(y.fy, q.q), q, qMonths, 3));
+        if (q) body.append(sumRow("ba-qrow", q.label || P.quarterLabel(y.fy, q.q), q, 3));
       }
     });
     const foot = $("yearFoot");
     foot.replaceChildren();
-    if (y.total) foot.append(sumRow("ba-yrow", "Year total", y.total, y.months, 12));
-    const shownSum = (s, months) => s && s.gstCents === null && !months.every((m) => m.future || beforeHistory(m.period));
-    if (shownSum(y.total, y.months) || quarters.some((q, i) => shownSum(q, y.months.slice(i * 3, i * 3 + 3)))) dash = true;
+    if (y.total) foot.append(sumRow("ba-yrow", "Year total", y.total, 12));
+    if ((y.total && y.total.enteredCount && y.total.gstCents === null) || quarters.some((q) => q.enteredCount && q.gstCents === null)) dash = true;
     $("dashKey").hidden = !dash;
+    $("csvLink").href = `${API}/sales.csv?fy=${encodeURIComponent(y.fy)}`;
     $("yearSection").hidden = false;
   }
 
-  // A quarter or the year: the sums, the Not in MYOB count added from its months, and
-  // "2 of 3 lodged".
-  function sumRow(cls, label, s, months, of) {
+  // A quarter or the year: the sums of the months entered, and "2 of 3 lodged". Blank when no
+  // month in it is entered.
+  function sumRow(cls, label, s, of) {
     const tr = el("tr", { class: cls });
-    const allBlank = months.every((m) => m.future || beforeHistory(m.period));
     tr.append(el("th", { scope: "row", class: "ba-mcell", text: label }));
-    if (allBlank) {
-      tr.append(...figureCells({}, true), el("td"));
-      return tr;
-    }
-    const mic = months.reduce((n, m) => n + (m.future ? 0 : liveMic(m)), 0);
-    tr.append(
-      el("td", { class: "num ba-sales", text: money(s.salesCents) }),
-      el("td", { class: "num", text: money(s.gstCents) }),
-      el("td", { class: "num", text: money(s.exGstCents) }),
-      el("td", { class: "num", text: num(s.invoiceCount) }),
-      el("td", { class: "num" + (mic > 0 ? " ba-attend" : ""), text: String(mic) }),
-      el("td", { class: "ba-st", text: s.lodgedCount ? `${s.lodgedCount} of ${of} lodged` : "" })
-    );
+    tr.append(...figureCells({ entered: !!s.enteredCount, ...s }, false));
+    tr.append(el("td", { class: "ba-st", text: s.lodgedCount ? `${s.lodgedCount} of ${of} lodged` : "" }));
     return tr;
   }
 
@@ -269,26 +246,26 @@
     await loadYear(fy);
   }
 
-  // --- the hand amount typed but not saved ------------------------------------------------
-  function handValues() {
-    return [$("handAmount").value, $("handGst").value, $("handNote").value];
+  // --- the sales typed but not saved ------------------------------------------------------
+  function typedValues() {
+    return [$("salesAmount").value, $("salesGst").value, $("salesNote").value];
   }
-  // True when the hand form on screen differs from the month's saved hand amount.
-  function handDirty() {
-    if (!detail || $("detail").hidden || $("detailBody").hidden || $("handForm").hidden) return false;
+  // True when the sales form on screen differs from the month's saved figures.
+  function typedDirty() {
+    if (!detail || $("detail").hidden || $("detailBody").hidden || $("salesForm").hidden) return false;
     const f = detail.month.figures || {};
-    const [a, g, n] = handValues();
+    const [a, g, n] = typedValues();
     return !(
-      P.parseDollars(a) === (f.handCents ?? null) &&
-      P.parseDollars(g) === (f.handGstCents ?? null) &&
-      n.trim() === (f.handNote || "").trim()
+      P.parseDollars(a) === (f.salesCents ?? null) &&
+      P.parseDollars(g) === (f.gstCents ?? null) &&
+      n.trim() === (f.note || "").trim()
     );
   }
   // Before the month on screen goes (another month, Close, another year, the hash): ask first
-  // when the hand form has typing that isn't saved.
+  // when the sales form has typing that isn't saved.
   function okToLeave() {
-    if (!handDirty()) return true;
-    return confirm(`The hand amount you typed for ${P.longLabel(detail.month.period)} isn't saved. Leave it unsaved?`);
+    if (!typedDirty()) return true;
+    return confirm(`The sales you typed for ${P.longLabel(detail.month.period)} aren't saved. Leave them unsaved?`);
   }
 
   // --- a month's detail -------------------------------------------------------------------
@@ -361,7 +338,6 @@
       return;
     }
     const seq = ++detailSeq;
-    if (openPeriod !== period) showLive = false;
     openPeriod = period;
     markOpenRow();
     writeUrl();
@@ -394,18 +370,13 @@
     ["Sales inc GST (G1)", (f) => money(f.salesCents), "salesCents"],
     ["GST (1A)", (f) => money(f.gstCents), "gstCents"],
     ["Ex GST", (f) => money(f.exGstCents), "exGstCents"],
-    ["Invoices", (f) => `${f.invoiceCount || 0} (${P.dollars(f.invoiceCents || 0)})`, "invoiceCents"],
-    ["Hand amount", (f) => (f.handCents === null || f.handCents === undefined ? "None" : P.dollars(f.handCents) + (f.handGstCents === null || f.handGstCents === undefined ? ", GST not known" : `, GST ${P.dollars(f.handGstCents)}`)), "handCents"],
-    ["Not in MYOB", (f) => String(f.notInMyobCount || 0), "notInMyobCount"],
   ];
 
   function renderDetail() {
     const d = detail;
     const m = d.month;
     const f = m.figures || {};
-    const live = m.live || f;
     const lodged = !!m.lodged;
-    const both = lodged && m.changed;
     const isCurrent = !d.next; // the server's next is null at the current month
     const edit = canEdit();
 
@@ -417,141 +388,45 @@
     if (lodged) {
       const by = m.lodged.by && m.lodged.by.name ? ` by ${m.lodged.by.name}` : "";
       st = `Lodged ${fmtDate(sydneyDate(m.lodged.at))}${by}.`;
-      if (both) st += " Its figures have changed since; the lodged figures stand.";
+    } else if (!f.entered) {
+      st = isCurrent ? "Not entered yet. This month hasn't ended, so it can't be lodged." : "Not entered yet.";
     } else if (isCurrent) {
       st = "This month hasn't ended yet, so it can't be lodged.";
-    } else if (f.kind === "imported") {
-      st = "Imported: a hand amount, no invoices.";
     }
     $("detailStatus").textContent = st;
 
     // figures
-    const head = $("figsHead");
-    head.replaceChildren(
-      el("tr", {},
-        el("th", { scope: "col" }, el("span", { class: "ba-visually-hidden", text: "Figure" })),
-        el("th", { scope: "col", class: "num", text: lodged ? "Lodged" : "This month" }),
-        both ? el("th", { scope: "col", class: "num", text: "Now" }) : null)
-    );
     const rows = $("figsRows");
     rows.replaceChildren();
     for (const [label, show, key] of FIG_ROWS) {
       const tr = el("tr", {}, el("th", { scope: "row", class: "ba-fig-k", text: label }));
-      if (key === "notInMyobCount") {
-        // A to-do count, not a BAS figure: always the live count, in one cell, so it never looks
-        // like a change since lodging (contracts section 12 point 11).
-        const n = live.notInMyobCount || 0;
-        tr.append(el("td", { class: "num" + (n > 0 ? " ba-attend" : ""), colspan: both ? "2" : null, text: String(n) }));
-        rows.append(tr);
-        continue;
-      }
-      tr.append(el("td", { class: "num", text: show(f) }));
-      if (both) {
-        const differs = f[key] !== live[key] || (key === "handCents" && f.handGstCents !== live.handGstCents) || (key === "invoiceCents" && f.invoiceCount !== live.invoiceCount);
-        tr.append(el("td", { class: "num" + (differs ? " ba-attend" : ""), text: show(live) }));
-      }
+      // blank, not a dash, while nothing is entered
+      tr.append(el("td", { class: "num", text: f.entered ? show(f) : "" }));
       if (key === "salesCents") tr.classList.add("ba-fig-main");
       rows.append(tr);
     }
-    const note = (f.handNote || "").trim();
-    $("handNoteLine").hidden = !note;
-    $("handNoteLine").textContent = note ? `Hand amount note: ${note}` : "";
-
-    // changes
-    const changes = (lodged && d.changes) || [];
-    $("changes").hidden = !changes.length;
-    $("changeList").replaceChildren(...changes.map((s) => el("li", { text: s })));
+    const note = (f.note || "").trim();
+    $("noteLine").hidden = !note;
+    $("noteLine").textContent = note ? `Note: ${note}` : "";
 
     // lodge / reopen
-    const lodgeOk = edit && !lodged && !isCurrent;
+    const lodgeOk = edit && !lodged && !isCurrent && f.entered;
     const reopenOk = canReopen() && lodged;
     $("lodgeBtn").hidden = !lodgeOk;
     $("reopenBtn").hidden = !reopenOk;
     $("monthActs").hidden = !(lodgeOk || reopenOk);
     $("lockedNote").hidden = !(edit && lodged);
 
-    // the hand amount form
-    const form = $("handForm");
+    // the sales form
+    const form = $("salesForm");
     form.hidden = !(edit && !lodged);
     if (!form.hidden) {
-      $("handAmount").value = f.handCents === null || f.handCents === undefined ? "" : P.dollars(f.handCents);
-      $("handGst").value = f.handGstCents === null || f.handGstCents === undefined ? "" : P.dollars(f.handGstCents);
-      $("handNote").value = f.handNote || "";
-      $("handErr").textContent = "";
-      $("handClear").hidden = f.handCents === null || f.handCents === undefined;
+      $("salesAmount").value = f.entered ? P.dollars(f.salesCents) : "";
+      $("salesGst").value = f.entered && f.gstCents !== null ? P.dollars(f.gstCents) : "";
+      $("salesNote").value = f.note || "";
+      $("salesErr").textContent = "";
+      $("salesClear").hidden = !f.entered;
     }
-
-    renderInvoices();
-  }
-
-  function renderInvoices() {
-    const d = detail;
-    const m = d.month;
-    const lodged = !!m.lodged;
-    const frozen = lodged && !showLive && Array.isArray(d.lodgedInvoices);
-    const list = frozen ? d.lodgedInvoices : d.invoices || [];
-    const f = lodged && !showLive ? m.figures : m.live || m.figures;
-
-    const toggle = $("listToggle");
-    toggle.hidden = !lodged;
-    toggle.textContent = showLive ? "Show lodged list" : "Show current list";
-    $("invTitle").textContent = lodged
-      ? showLive ? "Invoices paid in this month now" : "Invoices paid in this month, as lodged"
-      : "Invoices paid in this month";
-    $("csvLink").href = `${API}/months/${encodeURIComponent(m.period)}/invoices.csv`;
-    $("csvNote").hidden = !(lodged && !showLive);
-
-    // In MYOB is a to-do, not a lodged figure: on the frozen list, an invoice still in the live
-    // list shows its current date; one that has left the month keeps its frozen value.
-    const liveMyob = new Map((d.invoices || []).map((i) => [i.id, i.myobEnteredDate]));
-    const body = $("invRows");
-    body.replaceChildren();
-    for (const inv of list) {
-      const job = inv.job && inv.job.name ? inv.job.name : "";
-      const myobDate = frozen && liveMyob.has(inv.id) ? liveMyob.get(inv.id) : inv.myobEnteredDate;
-      const myob = myobDate
-        ? el("td", { class: "ba-when", text: fmtDate(myobDate) })
-        : el("td", { class: "ba-when ba-attend", text: "Not yet" });
-      body.append(
-        el("tr", {},
-          el("td", { class: "ba-invno" }, el("a", { href: `/invoice.html?id=${encodeURIComponent(inv.id)}`, text: inv.number || `#${inv.id}` })),
-          el("td", { class: "ba-client", text: inv.client || "" }),
-          el("td", { class: "ba-job", text: job }),
-          el("td", { class: "ba-when", text: fmtDate(inv.issueDate) }),
-          el("td", { class: "ba-when", text: fmtDate(inv.paidDate) }),
-          el("td", { class: "num", text: money(inv.totalCents) }),
-          el("td", { class: "num", text: money(inv.gstCents) }),
-          el("td", { class: "num", text: money(inv.exGstCents) }),
-          myob)
-      );
-    }
-    const foot = $("invFoot");
-    foot.replaceChildren();
-    if (f && f.handCents !== null && f.handCents !== undefined) {
-      const ex = f.handGstCents === null || f.handGstCents === undefined ? null : f.handCents - f.handGstCents;
-      foot.append(
-        el("tr", { class: "ba-hand-row" },
-          el("th", { scope: "row", text: "Hand amount" }),
-          el("td", { class: "ba-client", colspan: "4", text: (f.handNote || "").trim() }),
-          el("td", { class: "num", text: money(f.handCents) }),
-          el("td", { class: "num", text: money(f.handGstCents) }),
-          el("td", { class: "num", text: money(ex) }),
-          el("td"))
-      );
-    }
-    if (f && (list.length || f.handCents !== null && f.handCents !== undefined)) {
-      foot.append(
-        el("tr", { class: "ba-total-row" },
-          el("th", { scope: "row", text: "Month total" }),
-          el("td", { colspan: "4" }),
-          el("td", { class: "num", text: money(f.salesCents) }),
-          el("td", { class: "num", text: money(f.gstCents) }),
-          el("td", { class: "num", text: money(f.exGstCents) }),
-          el("td"))
-      );
-    }
-    $("invEmpty").hidden = list.length > 0 || foot.children.length > 0;
-    $("invEmpty").textContent = lodged && !showLive ? "No invoices were paid in this month when it was lodged." : "No invoices were paid in this month.";
     $("detailBody").hidden = false;
   }
 
@@ -580,28 +455,22 @@
     await loadYear(year ? year.fy : null);
   }
 
-  // What a lodge freezes: whether the month is lodged, its BAS figures and its invoice list. Not in
-  // MYOB is left out (a live to-do count, section 12 point 11).
-  const FROZEN_KEYS = ["salesCents", "gstCents", "exGstCents", "invoiceCount", "invoiceCents", "invoiceGstCents", "handCents", "handGstCents", "handNote"];
+  // What a lodge freezes: whether the month is lodged and its figures.
   function lodgeKey(d) {
     const m = d.month;
     const f = m.figures || {};
-    return JSON.stringify([
-      !!m.lodged,
-      FROZEN_KEYS.map((k) => f[k] ?? null),
-      (d.invoices || []).map((i) => [i.id, i.totalCents, i.gstCents, i.paidDate]),
-    ]);
+    return JSON.stringify([!!m.lodged, f.entered, f.salesCents ?? null, f.gstCents ?? null, f.note || ""]);
   }
 
-  // Shows a fresh detail; typing in the hand form that isn't saved stays in it.
+  // Shows a fresh detail; typing in the sales form that isn't saved stays in it.
   function showDetailKeepingTyping(d) {
-    const typed = handDirty() ? handValues() : null;
+    const typed = typedDirty() ? typedValues() : null;
     detail = d;
     renderDetail();
-    if (typed && !$("handForm").hidden) {
-      $("handAmount").value = typed[0];
-      $("handGst").value = typed[1];
-      $("handNote").value = typed[2];
+    if (typed && !$("salesForm").hidden) {
+      $("salesAmount").value = typed[0];
+      $("salesGst").value = typed[1];
+      $("salesNote").value = typed[2];
     }
   }
 
@@ -626,8 +495,8 @@
       return;
     }
     const f = fresh.month.figures || {};
-    const unsaved = handDirty() ? "\n\nThe hand amount you typed isn't saved; it is left out." : "";
-    const q = `Lodge ${P.longLabel(period)}? Sales inc GST ${P.dollars(f.salesCents || 0)}.\n\nIts figures and invoice list are frozen as they are now. Only an admin can reopen it.${unsaved}`;
+    const unsaved = typedDirty() ? "\n\nThe sales you typed aren't saved; they are left out." : "";
+    const q = `Lodge ${P.longLabel(period)}? Sales inc GST ${P.dollars(f.salesCents || 0)}.\n\nIts figures are frozen as they are now. Only an admin can reopen it.${unsaved}`;
     if (!confirm(q)) return;
     let d;
     try {
@@ -644,7 +513,7 @@
 
   async function reopen() {
     const m = detail.month;
-    if (!confirm(`Reopen ${P.longLabel(m.period)}? Its lodged figures are dropped, and it shows the figures as they are now.`)) return;
+    if (!confirm(`Reopen ${P.longLabel(m.period)}? It can then be changed and lodged again.`)) return;
     let d;
     try {
       d = await api(`${API}/months/${encodeURIComponent(m.period)}/reopen`, { method: "POST", body: "{}" });
@@ -658,13 +527,13 @@
     focusDetail();
   }
 
-  async function putHand(body) {
+  async function putSales(body) {
     const period = detail.month.period;
     try {
-      const d = await api(`${API}/months/${encodeURIComponent(period)}/hand`, { method: "PUT", body: JSON.stringify(body) });
+      const d = await api(`${API}/months/${encodeURIComponent(period)}/sales`, { method: "PUT", body: JSON.stringify(body) });
       return d;
     } catch (e) {
-      $("handErr").textContent = e.message;
+      $("salesErr").textContent = e.message;
       // Lodged meanwhile (another tab): the form can't be used any more, so show the month as it
       // is now. A refused value leaves the typing and the sentence where they are.
       try {
@@ -680,26 +549,26 @@
     }
   }
 
-  async function saveHand(ev) {
+  async function saveSales(ev) {
     ev.preventDefault();
-    const err = $("handErr");
+    const err = $("salesErr");
     err.textContent = "";
-    const amount = P.parseDollars($("handAmount").value);
-    const gst = P.parseDollars($("handGst").value);
-    const note = $("handNote").value.trim();
-    if (Number.isNaN(amount)) return fail("handAmount", "Type the amount in dollars, like 1,234.56");
-    if (Number.isNaN(gst)) return fail("handGst", "Type the GST in dollars, like 112.23, or leave it blank");
-    if (amount === null && gst !== null) return fail("handAmount", "Enter an amount for the GST to go with");
-    if (amount === null && note) return fail("handAmount", "Enter an amount for the note, or clear it");
-    const d = await putHand({ handCents: amount, handGstCents: gst, handNote: note });
+    const amount = P.parseDollars($("salesAmount").value);
+    const gst = P.parseDollars($("salesGst").value);
+    const note = $("salesNote").value.trim();
+    if (Number.isNaN(amount)) return fail("salesAmount", "Type the sales in dollars, like 1,234.56");
+    if (Number.isNaN(gst)) return fail("salesGst", "Type the GST in dollars, like 112.23, or leave it blank");
+    if (amount === null && gst !== null) return fail("salesAmount", "Enter the sales for the GST to go with");
+    if (amount === null && note) return fail("salesAmount", "Enter the sales for the note, or clear the note");
+    const d = await putSales({ salesCents: amount, gstCents: gst, note });
     if (!d) {
       // refused: back to the amount, with the sentence under the form (lodged meanwhile: the form
       // has gone, so the month's heading)
-      if (!$("handForm").hidden) $("handAmount").focus();
+      if (!$("salesForm").hidden) $("salesAmount").focus();
       else focusDetail();
       return;
     }
-    toast(amount === null ? "Hand amount cleared" : "Hand amount saved");
+    toast(amount === null ? "Sales cleared" : "Sales saved");
     await afterChange(d);
     focusDetail();
     function fail(id, msg) {
@@ -708,14 +577,14 @@
     }
   }
 
-  async function clearHand() {
+  async function clearSales() {
     const m = detail.month;
     const f = m.figures || {};
-    if (!confirm(`Clear the hand amount of ${P.dollars(f.handCents)} from ${P.longLabel(m.period)}?`)) return;
-    $("handErr").textContent = "";
-    const d = await putHand({ handCents: null, handGstCents: null, handNote: "" });
+    if (!confirm(`Clear the sales of ${P.dollars(f.salesCents || 0)} from ${P.longLabel(m.period)}?`)) return;
+    $("salesErr").textContent = "";
+    const d = await putSales({ salesCents: null, gstCents: null, note: "" });
     if (!d) return; // once() puts the focus back on Clear, or on the heading if the form has gone
-    toast("Hand amount cleared");
+    toast("Sales cleared");
     await afterChange(d);
     focusDetail();
   }
@@ -901,15 +770,11 @@
     $("nextMonth").addEventListener("click", () => goMonth(navNext));
     $("lodgeBtn").addEventListener("click", once($("lodgeBtn"), lodge));
     $("reopenBtn").addEventListener("click", once($("reopenBtn"), reopen));
-    $("handForm").addEventListener("submit", once($("handSave"), saveHand));
-    $("handClear").addEventListener("click", once($("handClear"), clearHand));
-    $("listToggle").addEventListener("click", () => {
-      showLive = !showLive;
-      if (detail) renderInvoices();
-    });
+    $("salesForm").addEventListener("submit", once($("salesSave"), saveSales));
+    $("salesClear").addEventListener("click", once($("salesClear"), clearSales));
     // A hand-edited hash: a month with a detail opens it; anything else (not a month, before Jun
     // 2023, after this month) opens nothing, closes the detail and puts the URL right. Unsaved
-    // typing in the hand form is asked about first (Cancel puts the hash back).
+    // typing in the sales form is asked about first (Cancel puts the hash back).
     window.addEventListener("hashchange", () => {
       const p = hashPeriod();
       if (p && p === openPeriod) return;
@@ -925,7 +790,7 @@
       else closeDetail(false);
     });
     window.addEventListener("beforeunload", (e) => {
-      if (handDirty()) {
+      if (typedDirty()) {
         e.preventDefault();
         e.returnValue = "";
       }

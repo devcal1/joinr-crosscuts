@@ -394,3 +394,19 @@ One wave: the pages code against §6 and §7 with stubbed responses, then 4.1 ru
 13. **Pre-cutover invoices paid after cutover** (issued in MYOB, never in Crosscuts) don't count by themselves under the cash basis; Accounts add them to the hand amount of the month they're paid in (`docs/cutover.md`, `docs/how-to-bas.md`).
 14. **Restore skips the gap** (Todd, 4.3; §7.1): a restored supplier is listed from the current month on; the months it was archived stay as they were.
 15. **Error text is orange app-wide** (Todd, 4.3): `.cc-dialog-error` in the shell uses the orange tint (attend), not red, so dialog and form errors follow the house style's colour roles.
+
+## 2026-10-16 change: BAS sales are typed in by hand (Todd's decision; supersedes §5, §6 and §9.1 where they differ)
+
+Invoices no longer count towards BAS at all. Every month's sales (including GST) and its GST are typed in by hand, for past months and for each new month. No migration: the `bas_months` hand columns (`hand_cents`, `hand_gst_cents`, `hand_note`) now hold the month's figure, and a month with no `hand_cents` is "not entered".
+
+- **Figures** (per month): `{entered, salesCents, gstCents, exGstCents, note}`. Not entered: `entered false`, every amount null, note `''`. GST stays optional (null = not typed; Ex GST then null). `invoiceCount`, `invoiceCents`, `invoiceGstCents`, `notInMyobCount`, `kind`, `live` and `changed` are gone.
+- **Every month is listed:** the year view lists all twelve months of the financial year; months up to the current one are blank until entered (`entered false`), future months are `future true`. Months before Jun 2023 stay blank and out of the sums.
+- **Sums** (quarters and year): `{salesCents, gstCents, exGstCents, enteredCount, lodgedCount}`, over the entered months only. All amounts null when none is entered; `gstCents` null while any entered month has no GST.
+- **Writing:** `PUT /api/bas/months/:period/sales` (was `/hand`; `invoices.edit`) with `{salesCents, gstCents, note}`. `salesCents` null clears the month (and its GST and note). `0` is a real entry (a month with no sales); negative is allowed (net refunds). Same GST rules as before (same sign, at most a tenth of the amount before GST). Sentences say "sales" instead of "hand amount". Audit action `bas.sales` (was `bas.hand`), before and after `{salesCents, gstCents, note}`.
+- **Lodging** is unchanged except: a month with nothing entered can't be lodged (409 "Enter this month's sales before lodging it"). A lodged month's figure is locked and nothing else feeds it, so "changed since lodged", the live-beside-frozen figures and the invoice lists are gone; the detail is `{month, prev, next}`. `lodged_json` still stores `{figures}` as a record. Reopen is unchanged.
+- **CSV:** the per-invoice `GET /months/:period/invoices.csv` is removed. Replaced by `GET /api/bas/sales.csv?fy=` (`accounts.view`): the financial year's months up to the current one, columns `Month, Sales inc GST, GST, Ex GST, Note` (blank where not entered), file name `BAS sales FY 2027.csv`.
+- **Comparison:** a month with nothing entered is null (not 0), so the chart skips it.
+- **Page:** the year table drops the Invoices and Not in MYOB columns and shows "Not entered" for a blank month; a month's detail is the three figures, Lodge/Reopen and the "This month's sales" form (no invoice list); a "Download CSV" button sits in the page header.
+- **Cutover:** the "hand amount for payments received before the load" workaround is gone: type each month's figure in full (`docs/cutover.md`, `docs/how-to-bas.md`).
+- Decision 1 (cash basis from invoices), Decision 4 as worded, and §12 points 4, 11 and 13 no longer apply. Marking invoices paid on the Accounts page is untouched; BAS just doesn't read it.
+- Smoke: `ci/smoke-m9-bas.sh` rewritten to this (invoices don't count, blank months listed, typed figures and sums, lodging, comparison, CSV).
