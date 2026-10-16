@@ -28,13 +28,14 @@ const REMINDER_LABELS = {
   day_before: "7:00 the day before",
 };
 
-const REPEATS = ["none", "weekly", "fortnightly", "monthly"];
+const REPEATS = ["none", "weekly", "fortnightly", "monthly", "annually"];
 const STEP_DAYS = { weekly: 7, fortnightly: 14 };
-const STEP_MAX_SPAN = { weekly: 7, fortnightly: 14, monthly: 28 };
+const STEP_MAX_SPAN = { weekly: 7, fortnightly: 14, monthly: 28, annually: 28 };
 const STEP_SENTENCE = {
   weekly: "A weekly event can't last longer than a week",
   fortnightly: "A fortnightly event can't last longer than two weeks",
   monthly: "A monthly event can't last longer than 28 days",
+  annually: "An annual event can't last longer than 28 days",
 };
 const SCOPES = ["one", "later", "all"];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -96,6 +97,17 @@ function monthlyDate(start, n, repeatDay) {
   return `${String(y).padStart(4, "0")}-${pad2(m)}-${pad2(d)}`;
 }
 
+// An annual event is stored as a monthly one that steps 12 months (migration 027: repeat = 'monthly',
+// repeat_months = 12). These two translate at the edge, so the rest of the code, the API and the page
+// only ever see 'annually'.
+function rowRepeat(row) {
+  return row.repeat === "monthly" && row.repeat_months === 12 ? "annually" : row.repeat;
+}
+
+function storedRepeat(repeat) {
+  return repeat === "annually" ? { repeat: "monthly", repeatMonths: 12 } : { repeat, repeatMonths: 1 };
+}
+
 function toMinutes(t) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
@@ -113,9 +125,10 @@ function norm(series) {
   const pick = (snake, camel) => (s[snake] !== undefined ? s[snake] : s[camel]);
   const startDate = pick("start_date", "startDate");
   const endDate = pick("end_date", "endDate") || startDate;
-  const repeat = pick("repeat", "repeat") || "none";
+  let repeat = pick("repeat", "repeat") || "none";
+  if (repeat === "monthly" && pick("repeat_months", "repeatMonths") === 12) repeat = "annually";
   let repeatDay = pick("repeat_day", "repeatDay");
-  if (repeat === "monthly" && (repeatDay === undefined || repeatDay === null)) repeatDay = ymd(startDate).d;
+  if ((repeat === "monthly" || repeat === "annually") && (repeatDay === undefined || repeatDay === null)) repeatDay = ymd(startDate).d;
   return {
     startDate,
     endDate,
@@ -162,6 +175,17 @@ function occurrenceDates(series, from, to) {
     }
     return out;
   }
+  if (s.repeat === "annually") {
+    // Every 12 months from the start: the same month and day, the day clamped to the month's length
+    // (29 Feb falls on 28 Feb in a year that isn't a leap year), as the monthly rule does.
+    let n = Math.max(0, Math.floor(monthsBetween(s.startDate, earliest) / 12) - 1);
+    for (;; n++) {
+      const start = monthlyDate(s.startDate, n * 12, s.repeatDay);
+      if (start > lastStart) break;
+      if (addDays(start, L - 1) >= from) out.push(start);
+    }
+    return out;
+  }
   return out;
 }
 
@@ -175,6 +199,10 @@ function isOccurrence(series, date) {
   if (s.repeatUntil && date > s.repeatUntil) return false;
   if (STEP_DAYS[s.repeat]) return daysBetween(s.startDate, date) % STEP_DAYS[s.repeat] === 0;
   if (s.repeat === "monthly") return monthlyDate(s.startDate, monthsBetween(s.startDate, date), s.repeatDay) === date;
+  if (s.repeat === "annually") {
+    const n = monthsBetween(s.startDate, date);
+    return n % 12 === 0 && monthlyDate(s.startDate, n, s.repeatDay) === date;
+  }
   return false;
 }
 
@@ -289,7 +317,7 @@ function occItem(user, row, occ) {
     end: occ.end,
     startTime: row.all_day ? null : occ.startTime,
     endTime: row.all_day ? null : occ.endTime,
-    repeat: row.repeat,
+    repeat: rowRepeat(row),
     repeatUntil: row.repeat_until || null,
     changed: occ.changed,
     reminder: row.reminder || null,
@@ -347,7 +375,7 @@ function present(db, user, row) {
     endDate: row.end_date,
     startTime: row.start_time || null,
     endTime: row.end_time || null,
-    repeat: row.repeat,
+    repeat: rowRepeat(row),
     repeatUntil: row.repeat_until || null,
     repeatDay: row.repeat_day == null ? null : row.repeat_day,
     splitFromId: row.split_from_id == null ? null : row.split_from_id,
@@ -525,7 +553,7 @@ function baseOf(row) {
     endDate: row.end_date,
     startTime: row.start_time || null,
     endTime: row.end_time || null,
-    repeat: row.repeat,
+    repeat: rowRepeat(row),
     repeatUntil: row.repeat_until || null,
     repeatDay: row.repeat_day == null ? null : row.repeat_day,
     reminder: row.reminder || null,
@@ -589,7 +617,7 @@ function buildSeries(db, user, base, body) {
 
   let repeat = creating ? "none" : b.repeat;
   if (given("repeat") && body.repeat !== null) repeat = body.repeat;
-  if (!REPEATS.includes(repeat)) throw bad("repeat must be one of none, weekly, fortnightly, monthly");
+  if (!REPEATS.includes(repeat)) throw bad("repeat must be one of none, weekly, fortnightly, monthly, annually");
 
   let repeatUntil = null;
   if (repeat !== "none") {
@@ -602,8 +630,8 @@ function buildSeries(db, user, base, body) {
   }
 
   let repeatDay = null;
-  if (repeat === "monthly") {
-    const keep = !creating && b.repeat === "monthly" && startDate === b.startDate && b.repeatDay != null;
+  if (repeat === "monthly" || repeat === "annually") {
+    const keep = !creating && (b.repeat === "monthly" || b.repeat === "annually") && startDate === b.startDate && b.repeatDay != null;
     repeatDay = keep ? b.repeatDay : ymd(startDate).d;
     const S = ymd(startDate);
     if (Math.min(repeatDay, daysInMonth(S.y, S.m)) !== S.d) repeatDay = S.d;
@@ -710,16 +738,17 @@ function requireBody(body) {
 }
 
 function insertSeries(db, ownerId, actorId, c, ts, splitFromId) {
+  const st = storedRepeat(c.repeat);
   const info = db
     .prepare(
       `INSERT INTO planner_events (layer, owner_id, title, notes, job_id, all_day, start_date, end_date,
-         start_time, end_time, repeat, repeat_until, repeat_day, split_from_id, reminder, remind_layer,
-         created_at, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         start_time, end_time, repeat, repeat_months, repeat_until, repeat_day, split_from_id, reminder,
+         remind_layer, created_at, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       c.layer, ownerId, c.title, c.notes, c.jobId, c.allDay ? 1 : 0, c.startDate, c.endDate,
-      c.startTime, c.endTime, c.repeat, c.repeatUntil, c.repeatDay, splitFromId, c.reminder,
+      c.startTime, c.endTime, st.repeat, st.repeatMonths, c.repeatUntil, c.repeatDay, splitFromId, c.reminder,
       c.remindLayer ? 1 : 0, ts, ts, actorId
     );
   return Number(info.lastInsertRowid);
@@ -884,18 +913,19 @@ function updateWhole(db, req, g, body) {
   const clears = changed.includes("startDate") || changed.includes("repeat") || changed.includes("repeatDay")
     || changed.includes("allDay");
   const visible = changed.filter((k) => k !== "repeatDay" || !changed.includes("startDate"));
+  const st = storedRepeat(cand.repeat);
   db.transaction(() => {
     const ts = nextStamp(row.updated_at);
     const info = db
       .prepare(
         `UPDATE planner_events SET layer = ?, title = ?, notes = ?, job_id = ?, all_day = ?, start_date = ?,
-           end_date = ?, start_time = ?, end_time = ?, repeat = ?, repeat_until = ?, repeat_day = ?,
-           reminder = ?, remind_layer = ?, updated_at = ?, updated_by = ?
+           end_date = ?, start_time = ?, end_time = ?, repeat = ?, repeat_months = ?, repeat_until = ?,
+           repeat_day = ?, reminder = ?, remind_layer = ?, updated_at = ?, updated_by = ?
          WHERE id = ? AND updated_at = ? AND removed_at IS NULL`
       )
       .run(
         cand.layer, cand.title, cand.notes, cand.jobId, cand.allDay ? 1 : 0, cand.startDate, cand.endDate,
-        cand.startTime, cand.endTime, cand.repeat, cand.repeatUntil, cand.repeatDay, cand.reminder,
+        cand.startTime, cand.endTime, st.repeat, st.repeatMonths, cand.repeatUntil, cand.repeatDay, cand.reminder,
         cand.remindLayer ? 1 : 0, ts, user.id, row.id, row.updated_at
       );
     if (info.changes !== 1) throw conflict(STALE, { event: present(db, user, loadRow(db, row.id) || row) });
