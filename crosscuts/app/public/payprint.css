@@ -1,7 +1,8 @@
 /* Pay-run prints (/payprint.html, docs/plans/m8-contracts.md section 8.3): the blank fortnightly
    timesheets, the blank overtime log and the pay-run summary. On screen: the house-style frame
    with each page as a white A4 sheet on the ink ground (a document, so black on white). When
-   printed: only the sheets, black on white, A4, one per page (the summary landscape). Sizes are
+   printed: only the sheets, black on white, A4, one per page (the timesheets and the summary
+   landscape, the overtime log portrait). Sizes are
    in mm and pt so the screen sheet and the printed page match. Colours come from tokens.css,
    except in the print block. */
 
@@ -180,6 +181,37 @@ body {
 .pp-line-date { flex: 1 1 0; }
 .pp-line .pp-label { flex: none; }
 .pp-rule { flex: 1 1 auto; height: 9mm; border-bottom: 0.4mm solid var(--ink); }
+
+/* ---------- the timesheet (landscape: the columns get the extra width) ---------- */
+
+.pp-ts .pp-form-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10mm;
+  margin-bottom: 3mm;
+}
+.pp-ts .pp-fields { flex: 1 1 auto; max-width: 190mm; margin-top: 0; }
+.pp-ts .pp-value { min-height: 7mm; }
+.pp-ts .pp-grid thead th { height: 9mm; font-size: 7pt; }
+.pp-ts .pp-grid tbody td { height: 9mm; }
+.pp-ts .pp-grid tfoot th,
+.pp-ts .pp-grid tfoot td { height: 9mm; }
+.pp-ts .pp-c-date { width: 20mm; }
+.pp-ts .pp-c-day { width: 14mm; }
+.pp-ts .pp-c-start, .pp-ts .pp-c-finish { width: 20mm; }
+.pp-ts .pp-c-lunch { width: 18mm; }
+.pp-ts .pp-c-phol, .pp-ts .pp-c-sick, .pp-ts .pp-c-arl { width: 17mm; }
+.pp-ts .pp-c-onsite { width: 19mm; }
+.pp-ts .pp-c-total { width: 19mm; }
+.pp-ts .pp-c-ot, .pp-ts .pp-c-dt { width: 17mm; }
+.pp-ts .pp-lower { margin-top: 4mm; gap: 8mm; }
+.pp-ts .pp-box { min-height: 24mm; }
+.pp-ts .pp-sumblock { flex: 0 0 90mm; }
+.pp-ts .pp-sumtable th { height: 6.5mm; }
+.pp-ts .pp-sumtable td.pp-blank { width: 34mm; }
+.pp-ts .pp-sign { margin-top: 3mm; }
+.pp-ts .pp-rule { height: 8mm; }
 
 /* ---------- the overtime log ---------- */
 

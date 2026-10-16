@@ -1,6 +1,6 @@
 // Pay-run prints (/payprint.html, docs/plans/m8-contracts.md section 8.3). Read-only: it builds
 // A4 pages from the pay-runs API and "Print" is the browser's own print dialog (Save as PDF).
-//   ?start=YYYY-MM-DD&what=sheets[&person=<personId>]  blank fortnightly timesheets, one per person
+//   ?start=YYYY-MM-DD&what=sheets[&person=<personId>]  blank fortnightly timesheets, one per person, landscape
 //   ?start=YYYY-MM-DD&what=overtime                    the blank overtime log
 //   ?id=N&what=summary                                 the pay-run summary, landscape
 // The printed timesheets carry nothing but the name and the dates (Decisions 1 and 5): staff fill
@@ -134,7 +134,7 @@
   }
 
   function timesheetPage(person, start) {
-    var page = sheet("pp-form");
+    var page = sheet("pp-form pp-land pp-ts");
     page.setAttribute("aria-label", "Timesheet for " + person.name);
 
     var head = el("header", "pp-form-head");
@@ -194,6 +194,11 @@
     var lower = el("div", "pp-lower");
     var notes = el("section", "pp-notes");
     add(notes, el("h2", "pp-label", "Notes"), el("div", "pp-box"));
+    var sign = el("div", "pp-sign");
+    add(sign,
+      add(el("div", "pp-line pp-line-sig"), el("span", "pp-label", "Signature"), el("span", "pp-rule")),
+      add(el("div", "pp-line pp-line-date"), el("span", "pp-label", "Date"), el("span", "pp-rule")));
+    notes.appendChild(sign);
     var sum = el("section", "pp-sumblock");
     sum.appendChild(el("h2", "pp-label", "Summary (hours)"));
     var st = el("table", "pp-sumtable");
@@ -209,12 +214,6 @@
     sum.appendChild(st);
     add(lower, notes, sum);
     page.appendChild(lower);
-
-    var sign = el("div", "pp-sign");
-    add(sign,
-      add(el("div", "pp-line pp-line-sig"), el("span", "pp-label", "Signature"), el("span", "pp-rule")),
-      add(el("div", "pp-line pp-line-date"), el("span", "pp-label", "Date"), el("span", "pp-rule")));
-    page.appendChild(sign);
     return page;
   }
 
