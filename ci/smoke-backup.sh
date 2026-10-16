@@ -551,6 +551,10 @@ bk_list7=$(bk_7z l "-p$BK_PP" -- "$BK_ARCHIVES/$BK_ARCH7" 2>&1 || true)
 case $bk_list7 in *config/nas-url*) ok ;; *) fail "the archive $BK_ARCH7 has no config/nas-url" ;; esac
 case $bk_list7 in *config/nas-password*) ok ;; *) fail "the archive $BK_ARCH7 has no config/nas-password" ;; esac
 case $bk_list7 in *backup-passphrase*) fail "the archive $BK_ARCH7 holds backup-passphrase" ;; *) ok ;; esac
+# M13 (docs/plans/m13-contracts.md section 11.6): the alarm code key goes in every archive with the
+# database. The M13 alarm suite, sourced earlier in ci/smoke.sh, saved a code (so made the key) and
+# put the file back after its missing-key checks.
+case $bk_list7 in *config/alarm-code-key*) ok ;; *) fail "the archive $BK_ARCH7 has no config/alarm-code-key" ;; esac
 
 expect_eq "$(bk_sha "$BK_FOREIGN")" "$BK_FOREIGN_SHA" "the foreign file's contents are unchanged"
 expect_eq "$(docker exec "$CONTAINER" stat -c %Y "$BK_FOREIGN" | tr -d '\r')" "$BK_FOREIGN_MTIME" "the foreign file's mtime is unchanged"
