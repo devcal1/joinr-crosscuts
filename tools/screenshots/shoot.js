@@ -27,6 +27,8 @@ const PLANNER_YEAR = "(function(){document.getElementById('plNew').click();setTi
 const ACCOUNTS_MENU = "(function(){var b=[].find.call(document.querySelectorAll('#cc-shell button, #cc-shell a'),function(e){return e.textContent.trim()==='Accounts'});b.click()})()";
 // 0.1.19: opens a department menu in the bar (by its label).
 const DEPT_MENU = label => "(function(){var b=[].find.call(document.querySelectorAll('#cc-shell button, #cc-shell a'),function(e){return e.textContent.trim()==='" + label + "'});b.click()})()";
+const NOTES_ADD = "(function(){document.getElementById('addBtn').click();var t=document.getElementById('body');t.value='Cooper pantry: client wants the handles changed to brushed brass.';t.dispatchEvent(new Event('input',{bubbles:true}))})()";
+const LAST_MONDAY = c => { var d = new Date(c.today + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - 7); return d.toISOString().slice(0, 10); };
 const PAGES = [
   ["login", "/login.html", 1440, false], ["dashboard", "/", 1440, true], ["search", "/search.html", 1440, true],
   ["photo-admin", "/admin.html", 1440, true], ["users", "/users.html", 1440, true], ["audit", "/audit.html", 1440, true],
@@ -132,7 +134,11 @@ const PAGES = [
   // 0.1.19: the Scheduling and Admin menus open (Notes first), and the Design/PM Notes page (seed-notes.js).
   ["scheduling-menu-0119", "/", 1440, true, undefined, undefined, { js: DEPT_MENU("Scheduling"), viewport: true }],
   ["admin-menu-0119", "/", 1440, true, undefined, undefined, { js: DEPT_MENU("Admin"), viewport: true }],
-  ["design-notes-0119", "/notes.html?dept=design", 1440, true],
+  // 0.1.19 (week wall): the Design/PM Notes page this week, with the add form open, last week (read-only), and on a phone.
+  ["design-notes-this-wall", "/notes.html?dept=design", 1440, true],
+  ["design-notes-add-wall", "/notes.html?dept=design", 1440, true, undefined, undefined, { js: NOTES_ADD, viewport: true }],
+  ["design-notes-last-wall", c => "/notes.html?dept=design&week=" + LAST_MONDAY(c), 1440, true],
+  ["design-notes-375-wall", "/notes.html?dept=design", 375, true],
   ["dashboard-leavers", "/", 1440, true, undefined, ".dash-lines"], ["phone-dashboard-leavers", "/", 375, true, undefined, ".dash-lines"],
 ];
 // seed.js's own M13 logins, by the role name an entry gives (made with the throwaway password
