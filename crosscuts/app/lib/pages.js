@@ -33,6 +33,7 @@ const PAGE_ACCESS = {
   "/payprint.html": "accounts.view",
   "/bas.html": "accounts.view",
   "/suppliers.html": "accounts.view",
+  "/adminaccounts.html": "accounts.view",
   // M11 (docs/plans/m11-contracts.md section 10).
   "/drawers.html": "stock.order",
   "/stock.html": ["stock.count", "stock.order"],

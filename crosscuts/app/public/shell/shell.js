@@ -69,6 +69,7 @@
         { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
         { label: "Stock value", href: "/stockvalue.html", key: "accounts.view" },
         { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
+        { label: "Admin accounts", href: "/adminaccounts.html", key: "accounts.view" },
         // M13 (docs/plans/m13-contracts.md section 9): owner-only key, grantable to an Accounts login.
         { label: "Loans", href: "/loans.html", key: "loans.manage" },
         { label: "Reports", href: "/reports.html", key: "accounts.view" },
