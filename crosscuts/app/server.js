@@ -88,6 +88,8 @@ const routers = [
   require("./routes/bonuses"),
   require("./routes/alarms"),
   require("./routes/loans"),
+  // Department notes (docs/plans/notes-contracts.md).
+  require("./routes/notes"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
