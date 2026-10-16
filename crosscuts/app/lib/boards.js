@@ -1,8 +1,8 @@
 // The board stocktake and its value (docs/plans/m11-contracts.md section 8): the board list and
 // prices (Ordering), each month's count (the Workshop Manager), confirming the value, and the
-// Stock value page for Accounts. Wave 1 B.
+// (the Stock value page for Accounts was removed 2026-10-16 at Todd's request). Wave 1 B.
 //
-// Prices and values reach only stock.order holders (withPrices); Accounts reads stockValue() only.
+// Prices and values reach only stock.order holders (withPrices).
 // Every function takes db first and nothing here requires ../db. Every write runs in one
 // db.transaction with its audit row.
 //
@@ -546,18 +546,6 @@ function value(db, req, period, body) {
       entityId: period,
       after: { subtotal_cents: subtotal, adjustment_cents: adj, adjustment_note: note, value_cents: total },
     });
-    notify.toKey(
-      db,
-      "accounts.view",
-      {
-        kind: "boards.valued",
-        title: `Board stock value: ${Periods.longLabel(period)}`,
-        link: "/stockvalue.html",
-        entityType: "board_count",
-        entityId: period,
-      },
-      { exceptUserId: userId(req) }
-    );
   })();
   return count(db, period, { withPrices: true }, today);
 }
@@ -592,23 +580,4 @@ function reopen(db, req, period) {
   return count(db, period, { withPrices: true }, today);
 }
 
-// GET /api/stockvalue: {months}, newest first: every counted or valued month. valueCents only for
-// valued months (a counted one is "waiting for the value").
-function stockValue(db) {
-  const months = db
-    .prepare(`${COUNT_SQL} WHERE c.status <> 'open' ORDER BY c.period DESC`)
-    .all()
-    .map((row) => ({
-      period: row.period,
-      status: row.status,
-      valueCents: row.status === "valued" ? row.value_cents : null,
-      counted: countedOf(row),
-      valued: valuedOf(row),
-      // Only a valued month gives Accounts the adjustment; a counted month's is still a draft (15.24).
-      adjustmentCents: row.status === "valued" ? row.adjustment_cents : null,
-      adjustmentNote: row.status === "valued" ? row.adjustment_note : null,
-    }));
-  return { months };
-}
-
-module.exports = { list, create, update, reorder, counts, count, saveLines, counted, reopenCount, saveAdjustment, value, reopen, stockValue };
+module.exports = { list, create, update, reorder, counts, count, saveLines, counted, reopenCount, saveAdjustment, value, reopen };

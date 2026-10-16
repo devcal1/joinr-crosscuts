@@ -9,6 +9,8 @@ Everything in `m1-contracts.md` … `m10-contracts.md` and `backup-contracts.md`
 
 If a contract looks wrong, report it instead of working around it. Points the integrator decided while writing this file are in §15; Todd can change any of them.
 
+**Removed 2026-10-16, at Todd's request: the Accounts "Stock value" page.** `/stockvalue.html` (`public/stockvalue.*`), its page gate, its Accounts menu item, `GET /api/stockvalue` (`boards.stockValue()`), the `boards.valued` notice to Accounts (it linked to that page), its smoke checks and its screenshot entries are gone. Everything below that describes them (§8 and §8.1 route and notice, §10 page gate and menu, §11.5, the smoke list, §15.24 for the route) is superseded. Stored data is untouched: no table or column was dropped and there is no migration, so the board counts, frozen prices, adjustments and values stay in the database and Ordering still sees them on the Boards page. The `accounts.view` key is shared with other Accounts pages and stays.
+
 App root: `crosscuts/app/`. CommonJS, Express 4, `better-sqlite3` (the `node:sqlite` shim locally), Node 24, no build step, no framework.
 
 **This repo is public.** Smoke, screenshot and seed data use made-up names only (`M11 Test Board`, `M11 Test Paint`, `M11 Drawer Supplier`). No supplier, product range, price or stock value from the workbook appears in code, docs or tests.
