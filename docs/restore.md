@@ -7,7 +7,7 @@ This repo is public. **The NAS's address, the rsync account and module names, th
 ## How the backups work
 
 - **Every night at 1:30 am** Crosscuts takes a snapshot of its database. It copies `photos.db`, checks the copy, and locks it into an encrypted 7-Zip archive (AES-256, with the names inside hidden). It then opens the archive again with the passphrase to prove it, and keeps it on the Umbrel in `data/db/backups/archives/`.
-- **The archive also holds the `config/` folder** (the Joinr and Gemini keys, the Joinr address, `nas-url` and `nas-password`), so a restore can put them back. It never holds `backup-passphrase`, the key to the archives themselves, nor any copy of it: a file in `config/` whose name contains `passphrase` (such as `backup-passphrase.bak`), and leftovers ending `~`, `.bak`, `.old`, `.orig` or `.new`, are never put in an archive, and the restore tool never puts one back.
+- **The archive also holds the `config/` folder** (the Joinr and Gemini keys, the Joinr address, `nas-url`, `nas-password`, and from M13 the **alarm code key**, `alarm-code-key`), so a restore can put them back. It never holds `backup-passphrase`, the key to the archives themselves, nor any copy of it: a file in `config/` whose name contains `passphrase` (such as `backup-passphrase.bak`), and leftovers ending `~`, `.bak`, `.old`, `.orig` or `.new`, are never put in an archive, and the restore tool never puts one back.
 - **Every Saturday at 1:30 am** Crosscuts copies to the NAS everything the NAS doesn't have yet, over Tailscale, then lists the NAS back to prove it all arrived. **Back up now** on the Users page does a snapshot and, when the NAS is set up, a copy straight away.
 - **The NAS only ever gains files.** Crosscuts never deletes or changes anything there. Photos deleted in the app stay on the NAS.
 - **Problems show as a bell alert** to admins and on the Users page, under **Backups**. There is no phone alert.
@@ -22,6 +22,7 @@ This repo is public. **The NAS's address, the rsync account and module names, th
 | Photos and their thumbnails | `data/uploads/` | `photos/`, the same names, **not encrypted** |
 | Private files (report library, task attachments) | `data/uploads/files/` | `files/<name>.7z`, one encrypted archive per file |
 | The passphrase, NAS address and NAS password | `data/config/backup-passphrase`, `nas-url`, `nas-password` | never |
+| The alarm code key (M13) | `data/config/alarm-code-key` | inside every database archive in `db/` (encrypted, with the database) |
 
 `data/` is `/home/umbrel/umbrel/app-data/tenon-joinr-crosscuts/data`. Archive names carry the Sydney date and time they were made, for example `crosscuts-db-20261012-013004+1100.7z`, so sorting by name sorts by date. A Back up now archive ends in `-manual.7z`.
 
@@ -87,7 +88,7 @@ Use this after a bad edit or a damaged database, when the Umbrel itself is fine.
 
 Notes:
 
-- **Without `--config`, the config files are left as they are**, so a restore can't put back an older Joinr key.
+- **Without `--config`, the config files are left as they are**, so a restore can't put back an older Joinr key. The alarm code key on the Umbrel stays too, so the alarm codes stay readable as long as `data/config/alarm-code-key` is still there. If the Alarms page then says the key is missing, see [Alarm codes and the key file](#alarm-codes-and-the-key-file).
 - **A photo deleted since the archive** shows as a broken image: its file is gone from the Umbrel. Get it from the NAS (case C).
 - Keep `photos-before-restore-<stamp>.db` until the restore is confirmed, and remove it only with Todd's say-so.
 
@@ -130,10 +131,10 @@ Use this when the Umbrel has failed or been rebuilt, and everything comes back f
    ```
    sudo docker run --rm --network none -it -v $CC:/data $IMG node tools/restore.js db /data/restore-in/<archive name> --config
    ```
-   ☐ The two sets of counts match. The Joinr and Gemini keys, the Joinr address and the NAS files are back, each with mode 600.
+   ☐ The two sets of counts match. The Joinr and Gemini keys, the Joinr address, the NAS files and the alarm code key are back, each with mode 600. **Don't leave out `--config` here:** without it the alarm codes can't be read on the new Umbrel (see [Alarm codes and the key file](#alarm-codes-and-the-key-file)).
 9. **On the PC**, place the passphrase with the helper. It is never in an archive, so it must always be placed again. Running the helper with no option also places the NAS files freshly, which does no harm. See [Placing the files](#placing-the-files).
 10. **[Umbrel web UI]** Start Crosscuts.
-11. **Check.** ☐ Log in with your usual login (the users come back with the database). ☐ The board, a job page and the invoices look right. ☐ A recent photo opens. ☐ A file in the report library opens.
+11. **Check.** ☐ Log in with your usual login (the users come back with the database). ☐ The board, a job page and the invoices look right. ☐ A recent photo opens. ☐ A file in the report library opens. ☐ If any alarm codes are saved: on **Admin**, **Alarms**, there is no "Alarm code key missing" box, and **Show** on one code works.
 12. **Users page, Backups:** press **Back up now**. ☐ The snapshot succeeds. ☐ The copy says "proved on the NAS" and sends little more than the new archive: the NAS already holds everything else.
 13. Remove the copies, which hold customer data:
     ```
@@ -176,6 +177,17 @@ console.log(db.prepare('SELECT stored_name, original_name, removed_at FROM files
      ```
      The app can stay running for this: the tool works in its own folder under `db/backups/.staging/` (`restore-…`), and a backup running meanwhile clears only its own folders there. The tool never overwrites a file that is already there.
 
+## Alarm codes and the key file
+
+From M13 the alarm codes on the Alarms page are stored encrypted in the database. The key that opens them is **not** in the database: it is the file `data/config/alarm-code-key`, made the first time a code is saved. It goes into every archive's `config/` with the other config files (encrypted by the archive), and it comes back only with `--config`.
+
+- **A database restored without `--config` onto an Umbrel that doesn't have the key file** (a new Umbrel, or one whose `config/` was lost) **has unreadable alarm codes.** Everything else works. The Alarms page shows an orange **Alarm code key missing** box, each code shows "can't be read", and no new code can be saved. **Restore `config/` with the database:** run the same `db` command again with `--config` (case B, step 8). Everything else in `config/` comes back from that archive too.
+- **Crosscuts never makes a new key while codes saved with the old one exist**, and never overwrites a key file that is there but isn't a valid key. So the right key can always be put back later, and the codes read again.
+- **If a different key is in place** (for example, codes were saved on a rebuilt Umbrel before the restore), codes saved under the other key show "can't be read" until their own key is back. A restore with `--config` puts the archive's key in place and keeps the one it replaces beside it as `alarm-code-key.before-restore-<stamp>`.
+- **If only the key file is lost and the database is fine**, the restore tool has no command that puts back one config file on its own. Ask Claude. The choices are: restore the newest archive with `--config` (anything entered since that archive is lost, and the other config files go back to that archive's copies too), or clear the saved codes on the Alarms page and type them in again from the panel's records (the next code saved makes a new key).
+
+What the encryption does and doesn't do, plainly: the key file sits beside the database in `data/config/`, and in the same archive. So the codes are protected in the plain pre-migration copies on the Umbrel (`data/db/backups/`) and in the database file on its own, but **not** from someone who has the Umbrel itself, or the backup passphrase.
+
 ## The restore drill
 
 **Once now (Backup · 6.1), then once a quarter.** Record each drill in `docs/plans/STATUS.md`. A backup that has never been restored is a hope, not a backup. The drill also proves the passphrase in the password manager still opens the archives.
@@ -193,7 +205,7 @@ It restores the newest **NAS** archive (not one from the Umbrel) into a throwawa
    sudo cp -a /home/umbrel/crosscuts-drill-in/. $DRILL/in/
    sudo cp $DRILL/in/photos/* $DRILL/uploads/
    ```
-3. Restore into it (passphrase each time). Don't add `--config`: the keys inside would let the throwaway copy talk to Joinr.
+3. Restore into it (passphrase each time). Don't add `--config`: the keys inside would let the throwaway copy talk to Joinr. Without it the throwaway copy has no alarm code key, so if the archive holds any alarm codes, its Alarms page shows "Alarm code key missing" and the codes "can't be read": that is expected in the drill.
    ```
    sudo docker run --rm --network none -it -v $DRILL:/data $IMG node tools/restore.js check /data/in/<archive name>
    sudo docker run --rm --network none -it -v $DRILL:/data $IMG node tools/restore.js files /data/in/files

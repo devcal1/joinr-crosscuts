@@ -14,7 +14,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
 
 ## Roles, in plain English
 
-- **Admin:** everything, including users and the audit log.
+- **Admin:** everything, including users and the audit log, **except the three owner-only pages** (Bonuses, Alarms and Loans), which only the owner has (below).
 - **Accounts:** bookkeeping, invoices, job values, photo search. From M11 it also sees each month's board stock value, on **Accounts**, then **Stock value** (the value, not the prices).
 - **Design/PM:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view. From M11 it also **checks each job's drawer grid** (Joinr's drawer counts, or ones typed in) before the grid goes on the Drawer order. From M12 it makes and sends each job's **stone orders** (the job's Benchtops section and Design/PM, then **Stone orders**) and has the **Batten calculator**.
 - **Scheduling:** the board (moving jobs, workers, leave). From M12 it can print a job's stone orders and benchtop sheet from the job page (as can Accounts).
@@ -31,13 +31,48 @@ The steps below describe the screen as it is planned. Button and menu names may 
 
 The office roles (Admin, Accounts, Design/PM, Scheduling, Ordering, Workshop Manager) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
 
+## The owner (from M13)
+
+One login is **the owner**: Todd's. The Users page shows an **OWNER** mark by its name. The owner is an admin who also holds the three **owner-only keys**, which no role gives, admin included (approved by Todd 2026-10-16):
+
+| Key | Page | Menu |
+|---|---|---|
+| `bonuses.manage` | Bonuses ([how-to-bonuses.md](how-to-bonuses.md)) | Admin |
+| `alarms.manage` | Alarms ([how-to-alarm-codes.md](how-to-alarm-codes.md)) | Admin |
+| `loans.manage` | Loans ([how-to-loans.md](how-to-loans.md)) | Accounts |
+
+**Who sees what:**
+- **The owner** sees all three, and their rows in the audit log.
+- **Another admin** sees none of them: no menu items, the pages refused, and their rows left out of the audit log. Users and Audit work as before. Their effective permissions read "(27 of 30)".
+- **Someone the owner grants a key to** sees that page only. For example, an Accounts login granted `loans.manage` sees **Loans** under Accounts, and nothing else of the owner's.
+
+**What another admin can't do:**
+- Change anything on the owner's login. Opening it shows "Only the owner can change the owner's login." in place of its controls (the name, roles, disable, sign-out, password and overrides).
+- Grant or revoke an owner-only key, for anyone, themselves included. Those lines in the override list have their buttons turned off, with "Only the owner can grant this".
+- Reset the password of someone holding an owner-only key by a grant. The reset box is replaced by "Only the owner can reset this password (they hold <key>)." They can still disable that person or sign them out.
+
+On the owner's own entry, the override list says "The owner holds every key." (overrides don't apply to the owner). An override left over from before shows with **Clear** only. The owner sees the owner-only keys in everyone else's override list marked "owner only", and grants them like any other key.
+
+### Hand over ownership
+
+Only the owner can do this, and only to another **enabled admin**.
+
+1. Open that admin's entry and press **Transfer ownership** (under **Ownership**).
+2. The dialog says what happens: they become the owner and get every key; you stay an admin without the owner-only keys unless they grant them back.
+3. Type their username where it says **Type <username> to confirm**, and **Your password**.
+4. Press **Transfer**. The page reloads.
+
+Nobody's sessions end. A mistyped username or a wrong password is refused in the dialog.
+
 ## Overrides
 
 An override gives one person one extra permission, or takes one away, without changing their role.
 
 1. Open the person's entry on the Users page.
 2. Choose a permission (a feature key such as `board.edit`) and pick **Grant** or **Revoke**.
-3. To go back to the role's normal rights, remove the override.
+3. To go back to the role's normal rights, press **Default** (this removes the override).
+
+**The owner-only keys** (`bonuses.manage`, `alarms.manage`, `loans.manage`) are granted the same way, but only the owner can grant or revoke them. Example: to give an Accounts login the Loans page, the owner grants it `loans.manage`.
 
 Example: to stop Michael moving rows on the board while keeping his other scheduling rights, add a **Revoke** override for `board.edit`.
 
@@ -52,15 +87,17 @@ Example: to stop Michael moving rows on the board while keeping his other schedu
 
 They are asked to change it at their next login. Their existing logins end, on every device.
 
+Only the owner can reset the owner's password, or that of someone holding an owner-only key by a grant (above). **If the owner forgets their password, nobody else can reset it**, so keep it in the password manager ([auth.md](auth.md)).
+
 ## Sign someone out everywhere
 
-Open the person's entry and choose **Sign out everywhere**. Every login for that person ends on every device. They can log in again with their password.
+Open the person's entry and choose **Sign out everywhere**. Every login for that person ends on every device. They can log in again with their password. Only the owner can sign the owner out.
 
 ## Disable a user
 
 Open the person's entry and turn off **Enabled** (or choose **Disable**). Their logins end straight away, and they cannot log in until you enable them again.
 
-- You cannot disable yourself, or the last enabled admin.
+- You cannot disable yourself, or the last enabled admin. Nobody can disable the owner (the owner can't disable themselves, and nobody else may change the owner's login): hand over ownership first.
 - There is no delete option in M1. Disable people instead.
 
 ## Suggested setup
@@ -69,7 +106,7 @@ This is the plan from the brief (section 3.1).
 
 | Person | Roles | Notes |
 |---|---|---|
-| Todd | Admin | |
+| Todd | Admin | The owner (M13): also Bonuses, Alarms and Loans |
 | Chloe | Accounts | |
 | Tracy | Accounts | |
 | Jill | Accounts | |

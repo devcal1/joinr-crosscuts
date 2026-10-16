@@ -111,6 +111,26 @@ M12 (0.1.16) adds two items to the **Design/PM** dropdown, after Intake, so the 
 - **No new colour.** The two items sit under the Design/PM rule (`--layer-design`, violet).
 - **Dashboard:** no menu change. The Design/PM page gains a **Stone orders** tile (`docs/how-to-order-stone.md`).
 
+## 3f. M13 Owner-only (Todd approved the M13 plan, 2026-10-16)
+
+M13 (0.1.17) adds three items inside existing dropdowns, so the bar's width doesn't change (`docs/plans/m13-contracts.md` §9). Each needs an **owner-only key**, which the admin preset doesn't get: only the owner holds them, and only the owner grants them to anyone else. The department order and its rules are unchanged.
+
+- **Admin** gains **Bonuses** and **Alarms**, after Audit:
+
+| Item | Page | Key |
+|---|---|---|
+| Users | `/users.html` | `users.admin` |
+| Audit | `/audit.html` | `audit.view` |
+| Bonuses | `/bonuses.html` | `bonuses.manage` |
+| Alarms | `/alarms.html` | `alarms.manage` |
+
+- **Accounts** gains **Loans** (`/loans.html`, `loans.manage`), after Supplier accounts. Its order is now Accounts, Pay runs, BAS sales, Stock value, Supplier accounts, Loans, Reports.
+- **Who sees what:** the owner sees all three. Another admin sees none of them (Users and Audit as before). An Accounts login the owner grants `loans.manage` sees Loans under Accounts, and none of the Admin items (someone given `loans.manage` with no other Accounts key gets an Accounts menu holding only Loans). Nobody else sees any of them.
+- **Sub-pages:** the bonus print (`/bonusprint.html`) lights up Bonuses and the loan statement (`/loanprint.html`) lights up Loans (`PAGE_ALIASES`). They're not on the menu.
+- **The pages carry the shared menu bar** (`#cc-shell`), hidden in print as on every page. The Alarms page has no print at all.
+- **No new colour.** Admin stays plain (no department rule); Loans sits under the Accounts rule (`--layer-accounts`, light grey) as the other Accounts items do.
+- **Dashboard:** no menu change. Whoever holds `alarms.manage` sees an orange line per alarm leaver ("<name> has left: change or remove slot <n>") linking to Alarms (`docs/how-to-alarm-codes.md`).
+
 ## 4. Build outline (after the answers)
 
 - Scaffold: bump 0.1.10; the colour exception in CLAUDE.md and `style-check.js` if approved.

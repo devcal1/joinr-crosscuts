@@ -8,7 +8,7 @@ Adding a key changes code, so it ships in a release. Follow [CLAUDE.md](../CLAUD
 
 1. **Add the key to the end of `KEYS`** in `crosscuts/app/lib/permissions.js` (append; don't reorder: the Users page lists keys in this order). Use an `area.action` name, such as `inspections.edit`. A key needs no migration (`permission_overrides.feature_key` has no CHECK).
 
-2. **Add it to `PRESETS`** in the same file, for each role that should have it. `admin` is `[...KEYS]`, so admin gets the new key automatically, and with it every notification sent to holders of that key.
+2. **Add it to `PRESETS`** in the same file, for each role that should have it. `admin` is every key **except** `OWNER_ONLY_KEYS` (`KEYS.filter(...)`, M13), so admin gets an ordinary new key automatically, and with it every notification sent to holders of that key. The owner holds every key whatever their roles (`computeEffective(roles, overrides, isOwner)`), so the owner gets it too.
 
 3. **Gate the route.** Routers use `defineRoutes`, and the access value is the key. Follow the pattern in the existing routers:
 
@@ -28,13 +28,26 @@ Adding a key changes code, so it ships in a release. Follow [CLAUDE.md](../CLAUD
    - one role that the key permits, returning 200;
    - one role without it, returning 403.
 
-   Put these in the milestone's own suite, `ci/smoke-mN-*.sh`. **Also update the two key-count assertions in `ci/smoke.sh`** (the setup user's perms and `/api/users/meta`), and any exact preset assertion there.
+   Put these in the milestone's own suite, `ci/smoke-mN-*.sh`. **Also update the two key-count assertions in `ci/smoke.sh`** (the setup user's perms and `/api/users/meta`), and any exact preset assertion there, including the admin preset's count (every key except the owner-only ones).
 
 7. **Update the docs:** the key-by-role table and the intro paragraph in [auth.md](auth.md), and the plain-English roles in [how-to-add-user.md](how-to-add-user.md).
 
 8. **Check locally, then rely on CI.** Boot with the shim command in CLAUDE.md. A local run is not the real test.
 
 9. **Bump `version`** in `crosscuts/app/package.json` (and the root version in `crosscuts/app/package-lock.json`). It is the image tag. CI fails a push that changes `crosscuts/app/` without a bump. After CI publishes, the release finishes in `tenon-umbrel-store` (see the release flow in [CLAUDE.md](../CLAUDE.md)).
+
+## Adding an owner-only key
+
+An owner-only key (M13: `bonuses.manage`, `alarms.manage`, `loans.manage`) is one the admin preset doesn't get: only the owner holds it, and only the owner can grant or revoke it. Use one only for something Todd wants kept from the other admins, and with his sign-off. Background is in [auth.md](auth.md) ("The owner and owner-only keys") and `docs/plans/m13-contracts.md` §3.
+
+Follow the steps above, with these differences:
+
+1. **Append it to `KEYS` and to `OWNER_ONLY_KEYS`** in `lib/permissions.js`. That is all it takes to keep it out of the admin preset, give it to the owner, and put the owner-only guards on the Users routes (`routes/users.js`: grant/revoke, and the password reset of anyone holding it by a grant). Don't put it in any other preset.
+2. **Hide its audit rows:** add each entity type the area writes to `PRIVATE_ENTITY_TYPES` in `lib/audit.js`, mapped to the key. Then only its holders see those rows and their action names. Give the area its own entity types; never write its rows under an existing type.
+3. **No notices, tasks, comments or Planner items** for the area: the admin role sees all of those, so they would show the figures to every admin. A dashboard line for the key's holders (as the alarm leavers line) is fine.
+4. **The Users page needs no change:** it reads the list from `GET /api/users/meta` (`ownerOnlyKeys`).
+5. **Smoke:** as above (the total in `ci/smoke.sh` goes up by one; the admin preset's count stays the same), plus a non-owner admin refused 403 on its routes and pages and on granting it, and the owner granting it to another login (`ci/smoke-m13-owner.sh` has the pattern).
+6. **Docs:** the key table and "The owner and owner-only keys" in [auth.md](auth.md), the owner section of [how-to-add-user.md](how-to-add-user.md), and the brief's §3.
 
 ## Adding a role
 

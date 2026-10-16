@@ -100,7 +100,7 @@ reachable from home over Tailscale.
 
 | Person | Role preset(s) | Notes |
 |---|---|---|
-| Todd | Admin | Everything. Creates users, resets passwords, flips overrides. |
+| Todd | Admin | Everything. Creates users, resets passwords, flips overrides. **The owner** (M13): also the only holder of the three owner-only keys (bonuses, alarm codes, loans), and the only one who can change his own login (approved by Todd 2026-10-16; M13). |
 | Chloe | Accounts | Day-to-day bookkeeping. |
 | Tracy | Accounts | Monthly reconciliation. |
 | Jill | Accounts | Debt chasing / overdue invoices. |
@@ -132,6 +132,19 @@ Chromebooks (Chrome). No touch input is required.
   order, paint orders, confirming the board stock value; Ordering, admin).
   Accounts sees each month's confirmed board stock value through
   `accounts.view`. 27 keys in all.
+- **M13 owner and owner-only keys (approved by Todd 2026-10-16):** one login is
+  **the owner** (Todd's; a mark on the login, not a role), and three
+  **owner-only keys**: `bonuses.manage` (the Bonuses page), `alarms.manage`
+  (the Alarms page, with the alarm codes stored encrypted) and `loans.manage`
+  (the Loans page). The admin preset is every key **except** these three, so
+  other admins don't see those pages or their audit rows. The owner holds every
+  key, and is the only one who can grant or revoke an owner-only key (for
+  example Loans to an Accounts login), change, reset, disable or sign out the
+  owner's login, reset the password of someone holding an owner-only key by a
+  grant, or hand ownership to another enabled admin. 30 keys in all. This
+  protects the figures inside Crosscuts; anyone with the Umbrel or the backup
+  passphrase can still read the database (`docs/plans/m13-plan.md`,
+  `docs/auth.md`).
 - Enforce on the **server** on every route; the UI merely hides what the user
   can't do. Logged-out requests to any API route must be refused, not
   redirected to a page.
