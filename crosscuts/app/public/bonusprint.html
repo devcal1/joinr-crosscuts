@@ -6,16 +6,28 @@
 <title>Bonus print - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="bonusprint.css">
 </head>
-<body>
+<body class="bp-body">
   <div id="cc-shell"></div>
 
-  <!-- SCAFFOLD placeholder (docs/plans/m13-contracts.md section 1): replaced in M13 Wave 2 E. -->
-  <main>
-    <h1>Bonus print</h1>
+  <!-- The job bonus and bonuses owed prints (bonusprint.js; docs/plans/m13-contracts.md section
+       8.1): the sheet as it will print, on a white paper box. Gated by bonuses.manage. -->
+  <main class="bp-page">
+    <div class="bp-toolbar">
+      <button id="bpPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print</button>
+      <a id="bpBack" class="hs-btn" href="bonuses.html#jobs">Back</a>
+      <p id="bpStatus" class="bp-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="bp-scroll">
+      <article id="bpSheet" class="bp-sheet" aria-label="Sheet">
+        <p class="bp-loading">Loading...</p>
+      </article>
+    </div>
   </main>
 
   <script src="shared.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="bonusprint.js"></script>
 </body>
 </html>

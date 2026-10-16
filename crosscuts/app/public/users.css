@@ -137,3 +137,44 @@ textarea.hs-input { min-height: 72px; resize: vertical; line-height: 1.4; }
   .bk-table td, .bk-table th { padding: 8px 6px; white-space: normal; }
   .bk-table td.num, .bk-table th.num { white-space: nowrap; }
 }
+
+/* M13 (docs/plans/m13-contracts.md section 10.1): the owner. Classes are us-. */
+.us-owner {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 7px;
+  border: 1px solid var(--teal);
+  border-radius: 999px;
+  color: var(--teal-tint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 17px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.hs-sectionbar h2.us-title { white-space: normal; overflow-wrap: anywhere; }
+.us-lock {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: var(--accent-border) solid var(--na);
+  border-radius: var(--r-callout);
+  background: var(--raised);
+  color: var(--body);
+  font-size: 13px;
+}
+.us-ownerkeys { margin: 0; color: var(--body); font-size: 13px; }
+.ov-key small.us-ownerkey { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label); }
+.us-row-locked .seg { opacity: 0.5; }
+.seg button:disabled { cursor: not-allowed; }
+.seg button:disabled:hover { color: var(--label); }
+.us-clear { padding: 4px 10px; }
+.us-transfer > .hs-sectionbar { margin: var(--space-6) 0 var(--space-3); }
+.us-transfer .actions { margin-bottom: 0; }
+@media (max-width: 520px) {
+  .page { padding: var(--space-6) 16px; }
+  .ov-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .ov-row .ov-eff { grid-column: 1 / -1; min-width: 0; text-align: left; }
+  .inline { flex-wrap: wrap; }
+}
