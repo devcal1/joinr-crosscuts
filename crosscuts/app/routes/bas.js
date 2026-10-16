@@ -1,4 +1,5 @@
-// The BAS sales API (docs/plans/m9-contracts.md section 6). Every route is declared with its access;
+// The BAS sales API (docs/plans/m9-contracts.md section 6, and its 2026-10-16 note: sales are typed
+// in by hand, invoices no longer count). Every route is declared with its access;
 // the handlers check the path period's shape and pass the database to lib/bas.js, which does the
 // work (range checks included) and throws HttpError for 400 / 404 / 409.
 //
@@ -38,11 +39,13 @@ function body(req) {
   return b && typeof b === "object" && !Array.isArray(b) ? b : {};
 }
 
+// A missing fy means the current one; anything else is checked by lib/bas.js (400).
+function fyOf(q) {
+  return q === undefined || q === "" ? undefined : /^\d{4}$/.test(String(q)) ? Number(q) : NaN;
+}
+
 r.get("/", VIEW, handle((req, res) => {
-  const q = req.query.fy;
-  // A missing fy means the current one; anything else is checked by lib/bas.js (400).
-  const fy = q === undefined || q === "" ? undefined : /^\d{4}$/.test(String(q)) ? Number(q) : NaN;
-  res.json(bas.year(db, fy));
+  res.json(bas.year(db, fyOf(req.query.fy)));
 }));
 
 r.get("/compare", VIEW, handle((req, res) => {
@@ -53,17 +56,16 @@ r.get("/months/:period", VIEW, handle((req, res) => {
   res.json(bas.month(db, periodOr404(req.params.period)));
 }));
 
-r.get("/months/:period/invoices.csv", VIEW, handle((req, res) => {
-  const period = periodOr404(req.params.period);
-  const text = bas.csv(db, period);
+r.get("/sales.csv", VIEW, handle((req, res) => {
+  const out = bas.csv(db, fyOf(req.query.fy));
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="BAS sales ${Periods.label(period)}.csv"`);
+  res.setHeader("Content-Disposition", `attachment; filename="BAS sales ${out.label}.csv"`);
   res.setHeader("Cache-Control", "private, no-store");
-  res.send(text);
+  res.send(out.text);
 }));
 
-r.put("/months/:period/hand", EDIT, handle((req, res) => {
-  res.json(bas.setHand(db, req, periodOr404(req.params.period), body(req)));
+r.put("/months/:period/sales", EDIT, handle((req, res) => {
+  res.json(bas.setSales(db, req, periodOr404(req.params.period), body(req)));
 }));
 
 r.post("/months/:period/lodge", EDIT, handle((req, res) => {

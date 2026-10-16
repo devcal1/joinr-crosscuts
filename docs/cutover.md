@@ -20,15 +20,13 @@ The live snapshot **replaces** Crosscuts' database. That is the design: Crosscut
 | Photos and their tags (`uploads/`) | Business details, bank details and the invoice prefix and start number |
 | The Gemini key (`config/`) | Test jobs, test invoices and test alerts |
 | | Pay runs and timesheets, pay-only people, public-holiday edits and the pay rules (the holiday list is re-seeded by migration 019) |
-| | BAS sales hand amounts and lodged months; suppliers, their monthly lines and attached statements |
+| | BAS sales typed in by hand and lodged months; suppliers, their monthly lines and attached statements |
 
 So:
 - **Don't issue real invoices in Crosscuts before cutover.** Before then its jobs are test jobs.
 - **Don't type real pay runs into Crosscuts before cutover** (they would be lost). The first real pay run is the first fortnight after the load; any holiday edits and pay-rule changes are made again then.
 - **Don't type BAS history or supplier accounts into Crosscuts before cutover** (they would be lost too). After the load, on **BAS sales** ([how-to-bas.md](how-to-bas.md)):
-  - type one figure a month, including GST, from June 2023 to the month before cutover, as each month's hand amount (they show as Imported);
-  - for the **cutover month**, add one hand amount with a note for the payments received in that month before the load. Invoices marked paid in Crosscuts after the load count by themselves, so the hand amount is only the part received before it (an invoice recorded both ways would be counted twice);
-  - **invoices issued before cutover** (in MYOB, never in Crosscuts) and paid after it don't count by themselves: add what they bring in to the hand amount of the month they're paid in, with a note, until none are left;
+  - type each month's sales (including GST, and the GST if known) from June 2023 up to the current month. BAS sales no longer reads invoices (Todd, 2026-10-16), so every month, the cutover month and later ones too, is typed in full from your own records;
   - lodge the months already lodged with the ATO, so they lock.
 
   On **Supplier accounts** ([how-to-suppliers.md](how-to-suppliers.md)), add the suppliers once and start with the month before cutover.
@@ -142,7 +140,7 @@ ls -la $SNAP; du -sh $SNAP/uploads $OLD/uploads
 
    The config copy only adds the old app's files, so the backup files already in `$CC/config` (`backup-passphrase`, `nas-url`, `nas-password`) stay in place.
 
-   Everything made in Crosscuts while testing goes aside with it and does not carry over: tasks, comments, chat messages, pay runs and timesheets, BAS hand amounts and lodged months, suppliers and their monthly lines, and the report library, statement files and task attachments (their files are in `uploads/files/`, so they land in `crosscuts-before/uploads/files/`). The old app has none of these, so the loaded data starts with empty task, chat and report lists.
+   Everything made in Crosscuts while testing goes aside with it and does not carry over: tasks, comments, chat messages, pay runs and timesheets, BAS sales typed in by hand and lodged months, suppliers and their monthly lines, and the report library, statement files and task attachments (their files are in `uploads/files/`, so they land in `crosscuts-before/uploads/files/`). The old app has none of these, so the loaded data starts with empty task, chat and report lists.
 3. **[Umbrel web UI]** Start Crosscuts. Then read the migration log:
    ```
    sudo docker logs tenon-joinr-crosscuts_web_1 2>&1 | grep -E 'migrate|foreign_key|roundup'
