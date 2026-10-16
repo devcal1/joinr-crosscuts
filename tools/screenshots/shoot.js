@@ -24,6 +24,8 @@ const BATTENS = mode => `(function(){var f=document.getElementById('bnForm'),v=f
 const OVERRIDES_END = "(function(){var o=document.getElementById('overrideList');if(o)o.scrollTop=o.scrollHeight})()";
 // 0.1.18: opens the Planner New event dialog and chooses Every year; opens the Accounts menu in the bar.
 const PLANNER_YEAR = "(function(){document.getElementById('plNew').click();setTimeout(function(){var s=[].find.call(document.querySelectorAll('dialog select, .cc-dialog select'),function(x){return [].some.call(x.options,function(o){return o.value==='annually'})});s.value='annually';s.dispatchEvent(new Event('change',{bubbles:true}));s.scrollIntoView({block:'center'})},300)})()";
+// 0.1.20: opens the Planner New event dialog, chooses Repeats = Custom and types "Every 3 weeks".
+const PLANNER_CUSTOM = "(function(){document.getElementById('plNew').click();setTimeout(function(){var s=[].find.call(document.querySelectorAll('dialog select, .cc-dialog select'),function(x){return [].some.call(x.options,function(o){return o.value==='custom'})});s.value='custom';s.dispatchEvent(new Event('change',{bubbles:true}));var n=document.querySelector('.pl-every-n');n.value='3';n.dispatchEvent(new Event('input',{bubbles:true}));var u=document.querySelector('.pl-every select');u.value='week';u.dispatchEvent(new Event('change',{bubbles:true}));var t=document.querySelector('dialog input[type=text], .cc-dialog input[type=text]');t.value='Fire door service';s.scrollIntoView({block:'center'})},300)})()";
 const ACCOUNTS_MENU = "(function(){var b=[].find.call(document.querySelectorAll('#cc-shell button, #cc-shell a'),function(e){return e.textContent.trim()==='Accounts'});b.click()})()";
 // 0.1.19: opens a department menu in the bar (by its label).
 const DEPT_MENU = label => "(function(){var b=[].find.call(document.querySelectorAll('#cc-shell button, #cc-shell a'),function(e){return e.textContent.trim()==='" + label + "'});b.click()})()";
@@ -127,6 +129,7 @@ const PAGES = [
   ["loans-accounts", "/loans.html", 1440, true, "loans_acct"], ["dashboard-loans-accounts", "/", 1440, true, "loans_acct"],
   // 0.1.18: the Planner dialog with Every year chosen, the by-hand BAS sales (year table with a Not entered month, and a month with the sales form), Admin accounts, and the Accounts menu (no Stock value).
   ["planner-repeat-year", "/planner.html", 1440, true, undefined, undefined, { js: PLANNER_YEAR, viewport: true }],
+  ["planner-custom-repeat", "/planner.html", 1440, true, undefined, undefined, { js: PLANNER_CUSTOM, viewport: true }],
   ["bas-year-0118", "/bas.html", 1440, true],
   ["bas-month-0118", c => "/bas.html#" + c.basOpen, 1440, true],
   ["adminaccounts-0118", c => "/adminaccounts.html#" + c.lastMonth, 1440, true],
