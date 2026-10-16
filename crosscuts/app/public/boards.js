@@ -612,7 +612,7 @@
   async function reopenValued() {
     const ok = await dialog({
       title: `Reopen the value for ${P.longLabel(period)}?`,
-      note: "The frozen prices and value are cleared, and Accounts sees \"Waiting for the value\" until it's confirmed again. The count stays finished.",
+      note: "The frozen prices and value are cleared until it's confirmed again. The count stays finished.",
       submit: "Reopen",
       submitClass: "hs-btn-stop",
       focus: "cancel",
@@ -684,7 +684,7 @@
     const total = view.subtotalCents + adj;
     const ok = await dialog({
       title: `Confirm the board stock value for ${P.longLabel(period)}?`,
-      note: `${money(total)} ex GST${adj ? ` (including an adjustment of ${money(adj)})` : ""}. Each board's price is frozen as it is now, and Accounts sees the value on Stock value.`,
+      note: `${money(total)} ex GST${adj ? ` (including an adjustment of ${money(adj)})` : ""}. Each board's price is frozen as it is now, and the month is marked valued.`,
       submit: "Confirm value",
       run: async () => { await send("POST", `/api/boards/counts/${period}/value`, { adjustmentCents: adj, adjustmentNote: note }); },
     });

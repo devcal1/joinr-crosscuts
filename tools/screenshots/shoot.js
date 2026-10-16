@@ -48,7 +48,7 @@ const PAGES = [
   ["boards-value", c => "/boards.html?period=" + c.thisMonth + "#value", 1440, true, "ordering"],
   ["boards-value-valued", c => "/boards.html?period=" + c.lastMonth + "#value", 1440, true, "ordering"], ["boards-list", "/boards.html#list", 1440, true, "ordering"],
   ["phone-boards-value", c => "/boards.html?period=" + c.thisMonth + "#value", 375, true, "ordering"],
-  ["stockvalue", "/stockvalue.html", 1440, true, "accounts"], ["stockvalue-admin", "/stockvalue.html", 1440, true], ["phone-stockvalue", "/stockvalue.html", 375, true, "accounts"],
+ 
   ["paint", "/paint.html", 1440, true, "ordering"], ["paint-order", c => "/paint.html?id=" + c.paintOrdered, 1440, true, "ordering"],
   ["paint-draft", c => "/paint.html?id=" + c.paintDraft, 1440, true, "ordering"], ["paint-list", "/paint.html#list", 1440, true, "ordering"],
   ["paint-order-wsmgr", c => "/paint.html?id=" + c.paintOrdered, 1440, true, "workshop_manager"], ["phone-paint-order", c => "/paint.html?id=" + c.paintOrdered, 375, true, "ordering"],

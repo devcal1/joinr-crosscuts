@@ -38,7 +38,6 @@ const PAGE_ACCESS = {
   "/stock.html": ["stock.count", "stock.order"],
   "/boards.html": ["stock.count", "stock.order"],
   "/paint.html": ["stock.order", "orders.receive"],
-  "/stockvalue.html": "accounts.view",
   // M12 (docs/plans/m12-contracts.md section 8).
   "/stone.html": "design.view",
   "/stoneprint.html": ["jobs.view", "design.view"],

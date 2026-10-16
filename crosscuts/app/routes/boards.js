@@ -1,9 +1,8 @@
-// The board stocktake (docs/plans/m11-contracts.md section 8) and the Stock value page for
-// Accounts. Declared by the scaffold (M11 · 2.2), built in Wave 1 B; the rules live in
+// The board stocktake (docs/plans/m11-contracts.md section 8). Declared by the scaffold (M11 · 2.2), built in Wave 1 B; the rules live in
 // lib/boards.js. Literal paths are registered before /:id and /:period ones.
 //
 // Prices and values go only to stock.order holders (withPrices); stock.count holders count without
-// them; reopening a valued month needs users.admin; Accounts reads /api/stockvalue only.
+// them; reopening a valued month needs users.admin.
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const { bad, notFound, sendError, can } = require("../lib/httperror");
@@ -43,10 +42,6 @@ function body(req) {
 }
 
 const withPrices = (req) => can(req, "stock.order");
-
-r.get("/stockvalue", "accounts.view", handle((req, res) => {
-  res.json(boards.stockValue(db));
-}));
 
 r.get("/boards", SEE, handle((req, res) => {
   // ?all=1 (inactive boards too) is the List tab's, stock.order only, as for stock items.

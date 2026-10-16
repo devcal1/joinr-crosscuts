@@ -77,12 +77,6 @@ req GET /api/boards "$WSMGR"
 expect_status 200 "wsmgr GET /api/boards"
 req GET /api/boards "$ACCT"
 expect_status 403 "acct GET /api/boards"
-req GET /api/stockvalue "$ACCT"
-expect_status 200 "acct GET /api/stockvalue"
-req GET /api/stockvalue "$ORDR"
-expect_status 403 "ordr GET /api/stockvalue"
-req GET /api/stockvalue "$WSMGR"
-expect_status 403 "wsmgr GET /api/stockvalue"
 
 echo "--- the stock list ---"
 req POST /api/stock/items "$ORDR" \
@@ -416,14 +410,6 @@ expect_jq '.adjustmentNote == "M11 offcuts written off"' "the saved note is kept
 req PUT "/api/boards/counts/$M11_ST_BP/adjustment" "$ORDR" '{"adjustmentCents":-100,"adjustmentNote":"M11 late"}'
 expect_status 409 "an adjustment saved on a valued month"
 expect_jq '.error == "The value is already confirmed"' "with the sentence"
-req GET "/api/notifications?limit=100" "$ACCT"
-expect_status 200 "acct GET /api/notifications"
-expect_jq "[.rows[] | select(.kind == \"boards.valued\" and .title == \"Board stock value: $M11_ST_BPL\" and .link == \"/stockvalue.html\")] | length == 1" \
-  "acct is told the value is ready"
-req GET /api/stockvalue "$ACCT"
-expect_status 200 "acct GET /api/stockvalue"
-expect_jq "[.months[] | select(.period == \"$M11_ST_BP\") | [.status, .valueCents, .adjustmentNote]] == [[\"valued\", 40155, \"M11 offcuts written off\"]]" \
-  "Accounts sees the month's value"
 req PATCH "/api/boards/$M11_ST_B1" "$ORDR" '{"priceCents":99999}'
 expect_status 200 "ordr changes board 1's price"
 req GET "/api/boards/counts/$M11_ST_BP" "$ORDR"
@@ -454,11 +440,6 @@ expect_jq '.status == "valued" and .adjustmentCents == -100 and .adjustmentNote 
 req POST "/api/boards/counts/$M11_ST_BP/reopen" "$ADMIN"
 expect_status 200 "admin reopens it again"
 expect_jq "[.lines[] | select(.boardId == $M11_ST_B1) | .priceCents] == [99999]" "the price is today's again"
-req GET /api/stockvalue "$ACCT"
-expect_jq "[.months[] | select(.period == \"$M11_ST_BP\") | [.status, .valueCents]] == [[\"counted\", null]]" \
-  "Accounts sees it waiting for the value"
-expect_jq "[.months[] | select(.period == \"$M11_ST_BP\") | [.adjustmentCents, .adjustmentNote]] == [[null, null]]" \
-  "and not the draft adjustment (section 15.24)"
 req POST "/api/boards/counts/$M11_ST_BP/reopen-count" "$ORDR"
 expect_status 200 "ordr reopens the count"
 expect_jq '.status == "open" and .counted == null' "the count is open again"
