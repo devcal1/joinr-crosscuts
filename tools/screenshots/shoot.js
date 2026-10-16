@@ -139,6 +139,8 @@ const PAGES = [
   ["design-notes-add-wall", "/notes.html?dept=design", 1440, true, undefined, undefined, { js: NOTES_ADD, viewport: true }],
   ["design-notes-last-wall", c => "/notes.html?dept=design&week=" + LAST_MONDAY(c), 1440, true],
   ["design-notes-375-wall", "/notes.html?dept=design", 375, true],
+  // This week's wall for the other four departments (seed-notes.js), as a 1440x900 window.
+  ...["scheduling", "ordering", "accounts", "admin"].map(d => [d + "-notes-wall", "/notes.html?dept=" + d, 1440, true, undefined, undefined, { js: "", viewport: true }]),
   ["dashboard-leavers", "/", 1440, true, undefined, ".dash-lines"], ["phone-dashboard-leavers", "/", 375, true, undefined, ".dash-lines"],
 ];
 // seed.js's own M13 logins, by the role name an entry gives (made with the throwaway password
