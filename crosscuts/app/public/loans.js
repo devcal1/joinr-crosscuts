@@ -8,8 +8,11 @@
 //
 // The balance is never typed: it is the server's (opening balance less every principal). Interest
 // on a new repayment is prefilled from GET /api/loans/:id/interest as the date changes, and can be
-// changed to match a statement; a typed figure that differs from the worked-out one shows the
-// worked-out figure beside it. An archived loan is read-only here except Restore and the statement.
+// changed to match a statement; only a typed figure is sent (left out, the server works it out for
+// the date it saves). A typed figure that differs from the worked-out one shows the worked-out
+// figure beside it. An archived loan is read-only here except Restore and the statement. A refusal
+// marks the input it is about (aria-invalid) and focuses it; after a dialog, focus goes to the
+// heading, by the status line.
 // Money is shown as $1,234.56 and typed as dollars; rates are percents to two places (basis points
 // on the wire). Every value goes in as text. The dialogs are built on OrderUI's frame
 // (orderui.js). Page classes are ln-.
@@ -133,6 +136,19 @@
     return failText(e);
   }
 
+  // An input a refusal is about, on the page's own form: marked invalid until changed, and focused.
+  function markInput(n) {
+    n.setAttribute("aria-invalid", "true");
+    const off = () => {
+      n.removeAttribute("aria-invalid");
+      n.removeEventListener("input", off);
+      n.removeEventListener("change", off);
+    };
+    n.addEventListener("input", off);
+    n.addEventListener("change", off);
+    n.focus();
+  }
+
   function moneyInput(cents) {
     const n = el("input", { class: "hs-input ln-money-in", type: "text", inputmode: "decimal", autocomplete: "off", spellcheck: "false" });
     n.value = cents == null ? "" : plainMoney(cents);
@@ -175,6 +191,17 @@
     $("lnList").hidden = false;
   }
 
+  // The input of a loan's details a server sentence is about (section 12.3, B-m6), or null.
+  function detailsField(m, f) {
+    if (/^Name/i.test(m)) return f.name;
+    if (/^Direction/i.test(m)) return f.dir;
+    if (/^Other party/i.test(m)) return f.party;
+    if (/opening balance/i.test(m)) return f.opening;
+    if (/opening date|A repayment is dated before/i.test(m)) return f.openingDate;
+    if (/^Note/i.test(m)) return f.note;
+    return null;
+  }
+
   function newLoanDialog() {
     const U = ui();
     const today = todayISO();
@@ -198,17 +225,19 @@
       submit: "Add loan",
       focus: name,
       run: async () => {
-        if (!name.value.trim()) throw new Error("Name is required");
+        if (!name.value.trim()) throw U.fail("Name is required", name);
         const cents = parseMoney(opening.value);
-        if (cents === null || Number.isNaN(cents)) throw new Error("Type the opening balance in dollars, like 1,234.56");
-        if (!openingDate.value) throw new Error("The opening date must be a date");
+        if (cents === null || Number.isNaN(cents)) throw U.fail("Type the opening balance in dollars, like 1,234.56", opening);
+        if (!openingDate.value) throw U.fail("The opening date must be a date", openingDate);
         try {
           return await send("/api/loans", "POST", {
             name: name.value, direction: dir.value, otherParty: party.value,
             openingBalanceCents: cents, openingDate: openingDate.value, note: note.value,
           });
         } catch (e) {
-          throw refusal(e);
+          const err = refusal(e);
+          err.field = detailsField(err.message, { name, dir, party, opening, openingDate, note });
+          throw err;
         }
       },
     }).then((r) => {
@@ -294,10 +323,12 @@
       el("div", { class: "ln-grid" }, ...fields),
       ro ? null : el("div", { class: "ln-actions" }, save),
       msg);
+    const inputs = { name, dir, party, opening, openingDate, note };
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       msg.className = "ln-msg";
       msg.textContent = "";
+      for (const n of Object.values(inputs)) n.removeAttribute("aria-invalid");
       const body = {};
       if (name.value.trim() !== l.name) body.name = name.value;
       if (dir.value !== l.direction) body.direction = dir.value;
@@ -306,6 +337,7 @@
       if (cents === null || Number.isNaN(cents)) {
         msg.className = "ln-msg ln-msg-err";
         msg.textContent = "Type the opening balance in dollars, like 1,234.56";
+        markInput(opening);
         return;
       }
       if (cents !== l.openingBalanceCents) body.openingBalanceCents = cents;
@@ -325,6 +357,8 @@
         save.disabled = false;
         msg.className = "ln-msg ln-msg-err";
         msg.textContent = failText(ex);
+        const n = ex instanceof TypeError ? null : detailsField(msg.textContent, inputs);
+        if (n) markInput(n);
       }
     });
     return card("Details", "lnDetailsH", form);
@@ -472,9 +506,9 @@
       submit: rate ? "Save" : "Add rate",
       focus: rate ? value : from,
       run: async () => {
-        if (!from.value) throw new Error("The from date must be a date");
+        if (!from.value) throw U.fail("The from date must be a date", from);
         const bp = parsePct(value.value);
-        if (bp === null || Number.isNaN(bp)) throw new Error("Type the rate as a percent, like 6.50");
+        if (bp === null || Number.isNaN(bp)) throw U.fail("Type the rate as a percent, like 6.50", value);
         const body = {};
         if (!rate) Object.assign(body, { fromDate: from.value, rateBp: bp, note: note.value });
         else {
@@ -488,7 +522,11 @@
             ? await send("/api/loans/" + loan.id + "/rates/" + rate.id, "PATCH", body)
             : await send("/api/loans/" + loan.id + "/rates", "POST", body);
         } catch (e) {
-          throw refusal(e);
+          const err = refusal(e);
+          if (/from date|already a rate from/i.test(err.message)) err.field = from;
+          else if (/^The rate/i.test(err.message)) err.field = value;
+          else if (/^Note/i.test(err.message)) err.field = note;
+          throw err;
         }
       },
     }).then((r) => after(r, rate ? "Rate saved." : "Rate added."));
@@ -527,7 +565,12 @@
     hint.id = "ln-int-hint-" + Math.random().toString(36).slice(2, 8);
     interest.setAttribute("aria-describedby", hint.id);
 
-    let touched = editing; // an edit keeps its stored interest until the user picks the worked-out one
+    // Where the interest comes from (B-M2): "auto" follows the worked-out figure for the date (a new
+    // repayment, or after Use); "typed" is what the user typed; "stored" is an edit's saved figure,
+    // kept until the user types or picks the worked-out one. Only a typed figure is sent on a new
+    // repayment: left out, the server works the interest out for the date it saves, so a figure
+    // still showing an earlier date's suggestion (the suggestion waits 250 ms) can't be stored.
+    let mode = editing ? "stored" : "auto";
     let suggested = null;
     let seq = 0;
     let timer = null;
@@ -538,9 +581,10 @@
       use.hidden = !show;
       if (show) use.textContent = "Use " + money(suggested);
     };
-    interest.addEventListener("input", () => { touched = true; syncUse(); });
+    interest.addEventListener("input", () => { mode = "typed"; syncUse(); });
     use.addEventListener("click", () => {
       if (suggested == null) return;
+      mode = "auto";
       interest.value = plainMoney(suggested);
       syncUse();
       interest.focus();
@@ -576,7 +620,7 @@
         suggested = s.interestCents;
         hint.textContent = "Worked out: balance " + money(s.balanceCents) + " × " + pct(s.rateBp) + " ÷ 12 = " + money(s.interestCents) + ".";
       }
-      if (!touched) interest.value = suggested == null ? "" : plainMoney(suggested);
+      if (mode === "auto") interest.value = suggested == null ? "" : plainMoney(suggested);
       syncUse();
     }
     const later = () => {
@@ -602,23 +646,29 @@
       focus: date,
       run: async () => {
         clearTimeout(timer);
-        if (!date.value) throw new Error("The paid date must be a date");
+        if (!date.value) throw U.fail("The paid date must be a date", date);
         const p = parseMoney(principal.value);
-        if (Number.isNaN(p)) throw new Error("Type the principal in dollars, like 2,000.00");
+        if (Number.isNaN(p)) throw U.fail("Type the principal in dollars, like 2,000.00", principal);
+        if (mode === "typed" && Number.isNaN(parseMoney(interest.value))) throw U.fail("Type the interest in dollars, like 600.00", interest);
+        // An edit following the worked-out figure takes it for the date as it is now, not one
+        // still waiting on the 250 ms suggestion.
+        if (editing && mode === "auto") await suggest();
         const i = parseMoney(interest.value);
-        if (Number.isNaN(i)) throw new Error("Type the interest in dollars, like 600.00");
         const body = {};
         if (!editing) {
           body.paidDate = date.value;
           if (p !== null) body.principalCents = p;
-          if (i !== null) body.interestCents = i; // left out: the server works it out
+          // Only a typed figure is sent; left out, the server works it out for this date.
+          if (mode === "typed" && i !== null) body.interestCents = i;
           if (ref.value.trim()) body.reference = ref.value;
           if (note.value.trim()) body.note = note.value;
         } else {
           if (date.value !== rep.paidDate) body.paidDate = date.value;
           const pv = p === null ? 0 : p;
           if (pv !== rep.principalCents) body.principalCents = pv;
-          if (i !== null && i !== rep.interestCents) body.interestCents = i;
+          // Left out, an edit keeps the stored interest (contracts section 12.1 D).
+          const iv = mode === "typed" ? i : mode === "auto" ? suggested : null;
+          if (iv != null && !Number.isNaN(iv) && iv !== rep.interestCents) body.interestCents = iv;
           if (ref.value.trim() !== (rep.reference || "")) body.reference = ref.value;
           if (note.value.trim() !== (rep.note || "")) body.note = note.value;
           if (!Object.keys(body).length) return undefined;
@@ -628,7 +678,14 @@
             ? await send("/api/loans/" + loan.id + "/repayments/" + rep.id, "PATCH", body)
             : await send("/api/loans/" + loan.id + "/repayments", "POST", body);
         } catch (e) {
-          throw refusal(e);
+          const err = refusal(e);
+          const m = err.message;
+          if (/paid date|before the opening date/i.test(m)) err.field = date;
+          else if (/^The interest|type the interest/i.test(m)) err.field = interest;
+          else if (/^The principal|balance below zero|^Enter the principal/i.test(m)) err.field = principal;
+          else if (/^Reference/i.test(m)) err.field = ref;
+          else if (/^Note/i.test(m)) err.field = note;
+          throw err;
         }
       },
     }).then((r) => after(r, editing ? "Repayment saved." : "Repayment added."));

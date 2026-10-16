@@ -11,6 +11,10 @@
 // same maths) so the effect of a tick shows before Save; what the server answers is what counts.
 // Money is integer cents, hours are minutes in the API and hours (two decimals) on the page.
 // Every value goes in through textContent. Dialogs are OrderUI.ui's (the shell's cc-dialog frame).
+// M13 4.3 (contracts section 12.3): a draft's figures use the settings read again after Save, Fill
+// from Joinr and Reopen and as Confirm opens (whose dialog says what is earned); a 409 draws the
+// bonus again as the server has it, saying unsaved changes weren't kept; a refusal marks and
+// focuses the input it is about; after each dialog focus goes to the status line or the heading.
 // Classes are bo-.
 (function () {
   "use strict";
@@ -157,17 +161,55 @@
     return live.filter((h) => h.shareCents > 0);
   }
 
-  // A request through shared.js api(): a network failure becomes a sentence; an answer from the
-  // server is marked `refused` (so a dialog closed after it reloads what it showed).
+  // A request as shared.js api() makes it (the same 401 handling), keeping the answer's status: a
+  // network failure becomes a sentence; an answer from the server is marked `refused` (so a dialog
+  // closed after it reloads what it showed) and carries `status`, so a 409 (the bonus changed
+  // elsewhere) can reload the page rather than leave a stale draft (section 12.3, B-m1).
   async function send(path, options) {
+    let res;
     try {
-      return await api(path, options);
+      res = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(options && options.headers) } });
     } catch (e) {
-      if (e instanceof TypeError) throw new Error("Couldn't reach the server. Try again.");
-      if (e && typeof e === "object") e.refused = true;
+      throw new Error("Couldn't reach the server. Try again.");
+    }
+    if (res.status === 401 && !location.pathname.startsWith("/login.html")) {
+      const body = await res.json().catch(() => ({}));
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = (body.locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
+      return new Promise(() => {}); // the page is navigating away
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const e = new Error(body.error || `Request failed (${res.status})`);
+      e.refused = true;
+      e.status = res.status;
       throw e;
     }
+    if (res.status === 204) return null;
+    return res.json();
   }
+
+  // An input a refusal on the page's own forms is about: marked invalid until changed, and
+  // focused (the dialogs do the same through OrderUI's error.field).
+  function markInput(n) {
+    if (!n) return;
+    n.setAttribute("aria-invalid", "true");
+    const off = () => {
+      n.removeAttribute("aria-invalid");
+      n.removeEventListener("input", off);
+      n.removeEventListener("change", off);
+    };
+    n.addEventListener("input", off);
+    n.addEventListener("change", off);
+    n.focus();
+  }
+
+  function unmarkIn(box) {
+    if (box) for (const n of box.querySelectorAll("[aria-invalid]")) n.removeAttribute("aria-invalid");
+  }
+
+  // "Sentence." with one full stop.
+  const stop = (s) => String(s || "").replace(/[.!?]?$/, ".");
 
   const post = (path, body) => send(path, { method: "POST", body: JSON.stringify(body || {}) });
 
@@ -222,10 +264,32 @@
   let tab = "jobs";
   let filter = "all";
 
-  function readHash() {
+  function parseHash() {
     const m = /^#(jobs|owed|settings)(?::(draft|confirmed|owed|all))?$/.exec(location.hash);
-    tab = m ? m[1] : "jobs";
-    filter = m && m[2] ? m[2] : "all";
+    return { tab: m ? m[1] : "jobs", filter: m && m[2] ? m[2] : "all" };
+  }
+
+  function readHash() {
+    ({ tab, filter } = parseHash());
+  }
+
+  // Leaving the Settings tab with changes not saved asks first (a 4.2 nit). Resolves true to go on.
+  async function mayLeaveSettings(next) {
+    if (tab !== "settings" || next === "settings" || !settingsDirty()) return true;
+    const r = await ui().dialog({
+      title: "Leave the settings?",
+      note: "Your changes to the rate or the share points aren't saved. Leave without saving them?",
+      submit: "Leave without saving",
+      cancel: "Keep editing",
+      focus: "cancel",
+      run: () => ({ ok: true }),
+    });
+    return !!(r && r.ok);
+  }
+
+  async function switchTab(name, focus) {
+    if (!(await mayLeaveSettings(name))) return;
+    showTab(name, focus);
   }
 
   function writeHash() {
@@ -247,13 +311,21 @@
     $("boSettings").hidden = tab !== "settings";
     setStatus("Loading...");
     const load = tab === "jobs" ? loadJobs : tab === "owed" ? loadOwed : loadSettings;
-    load().catch((e) => setStatus(failText(e, "bonus list"), "err"));
+    load()
+      .then(() => {
+        if (notice) setStatus(notice, "ok");
+        notice = null;
+      })
+      .catch((e) => setStatus(failText(e, "bonus list"), "err"));
   }
+
+  // A sentence to show once the list has loaded ("Deleted." after a bonus is deleted).
+  let notice = null;
 
   function wireTabs() {
     const tabs = [...document.querySelectorAll(".bo-tab")];
     for (const b of tabs) {
-      b.addEventListener("click", () => showTab(b.dataset.tab));
+      b.addEventListener("click", () => switchTab(b.dataset.tab));
       // Arrow keys move between the tabs (the tablist pattern); Tab goes into the panel.
       b.addEventListener("keydown", (e) => {
         const i = tabs.indexOf(b);
@@ -264,7 +336,7 @@
         else if (e.key === "End") j = tabs.length - 1;
         if (j < 0) return;
         e.preventDefault();
-        showTab(tabs[j].dataset.tab, true);
+        switchTab(tabs[j].dataset.tab, true);
       });
     }
     $("boFilter").addEventListener("change", () => {
@@ -273,8 +345,13 @@
       loadJobs().catch((e) => setStatus(failText(e, "bonus list"), "err"));
     });
     $("boNew").addEventListener("click", newBonus);
-    window.addEventListener("hashchange", () => {
-      readHash();
+    window.addEventListener("hashchange", async () => {
+      const next = parseHash();
+      if (!(await mayLeaveSettings(next.tab))) {
+        writeHash(); // stay on #settings
+        return;
+      }
+      ({ tab, filter } = next);
       $("boFilter").value = filter;
       showTab(tab);
     });
@@ -346,7 +423,7 @@
       const jobs = r.jobs || [];
       msg.textContent = jobs.length ? (jobs.length === 50 ? "The first 50 matches. Type more of the name to narrow it." : "") : "No job matches.";
       for (const j of jobs) {
-        const radio = el("input", { type: "radio", name: listId, value: String(j.id), disabled: j.hasBonus });
+        const radio = el("input", { type: "radio", name: listId, value: String(j.id), disabled: j.hasBonus, "data-has-bonus": j.hasBonus ? "1" : null });
         const bits = [j.stage ? String(j.stage).replace(/_/g, " ") : "", j.archived ? "archived" : "", j.hasBonus ? "has a bonus" : ""].filter(Boolean);
         results.append(
           el("label", { class: "bo-jobopt" + (j.hasBonus ? " bo-jobopt-off" : "") },
@@ -377,10 +454,20 @@
       submit: "Create bonus",
       focus: search,
       wide: true,
+      // Jobs that already have a bonus stay unchoosable after a refusal (section 12.3, B-m2).
+      keepDisabled: true,
       run: async () => {
         const chosen = results.querySelector("input:checked");
-        if (!chosen) throw new Error("Choose a job first.");
-        return post("/api/bonuses", { jobId: Number(chosen.value) });
+        if (!chosen) throw ui().fail("Choose a job first.", results);
+        // (every control is off while sending, so the job's own mark tells, not `disabled`)
+        if (chosen.dataset.hasBonus === "1") throw ui().fail("That job already has a bonus. Choose another.", results);
+        try {
+          return await post("/api/bonuses", { jobId: Number(chosen.value) });
+        } catch (e) {
+          // The list may be behind (a bonus made elsewhere): search again, so it shows as it is.
+          if (e.refused) find();
+          throw e;
+        }
       },
     });
     clearTimeout(timer);
@@ -462,21 +549,39 @@
     const r = await ui().dialog({
       title: "Mark all paid",
       note: `Mark ${n} owed ${n === 1 ? "share" : "shares"} paid to ${p.name}: ${money(p.owedCents)} in all.`,
-      fields: [ui().field("Date paid", date), ui().field("Pay run (optional)", run, { hint: "Only a note of which pay run it went in; bonuses don't change a pay run." })],
+      fields: [ui().field("Date paid", date), ui().field("Pay run (optional)", run, { hint: "Only a note of which finalised pay run it went in; bonuses don't change a pay run." })],
       submit: "Mark paid",
       focus: date,
-      run: () => {
-        if (!date.value) throw new Error("Enter the date paid.");
+      run: async () => {
+        if (!date.value) throw ui().fail("Enter the date paid.", date);
         const body = { bonusIds: p.owed.map((o) => o.bonusId), paidDate: date.value };
         if (run.value) body.payRunId = Number(run.value);
-        return post(`/api/bonuses/people/${encodeURIComponent(p.personId)}/paid`, body);
+        try {
+          return await post(`/api/bonuses/people/${encodeURIComponent(p.personId)}/paid`, body);
+        } catch (e) {
+          e.field = paidField(e.message, date, run);
+          throw e;
+        }
       },
     });
     if (r) {
-      if (!r.refused) setStatus(`Marked ${p.name}'s shares paid.`, "ok");
       await loadOwed().catch((e) => setStatus(failText(e, "summary"), "err"));
-      if (!r.refused) setStatus(`Marked ${p.name}'s shares paid.`, "ok");
+      if (r.refused) setStatus("The owed list was reloaded as it is now.");
+      else setStatus(`Marked ${p.name}'s shares paid.`, "ok");
+      focusTitle(); // the list was drawn again: focus goes to the heading, by the status line
     }
+  }
+
+  // The Mark paid input a server sentence is about (section 12.3, B-m6): the date or the pay run
+  // ("Choose a finalised pay run", "No such pay run").
+  function paidField(m, date, run) {
+    if (/paid date/i.test(m)) return date;
+    if (/pay run/i.test(m)) return run;
+    return null;
+  }
+
+  function focusTitle() {
+    $("boTitle").focus();
   }
 
   // -------------------------------------------------------------- Settings ---
@@ -520,7 +625,20 @@
   function fillSettings(s) {
     $("boRate").value = pct(s.rateBp).replace("%", "");
     holders = s.holders.map((h) => ({ value: `p:${h.personId}`, name: h.name, archived: h.archived, points: String(h.points) }));
+    unmarkIn($("boSettings"));
+    $("boSettingsMsg").textContent = ""; // a sentence about the form before it was filled again
+    $("boSettingsMsg").className = "bo-msg";
     renderHolders();
+    settingsSaved = settingsNow();
+  }
+
+  // The settings form as text, to tell whether it has changes not saved.
+  let settingsSaved = null;
+  function settingsNow() {
+    return JSON.stringify([$("boRate").value.trim(), holders.map((h) => [h.value, h.points.trim()])]);
+  }
+  function settingsDirty() {
+    return settingsSaved !== null && !$("boSettings").hidden && settingsNow() !== settingsSaved;
   }
 
   function holderTotal() {
@@ -604,23 +722,35 @@
         msg.textContent = text;
         msg.className = "bo-msg" + (kind ? ` bo-msg-${kind}` : "");
       };
+      unmarkIn($("boSettings"));
+      // A refusal names its input: it is marked and focused (section 12.3, B-m6).
+      const line = (i) => $("boHolders").children[i];
       const rateBp = parsePercent($("boRate").value);
       if (!Number.isFinite(rateBp)) {
         say("The bonus rate must be a percent from 0 to 100, with two decimal places at most.", "err");
-        $("boRate").focus();
+        markInput($("boRate"));
         return;
       }
       const out = [];
       for (const [i, h] of holders.entries()) {
         const ref = personRef(h.value);
-        if (!ref) return say(`Choose a person for line ${i + 1}, or remove it.`, "err");
+        if (!ref) {
+          say(`Choose a person for line ${i + 1}, or remove it.`, "err");
+          markInput(line(i) && line(i).querySelector("select"));
+          return;
+        }
         const t = h.points.trim();
-        if (!/^\d+$/.test(t) || Number(t) > 1000) return say("Share points must be whole numbers from 0 to 1000.", "err");
+        if (!/^\d+$/.test(t) || Number(t) > 1000) {
+          say("Share points must be whole numbers from 0 to 1000.", "err");
+          markInput(line(i) && line(i).querySelector("input"));
+          return;
+        }
         out.push({ ...ref, points: Number(t) });
       }
       const btn = $("boSettingsSave");
       btn.disabled = true;
       say("Saving...");
+      let named = null;
       try {
         const s = await send("/api/bonuses/settings", { method: "PUT", body: JSON.stringify({ rateBp, holders: out }) });
         await loadPeople().catch(() => {});
@@ -628,9 +758,17 @@
         say("Saved. Drafts follow the new rate and points; confirmed bonuses keep theirs.", "ok");
       } catch (err) {
         say(err.message, "err");
+        if (/bonus rate/i.test(err.message)) named = $("boRate");
+        else {
+          // "<name> is listed twice": the second line with that name.
+          const twice = /^(.*) is listed twice/.exec(err.message);
+          const at = twice ? holders.map((h, i) => (h.name === twice[1] ? i : -1)).filter((i) => i >= 0)[1] : undefined;
+          if (at !== undefined && line(at)) named = line(at).querySelector("select");
+        }
       } finally {
         btn.disabled = false;
-        msg.focus();
+        if (named) markInput(named);
+        else msg.focus();
       }
     });
   }
@@ -676,7 +814,7 @@
     const b = bonus;
     const body = {};
     const price = parseMoney(form.price);
-    if (Number.isNaN(price)) return { error: "The price must be dollars and cents, for example 30000.00." };
+    if (Number.isNaN(price)) return { error: "The price must be dollars and cents, for example 30000.00.", field: "price" };
     if (price !== b.priceCents) body.priceCents = price;
     for (const k of ["ranBy", "checkedBy"]) {
       const was = b[k] ? `p:${b[k].personId}` : "";
@@ -684,7 +822,7 @@
     }
     const mins = formMinutes();
     for (const h of HOURS) {
-      if (Number.isNaN(mins[h.key])) return { error: `${h.label} must be a number of hours from 0 to 10000.` };
+      if (Number.isNaN(mins[h.key])) return { error: `${h.label} must be a number of hours from 0 to 10000.`, field: h.f };
       if (mins[h.key] !== b.hours[h.key]) body[h.key] = mins[h.key];
     }
     const checks = {};
@@ -696,7 +834,7 @@
     if (form.hoursHand !== hoursWas) checks.hours = form.hoursHand;
     if (Object.keys(checks).length) body.checks = checks;
     const note = form.note.trim();
-    if (note.length > NOTE_MAX) return { error: `Note must be ${NOTE_MAX} characters or fewer.` };
+    if (note.length > NOTE_MAX) return { error: `Note must be ${NOTE_MAX} characters or fewer.`, field: "note" };
     if (note !== (b.note || "")) body.note = note;
     return { body };
   }
@@ -707,8 +845,18 @@
     return !!c.error || Object.keys(c.body).length > 0;
   }
 
+  // The bonus form's input a server sentence is about (section 4.4's labels), as a form key.
+  function formFieldFor(m) {
+    if (/^The price/i.test(m)) return "price";
+    for (const h of HOURS) if (m.startsWith(h.label)) return h.f;
+    if (/^Ran by/i.test(m)) return "ranBy";
+    if (/^Checked by/i.test(m)) return "checkedBy";
+    if (/^Note/i.test(m)) return "note";
+    return null;
+  }
+
   window.addEventListener("beforeunload", (e) => {
-    if (dirty()) {
+    if (dirty() || settingsDirty()) {
       e.preventDefault();
       e.returnValue = "";
     }
@@ -763,8 +911,8 @@
     const draft = b.status === "draft";
     const sec = $("boBonus");
     sec.replaceChildren();
-    $("boTitle").textContent = b.job.name || "Bonus";
-    document.title = `Bonus ${b.job.name || ""} - Crosscuts`;
+    $("boTitle").textContent = b.job.name ? `Bonus: ${b.job.name}` : "Bonus";
+    document.title = `Bonus: ${b.job.name || ""} - Crosscuts`;
     const actions = $("boHeadActions");
     actions.replaceChildren(el("a", { class: "hs-btn", href: "bonuses.html#jobs", text: "All bonuses" }));
 
@@ -805,6 +953,7 @@
       form.checkedBy = checked.value;
       refresh();
     });
+    view.inputs = { price, ranBy: ran, checkedBy: checked };
     f.append(el("section", { class: "bo-card" },
       el("h2", { class: "bo-h2", text: "Price and people" }),
       el("div", { class: "bo-grid bo-grid-3" },
@@ -823,6 +972,7 @@
         refresh();
       });
       hourInputs[h.f] = inp;
+      view.inputs[h.f] = inp;
       hoursGrid.append(field(h.label, inp));
     }
     view.joinrNote = el("p", { class: "bo-hint bo-joinr", text: "From Joinr (factory and site doubled back from the quote)" });
@@ -881,6 +1031,7 @@
     // ---- the note
     const note = el("textarea", { class: "hs-input bo-area", maxlength: String(NOTE_MAX), rows: "3", disabled: !draft });
     note.value = draft ? form.note : b.note || "";
+    view.inputs.note = note;
     note.addEventListener("input", () => {
       form.note = note.value;
       refresh();
@@ -911,6 +1062,29 @@
 
     sec.append(f);
     refresh();
+  }
+
+  // A draft's figures from the form and the settings last read from the server (`live`, read again
+  // after Save, Fill from Joinr and Reopen, and when Confirm opens: section 12.3, B-M1). The same
+  // maths as lib/bonuses.js, so with the settings as they are it is what the server works out.
+  function draftFigures() {
+    const suggested = suggestionOf(formMinutes());
+    const hoursOn = form.hoursHand !== null ? form.hoursHand : suggested === true;
+    const ticked = CHECKS.reduce((n, c) => n + ((c.key === "hours" ? hoursOn : form.checks[c.key]) ? 1 : 0), 0);
+    const priceNow = parseMoney(form.price);
+    const rateBp = live ? live.rateBp : bonus.rateBp;
+    const figs = figures(Number.isNaN(priceNow) ? null : priceNow, rateBp, ticked);
+    const shares = figs.earnedCents == null ? [] : splitShares(figs.earnedCents, live ? live.holders : []);
+    return { ticked, rateBp, figs, shares, totalPoints: live ? live.totalPoints : bonus.totalPoints, priceNow };
+  }
+
+  // The settings as they are now, for a draft's figures; the last ones are kept if it fails.
+  async function readSettings() {
+    try {
+      live = await send("/api/bonuses/settings");
+    } catch (e) {
+      // keep the settings already read; the figures shown are then from those
+    }
   }
 
   // Redraw everything that follows the form: notes, the Hours suggestion, the figures, the shares.
@@ -956,11 +1130,7 @@
     let totalPoints;
     let rateBp;
     if (draft) {
-      rateBp = live ? live.rateBp : b.rateBp;
-      const p = Number.isNaN(priceNow) ? null : priceNow;
-      figs = figures(p, rateBp, ticked);
-      shares = figs.earnedCents == null ? [] : splitShares(figs.earnedCents, live ? live.holders : []);
-      totalPoints = live ? live.totalPoints : b.totalPoints;
+      ({ rateBp, figs, shares, totalPoints } = draftFigures());
     } else {
       rateBp = b.rateBp;
       figs = { possibleCents: b.possibleCents, earnedCents: b.earnedCents, lostCents: b.lostCents };
@@ -1031,68 +1201,151 @@
     view.msg.className = "bo-msg" + (kind ? ` bo-msg-${kind}` : "");
   }
 
+  // Say a sentence by the action buttons and move focus to it: after every dialog and Save the
+  // form is drawn again, so the control that was used may be gone (section 12.3, B-m5).
+  function sayHere(text, kind) {
+    say(text, kind);
+    if (view && view.msg && view.msg.isConnected) view.msg.focus();
+    else focusTitle();
+  }
+
+  // Draw the bonus again as the server has it now, after a refusal or a 409 (the bonus changed
+  // elsewhere: confirmed, reopened, deleted). `sentence` is said after it, with "Your unsaved
+  // changes weren't kept." when the form had changes that were not saved (section 12.3, B-m1).
+  async function reloadBonus(sentence, lost) {
+    const id = bonus.id;
+    try {
+      await loadBonus(id);
+    } catch (e) {
+      // gone (deleted elsewhere) or unreachable: nothing left to edit
+      form = null;
+      view = null;
+      $("boBonus").hidden = true;
+      $("boBonus").replaceChildren();
+      $("boHeadActions").replaceChildren(el("a", { class: "hs-btn", href: "bonuses.html#jobs", text: "All bonuses" }));
+      setStatus(`${sentence ? stop(sentence) + " " : ""}${failText(e, "such bonus")}${lost ? " Your unsaved changes weren't kept." : ""}`, "err");
+      focusTitle();
+      return;
+    }
+    const parts = [sentence ? stop(sentence) : "", "The bonus was reloaded as it is now.", lost ? "Your unsaved changes weren't kept." : ""];
+    sayHere(parts.filter(Boolean).join(" "), "err");
+  }
+
   async function save() {
+    unmarkIn($("boBonus"));
     const c = changes();
-    if (c.error) return say(c.error, "err");
-    if (!Object.keys(c.body).length) return say("Nothing to save.");
+    if (c.error) {
+      say(c.error, "err");
+      markInput(view.inputs[c.field]);
+      return;
+    }
+    if (!Object.keys(c.body).length) return sayHere("Nothing to save.");
     view.save.disabled = true;
     say("Saving...");
+    let b;
     try {
-      applyBonus(await send(`/api/bonuses/${bonus.id}`, { method: "PATCH", body: JSON.stringify(c.body) }), "all");
-      say("Saved.", "ok");
+      b = await send(`/api/bonuses/${bonus.id}`, { method: "PATCH", body: JSON.stringify(c.body) });
     } catch (e) {
+      if (e.status === 409 || e.status === 404) return reloadBonus(e.message, true);
       say(e.message, "err");
       view.save.disabled = false;
+      const key = formFieldFor(e.message);
+      if (key && view.inputs[key]) markInput(view.inputs[key]);
+      else view.msg.focus();
+      return;
     }
-    view.msg.focus();
+    // The figures follow the settings as they are now, not as they were when the page loaded.
+    await readSettings();
+    applyBonus(b, "all");
+    sayHere("Saved.", "ok");
   }
 
   async function fillFromJoinr(btn) {
     btn.disabled = true;
     view.fillMsg.textContent = "Filling...";
     view.fillMsg.className = "bo-msg";
+    let b;
     try {
-      const b = await post(`/api/bonuses/${bonus.id}/joinr-hours`);
-      applyBonus(b, ["qf", "qi"]); // keeps everything else typed
-      view.fillMsg.textContent = "Quoted hours filled from Joinr.";
-      view.fillMsg.className = "bo-msg bo-msg-ok";
-      view.fillMsg.previousElementSibling.querySelector("button").focus();
+      b = await post(`/api/bonuses/${bonus.id}/joinr-hours`);
     } catch (e) {
+      // A 409 is either "No Joinr hours for this job" or the bonus changed elsewhere (confirmed):
+      // the bonus as the server has it now tells which.
+      if (e.status === 404) return reloadBonus(e.message, dirty());
+      if (e.status === 409) {
+        const now = await send(`/api/bonuses/${encodeURIComponent(bonus.id)}`).catch(() => null);
+        if (!now || now.status !== bonus.status || now.updatedAt !== bonus.updatedAt) return reloadBonus(e.message, dirty());
+      }
       view.fillMsg.textContent = e.message;
       view.fillMsg.className = "bo-msg bo-msg-err";
       btn.disabled = false;
+      btn.focus();
+      return;
     }
+    await readSettings();
+    applyBonus(b, ["qf", "qi"]); // keeps everything else typed
+    view.fillMsg.textContent = "Quoted hours filled from Joinr.";
+    view.fillMsg.className = "bo-msg bo-msg-ok";
+    view.fillMsg.previousElementSibling.querySelector("button").focus();
   }
 
-  // Confirm: a date (default today, never in the future); unsaved changes are saved first.
+  // Confirm: a date (default today, never in the future); unsaved changes are saved first. The
+  // dialog says what will be frozen: the form's figures with the settings read as it opens (B-M1).
   async function confirmBonus() {
+    unmarkIn($("boBonus"));
     const c = changes();
-    if (c.error) return say(c.error, "err");
+    if (c.error) {
+      say(c.error, "err");
+      markInput(view.inputs[c.field]);
+      return;
+    }
+    const unsaved = Object.keys(c.body).length > 0;
+    await readSettings();
+    refresh();
+    const d = draftFigures();
+    if (d.priceNow == null) {
+      say("Fill in the price before confirming.", "err");
+      markInput(view.inputs.price);
+      return;
+    }
+    const n = d.shares.length;
+    const split = n ? `, shared by ${n} ${n === 1 ? "person" : "people"}` : d.figs.earnedCents > 0 ? ", but nobody has share points" : "";
     const date = ui().dateInput(todayISO(), null, todayISO());
     let saved = false;
+    let conflict = null; // a 409 or 404 seen in the dialog: the bonus changed elsewhere
     const r = await ui().dialog({
       title: "Confirm bonus",
-      note: `Confirm the bonus for ${bonus.job.name}? Its figures and shares are frozen with the current rate and share points.`,
+      note: `Confirm the bonus for ${bonus.job.name}? Earned ${money(d.figs.earnedCents)} of a possible ${money(d.figs.possibleCents)} (${pct(d.rateBp)}, ${d.ticked} of 7 ticked)${split}. The figures and shares are frozen with the current rate and share points.`,
       fields: [ui().field("Confirmed date", date)],
-      hint: Object.keys(c.body).length ? "Your unsaved changes are saved first." : null,
+      hint: unsaved ? "Your unsaved changes are saved first." : null,
       submit: "Confirm",
       focus: date,
       run: async () => {
-        if (!date.value) throw new Error("Enter the confirmed date.");
-        if (Object.keys(c.body).length && !saved) {
-          await send(`/api/bonuses/${bonus.id}`, { method: "PATCH", body: JSON.stringify(c.body) });
-          saved = true;
+        if (!date.value) throw ui().fail("Enter the confirmed date.", date);
+        try {
+          if (unsaved && !saved) {
+            await send(`/api/bonuses/${bonus.id}`, { method: "PATCH", body: JSON.stringify(c.body) });
+            saved = true;
+          }
+          return await post(`/api/bonuses/${bonus.id}/confirm`, { confirmedDate: date.value });
+        } catch (e) {
+          if (e.status === 409 || e.status === 404) conflict = e.message;
+          if (/confirmed date/i.test(e.message)) e.field = date;
+          throw e;
         }
-        return post(`/api/bonuses/${bonus.id}/confirm`, { confirmedDate: date.value });
       },
     });
     if (r && r.id) {
       payRunsCache = null;
       applyBonus(r, "all");
-      say("Confirmed.", "ok");
+      // The settings could still change between the dialog opening and the confirm.
+      if (r.earnedCents !== d.figs.earnedCents) sayHere(`Confirmed. Earned ${money(r.earnedCents)}: the rate or share points changed while the dialog was open.`, "ok");
+      else sayHere("Confirmed.", "ok");
+    } else if (conflict !== null) {
+      await reloadBonus(conflict, unsaved && !saved);
+      if (saved && view) sayHere(`${stop(conflict)} Your changes were saved, but the bonus isn't confirmed.`, "err");
     } else if (saved) {
-      await loadBonus(bonus.id).catch((e) => setStatus(failText(e, "bonus"), "err"));
-      say("Your changes were saved, but the bonus isn't confirmed.", "err");
+      await reloadBonus("", false);
+      if (view) sayHere("Your changes were saved, but the bonus isn't confirmed.", "err");
     }
   }
 
@@ -1107,9 +1360,9 @@
     });
     if (r && r.ok) {
       form = null; // nothing left to lose
-      location.href = "bonuses.html#jobs";
+      location.href = "bonuses.html?deleted=1#jobs"; // the list says "Deleted."
     } else if (r && r.refused) {
-      await loadBonus(bonus.id).catch((e) => setStatus(failText(e, "bonus"), "err"));
+      await reloadBonus("", dirty());
     }
   }
 
@@ -1123,11 +1376,11 @@
     });
     if (r && r.id) {
       payRunsCache = null;
-      live = await send("/api/bonuses/settings").catch(() => null);
+      await readSettings();
       applyBonus(r, "all");
-      say("Reopened as a draft.", "ok");
+      sayHere("Reopened as a draft.", "ok");
     } else if (r && r.refused) {
-      await loadBonus(bonus.id).catch((e) => setStatus(failText(e, "bonus"), "err"));
+      await reloadBonus("", false);
     }
   }
 
@@ -1143,14 +1396,19 @@
     const r = await ui().dialog({
       title: "Mark paid",
       note: `${s.name}'s share of the bonus for ${bonus.job.name}: ${money(s.shareCents)}.`,
-      fields: [ui().field("Date paid", date), ui().field("Pay run (optional)", run, { hint: "Only a note of which pay run it went in; bonuses don't change a pay run." })],
+      fields: [ui().field("Date paid", date), ui().field("Pay run (optional)", run, { hint: "Only a note of which finalised pay run it went in; bonuses don't change a pay run." })],
       submit: "Mark paid",
       focus: date,
-      run: () => {
-        if (!date.value) throw new Error("Enter the date paid.");
+      run: async () => {
+        if (!date.value) throw ui().fail("Enter the date paid.", date);
         const body = { paidDate: date.value };
         if (run.value) body.payRunId = Number(run.value);
-        return post(`/api/bonuses/${bonus.id}/shares/${encodeURIComponent(s.personId)}/paid`, body);
+        try {
+          return await post(`/api/bonuses/${bonus.id}/shares/${encodeURIComponent(s.personId)}/paid`, body);
+        } catch (e) {
+          e.field = paidField(e.message, date, run);
+          throw e;
+        }
       },
     });
     afterPaid(r, `Marked ${s.name}'s share paid.`);
@@ -1170,9 +1428,9 @@
   async function afterPaid(r, okText) {
     if (r && r.id) {
       applyBonus(r, "all");
-      say(okText, "ok");
+      sayHere(okText, "ok");
     } else if (r && r.refused) {
-      await loadBonus(bonus.id).catch((e) => setStatus(failText(e, "bonus"), "err"));
+      await reloadBonus("", false);
     }
   }
 
@@ -1200,6 +1458,11 @@
         setStatus(failText(e, "such bonus"), "err");
       }
       return;
+    }
+    // After a bonus is deleted its page comes here with ?deleted=1: the list says so, once.
+    if (new URLSearchParams(location.search).get("deleted") === "1") {
+      notice = "Deleted.";
+      history.replaceState(null, "", location.pathname + location.hash);
     }
     $("boLists").hidden = false;
     readHash();

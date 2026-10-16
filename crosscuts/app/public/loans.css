@@ -58,6 +58,7 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 
 /* ---------- tables (scroll inside their own box if they must) ---------- */
 .ln-wrap {
+  position: relative; /* keeps the .ln-sr spans inside the scrolling box (B-m3) */
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-card);
@@ -98,6 +99,8 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .ln-table .ln-c-ref { width: auto; }
 .ln-table .ln-c-int { width: 150px; }
 .ln-table .ln-c-note { width: auto; }
+/* the list's last header ("Interest FY 2026-27") wraps rather than being cut (B-m4) */
+.ln-table-list th:last-child { white-space: normal; }
 .ln-table .ln-c-act { width: 160px; text-align: right; }
 .ln-table-rates .ln-c-date { width: 140px; }
 .ln-link { font-weight: 700; overflow-wrap: anywhere; }
@@ -157,6 +160,7 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .ln-form .hs-input:disabled { color: var(--body); border-color: var(--hairline); background: var(--ink); cursor: default; opacity: 1; }
 .ln-form select.hs-input:disabled { -webkit-appearance: none; appearance: none; }
 .ln-form textarea.hs-input:disabled { resize: none; }
+.ln-form [aria-invalid="true"] { border-color: var(--orange); } /* the input a refusal named */
 .ln-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .ln-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 
@@ -214,3 +218,14 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
   .ln-rowacts { justify-content: flex-start; }
   .ln-worked { white-space: normal; }
 }
+
+/* Ctrl+P: the page itself doesn't print; on paper it shows only a line pointing to Print
+   statement (loanprint.html), as the alarms page does. */
+.ln-noprint { display: none; }
+/* style-check: print-start (no colours: on paper only the pointer line shows) */
+@media print {
+  html:has(> body.ln-body), body.ln-body { background: #fff; color: #000; }
+  body.ln-body > * { display: none !important; }
+  body.ln-body > .ln-noprint { display: block !important; margin: 20mm; font-size: 12pt; }
+}
+/* style-check: print-end */

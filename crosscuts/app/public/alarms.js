@@ -8,7 +8,8 @@
 // into its cell as text (never an attribute, the URL, storage, the clipboard or the console), and
 // is taken out of the DOM again after 30 seconds, by Hide, when the page is hidden or left, before
 // a print, and whenever the table is drawn again. The mask is the same length for every code. A
-// typed code is sent once and its input emptied after every save, refused or not. There is no
+// typed code shows as dots (a text input masked in alarms.css, so phones keep the number pad;
+// section 12.2), is sent once and its input emptied after every save, refused or not. There is no
 // alarm print (section 10.4), and the page hides itself on paper.
 //
 // Leavers (a person who has left, holding a slot still in use) are listed first in orange. A
@@ -355,23 +356,37 @@
       U.field("Note", note, { wide: true }),
     ];
 
+    // The input a server sentence is about (section 12.3, B-m6), or null.
+    const fieldFor = (m) => {
+      if (/^Slot \d+ is already in use|slot number/i.test(m)) return num;
+      if (/^Give the holder|^Holder name/i.test(m)) return holder.value === OTHER ? name : holder;
+      if (/^Holder must be/i.test(m)) return holder;
+      if (/^The type/i.test(m)) return type;
+      if (/date given/i.test(m)) return given;
+      if (/^The code/i.test(m)) return code;
+      if (/^Note/i.test(m)) return note;
+      return null;
+    };
+
     return U.dialog({
       title: editing ? "Edit slot " + slot.slot : "Add slot",
       fields,
       wide: true,
       submit: editing ? "Save" : "Add slot",
       focus: num,
+      keepDisabled: true, // a missing key keeps the code box off after a refusal
       run: async () => {
         const typed = code.value.trim();
         code.value = ""; // never kept, whatever the answer
+        const again = typed ? ". Type the code again." : "";
         const slotNo = Number(num.value);
         if (!num.value.trim() || !Number.isInteger(slotNo) || slotNo < 1 || slotNo > 999) {
-          throw new Error("The slot number must be a whole number from 1 to 999" + (typed ? ". Type the code again." : ""));
+          throw U.fail("The slot number must be a whole number from 1 to 999" + again, num);
         }
-        if (!holder.value) throw new Error("Give the holder: a person or a name" + (typed ? ". Type the code again." : ""));
-        if (holder.value === OTHER && !name.value.trim()) throw new Error("Give the holder: a person or a name" + (typed ? ". Type the code again." : ""));
-        if (!type.value) throw new Error("Choose the type" + (typed ? ". Type the code again." : ""));
-        if (typed && !CODE_RE.test(typed)) throw new Error("The code must be 1 to 12 digits");
+        if (!holder.value) throw U.fail("Give the holder: a person or a name" + again, holder);
+        if (holder.value === OTHER && !name.value.trim()) throw U.fail("Give the holder: a person or a name" + again, name);
+        if (!type.value) throw U.fail("Choose the type" + again, type);
+        if (typed && !CODE_RE.test(typed)) throw U.fail("The code must be 1 to 12 digits. Type the code again.", code);
 
         const body = {};
         const holderBody = () => {
@@ -405,9 +420,8 @@
           return r;
         } catch (e) {
           const err = refusal(e);
+          err.field = fieldFor(err.message);
           if (typed) err.message = err.message.replace(/[.!?]?$/, ".") + " The code wasn't saved: type it again.";
-          // The frame turns every input back on after a refusal; a missing key keeps this one off.
-          if (missing) setTimeout(() => { code.disabled = true; }, 0);
           throw err;
         }
       },
@@ -446,7 +460,9 @@
         try {
           return await send("/api/alarms/slots/" + slot.id + "/remove", "POST", date.value ? { removedDate: date.value } : {});
         } catch (e) {
-          throw refusal(e);
+          const err = refusal(e);
+          if (/removed date/i.test(err.message)) err.field = date;
+          throw err;
         }
       },
     }).then((r) => after(r, "Slot " + slot.slot + " removed."));
@@ -472,12 +488,14 @@
   }
 
   // After a dialog: a save reloads the page; a refusal the user closed reloads it too (someone
-  // else may have changed the slot); a cancel does nothing.
+  // else may have changed the slot); a cancel does nothing. The table is drawn again, so the
+  // button that opened the dialog may be gone: focus goes to the heading, by the status line.
   async function after(r, okText) {
     if (r === null) return;
     await load({ keepForms: true, keepStatus: true });
     if (r && r.refused) setStatus("The slots were reloaded as they are now.");
     else setStatus(okText, "ok");
+    focusTitle();
   }
 
   // ================================================================ company and times ===

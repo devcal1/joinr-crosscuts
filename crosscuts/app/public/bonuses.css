@@ -79,6 +79,7 @@ a.hs-btn:hover { text-decoration: none; }
 
 /* ---------- tables (scroll inside their own box if they must) ---------- */
 .bo-wrap {
+  position: relative; /* keeps the .bo-sr spans inside the scrolling box (B-m3) */
   margin-bottom: 12px;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -176,6 +177,8 @@ a.hs-btn:hover { text-decoration: none; }
 .bo-form .hs-input:disabled:hover { border-color: var(--hairline); }
 .bo-form textarea.hs-input:disabled { resize: none; }
 .bo-form select.hs-input:disabled { -webkit-appearance: none; appearance: none; }
+/* the input a refusal named (the bonus form and the settings) */
+.bo-form [aria-invalid="true"], .bo-settings [aria-invalid="true"] { border-color: var(--orange); }
 .bo-joinr { margin: 10px 0 0; }
 .bo-joinr[hidden] { display: none; }
 
@@ -290,3 +293,14 @@ a.hs-btn:hover { text-decoration: none; }
 @media (max-width: 420px) {
   .bo-grid-4 { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Ctrl+P: the page itself doesn't print; on paper it shows only a line pointing to the Print
+   buttons (bonusprint.html), as the alarms page does. */
+.bo-noprint { display: none; }
+/* style-check: print-start (no colours: on paper only the pointer line shows) */
+@media print {
+  html:has(> body.bo-body), body.bo-body { background: #fff; color: #000; }
+  body.bo-body > * { display: none !important; }
+  body.bo-body > .bo-noprint { display: block !important; margin: 20mm; font-size: 12pt; }
+}
+/* style-check: print-end */
