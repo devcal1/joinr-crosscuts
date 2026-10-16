@@ -13,10 +13,19 @@ async function api(method, path, body) {
 }
 (async () => {
   const st = await api("GET", "/api/auth/status");
-  if (st.setupNeeded) await api("POST", "/api/auth/setup", { username: USER, displayName: "Todd (local)", password: PW });
+  // The setup user is the owner (M13). A made-up name: this repo is public.
+  const OWNER_NAME = "Owner (made up)";
+  if (st.setupNeeded) await api("POST", "/api/auth/setup", { username: USER, displayName: OWNER_NAME, password: PW });
   else await api("POST", "/api/auth/login", { username: USER, password: PW });
+  const owner = (await api("GET", "/api/auth/me")).user;
+  if (owner.displayName !== OWNER_NAME) await api("PATCH", `/api/users/${owner.id}`, { displayName: OWNER_NAME });
+  // The first boot seeds six board workers with real-looking first names (db/index.js), and older
+  // runs of this seed added three more: each is renamed "M13 Worker <n>" before any shot, and the
+  // roster is made up to nine.
+  const REAL_LOOKING = ["Blay", "Sam", "Darcy", "Shooter", "Moo", "Michael", "Priya", "Jordan", "Alex"];
   let workers = await api("GET", "/api/workers");
-  for (const n of ["Sam", "Priya", "Jordan", "Alex"]) if (!workers.find(w => w.name === n)) await api("POST", "/api/workers", { name: n });
+  for (const [k, w] of workers.entries()) if (REAL_LOOKING.includes(w.name)) await api("PATCH", `/api/workers/${w.id}`, { name: `M13 Worker ${k + 1}` });
+  for (let n = workers.length + 1; n <= 9; n++) await api("POST", "/api/workers", { name: `M13 Worker ${n}` });
   workers = await api("GET", "/api/workers");
   const sched = await api("GET", "/api/schedule");
   const wk = sched.weeks[0].start, wk2 = sched.weeks[1].start;
@@ -67,7 +76,7 @@ async function api(method, path, body) {
   // M8: this fortnight's pay run (id 1 on a fresh database) with a pay-only person and two sheets
   // typed in, one ticked as typed in. Made-up hours only.
   if (!(await api("GET", "/api/payruns")).payRuns.length) {
-    await api("POST", "/api/payruns/people", { name: "Casey (office)" });
+    await api("POST", "/api/payruns/people", { name: "Office Person (made up)" });
     const run = await api("POST", "/api/payruns", {});
     const typed = [[420, 1020, 30], [420, 1080, 30], [420, 1110, 30], [420, 990, 30], [420, 840, 30]];
     const sheets = [];
@@ -141,6 +150,22 @@ async function api(method, path, body) {
   // imports one won quote through the real intake, accepts it, then changes its drawer lines. The
   // config files it writes and the stand-in are removed again. Without SEED_CONFIG_DIR that job
   // gets a hand-typed grid and the Joinr box is not seeded.
+  // withStandInJoinr(fn): runs fn(base) with the stand-in up and Crosscuts pointed at it; false
+  // (fn not run) without SEED_CONFIG_DIR. Also used by M13 below.
+  const withStandInJoinr = async fn => {
+    const cfg = process.env.SEED_CONFIG_DIR;
+    if (!cfg) return false;
+    const fs = require("fs"), path = require("path"), { spawn } = require("child_process");
+    const port = +(process.env.SEED_JOINR_PORT || 4891), key = "seed-demo-key-0001", jb = "http://127.0.0.1:" + port;
+    const keyFile = path.join(cfg, "joinr-api-key"), baseFile = path.join(cfg, "joinr-base-url");
+    const fake = spawn(process.execPath, [path.join(__dirname, "../../ci/fake-joinr.js"), String(port), key], { stdio: "ignore" });
+    try {
+      for (let k = 0; k < 40; k++) { try { await fetch(jb + "/_control/requests"); break; } catch { await new Promise(r => setTimeout(r, 150)); } }
+      fs.writeFileSync(keyFile, key + "\n"); fs.writeFileSync(baseFile, jb + "\n");
+      await fn(jb);
+      return true;
+    } finally { fake.kill(); fs.rmSync(keyFile, { force: true }); fs.rmSync(baseFile, { force: true }); }
+  };
   if (!(await api("GET", "/api/drawers/names")).names.length) {
     const jobsAll = await api("GET", "/api/job-records");
     const jobByName = n => (Array.isArray(jobsAll) ? jobsAll : jobsAll.rows || jobsAll.jobs || []).find(j => j.name === n);
@@ -159,16 +184,7 @@ async function api(method, path, body) {
     // A job that came from Joinr: accepted through the real intake, then Joinr changes a quantity, so
     // its job page shows the Joinr box (mapped, unmapped, ignored) and "Changed in Joinr".
     let joinrJob = null;
-    const joinrStep = async () => {
-    const cfg = process.env.SEED_CONFIG_DIR;
-    if (cfg) {
-      const fs = require("fs"), path = require("path"), { spawn } = require("child_process");
-      const port = +(process.env.SEED_JOINR_PORT || 4891), key = "seed-demo-key-0001", jb = "http://127.0.0.1:" + port;
-      const keyFile = path.join(cfg, "joinr-api-key"), baseFile = path.join(cfg, "joinr-base-url");
-      const fake = spawn(process.execPath, [path.join(__dirname, "../../ci/fake-joinr.js"), String(port), key], { stdio: "ignore" });
-      try {
-        for (let k = 0; k < 40; k++) { try { await fetch(jb + "/_control/requests"); break; } catch { await new Promise(r => setTimeout(r, 150)); } }
-        fs.writeFileSync(keyFile, key + "\n"); fs.writeFileSync(baseFile, jb + "\n");
+    const joinrStep = () => withStandInJoinr(async jb => {
         const root = "5eed0000-0000-4000-8000-000000000011";
         // M12: a stone benchtop and its room text as typed in Joinr (made up), for the job page's
         // "Benchtop (as typed)" line and the printed benchtop sheet.
@@ -186,9 +202,7 @@ async function api(method, path, body) {
         await api("POST", `/api/orders/${jl[0].id}/drawers/check`, { checked: true });
         await quote(list(5)); // Joinr now says 5 High 500, not 4
         await api("POST", "/api/joinr/import", {});
-      } finally { fake.kill(); fs.rmSync(keyFile, { force: true }); fs.rmSync(baseFile, { force: true }); }
-    }
-    };
+    });
     const drawerLine = async (job, brand, counts, notes, checked) => (await api("POST", `/api/job-records/${job.id}/drawers`, { brand, counts, notes, checked: !!checked })).order.id;
 
     // Placed first, so they are history: an EDGE order for two jobs plus a stock row (stock still to
@@ -289,18 +303,144 @@ async function api(method, path, body) {
     await order({ supplier: "M12 Stone Supplier", brand: "M12 Stone Brand", colour: "", edgeHeight: "40 mm", requestedInstallDate: day(9), notes: "Island top: waiting on the colour choice" });
     // Sent once, unchanged.
     const sent = await order(stoneForm("Example White", day(30), { notes: "Kitchen run: one undermount sink cut-out, one cooktop cut-out." }));
-    await api("POST", `/api/stone/${sent}/send`, { sentDate: day(-6) });
+    await api("POST", `/api/stone/${sent}/send`, {}); // sent today: M12 · 4.3 refuses a sent date before the order was started
     // Sent as revision 1 and 2, then changed again (not sent).
     const changed = await order(stoneForm("Example Grey", day(5), { edgeHeight: "36 mm", edgeProfile: "6x6 round", notes: "Laundry top." }));
-    await api("POST", `/api/stone/${changed}/send`, { sentDate: day(-10) });
+    await api("POST", `/api/stone/${changed}/send`, {});
     await api("PATCH", `/api/stone/${changed}`, { colour: "Example Charcoal", measureDate: day(-4) });
-    await api("POST", `/api/stone/${changed}/send`, { sentDate: day(-3) });
+    await api("POST", `/api/stone/${changed}/send`, {});
     await api("PATCH", `/api/stone/${changed}`, { edgeProfile: "10x10 round", notes: "Laundry top. Client asked for a softer edge." });
     // Cancelled.
     const gone = await order(stoneForm("Example Black", day(40), { notes: "Vanity top: moved to a solid surface instead." }));
     await api("POST", `/api/stone/${gone}/cancel`, {});
     stoneSeed.orders = 4;
   }
+  // M13: made-up owner-only data (docs/plans/m13-contracts.md), all through the real routes as the
+  // owner (the setup user). M13 names only: "M13 Second Admin", "M13 Accounts", "M13 Person …",
+  // "M13 … Job", "M13 Alarm Co", "M13 Lender …". Every code, figure and name is made up. Each part
+  // runs only when its area is still empty, so a second run changes nothing.
+  const m13 = {};
+  {
+    const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+    const notAfterToday = d => (d > today ? today : d);
+    // Logins: a second admin, and an Accounts login the owner grants loans.manage (an owner-only key)
+    // by an override. Both start with the throwaway password shoot.js expects and change it there.
+    const users = await api("GET", "/api/users");
+    const userRows = Array.isArray(users) ? users : users.rows || users.users || [];
+    const login = async (username, displayName, roles) => userRows.find(u => u.username === username)
+      || await api("POST", "/api/users", { username, displayName, password: "Menu-Local-Test-1", roles });
+    await login("m13admin", "M13 Second Admin", ["admin"]);
+    const acct = await login("m13acct", "M13 Accounts", ["accounts"]);
+    if (!(acct.overrides || []).some(o => o.key === "loans.manage" && o.effect === "grant")) {
+      await api("PUT", `/api/users/${acct.id}/overrides/loans.manage`, { effect: "grant" });
+    }
+
+    // Pay-only people (pay list): a bonus and alarm holder, a leaver-to-be and a removed slot's holder.
+    const peopleAll = (await api("GET", "/api/payruns/people?all=1")).people;
+    const person = async name => peopleAll.find(p => p.name === name) || await api("POST", "/api/payruns/people", { name });
+    const pA = await person("M13 Person A"), pLeaver = await person("M13 Leaver"), pGone = await person("M13 Person C");
+    const w1 = workers[0], w2 = workers[1], w3 = workers[2];
+
+    // Bonus settings: 1.50%, three holders with share points 2, 1, 1.
+    const bset = await api("GET", "/api/bonuses/settings");
+    if (!bset.holders.length) {
+      await api("PUT", "/api/bonuses/settings", { rateBp: 150, holders: [{ workerId: w1.id, points: 2 }, { workerId: w2.id, points: 1 }, { personId: pA.id, points: 1 }] });
+    }
+
+    // Bonuses in each state. A draft on a job accepted from the stand-in Joinr, whose quote carries
+    // estimatedHours (factory and site, halved by Joinr; the bonus doubles them back); a confirmed
+    // one with one share paid and two owed; one confirmed then reopened (a draft again).
+    if (!(await api("GET", "/api/bonuses")).bonuses.length) {
+      let draftJobId = null;
+      await withStandInJoinr(async jb => {
+        const root = "5eed0000-0000-4000-8000-000000000013";
+        await fetch(jb + "/_control/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          rootQuoteId: root, quoteId: root, quoteNumber: "Q-M13-0001", siteAddress: "M13 Draft Bonus Job", clientName: "M13 Client (made up)",
+          wonAt: "2026-09-20T01:00:00Z", updatedAt: "2026-09-20T01:00:00Z", valueIncGstCents: 3000000,
+          estimatedHours: { office: 1, factory: 10.5, site: 4, travel: 0.5 } }) });
+        await api("POST", "/api/joinr/import", {});
+        const item = (await api("GET", "/api/joinr/intake")).rows.find(i => i.quoteNumber === "Q-M13-0001");
+        draftJobId = item.job ? item.job.id : (await api("POST", `/api/joinr/intake/${item.id}/accept`, {})).job.id;
+      });
+      const handJob = (name, valueCents, extra) => api("POST", "/api/job-records", { name, valueCents, clientName: "M13 Client (made up)", ...extra });
+      if (!draftJobId) draftJobId = (await handJob("M13 Draft Bonus Job", 3000000, { quoteNumber: "Q-M13-0001" })).id;
+      const draft = await api("POST", "/api/bonuses", { jobId: draftJobId });
+      await api("PATCH", `/api/bonuses/${draft.id}`, {
+        ...(draft.hours.quotedFactoryMin == null ? { quotedFactoryMin: 1260, quotedInstallMin: 480 } : {}),
+        ranBy: { workerId: w3.id }, checkedBy: { personId: pA.id }, actualFactoryMin: 1140, actualInstallMin: 450,
+        checks: { drawn: true, ordered: true, assembled: true, installed: false, noFuss: true, onTime: false },
+        note: "Made-up draft: install still to finish." });
+
+      const confJob = await handJob("M13 Confirmed Bonus Job", 4840000, { quoteNumber: "Q-M13-0002" });
+      const conf = await api("POST", "/api/bonuses", { jobId: confJob.id });
+      await api("PATCH", `/api/bonuses/${conf.id}`, {
+        ranBy: { workerId: w1.id }, checkedBy: { workerId: w2.id },
+        quotedFactoryMin: 1800, quotedInstallMin: 600, actualFactoryMin: 1950, actualInstallMin: 540,
+        checks: { drawn: true, ordered: true, assembled: true, installed: true, noFuss: true, onTime: true },
+        note: "Made-up bonus: factory ran over the quoted hours." });
+      const confirmed = await api("POST", `/api/bonuses/${conf.id}/confirm`, { confirmedDate: day(-21) });
+      const runs = (await api("GET", "/api/payruns")).payRuns;
+      const paidShare = confirmed.shares.find(s => s.name === w1.name) || confirmed.shares[0];
+      await api("POST", `/api/bonuses/${conf.id}/shares/${paidShare.personId}/paid`, { paidDate: day(-14), payRunId: runs.length ? runs[0].id : null });
+
+      const reJob = await handJob("M13 Reopened Bonus Job", 2200000, { quoteNumber: "Q-M13-0003" });
+      const re = await api("POST", "/api/bonuses", { jobId: reJob.id });
+      await api("PATCH", `/api/bonuses/${re.id}`, {
+        ranBy: { personId: pA.id }, checkedBy: { workerId: w1.id }, quotedFactoryMin: 900, quotedInstallMin: 360, actualFactoryMin: 840, actualInstallMin: 300,
+        checks: { drawn: true, ordered: true, assembled: true, installed: true, noFuss: false, onTime: true }, note: "Made-up: reopened to fix the checks." });
+      await api("POST", `/api/bonuses/${re.id}/confirm`, { confirmedDate: day(-7) });
+      await api("POST", `/api/bonuses/${re.id}/reopen`, {});
+    }
+
+    // Alarms: slots with made-up codes (one with a leading zero), a typed-name temp, one with no
+    // code, a leaver (the person archived after their slot is given), a removed slot; the alarm
+    // company (no monitoring password: there is nowhere to put one) and the weekly times.
+    const ov = await api("GET", "/api/alarms");
+    if (!ov.slots.length) {
+      const slot = b => api("POST", "/api/alarms/slots", b);
+      await slot({ slot: 1, workerId: w1.id, type: "staff", givenDate: day(-400), code: "4826" });
+      await slot({ slot: 2, personId: pA.id, type: "office", givenDate: day(-300), code: "0193", note: "Leading zero: made up" });
+      await slot({ slot: 3, personId: pLeaver.id, type: "staff", givenDate: day(-200), code: "735102" });
+      await slot({ slot: 4, holderName: "M13 Temp Cleaner", type: "temp", givenDate: day(-30), code: "246810", note: "Cleaner, Fridays only" });
+      await slot({ slot: 5, workerId: w2.id, type: "staff", givenDate: day(-90) });
+      const gone = await slot({ slot: 6, personId: pGone.id, type: "staff", givenDate: day(-250), code: "5927" });
+      await api("POST", `/api/alarms/slots/${gone.id}/remove`, { removedDate: day(-60) });
+      await api("PATCH", `/api/payruns/people/${pLeaver.id}`, { archived: true });
+      await api("PUT", "/api/alarms/company", { name: "M13 Alarm Co", accountNumber: "M13-0000", contactName: "M13 Contact", phone: "00 0000 0000" });
+      const days = [1, 2, 3, 4, 5, 6, 7].map(d => ({ day: d, armsAt: d <= 5 ? "17:30" : d === 6 ? "12:30" : null, disarmsAt: d <= 5 ? "06:30" : d === 6 ? "07:00" : null }));
+      await api("PUT", "/api/alarms/times", { days });
+    }
+
+    // Loans: two lent to the business (one with a rate change), repayments across months (one
+    // interest typed as on a statement, one second repayment in a month), and one archived loan.
+    const loansNow = (await api("GET", "/api/loans")).loans, loansOld = (await api("GET", "/api/loans?archived=1")).loans;
+    if (!loansNow.length && !loansOld.length) {
+      const m = (k, dd) => P.addMonths(thisMonth, -k) + "-" + dd;
+      const loan = b => api("POST", "/api/loans", { direction: "lent_to_business", ...b });
+      const rate = (id, fromDate, rateBp, note) => api("POST", `/api/loans/${id}/rates`, { fromDate, rateBp, note: note || "" });
+      const pay = (id, b) => api("POST", `/api/loans/${id}/repayments`, b);
+      const a = await loan({ name: "M13 Lender A loan", otherParty: "M13 Lender A", openingBalanceCents: 8000000, openingDate: m(8, "01"), note: "Made-up loan for the screenshots" });
+      await rate(a.id, m(8, "01"), 600, "Opening rate");
+      await rate(a.id, m(3, "01"), 675, "Rate rise (made up)");
+      for (let k = 7; k >= 0; k--) {
+        const paidDate = notAfterToday(m(k, "15"));
+        await pay(a.id, { paidDate, principalCents: 250000, reference: `M13-A-${8 - k}`, ...(k === 5 ? { interestCents: 38000, note: "As on the lender's statement" } : {}) });
+        if (k === 2) await pay(a.id, { paidDate: m(2, "28"), principalCents: 100000, reference: `M13-A-${8 - k}b`, note: "Extra fortnightly payment" });
+      }
+      const b = await loan({ name: "M13 Lender B loan", otherParty: "M13 Lender B", openingBalanceCents: 2500000, openingDate: m(12, "10") });
+      await rate(b.id, m(12, "10"), 450);
+      for (const k of [11, 8, 5, 2]) await pay(b.id, { paidDate: m(k, "10"), principalCents: 300000, reference: `M13-B-${12 - k}` });
+      const c = await loan({ name: "M13 Old Loan", otherParty: "M13 Lender C", openingBalanceCents: 600000, openingDate: m(14, "01"), note: "Paid off; archived" });
+      await rate(c.id, m(14, "01"), 500);
+      for (const k of [13, 12]) await pay(c.id, { paidDate: m(k, "01"), principalCents: 300000, reference: `M13-C-${14 - k}` });
+      await api("PATCH", `/api/loans/${c.id}`, { archived: true });
+    }
+    m13.bonuses = (await api("GET", "/api/bonuses")).bonuses.map(x => x.status).join(",");
+    m13.slots = (await api("GET", "/api/alarms")).slots.length;
+    m13.leavers = (await api("GET", "/api/alarms/summary")).leavers.length;
+    m13.loans = (await api("GET", "/api/loans")).loans.length + "+" + (await api("GET", "/api/loans?archived=1")).loans.length + " archived";
+  }
+  console.log("M13 seeded:", JSON.stringify(m13));
   const sum = await api("GET", "/api/stone/summary");
   console.log("stone orders seeded", stoneSeed.orders, "summary", JSON.stringify(sum));
   console.log("seeded; week", wk, "workers", workers.length);

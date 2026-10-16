@@ -7,6 +7,8 @@
 // may be a function of the ids found after login (the seeded placed orders, paint orders, jobs,
 // stone orders). A 7th item {js, viewport} runs that script once the page has loaded (to fill a
 // form or open a dialog) and, with viewport, shoots only the window (a dialog stays in view).
+// M13: a role may also be one of seed.js's own logins (LOGINS: a second admin, an Accounts login
+// granted loans.manage).
 const { spawn } = require("child_process");
 const fs = require("fs"), path = require("path");
 const OUT = process.argv[2], B = process.argv[3] || "http://localhost:3997";
@@ -18,6 +20,8 @@ const ONLY = (process.env.PAGES || "").split(",").filter(Boolean);
 // at each end, the number of battens for a 58 mm gap.
 const BATTENS = mode => `(function(){var f=document.getElementById('bnForm'),v=function(id,x){var e=document.getElementById(id);e.value=x;e.dispatchEvent(new Event('input',{bubbles:true}))};
   v('bnSpace','1768');${mode === "gap" ? "f.querySelector('input[name=bnEnds][value=gap]').click();f.querySelector('input[name=bnFrom][value=gap]').click();v('bnGap','58');" : "v('bnCount','22');"}f.dispatchEvent(new Event('change',{bubbles:true}))})()`;
+// M13: scrolls the Users page's override list to its end, where the three owner-only keys are.
+const OVERRIDES_END = "(function(){var o=document.getElementById('overrideList');if(o)o.scrollTop=o.scrollHeight})()";
 const PAGES = [
   ["login", "/login.html", 1440, false], ["dashboard", "/", 1440, true], ["search", "/search.html", 1440, true],
   ["photo-admin", "/admin.html", 1440, true], ["users", "/users.html", 1440, true], ["audit", "/audit.html", 1440, true],
@@ -82,7 +86,43 @@ const PAGES = [
   ["battens-count", "/battens.html", 1440, true, "design_pm", undefined, { js: BATTENS("count") }],
   ["battens-gap-ends", "/battens.html", 1440, true, "design_pm", undefined, { js: BATTENS("gap") }],
   ["phone-battens", "/battens.html", 375, true, "design_pm", undefined, { js: BATTENS("count") }],
+  // M13 owner-only pages (seed.js). No role: the owner (the seed's admin). "admin2" and "loans_acct"
+  // are seed.js's own logins (LOGINS below). The alarm codes stay masked: no entry presses Show.
+  ["users-owner", c => "/users.html#user=" + c.userAcct, 1440, true, undefined, undefined, { js: OVERRIDES_END }],
+  ["users-owner-self", c => "/users.html#user=" + c.userOwner, 1440, true],
+  ["users-owner-transfer", c => "/users.html#user=" + c.userAdmin2, 1440, true, undefined, undefined, { js: "document.getElementById('usTransfer').click()", viewport: true }],
+  ["users-admin2-owner", c => "/users.html#user=" + c.userOwner, 1440, true, "admin2"],
+  ["users-admin2-acct", c => "/users.html#user=" + c.userAcct, 1440, true, "admin2", undefined, { js: OVERRIDES_END }],
+  ["phone-users-admin2-owner", c => "/users.html#user=" + c.userOwner, 375, true, "admin2"],
+  ["dashboard-admin2", "/", 1440, true, "admin2"],
+  ["bonuses-jobs", "/bonuses.html#jobs:all", 1440, true], ["bonuses-jobs-1100", "/bonuses.html#jobs:all", 1100, true],
+  ["bonuses-draft", c => "/bonuses.html?id=" + c.bonusDraft, 1440, true],
+  ["bonuses-reopened", c => "/bonuses.html?id=" + c.bonusReopened, 1440, true],
+  ["bonuses-confirmed", c => "/bonuses.html?id=" + c.bonusConfirmed, 1440, true],
+  ["bonuses-owed", "/bonuses.html#owed", 1440, true], ["bonuses-settings", "/bonuses.html#settings", 1440, true],
+  ["phone-bonuses-jobs", "/bonuses.html#jobs:all", 375, true], ["phone-bonuses-draft", c => "/bonuses.html?id=" + c.bonusDraft, 375, true],
+  ["phone-bonuses-confirmed", c => "/bonuses.html?id=" + c.bonusConfirmed, 375, true], ["phone-bonuses-owed", "/bonuses.html#owed", 375, true],
+  ["phone-bonuses-settings", "/bonuses.html#settings", 375, true],
+  ["bonusprint-draft", c => "/bonusprint.html?id=" + c.bonusDraft, 1440, true],
+  ["bonusprint-confirmed", c => "/bonusprint.html?id=" + c.bonusConfirmed, 1440, true],
+  ["bonusprint-owed", "/bonusprint.html?summary=1", 1440, true],
+  ["alarms", "/alarms.html", 1440, true], ["alarms-1100", "/alarms.html", 1100, true],
+  ["alarms-removed", "/alarms.html", 1440, true, undefined, undefined, { js: "document.getElementById('alRemoved').open=true" }],
+  ["alarms-slot-dialog", "/alarms.html", 1440, true, undefined, undefined, { js: "document.getElementById('alAdd').click()", viewport: true }],
+  ["phone-alarms", "/alarms.html", 375, true],
+  ["loans", "/loans.html", 1440, true], ["loans-archived", "/loans.html#archived", 1440, true],
+  ["loan", c => "/loans.html?id=" + c.loanA, 1440, true], ["loan-1100", c => "/loans.html?id=" + c.loanA, 1100, true],
+  ["loan-archived", c => "/loans.html?id=" + c.loanOld, 1440, true],
+  ["loan-repayment-dialog", c => "/loans.html?id=" + c.loanA, 1440, true, undefined, undefined,
+    { js: "[].find.call(document.querySelectorAll('button'),function(b){return b.textContent.trim()==='Add repayment'}).click()", viewport: true }],
+  ["phone-loans", "/loans.html", 375, true], ["phone-loan", c => "/loans.html?id=" + c.loanA, 375, true],
+  ["loanprint", c => "/loanprint.html?id=" + c.loanA + "&from=" + c.stmtFrom + "&to=" + c.today, 1440, true],
+  ["loans-accounts", "/loans.html", 1440, true, "loans_acct"], ["dashboard-loans-accounts", "/", 1440, true, "loans_acct"],
+  ["dashboard-leavers", "/", 1440, true, undefined, ".dash-lines"], ["phone-dashboard-leavers", "/", 375, true, undefined, ".dash-lines"],
 ];
+// seed.js's own M13 logins, by the role name an entry gives (made with the throwaway password
+// below; the first use here chooses PW2, as for the m-<role> users).
+const LOGINS = { admin2: "m13admin", loans_acct: "m13acct" };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const PW = "Menu-Local-Test-1", PW2 = "Menu-Local-Test-2"; // test-only passwords for throwaway local users (as menu-shots.js)
 async function apiCall(method, p, body, cookie) {
@@ -97,12 +137,13 @@ async function sid() {
 }
 // One throwaway user per role, as menu-shots.js: a new user must choose their own password first.
 async function roleCookie(role, admin) {
-  const u = "m-" + role.replace("_", "");
+  const u = LOGINS[role] || "m-" + role.replace("_", "");
   let r = await apiCall("POST", "/api/auth/login", { username: u, password: PW2 });
   if (r.cookie) return r.cookie.split("=")[1];
   const have = (await apiCall("GET", "/api/users", null, "crosscuts_sid=" + admin)).body;
   const rows = Array.isArray(have) ? have : (have && (have.rows || have.users)) || [];
   if (!rows.find(x => x.username === u)) {
+    if (LOGINS[role]) throw new Error(u + " is missing: run seed.js first");
     const c = await apiCall("POST", "/api/users", { username: u, displayName: role.replace("_", " ") + " test", password: PW, roles: [role] }, "crosscuts_sid=" + admin);
     if (c.status >= 300) throw new Error("create " + u + " " + c.status + JSON.stringify(c.body));
   }
@@ -130,6 +171,15 @@ async function findIds(admin) {
   c.stoneDraft = (stone.find(o => o.status === "draft") || {}).id; c.stoneCancelled = (stone.find(o => o.status === "cancelled") || {}).id;
   c.stoneSent = (stone.find(o => o.status === "sent" && !o.changedSinceSent) || {}).id;
   c.stoneChanged = (stone.find(o => o.status === "sent" && o.changedSinceSent) || {}).id;
+  // M13: the logins, the three bonuses (by their made-up job names), the loans, the statement range.
+  const users = await get("/api/users"), urows = Array.isArray(users) ? users : users.rows || users.users || [];
+  const uid = n => (urows.find(x => x.username === n) || {}).id;
+  c.userOwner = (urows.find(x => x.isOwner) || {}).id; c.userAdmin2 = uid("m13admin"); c.userAcct = uid("m13acct");
+  const bonuses = (await get("/api/bonuses")).bonuses || [], bid = n => (bonuses.find(b => b.job && b.job.name === n) || {}).id;
+  c.bonusDraft = bid("M13 Draft Bonus Job"); c.bonusConfirmed = bid("M13 Confirmed Bonus Job"); c.bonusReopened = bid("M13 Reopened Bonus Job");
+  c.loanA = (((await get("/api/loans")).loans || []).find(l => l.name === "M13 Lender A loan") || {}).id;
+  c.loanOld = (((await get("/api/loans?archived=1")).loans || []).find(l => l.name === "M13 Old Loan") || {}).id;
+  c.today = today; c.stmtFrom = P.addMonths(thisMonth, -6) + "-01";
   return c;
 }
 (async () => {
