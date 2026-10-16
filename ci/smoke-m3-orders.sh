@@ -68,10 +68,6 @@ req GET "/api/orders?status=bogus" "$ADMIN"
 expect_status 400 "a bad status filter"
 req GET /api/orders/suppliers "$SHOW"
 expect_status 403 "show GET /api/orders/suppliers"
-req GET /api/scheduling/upcoming "$ACCT"
-expect_status 403 "acct GET /api/scheduling/upcoming"
-req GET /api/scheduling/upcoming "$SHOW"
-expect_status 403 "show GET /api/scheduling/upcoming"
 
 m3b_job "CI M3 Orders Job" true
 M3B_J=$M3B_JOB
@@ -145,15 +141,6 @@ expect_jq '[.[] | select(.kind == "progress" and .status != "void")] | length ==
 req POST "/api/job-records/$M3B_J/materials-ordered" "$ADMIN" '{}'
 expect_status 409 "the Materials ordered button after the orders path"
 
-# Upcoming materials: both ordered lines (line 1 flagged overdue).
-req GET /api/scheduling/upcoming "$SCHED"
-expect_status 200 "sched GET /api/scheduling/upcoming"
-expect_jq ".from == \"$M3B_TODAY\" and .to == \"$(date -u -d "$M3B_TODAY + 13 days" +%F)\"" "upcoming covers 14 days"
-expect_jq ".materials | map(select(.id == $M3B_L2)) | .[0] | .expectedDate == \"$M3B_PLUS5\" and .overdue == false and .jobId == $M3B_J and .supplier == \"M3 Supply Co\"" \
-  "an ordered line due in 5 days is in upcoming.materials"
-expect_jq ".materials | map(select(.id == $M3B_L1)) | .[0].overdue == true" "an overdue ordered line is flagged"
-req GET /api/scheduling/upcoming "$DPM"
-expect_status 200 "dpm GET /api/scheduling/upcoming"
 
 m3b_line "$M3B_J" "M3 Supply Co"
 M3B_L3=$M3B_LINE
@@ -382,9 +369,6 @@ expect_jq "[.rows[] | select(.kind == \"inspection.booked\" and (.link | test(\"
 m3b_notifs "$DPM" inspection.booked "$M3B_J"
 expect_eq "$M3B_N" "0" "dpm (the actor) has no inspection.booked notification"
 
-req GET /api/scheduling/upcoming "$SCHED"
-expect_jq ".inspections | map(select(.id == $M3B_I)) | .[0] | .date == \"$M3B_PLUS3\" and .time == \"10:30\" and .host == \"CI Design PM\" and .jobId == $M3B_J" \
-  "the inspection is in upcoming.inspections"
 
 echo "--- inspections: edit, move, done ---"
 req PATCH "/api/inspections/$M3B_I" "$ACCT" "{\"date\":\"$M3B_PLUS4\"}"
@@ -415,10 +399,8 @@ expect_status 200 "dpm clears the time"
 expect_jq '.time == null' "time is now not set"
 m3b_notifs "$SCHED" inspection.moved "$M3B_J"
 expect_eq "$M3B_N" "2" "a time change is a move too"
-req GET /api/scheduling/upcoming "$SCHED"
-expect_jq ".inspections | map(select(.id == $M3B_I)) | .[0] | .date == \"$M3B_PLUS4\" and .time == null" "the move shows in upcoming"
 
-# A second inspection, marked done: no notification, and it leaves upcoming.
+# A second inspection, marked done: no notification, and it is not notified.
 req POST "/api/job-records/$M3B_J/inspections" "$DPM" "{\"date\":\"$M3B_PLUS5\",\"host\":\"Someone Else\"}"
 expect_status 201 "dpm books a second inspection with no time"
 expect_jq '.time == null and .host == "Someone Else"' "no time; the host is kept"
@@ -428,8 +410,6 @@ expect_status 200 "dpm marks it done"
 expect_jq '.status == "done"' "it is done"
 m3b_notifs "$SCHED" inspection.moved "$M3B_J"
 expect_eq "$M3B_N" "2" "done does not notify"
-req GET /api/scheduling/upcoming "$SCHED"
-expect_jq ".inspections | map(select(.id == $M3B_I2)) | length == 0" "a done inspection is not upcoming"
 
 echo "--- inspections: cancel ---"
 req POST "/api/inspections/$M3B_I/cancel" "$ACCT" '{}'
@@ -441,8 +421,6 @@ m3b_notifs "$SCHED" inspection.cancelled "$M3B_J"
 expect_eq "$M3B_N" "1" "sched has an inspection.cancelled notification"
 m3b_notifs "$DPM" inspection.cancelled "$M3B_J"
 expect_eq "$M3B_N" "0" "dpm (the actor) has no inspection.cancelled notification"
-req GET /api/scheduling/upcoming "$SCHED"
-expect_jq ".inspections | map(select(.id == $M3B_I)) | length == 0" "a cancelled inspection is gone from upcoming"
 req POST "/api/inspections/$M3B_I/cancel" "$DPM" '{}'
 expect_status 409 "cancel twice"
 req PATCH "/api/inspections/$M3B_I" "$DPM" "{\"date\":\"$M3B_PLUS3\"}"
@@ -460,11 +438,3 @@ for a in inspection.create inspection.update inspection.cancel; do
   [ "$n" -ge 1 ] || fail "expected at least 1 '$a' audit row for inspection $M3B_I, got $n"
   ok
 done
-
-echo "--- upcoming is read-only for dpm and sched ---"
-req GET /api/scheduling/upcoming "$DPM"
-expect_status 200 "dpm GET /api/scheduling/upcoming"
-expect_jq 'has("from") and has("to") and has("inspections") and has("materials") and has("materialsIn")' "the upcoming shape"
-req GET /api/scheduling/upcoming "$SCHED"
-expect_jq ".materialsIn | map(select(.jobId == $M3B_J)) | .[0] | .jobName == \"CI M3 Orders Job\" and .materialsInDate == \"$M3B_TODAY\"" \
-  "a job whose materials came in today is in materialsIn"

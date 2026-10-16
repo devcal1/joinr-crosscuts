@@ -40,7 +40,7 @@ function dateParam(q, name, fallback) {
   return v;
 }
 
-r.get("/", "scheduling.view", handle((req, res) => {
+r.get("/", "users.admin", handle((req, res) => {
   const q = req.query;
   const today = sydneyToday();
   const from = dateParam(q, "from", addDays(today, -30));
@@ -56,16 +56,16 @@ r.get("/", "scheduling.view", handle((req, res) => {
   });
 }));
 
-r.post("/leave", "leave.edit", handle((req, res) => {
+r.post("/leave", "users.admin", handle((req, res) => {
   res.status(201).json(availability.addLeave(db, req, body(req)));
 }));
 
-r.delete("/leave/:id", "leave.edit", handle((req, res) => {
+r.delete("/leave/:id", "users.admin", handle((req, res) => {
   availability.removeLeave(db, req, idOr404(req));
   res.status(204).end();
 }));
 
-r.patch("/workers/:id", "leave.edit", handle((req, res) => {
+r.patch("/workers/:id", "users.admin", handle((req, res) => {
   res.json(availability.setPattern(db, req, idOr404(req), body(req)));
 }));
 

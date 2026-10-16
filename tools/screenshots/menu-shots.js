@@ -96,7 +96,7 @@ async function ensureUsers() {
   await open("admin", "/accounts.html", 1440, 700); await click('[aria-controls="cc-dept-accounts"]'); await sleep(200); await shot("admin-1440-accounts-open", 420);
   // 3. Collapsed Menu panel on phones.
   for (const role of ["admin", "scheduling"]) {
-    await open(role, "/scheduling.html", 375, 812); await click(".cc-menu-btn"); await sleep(200); await shot(`phone-${role}-menu-open`, 812);
+    await open(role, "/schedule.html", 375, 812); await click(".cc-menu-btn"); await sleep(200); await shot(`phone-${role}-menu-open`, 812);
   }
   await open("admin", "/", 800, 900); await click(".cc-menu-btn"); await sleep(200); await shot("tablet-admin-menu-open", 900);
   // 4. Dashboards and the Photos page.
@@ -153,7 +153,7 @@ async function ensureUsers() {
 
   // 7. Every menu page loads with no console errors (admin).
   console.log("--- pages as admin (console errors)");
-  const pages = ["/", "/schedule.html", "/scheduling.html", "/lookahead.html", "/availability.html", "/workers.html", "/design.html", "/jobs.html", "/pipeline.html", "/orders.html", "/intake.html", "/accounts.html", "/reports.html", "/search.html", "/admin.html", "/users.html", "/audit.html", "/planner.html", "/tasks.html", "/messages.html"];
+  const pages = ["/", "/schedule.html", "/availability.html", "/workers.html", "/design.html", "/jobs.html", "/pipeline.html", "/orders.html", "/intake.html", "/accounts.html", "/reports.html", "/search.html", "/admin.html", "/users.html", "/audit.html", "/planner.html", "/tasks.html", "/messages.html"];
   for (const p of pages) {
     consoleErrors.length = 0;
     await open("admin", p, 1440, 800);

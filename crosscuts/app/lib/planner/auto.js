@@ -239,7 +239,7 @@ function installEvents(db, user, from, to, out) {
 // Who's away (Company-wide): one item per run of weekdays inside both the leave and the range.
 // Board workers only (leave is per board worker), archived workers left out, never kind or note.
 function leaveEvents(db, user, from, to, out) {
-  const link = has(user, "scheduling.view") ? "/availability.html" : null;
+  const link = has(user, "users.admin") ? "/availability.html" : null;
   for (const r of stmt(db, "leave").all(from, to)) {
     const lo = r.date_from > from ? r.date_from : from;
     const hi = r.date_to < to ? r.date_to : to;

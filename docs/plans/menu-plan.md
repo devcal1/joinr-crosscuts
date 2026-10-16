@@ -137,3 +137,10 @@ M13 (0.1.17) adds three items inside existing dropdowns, so the bar's width does
 - One build step (single agent: `shell.js`, `shell.css`, `index.js`/`index.html`, the in-page links, `search.html`).
 - Checks: the menu as each role (admin, accounts, design_pm, scheduling, showroom, workshop) at 375, 1024, 1366, 1440, 1920 px with screenshots for Todd; keyboard and screen-reader names on the menus; `ci/style-check.js`; smoke assertions on any page whose links change.
 - Review, fixes, then release with Todd's OK.
+
+## 5. Scheduling menu trimmed (Todd, 2026-10-16)
+
+- **Scheduling page and Lookahead page removed** (`scheduling.*`, `lookahead.*`, `routes/scheduling.js`, `/api/scheduling/upcoming` and `/lookahead`, and the now-unused `orders.upcoming` and `inspections.upcoming`). Todd found them redundant. The board's "To start" list and chips are untouched. No database change.
+- **Availability moved to Admin**, after Audit, key `users.admin`. `/availability.html` and every `/api/availability` route need `users.admin`; the page's buttons follow `users.admin`. The board's away chips, over-days outline and "+" picker warning read from `/api/schedule`, so the board is unaffected. The Planner's "who's away" items link to Availability only for `users.admin` holders.
+- **The Scheduling menu now reads:** Board, Workers. Admin: Users, Audit, Availability, Bonuses, Alarms. The `scheduling.view` and `leave.edit` keys stay (see `docs/auth.md`).
+- Sections 1 to 4 above are the history of the original menu and are not rewritten.

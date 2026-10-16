@@ -1,6 +1,6 @@
 @import url('tokens.css');
 
-/* Dashboard and the landing pages (design, scheduling, lookahead). House style:
+/* Dashboard and the landing pages (design). House style:
    hs-sectionbar headings, hs-card tiles, hs-btn links and hs-badge badges come from
    components.css; this file holds only the layout. */
 

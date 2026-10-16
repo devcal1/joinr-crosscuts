@@ -17,7 +17,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
 - **Admin:** everything, including users and the audit log, **except the three owner-only pages** (Bonuses, Alarms and Loans), which only the owner has (below).
 - **Accounts:** bookkeeping, invoices, job values, photo search.
 - **Design/PM:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view. From M11 it also **checks each job's drawer grid** (Joinr's drawer counts, or ones typed in) before the grid goes on the Drawer order. From M12 it makes and sends each job's **stone orders** (the job's Benchtops section and Design/PM, then **Stone orders**) and has the **Batten calculator**.
-- **Scheduling:** the board (moving jobs, workers, leave). From M12 it can print a job's stone orders and benchtop sheet from the job page (as can Accounts).
+- **Scheduling:** the board (moving jobs, workers). Leave and part-time patterns are entered by an admin on the Availability page (Admin menu) since 2026-10-16. From M12 it can print a job's stone orders and benchtop sheet from the job page (as can Accounts).
 - **Showroom:** photo search only. Used for the shared showroom account.
 - **Workshop:** the board and the Planner (Company-wide, Install & hardware and Workshop, read-only). For workshop logins (the floor crew, if they get one). It can't edit the board.
 - **Ordering:** places orders: adds order lines and marks them ordered (marking a job's last line ordered makes its progress invoice due), sees jobs and design, receives deliveries. Gets the delivery notes and the "materials in" alerts. **From M11 it also runs the Ordering pages:**
