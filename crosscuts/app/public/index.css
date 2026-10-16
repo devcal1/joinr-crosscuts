@@ -35,6 +35,8 @@ body {
 .week-line:hover .week-go { text-decoration: underline; }
 .week-line strong { color: var(--white); font-weight: 700; }
 .week-line .week-go { float: right; color: var(--teal-tint); font-size: 14px; }
+/* An alarm slot held by someone who has left: attend to it (orange; M13, section 10.7). */
+.week-line .dash-leaver-text { color: var(--orange-tint); font-weight: 700; overflow-wrap: anywhere; }
 
 .dash-section { margin-bottom: 32px; }
 .dash-section > .hs-sectionbar { margin-bottom: 12px; }

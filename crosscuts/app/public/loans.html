@@ -6,16 +6,53 @@
 <title>Loans - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
+<link rel="stylesheet" href="loans.css">
 </head>
 <body>
   <div id="cc-shell"></div>
 
-  <!-- SCAFFOLD placeholder (docs/plans/m13-contracts.md section 1): replaced in M13 Wave 2 F. -->
-  <main>
-    <h1>Loans</h1>
+  <main class="ln-page" id="lnPage">
+    <div class="ln-head">
+      <h1 id="lnTitle" tabindex="-1">Loans</h1>
+      <div id="lnHeadActions" class="ln-head-actions"></div>
+    </div>
+    <p id="lnStatus" class="ln-status" role="status" aria-live="polite">Loading...</p>
+
+    <!-- The list (/loans.html): current loans, or the archived ones (#archived) -->
+    <section id="lnList" class="ln-list" aria-labelledby="lnTitle" hidden>
+      <div class="ln-tools">
+        <label class="ln-check">
+          <input id="lnArchived" type="checkbox">
+          <span>Show archived</span>
+        </label>
+      </div>
+      <p id="lnEmpty" class="ln-empty" hidden></p>
+      <div id="lnListWrap" class="ln-wrap" hidden>
+        <table class="ln-table ln-table-list">
+          <thead>
+            <tr>
+              <th scope="col" class="ln-c-name">Name</th>
+              <th scope="col" class="ln-c-dir">Direction</th>
+              <th scope="col" class="ln-c-party">Other party</th>
+              <th scope="col" class="ln-c-money">Balance</th>
+              <th scope="col" class="ln-c-rate">Rate now</th>
+              <th scope="col" class="ln-c-date">Last paid</th>
+              <th scope="col" class="ln-c-money" id="lnFyHead">This FY interest</th>
+            </tr>
+          </thead>
+          <tbody id="lnRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- One loan (?id=N), built by loans.js -->
+    <section id="lnLoan" class="ln-loan" aria-labelledby="lnTitle" hidden></section>
   </main>
 
   <script src="shared.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="loans.js"></script>
 </body>
 </html>

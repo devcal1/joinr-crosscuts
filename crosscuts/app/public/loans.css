@@ -1,0 +1,216 @@
+/* Loans (loans.html; docs/plans/m13-contracts.md section 10.5). Tokens come from tokens.css, hs-
+   components from components.css, the dialogs from orderui.css and the shell's cc-dialog. Page
+   classes are ln-. Nothing prints from this page (the statement is loanprint.html). */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+
+.ln-page { max-width: 1240px; margin: 0 auto; padding: 22px 16px 48px; }
+.ln-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- header and messages ---------- */
+.ln-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 6px; }
+.ln-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
+.ln-head h1:focus { outline: none; }
+.ln-head h1:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.ln-head-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.ln-status { margin: 0 0 12px; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.ln-status:empty { display: none; }
+.ln-status-ok { color: var(--go-tint); }
+.ln-status-err { color: var(--orange-tint); }
+.ln-msg { margin: 8px 0 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.ln-msg:empty { display: none; }
+.ln-msg-ok { color: var(--go-tint); }
+.ln-msg-err { color: var(--orange-tint); }
+.ln-strong { color: var(--white); font-weight: 700; }
+.ln-sub { display: block; color: var(--label); font-size: 12px; }
+
+.ln-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ln-check { display: inline-flex; align-items: center; gap: 8px; color: var(--body); cursor: pointer; }
+.ln-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
+
+.ln-empty {
+  margin: 0 0 16px;
+  padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  color: var(--label);
+}
+.ln-empty-in { margin: 0; color: var(--label); }
+
+/* ---------- tables (scroll inside their own box if they must) ---------- */
+.ln-wrap {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.ln-card .ln-wrap { background: var(--ink); }
+.ln-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ln-table-list { min-width: 920px; }
+.ln-table-rates { min-width: 520px; }
+.ln-table-reps { min-width: 860px; }
+.ln-table th {
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.ln-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.ln-table tbody tr:last-child td { border-bottom: 0; }
+.ln-table tbody tr:hover { background: var(--raised); }
+.ln-table .ln-c-name { width: auto; }
+.ln-table .ln-c-dir { width: 170px; }
+.ln-table .ln-c-party { width: 180px; }
+.ln-table .ln-c-money { width: 130px; text-align: right; font-variant-numeric: tabular-nums; }
+.ln-table .ln-c-rate { width: 100px; font-variant-numeric: tabular-nums; }
+.ln-table .ln-c-date { width: 120px; white-space: nowrap; }
+.ln-table .ln-c-ref { width: auto; }
+.ln-table .ln-c-int { width: 150px; }
+.ln-table .ln-c-note { width: auto; }
+.ln-table .ln-c-act { width: 160px; text-align: right; }
+.ln-table-rates .ln-c-date { width: 140px; }
+.ln-link { font-weight: 700; overflow-wrap: anywhere; }
+.ln-row-off td { color: var(--label); }
+.ln-worked { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.ln-rowacts { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+/* ---------- one loan ---------- */
+.ln-loan { max-width: 1040px; }
+.ln-archived {
+  margin: 4px 0 14px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-left: var(--accent-border) solid var(--na);
+  border-radius: var(--r-callout);
+  color: var(--label);
+}
+.ln-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 40px;
+  margin: 6px 0 18px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-card);
+}
+.ln-balance { display: flex; flex-direction: column; gap: 2px; }
+.ln-big { color: var(--white); font-size: 34px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ln-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; flex: 1 1 320px; min-width: 0; }
+.ln-facts dt { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); align-self: center; }
+.ln-facts dd { margin: 0; color: var(--body); overflow-wrap: anywhere; }
+
+.ln-card {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 12px 16px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.ln-cardhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.ln-cardtools { display: flex; flex-wrap: wrap; gap: 8px; }
+.ln-h2 {
+  margin: 0;
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ln-form { margin: 0; }
+.ln-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
+.ln-grid .ou-wide { grid-column: 1 / -1; }
+.ln-form .hs-input:disabled { color: var(--body); border-color: var(--hairline); background: var(--ink); cursor: default; opacity: 1; }
+.ln-form select.hs-input:disabled { -webkit-appearance: none; appearance: none; }
+.ln-form textarea.hs-input:disabled { resize: none; }
+.ln-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ln-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.ln-stmt { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.ln-stmt .ou-date { width: 180px; }
+.ln-stmt-go { padding-bottom: 1px; }
+
+/* dialogs */
+.ln-money-in { font-variant-numeric: tabular-nums; }
+.ln-pct-in { max-width: 160px; }
+.ln-int-hint { display: block; margin-top: 2px; }
+.ln-int-hint:empty { display: none; }
+.ln-use { align-self: flex-start; margin-top: 4px; padding-left: 0; }
+
+/* ---------- narrow screens: each row is a card ---------- */
+@media (max-width: 860px) {
+  .ln-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .ln-page { padding-top: 16px; }
+  .ln-head h1 { font-size: 20px; }
+  .ln-head-actions { margin-left: 0; width: 100%; }
+  .ln-grid { grid-template-columns: minmax(0, 1fr); }
+  .ln-card { padding: 12px; }
+  .ln-big { font-size: 28px; }
+  .ln-stmt .ln-field { flex: 1 1 140px; }
+  .ln-stmt .ou-date { width: 100%; }
+  .ln-wrap, .ln-card .ln-wrap { overflow: visible; background: none; border: 0; }
+  .ln-table, .ln-table tbody, .ln-table tr, .ln-table td { display: block; width: auto !important; min-width: 0; }
+  .ln-table thead { display: none; }
+  .ln-table tbody tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+  }
+  .ln-card .ln-table tbody tr { background: var(--ink); }
+  .ln-table tbody tr:hover { background: var(--surface); }
+  .ln-card .ln-table tbody tr:hover { background: var(--ink); }
+  .ln-table td { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; padding: 3px 0; border: 0; text-align: left !important; white-space: normal; }
+  .ln-table td::before {
+    content: attr(data-label);
+    padding-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  .ln-table td > :not(:first-child) { grid-column: 2; }
+  .ln-table td.ln-blank { display: none; }
+  .ln-table td.ln-c-act { display: block; padding-top: 8px; }
+  .ln-table td.ln-c-act::before { content: none; }
+  .ln-rowacts { justify-content: flex-start; }
+  .ln-worked { white-space: normal; }
+}

@@ -1,0 +1,250 @@
+/* Alarm holders and codes (alarms.html; docs/plans/m13-contracts.md section 10.4). Tokens come from
+   tokens.css, hs- components from components.css, the dialogs from orderui.css and the shell's
+   cc-dialog. Page classes are al-. There is no alarm print: on paper the page shows only a line
+   saying so, so a shown code can never reach a print. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.al-page { max-width: 1240px; margin: 0 auto; padding: 22px 16px 48px; }
+.al-noprint { display: none; }
+.al-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- header and messages ---------- */
+.al-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 6px; }
+.al-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.al-head h1:focus { outline: none; }
+.al-head h1:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.al-status { margin: 0 0 12px; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.al-status:empty { display: none; }
+.al-status-ok { color: var(--go-tint); }
+.al-status-err { color: var(--orange-tint); }
+.al-msg { margin: 8px 0 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.al-msg:empty { display: none; }
+.al-msg-ok { color: var(--go-tint); }
+.al-msg-err { color: var(--orange-tint); }
+
+/* ---------- leavers and the missing key: attend to these (orange) ---------- */
+.al-leavers { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; }
+.al-leaver {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--orange-8);
+  border-left: var(--accent-border) solid var(--orange);
+  border-radius: var(--r-callout);
+  color: var(--orange-tint);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.al-key { margin: 0 0 16px; }
+.al-key-text { margin: 0; color: var(--body); overflow-wrap: anywhere; }
+
+/* ---------- sections ---------- */
+.al-section { margin-bottom: 22px; }
+.al-section > .hs-sectionbar { margin-bottom: 12px; }
+.al-empty {
+  margin: 0 0 12px;
+  padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  color: var(--label);
+}
+
+/* ---------- the slot tables (scroll inside their own box if they must) ---------- */
+.al-wrap {
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.al-table { width: 100%; min-width: 900px; border-collapse: collapse; table-layout: fixed; }
+.al-table th {
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.al-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.al-table tbody tr:last-child td { border-bottom: 0; }
+.al-table tbody tr:hover { background: var(--raised); }
+.al-table .al-c-slot { width: 70px; }
+.al-table .al-c-holder { width: auto; }
+.al-table .al-c-type { width: 90px; }
+.al-table .al-c-date { width: 120px; }
+.al-table .al-c-code { width: 190px; }
+.al-table .al-c-note { width: auto; }
+.al-table .al-c-act { width: 300px; text-align: right; }
+.al-table-removed .al-c-act { width: 120px; }
+.al-slotno { color: var(--white); font-weight: 700; font-variant-numeric: tabular-nums; }
+.al-strong { color: var(--white); font-weight: 700; }
+.al-note { display: block; color: var(--label); font-size: 12px; }
+.al-left {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--orange);
+  border-radius: var(--r-badge);
+  background: var(--orange-16);
+  color: var(--orange-tint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 17px;
+}
+.al-row-off td { color: var(--muted); }
+
+.al-codebox { display: inline-flex; align-items: center; gap: 10px; }
+.al-code {
+  display: inline-block;
+  min-width: 9ch;
+  color: var(--white);
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+}
+.al-code-shown { color: var(--teal-tint); font-weight: 700; }
+.al-none { color: var(--muted); }
+.al-unread { color: var(--orange-tint); font-weight: 700; }
+.al-show { min-width: 64px; }
+
+.al-rowacts { display: inline-flex; flex-wrap: nowrap; justify-content: flex-end; gap: 6px; }
+
+.al-removed { margin-top: 4px; }
+.al-summary {
+  display: inline-block;
+  margin: 0 0 10px;
+  padding: 4px 0;
+  color: var(--label);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.al-summary:hover { color: var(--teal-tint); }
+.al-count { color: var(--muted); }
+
+/* ---------- the company and the weekly times ---------- */
+.al-lower { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; align-items: start; }
+.al-card {
+  min-width: 0;
+  padding: 12px 16px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.al-h2 {
+  margin: 0 0 10px;
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.al-form { margin: 0; }
+.al-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.al-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.al-hint { margin: 10px 0 0; color: var(--label); font-size: 13px; }
+.al-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+.al-times { width: 100%; border-collapse: collapse; }
+.al-times th {
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  border-bottom: 1px solid var(--hairline);
+}
+.al-times td { padding: 5px 8px; border-bottom: 1px solid var(--hairline); }
+.al-times tbody tr:last-child th, .al-times tbody tr:last-child td { border-bottom: 0; }
+.al-times .al-day {
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--white);
+  font-weight: 700;
+  border-bottom: 1px solid var(--hairline);
+}
+.al-th-note { color: var(--muted); letter-spacing: 0.08em; }
+.al-time { max-width: 150px; color-scheme: dark; padding: 6px 8px; }
+
+/* the slot dialog */
+.al-num { max-width: 140px; }
+.al-codein { max-width: 220px; font-family: var(--mono); letter-spacing: 0.12em; }
+
+/* ---------- narrow screens: each slot is a card ---------- */
+@media (max-width: 900px) {
+  .al-lower { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .al-page { padding-top: 16px; }
+  .al-head h1 { font-size: 20px; }
+  .al-grid { grid-template-columns: minmax(0, 1fr); }
+  .al-card { padding: 12px; }
+  .al-section > .hs-sectionbar { flex-wrap: wrap; }
+  .al-wrap { overflow: visible; background: none; border: 0; }
+  .al-table, .al-table tbody, .al-table tr, .al-table td { display: block; width: auto !important; min-width: 0; }
+  .al-table thead { display: none; }
+  .al-table tbody tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+  }
+  .al-table tbody tr:last-child td { border-bottom: 0; }
+  .al-table tbody tr:hover { background: var(--surface); }
+  .al-table td { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; align-items: center; padding: 3px 0; border: 0; text-align: left; }
+  .al-table td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  .al-table td.al-blank { display: none; }
+  .al-table td.al-c-holder > :not(:first-child) { grid-column: 2; justify-self: start; }
+  .al-table td.al-c-act { display: block; padding-top: 8px; text-align: left; }
+  .al-table td.al-c-act::before { content: none; }
+  .al-rowacts { flex-wrap: wrap; justify-content: flex-start; }
+  .al-time { max-width: none; }
+  .al-times th, .al-times td { padding-left: 4px; padding-right: 4px; }
+}
+
+/* style-check: print-start (no colours: on paper only the "doesn't print" line shows) */
+@media print {
+  html:has(> body.al-body), body.al-body { background: #fff; color: #000; }
+  body.al-body > * { display: none !important; }
+  body.al-body > .al-noprint { display: block !important; margin: 20mm; font-size: 12pt; }
+}
+/* style-check: print-end */

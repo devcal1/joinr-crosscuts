@@ -6,16 +6,28 @@
 <title>Loan statement - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="loanprint.css">
 </head>
-<body>
+<body class="lp-body">
   <div id="cc-shell"></div>
 
-  <!-- SCAFFOLD placeholder (docs/plans/m13-contracts.md section 1): replaced in M13 Wave 2 F. -->
-  <main>
-    <h1>Loan statement</h1>
+  <!-- The loan statement print (loanprint.js; docs/plans/m13-contracts.md sections 8.2 and 10.6):
+       the sheet as it will print, on a white paper box. No letterhead. -->
+  <main class="lp-page">
+    <div class="lp-toolbar">
+      <button id="lpPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print</button>
+      <a id="lpBack" class="hs-btn" href="/loans.html">Back</a>
+      <p id="lpStatus" class="lp-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="lp-scroll">
+      <article id="lpSheet" class="lp-sheet" aria-label="Loan statement">
+        <p class="lp-loading">Loading...</p>
+      </article>
+    </div>
   </main>
 
   <script src="shared.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="loanprint.js"></script>
 </body>
 </html>

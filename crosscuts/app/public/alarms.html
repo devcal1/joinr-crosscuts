@@ -6,16 +6,115 @@
 <title>Alarms - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
+<link rel="stylesheet" href="alarms.css">
 </head>
-<body>
+<body class="al-body">
   <div id="cc-shell"></div>
 
-  <!-- SCAFFOLD placeholder (docs/plans/m13-contracts.md section 1): replaced in M13 Wave 2 F. -->
-  <main>
-    <h1>Alarms</h1>
+  <!-- Alarm holders and codes (alarms.js; docs/plans/m13-contracts.md sections 5 and 10.4).
+       No code is ever in this markup: a code is fetched only by Show, put in as text, and
+       taken out again after 30 seconds, by Hide, or when the page is left. No print. -->
+  <main class="al-page" id="alPage">
+    <div class="al-head">
+      <h1 id="alTitle" tabindex="-1">Alarms</h1>
+    </div>
+    <p id="alStatus" class="al-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="alLeavers" class="al-leavers" hidden></div>
+    <div id="alKey" class="hs-callout hs-callout-orange al-key" hidden>
+      <h3>Alarm code key missing</h3>
+      <p class="al-key-text">The alarm code key file is missing, so saved codes can't be shown or changed. Restore config/alarm-code-key from a backup (restore with --config), or clear the saved codes.</p>
+    </div>
+
+    <section id="alSlots" class="al-section" aria-labelledby="alSlotsH" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="alSlotsH">Slots in use</h2>
+        <button id="alAdd" class="hs-btn hs-btn-primary" type="button">Add slot</button>
+      </div>
+      <p id="alEmpty" class="al-empty" hidden>No slots in use.</p>
+      <div id="alWrap" class="al-wrap" hidden>
+        <table class="al-table">
+          <thead>
+            <tr>
+              <th scope="col" class="al-c-slot">Slot</th>
+              <th scope="col" class="al-c-holder">Holder</th>
+              <th scope="col" class="al-c-type">Type</th>
+              <th scope="col" class="al-c-date">Given</th>
+              <th scope="col" class="al-c-code">Code</th>
+              <th scope="col" class="al-c-note">Note</th>
+              <th scope="col" class="al-c-act"><span class="al-sr">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="alRows"></tbody>
+        </table>
+      </div>
+
+      <details id="alRemoved" class="al-removed" hidden>
+        <summary class="al-summary">Removed slots <span id="alRemovedCount" class="al-count"></span></summary>
+        <div class="al-wrap">
+          <table class="al-table al-table-removed">
+            <thead>
+              <tr>
+                <th scope="col" class="al-c-slot">Slot</th>
+                <th scope="col" class="al-c-holder">Holder</th>
+                <th scope="col" class="al-c-type">Type</th>
+                <th scope="col" class="al-c-date">Given</th>
+                <th scope="col" class="al-c-date">Removed</th>
+                <th scope="col" class="al-c-note">Note</th>
+                <th scope="col" class="al-c-act"><span class="al-sr">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="alRemovedRows"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <div id="alLower" class="al-lower" hidden>
+      <section class="al-section al-card" aria-labelledby="alCompanyH">
+        <h2 id="alCompanyH" class="al-h2">Alarm company</h2>
+        <form id="alCompany" class="al-form" novalidate>
+          <div class="al-grid">
+            <label class="al-field"><span class="hs-label">Company</span><input id="alCoName" class="hs-input" type="text" maxlength="200" autocomplete="off"></label>
+            <label class="al-field"><span class="hs-label">Account number</span><input id="alCoAccount" class="hs-input" type="text" maxlength="100" autocomplete="off"></label>
+            <label class="al-field"><span class="hs-label">Contact</span><input id="alCoContact" class="hs-input" type="text" maxlength="200" autocomplete="off"></label>
+            <label class="al-field"><span class="hs-label">Phone</span><input id="alCoPhone" class="hs-input" type="tel" maxlength="50" autocomplete="off"></label>
+          </div>
+          <p class="al-hint">The monitoring password isn't kept in Crosscuts.</p>
+          <div class="al-actions">
+            <button class="hs-btn hs-btn-primary" type="submit">Save</button>
+          </div>
+          <p id="alCompanyMsg" class="al-msg" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="al-section al-card" aria-labelledby="alTimesH">
+        <h2 id="alTimesH" class="al-h2">Weekly times</h2>
+        <form id="alTimes" class="al-form" novalidate>
+          <table class="al-times">
+            <thead>
+              <tr>
+                <th scope="col">Day</th>
+                <th scope="col">Arms at <span class="al-th-note">(evening)</span></th>
+                <th scope="col">Disarms at <span class="al-th-note">(morning)</span></th>
+              </tr>
+            </thead>
+            <tbody id="alTimesRows"></tbody>
+          </table>
+          <div class="al-actions">
+            <button class="hs-btn hs-btn-primary" type="submit">Save</button>
+          </div>
+          <p id="alTimesMsg" class="al-msg" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </div>
   </main>
+  <p class="al-noprint">The alarms page doesn't print.</p>
 
   <script src="shared.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="alarms.js"></script>
 </body>
 </html>

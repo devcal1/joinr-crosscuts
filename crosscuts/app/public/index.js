@@ -119,6 +119,33 @@
       .catch(function () { /* optional; leave it hidden */ });
   }
 
+  // Alarm leavers (docs/plans/m13-contracts.md section 10.7): for holders of alarms.manage, one
+  // orange line per slot still held by someone who has left, each leading to the Alarms page, at
+  // most five, then "and n more". Hidden when there are none or the call fails.
+  var LEAVERS_SHOWN = 5;
+  function leaverLine(text) {
+    var a = el("a", "week-line hs-callout hs-callout-orange dash-leaver");
+    a.href = "/alarms.html";
+    a.appendChild(el("span", "dash-leaver-text", text));
+    a.appendChild(el("span", "week-go", "Open alarms"));
+    return a;
+  }
+  function renderLeavers(cc) {
+    if (!cc.can("alarms.manage")) return;
+    var host = document.querySelector(".dash-lines");
+    if (!host) return;
+    api("/api/alarms/summary")
+      .then(function (s) {
+        var leavers = (s && Array.isArray(s.leavers)) ? s.leavers : [];
+        if (!leavers.length) return;
+        leavers.slice(0, LEAVERS_SHOWN).forEach(function (l) {
+          host.appendChild(leaverLine(l.name + " has left: change or remove slot " + l.slot));
+        });
+        if (leavers.length > LEAVERS_SHOWN) host.appendChild(leaverLine("and " + (leavers.length - LEAVERS_SHOWN) + " more"));
+      })
+      .catch(function () { /* optional; leave it hidden */ });
+  }
+
   // Someone whose role has no working tiles (the showroom) still gets a line pointing at the menu.
   function renderHint(cc) {
     var working = ["board.view", "accounts.view", "planner.view", "tasks.use", "messages.use"].some(function (k) { return cc.can(k); });
@@ -316,6 +343,7 @@
     renderAccounts(cc);
     renderDeliveries(cc);
     renderStock(cc);
+    renderLeavers(cc);
     renderHint(cc);
     renderAlerts(cc);
     renderPlanner(cc);
