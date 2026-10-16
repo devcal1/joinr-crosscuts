@@ -837,10 +837,14 @@ function paidInput(db, b, notBefore) {
   if (notBefore && date < notBefore) {
     throw bad(`The paid date can't be before the bonus was confirmed (${dayLabel(notBefore)})`);
   }
+  // A finalised pay run only (contracts 12.2 item 1, A-M2): an open one can still be deleted, and
+  // a share pointing at it would block that delete.
   let payRunId = null;
   if (b.payRunId !== undefined && b.payRunId !== null) {
     const rid = bodyId(b.payRunId);
-    if (!rid || !db.prepare("SELECT 1 FROM pay_runs WHERE id = ?").get(rid)) throw bad("No such pay run");
+    const run = rid && db.prepare("SELECT status FROM pay_runs WHERE id = ?").get(rid);
+    if (!run) throw bad("No such pay run");
+    if (run.status !== "finalised") throw bad("Choose a finalised pay run");
     payRunId = rid;
   }
   return { date, payRunId };
@@ -965,8 +969,12 @@ function summary(db, today = sydneyToday()) {
     }
   }
   const peopleOut = [...byPerson.values()].sort((a, b) => byNameCaseBlind(a.name, b.name) || a.personId - b.personId);
+  // The pickers offer finalised pay runs only (contracts 12.2 item 1).
   const payRuns = db
-    .prepare(`SELECT id, start_date, end_date, status FROM pay_runs ORDER BY start_date DESC LIMIT ${PAY_RUNS_MAX}`)
+    .prepare(
+      `SELECT id, start_date, end_date, status FROM pay_runs WHERE status = 'finalised'
+        ORDER BY start_date DESC LIMIT ${PAY_RUNS_MAX}`
+    )
     .all()
     .map((r) => ({ id: r.id, startDate: r.start_date, endDate: r.end_date, status: r.status }));
   return { people: peopleOut, totals, payRuns };

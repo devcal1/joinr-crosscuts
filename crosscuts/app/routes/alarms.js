@@ -15,6 +15,8 @@ const KEY = "alarms.manage";
 
 function handle(fn) {
   return (req, res) => {
+    // Nothing from this area is kept by a browser or a proxy (M13 4.3): every GET, refusals too.
+    if (req.method === "GET") res.set("Cache-Control", "no-store");
     try {
       fn(req, res);
     } catch (e) {
@@ -87,7 +89,10 @@ r.post("/slots/:id/reveal", KEY, handle((req, res) => {
   res.set("Cache-Control", "no-store"); // on the refusals too
   const id = idOr404(req.params.id);
   body(req, { emptyOk: true });
-  res.json(alarms.reveal(db, req, id));
+  const out = alarms.reveal(db, req, id);
+  // Sent with res.end, not res.json: Express's res.send would add an ETag, a hash of the body, so
+  // of the code (M13 4.3). No ETag, so no 304 either.
+  res.status(200).type("application/json").end(JSON.stringify(out));
 }));
 
 module.exports = r.router;

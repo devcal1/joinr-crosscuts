@@ -36,6 +36,10 @@ const MSG_MISSING_SAVE =
 const MSG_UNREADABLE =
   "This code can't be read with the current alarm code key. Restore the key it was saved with, or type the code again.";
 const MSG_CREATE = "The alarm code key couldn't be created in the config folder";
+// A file that isn't a valid key while no code is saved (M13 4.3, A-m5): there is nothing to clear,
+// so the missing-key sentence would mislead. The file is still never overwritten.
+const MSG_INVALID_FILE =
+  "The alarm code key file (config/alarm-code-key) isn't a valid key. Restore it from a backup, or remove it so a new one can be made.";
 
 // --------------------------------------------------------------- the key ---
 
@@ -95,10 +99,11 @@ function createKey() {
       fs.linkSync(TMP_FILE, KEY_FILE);
     } catch (e) {
       if (!e || e.code !== "EEXIST") throw e;
-      // Someone made one first: use theirs (if it is a valid key; else it is "missing").
+      // Someone made one first: use theirs (if it is a valid key). A file that isn't one is never
+      // overwritten; we got here in state "none", so no code is saved under any key.
       const k = readKeyFile();
       if (typeof k === "object") return k.hex;
-      throw new HttpError(409, MSG_MISSING_SAVE);
+      throw new HttpError(409, MSG_INVALID_FILE);
     }
     return hex;
   } catch (e) {
@@ -115,11 +120,13 @@ function createKey() {
 }
 
 // The key for saving a code: the current one, or a new one in state "none". Throws HttpError 409
-// in state "missing".
+// in state "missing": codes saved under a key that isn't there (section 5.3's sentence), or a file
+// that isn't a valid key while no code is saved (M13 4.3, A-m5's sentence).
 function keyForSaving(db) {
   const k = readKeyFile();
   if (typeof k === "object") return k.hex;
-  if (k === "invalid" || hasStoredCodes(db)) throw new HttpError(409, MSG_MISSING_SAVE);
+  if (hasStoredCodes(db)) throw new HttpError(409, MSG_MISSING_SAVE);
+  if (k === "invalid") throw new HttpError(409, MSG_INVALID_FILE);
   return createKey();
 }
 

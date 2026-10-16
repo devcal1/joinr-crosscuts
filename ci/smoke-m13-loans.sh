@@ -1,9 +1,9 @@
 # M13 smoke, Wave 1 D: loans (the balance calculated, the rate history, interest worked out once a
 # month, repayments, archive and the statement).
 # Sourced by ci/smoke.sh after the M12 suites, so it shares that script's helpers (step, req,
-# expect_status, expect_jq, expect_eq, jqr, fail, ok) and the cookie jars ($ADMIN $ACCT $DPM). No
-# shebang and no `set`: the caller owns both. $ADMIN is the owner, so it holds loans.manage; Accounts
-# and Design/PM don't.
+# expect_status, expect_jq, expect_eq, jqr, hdr, fail, ok) and the cookie jars ($ADMIN $ACCT $DPM).
+# No shebang and no `set`: the caller owns both. $ADMIN is the owner, so it holds loans.manage;
+# Accounts and Design/PM don't (Accounts is granted it for one write, and the grant removed).
 # It does not assume a pristine database: its loans carry a run tag and it checks only its own rows.
 # Fixed past dates, so every figure is exact. Made-up names only (this repo is public).
 # Contract: docs/plans/m13-contracts.md sections 6, 7.3, 8.2 and 11.5.
@@ -67,6 +67,10 @@ expect_status 400 "an opening balance in part cents"
 expect_jq '.error == "The opening balance must be whole cents from $0 to $100,000,000"' "the opening balance sentence"
 req GET /api/loans "$ADMIN"
 expect_jq "[.loans[] | select(.id == $M13_L_ID)] | length == 1" "the loan is listed"
+for M13_L_GET in /api/loans "/api/loans/$M13_L_ID" "/api/loans/$M13_L_ID/interest?date=2025-01-10" "/api/loans/$M13_L_ID/statement" /api/loans/999999999; do
+  req GET "$M13_L_GET" "$ADMIN"
+  expect_eq "$(hdr Cache-Control)" "no-store" "GET $M13_L_GET is Cache-Control: no-store"
+done
 
 echo "--- rates ---"
 req POST "/api/loans/$M13_L_ID/rates" "$ADMIN" '{"fromDate":"2025-01-01","rateBp":600}'
@@ -74,6 +78,10 @@ expect_status 201 "rate 600 from 1 Jan 2025"
 req POST "/api/loans/$M13_L_ID/rates" "$ADMIN" '{"fromDate":"2025-03-01","rateBp":650,"note":"M13 rate rise"}'
 expect_status 201 "rate 650 from 1 Mar 2025"
 expect_jq '[.rates[] | [.fromDate, .rateBp]] == [["2025-01-01",600],["2025-03-01",650]] and .rateBp == 650' "the history oldest first; 650 in force today"
+M13_L_RATE650=$(jqr '.rates[] | select(.fromDate == "2025-03-01") | .id')
+req PATCH "/api/loans/$M13_L_ID/rates/$M13_L_RATE650" "$ADMIN" '{"fromDate":"2025-01-01"}'
+expect_status 409 "move a rate onto another rate's from date"
+expect_jq '.error == "There is already a rate from 1 Jan 2025"' "the same from date sentence (an edit)"
 req POST "/api/loans/$M13_L_ID/rates" "$ADMIN" '{"fromDate":"2025-02-01","rateBp":5001}'
 expect_status 400 "a rate of 5001"
 expect_jq '.error == "The rate must be from 0 to 5000 basis points (0% to 50%)"' "the rate sentence"
@@ -122,8 +130,56 @@ req GET "/api/loans/$M13_L_ID2/interest?date=2025-01-15" "$ADMIN"
 expect_jq '.rateBp == null and .interestCents == null and .balanceCents == 1000100' "no rate: no suggestion"
 req POST "/api/loans/$M13_L_ID2/rates" "$ADMIN" '{"fromDate":"2025-01-01","rateBp":600}'
 expect_status 201 "the second loan's rate"
+M13_L_ID2_RATE=$(jqr '.rates[0].id')
 req GET "/api/loans/$M13_L_ID2/interest?date=2025-01-15" "$ADMIN"
 expect_jq '.interestCents == 5001' "5000.5 rounds half up to 5001"
+
+echo "--- a rate changed and deleted ---"
+req PATCH "/api/loans/$M13_L_ID2/rates/$M13_L_ID2_RATE" "$ADMIN" '{"rateBp":700,"note":"M13 rate edit"}'
+expect_status 200 "change the second loan's rate to 700"
+expect_jq '[.rates[] | [.fromDate, .rateBp, .note]] == [["2025-01-01",700,"M13 rate edit"]] and .rateBp == 700' "the rate is 700 from 1 Jan 2025"
+req GET "/api/loans/$M13_L_ID2/interest?date=2025-01-15" "$ADMIN"
+expect_jq '.rateBp == 700 and .interestCents == 5834' "the suggestion follows the new rate (1000100 x 700 / 120000 = 5833.9)"
+req PATCH "/api/loans/$M13_L_ID2/rates/$M13_L_ID2_RATE" "$ADMIN" '{"rateBp":5001}'
+expect_status 400 "change a rate to 5001"
+expect_jq '.error == "The rate must be from 0 to 5000 basis points (0% to 50%)"' "the rate sentence (an edit)"
+req PATCH "/api/loans/$M13_L_ID2/rates/$M13_L_ID2_RATE" "$ADMIN" '{"bogus":1}'
+expect_status 400 "an unknown rate field"
+expect_jq '.error == "Unknown field: bogus"' "the unknown field sentence (a rate)"
+req PATCH "/api/loans/$M13_L_ID2/rates/999999999" "$ADMIN" '{"rateBp":700}'
+expect_status 404 "change no such rate"
+req PATCH "/api/loans/$M13_L_ID/rates/$M13_L_ID2_RATE" "$ADMIN" '{"rateBp":700}'
+expect_status 404 "change another loan's rate"
+req DELETE "/api/loans/$M13_L_ID2/rates/$M13_L_ID2_RATE" "$ADMIN"
+expect_status 200 "delete the second loan's rate"
+expect_jq '.rates == [] and .rateBp == null' "no rate left"
+req GET "/api/loans/$M13_L_ID2/interest?date=2025-01-15" "$ADMIN"
+expect_jq '.rateBp == null and .interestCents == null' "no rate: no suggestion again"
+req DELETE "/api/loans/$M13_L_ID2/rates/$M13_L_ID2_RATE" "$ADMIN"
+expect_status 404 "delete the deleted rate"
+req GET "/api/audit?entityType=loan&entityId=$M13_L_ID2&limit=50" "$ADMIN"
+expect_status 200 "the second loan's audit rows"
+expect_jq '[.rows[] | select(.action == "loan.rate_update" and .before.rateBp == 600 and .after.rateBp == 700 and .after.note == "M13 rate edit")] | length == 1' \
+  "a loan.rate_update row, before 600 and after 700"
+expect_jq '[.rows[] | select(.action == "loan.rate_delete" and .before.rateBp == 700 and .before.fromDate == "2025-01-01")] | length == 1' \
+  "a loan.rate_delete row with the rate in before"
+
+echo "--- an Accounts login granted loans.manage writes ---"
+req GET /api/auth/me "$ACCT"
+expect_status 200 "acct GET /api/auth/me"
+M13_L_ACCT_ID=$(jqr '.user.id')
+req PUT "/api/users/$M13_L_ACCT_ID/overrides/loans.manage" "$ADMIN" '{"effect":"grant"}'
+expect_status 200 "the owner grants acct loans.manage"
+req POST "/api/loans/$M13_L_ID2/repayments" "$ACCT" '{"paidDate":"2025-01-15","principalCents":1000,"interestCents":0,"reference":"M13 ACCT"}'
+expect_status 201 "acct adds a repayment"
+expect_jq '.balanceCents == 999100 and ([.repayments[] | select(.reference == "M13 ACCT")] | length == 1)' "the repayment is kept; balance 999100"
+req GET "/api/audit?entityType=loan&entityId=$M13_L_ID2&action=loan.repayment_add&limit=5" "$ADMIN"
+expect_status 200 "the repayment's audit row"
+expect_jq ".rows[0].actorUserId == $M13_L_ACCT_ID and .rows[0].after.reference == \"M13 ACCT\"" "the row names acct"
+req DELETE "/api/users/$M13_L_ACCT_ID/overrides/loans.manage" "$ADMIN"
+expect_status 200 "the owner removes acct's loans.manage"
+req POST "/api/loans/$M13_L_ID2/repayments" "$ACCT" '{"paidDate":"2025-01-16","principalCents":1000,"interestCents":0}'
+expect_status 403 "acct adds a repayment without the grant"
 
 # Refusals on the first loan.
 req POST "/api/loans/$M13_L_ID/repayments" "$ADMIN" '{"paidDate":"2024-12-31","principalCents":100}'
