@@ -117,7 +117,7 @@ So Ordering (with `design.view` and `jobs.view`, without `jobs.edit`) reads and 
 
 Approved by Todd 2026-10-16 (`docs/plans/m13-plan.md` §5, `docs/plans/m13-contracts.md` §3).
 
-**The owner** is one login, marked on the login (`users.is_owner`), not a role. Migration 026 marked the first-run setup user (Todd); from then on first-run setup marks the first admin. There is always exactly one owner, and the owner is always an enabled admin. The Users page shows an **OWNER** mark by the owner's name.
+**The owner** is one login, marked on the login (`users.is_owner`), not a role. Migration 026 marked the first-run setup user (Todd); from then on first-run setup marks the first admin. In normal use there is exactly one owner, and the owner is an enabled admin: the guards below keep it that way (one edge case is under "A database with no owner"). The Users page shows an **OWNER** mark by the owner's name.
 
 **What the owner holds:** every key (all 30), whatever their roles and overrides. Overrides don't apply to the owner ("The owner holds every key, so overrides don't apply", 409). The admin preset is every key except the three owner-only ones, so another admin has 27.
 
@@ -152,7 +152,7 @@ The owner can't disable themselves or remove their own admin role (the existing 
 - **Anyone with the Umbrel itself, or the backup passphrase, can read the database:** bonuses and loans in plain, and the alarm codes too, because the alarm code key file sits beside the database in `data/config/` and goes into the same backup archive. The guards protect the figures **inside Crosscuts** only. The code encryption protects the codes in the plain pre-migration copies on the Umbrel and in the database file on its own.
 - A non-owner admin can still disable a holder of an owner-only key, or sign them out, and can use every other part of Crosscuts as before.
 
-**A database with no owner** can only be one that had no enabled admin when migration 026 ran, which the last-admin rule has prevented since M1. Then nobody holds the owner-only keys and every "only the owner" guard refuses everyone. There is no "claim ownership" button: fixing it is a hand step on the Umbrel for Todd (one `UPDATE` setting `is_owner = 1` on one enabled admin), with Claude, after a backup.
+**A database with no owner, or a disabled owner,** can only be one that had no enabled admin when migration 026 ran, which the last-admin rule has prevented since M1. (026 then falls back to the earliest admin even if disabled, so the owner is a disabled login.) Either way nobody can use the owner-only keys and every "only the owner" guard refuses everyone, even re-enabling a disabled owner. There is no "claim ownership" button: fixing it is a hand step on the Umbrel for Todd (one `UPDATE` setting `is_owner = 1` on one enabled admin), with Claude, after a backup.
 
 ### Planner layers
 
@@ -204,8 +204,9 @@ There is **no email reset.**
 
 - Another admin can reset the password on the Users page. The user must change it at next login, and their sessions end.
 - **Except (M13):** only the owner can reset the owner's password, and the password of a login holding an owner-only key by a grant override. Another admin sees "Only the owner can reset this password (they hold <key>)." in place of the reset box.
-- **So if the owner forgets their password, no other admin can reset it**, and there is no recovery path yet. Keep the owner's password in the password manager. A recovery runbook, with a manual step on the Umbrel, is to be written. It is not yet available.
-- If the only admin forgets their password, the same applies (the only admin is the owner). Keep a second admin account.
+- **So if the owner forgets their password, no other admin can reset it in the app.** Keep the owner's password in the password manager.
+- **Recovering a forgotten owner password** is the same hand step as "A database with no owner" above, with Claude, after a backup: on the Umbrel, one `UPDATE` moves `is_owner` to another enabled admin; that admin resets the old owner's password on the Users page; then the old owner signs in and takes ownership back with **Transfer ownership** from the other admin's login (or the same `UPDATE` in reverse).
+- **A second admin account** still keeps the rest of Crosscuts running if the owner is locked out, and is needed for that hand step, but it **can't reset the owner's password** by itself.
 
 ## Password expiry
 

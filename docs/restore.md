@@ -184,7 +184,12 @@ From M13 the alarm codes on the Alarms page are stored encrypted in the database
 - **A database restored without `--config` onto an Umbrel that doesn't have the key file** (a new Umbrel, or one whose `config/` was lost) **has unreadable alarm codes.** Everything else works. The Alarms page shows an orange **Alarm code key missing** box, each code shows "can't be read", and no new code can be saved. **Restore `config/` with the database:** run the same `db` command again with `--config` (case B, step 8). Everything else in `config/` comes back from that archive too.
 - **Crosscuts never makes a new key while codes saved with the old one exist**, and never overwrites a key file that is there but isn't a valid key. So the right key can always be put back later, and the codes read again.
 - **If a different key is in place** (for example, codes were saved on a rebuilt Umbrel before the restore), codes saved under the other key show "can't be read" until their own key is back. A restore with `--config` puts the archive's key in place and keeps the one it replaces beside it as `alarm-code-key.before-restore-<stamp>`.
-- **If only the key file is lost and the database is fine**, the restore tool has no command that puts back one config file on its own. Ask Claude. The choices are: restore the newest archive with `--config` (anything entered since that archive is lost, and the other config files go back to that archive's copies too), or clear the saved codes on the Alarms page and type them in again from the panel's records (the next code saved makes a new key).
+- **If only the key file is lost and the database is fine**, put back just the key, and nothing else. Every archive made since the first code was saved holds the same key (it is never remade while codes exist), so the newest archive will do. With Crosscuts stopped:
+  ```
+  sudo docker run --rm --network none -it -v $CC:/data $IMG node tools/restore.js key /data/db/backups/archives/<archive name>
+  ```
+  It asks "Have you stopped Crosscuts in umbrelOS?" (type `YES`), then for the passphrase. It changes **only** `config/alarm-code-key`: no database, no other config file, and nothing entered since the archive is lost. Any key file already there is kept beside it as `alarm-code-key.before-restore-<stamp>`. It refuses an archive with no key in it. Start Crosscuts again and ☐ **Show** works on a code. Ask Claude first if anything looks wrong.
+  - Only if no archive holds the key: restore the newest archive with `db … --config` (anything entered since is lost), or clear the saved codes on the Alarms page and type them in again from the panel's records (the next code saved makes a new key).
 
 What the encryption does and doesn't do, plainly: the key file sits beside the database in `data/config/`, and in the same archive. So the codes are protected in the plain pre-migration copies on the Umbrel (`data/db/backups/`) and in the database file on its own, but **not** from someone who has the Umbrel itself, or the backup passphrase.
 
@@ -211,7 +216,7 @@ It restores the newest **NAS** archive (not one from the Umbrel) into a throwawa
    sudo docker run --rm --network none -it -v $DRILL:/data $IMG node tools/restore.js files /data/in/files
    sudo docker run --rm --network none -it -v $DRILL:/data $IMG node tools/restore.js db /data/in/<archive name> --yes
    ```
-   ☐ `check` prints the manifest. Its `config files:` line lists the config files, and not `backup-passphrase`. ☐ `db` prints matching counts. Write them down.
+   ☐ `check` prints the manifest. Its `config files:` line lists the config files, and not `backup-passphrase`. ☐ Once any alarm code has been saved, that line includes `alarm-code-key` (so the key is in every archive). ☐ `db` prints matching counts. Write them down.
    ☐ **Also on Windows:** open the same archive from `C:\crosscuts-drill\` with 7-Zip (right-click, **7-Zip**, **Open archive**) and the passphrase from the password manager. It must list `photos.db`. This proves the Umbrel's 7-Zip and Windows 7-Zip turn the passphrase into the same key. It matters most if the passphrase has any character outside plain ASCII (an accent, a symbol, an emoji): the helper warns about that when it places it.
 4. Start the throwaway copy, with backups switched off so it never copies to the NAS:
    ```

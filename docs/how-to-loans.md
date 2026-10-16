@@ -63,7 +63,7 @@ Interest is worked out from the **annual rate** in force on the day. A loan keep
 5. Add a **Reference** (a MYOB or bank reference) and a **Note** if you like.
 6. Press **Add repayment**.
 
-**How the interest is worked out:** once a month, as the workbook did. The first repayment in a calendar month gets the balance just before it × the annual rate ÷ 12, rounded to the cent. Any later repayment in the same month gets $0.00, with "Interest already charged this month (d Mon)." If no rate covers the date, it says "No rate covers d Mon yyyy: type the interest or add a rate."
+**How the interest is worked out:** once a month, as the workbook did. If another repayment in the same calendar month already carries interest, the suggestion is $0.00, with "Interest already charged this month (d Mon)." Otherwise it is the balance just before the repayment × the annual rate ÷ 12, rounded to the cent. So a repayment of principal only (interest $0.00) leaves the month's interest to the next repayment that month. If no rate covers the date, it says "No rate covers d Mon yyyy: type the interest or add a rate."
 
 Example (made-up figures): a loan opened at $120,000.00 at 6.00%. A repayment on 10 January of $2,000.00 principal gets $600.00 interest ($120,000.00 × 6% ÷ 12) and leaves $118,000.00. A second repayment on 24 January gets $0.00 interest.
 
@@ -83,7 +83,7 @@ When a loan is paid off, press **Archive** (it asks first). An archived loan lea
 
 ## The statement
 
-On the loan, under **Statement**, choose **From** and **To** (the opening date and today unless you change them) and press **Print statement**. It opens on screen on a white sheet with **Print** and **Back**.
+On the loan, under **Statement**, choose **From** and **To** (the opening date and today unless you change them) and press **Print statement**. It opens on screen on a white sheet with **Print** and **Back to the loan**.
 
 The statement is A4, black on white, with no letterhead: "Loan statement", the loan's name, the period, its direction and other party, and when it opened; the balance at the start; a table of Date, Reference, Principal, Interest, Total and Balance; the totals; the balance at the end; and the rates in force during the period ("6.00% from 1 Jan 2025"). A long statement runs on to more pages, with the table's heading repeated.
 

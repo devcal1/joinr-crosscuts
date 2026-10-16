@@ -85,7 +85,7 @@ Confirming freezes the bonus: its rate, figures, the Hours check and the shares,
 
 Paying happens outside Crosscuts as now. Crosscuts records that each share was paid.
 
-**One share:** on a confirmed bonus, each share shows **Owed** with **Mark paid**. Choose the **Date paid** (today unless you change it; not in the future, and not before the bonus was confirmed) and, if you like, the **Pay run** it went in. The pay run is only a note: marking a bonus paid never changes the pay run. **Undo paid** marks it owed again.
+**One share:** on a confirmed bonus, each share shows **Owed** with **Mark paid**. Choose the **Date paid** (today unless you change it; not in the future, and not before the bonus was confirmed) and, if you like, the **Pay run** it went in (only finalised pay runs are offered). The pay run is only a note: marking a bonus paid never changes the pay run, and never stops an open one being deleted. **Undo paid** marks it owed again.
 
 **Everything owed to one person:** on the **Owed** tab, each person with anything owed has a card listing their owed shares (job, confirmed date, share) and **Mark all paid**. It marks every share on that card paid with one date and pay run.
 
@@ -97,7 +97,7 @@ The **Jobs** tab lists every bonus: Job, Status (**Draft** or **Confirmed**, wit
 
 ## The prints
 
-Both are A4, black on white, with no letterhead (they're internal). Each opens on screen on a white sheet with **Print** and **Back**.
+Both are A4, black on white, with no letterhead (they're internal). Each opens on screen on a white sheet with **Print** and **Back to the bonus** (or **Back to the owed list**).
 
 - **A job's bonus:** **Print** on the bonus. "Job bonus", the job and its confirmed date; price, rate, possible, earned and lost; the seven checks as `[x]` and `[ ]` with "Ticked n of 7" (Hours marked "(suggested)" when it follows the hours); ran by and checked by; the quoted and actual hours; the shares, each paid (with its date and pay run) or "Owed"; and the note. A draft prints a **DRAFT – NOT CONFIRMED** box at the top, with the live figures as of that day.
 - **Bonuses owed:** **Print** on the **Owed** tab. Today's date, each person's earned, paid and owed, the totals, then each person with anything owed and their owed shares.

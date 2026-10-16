@@ -165,7 +165,7 @@ ls -la $SNAP; du -sh $SNAP/uploads $OLD/uploads
    console.log(db.prepare(\"SELECT j.id, j.name, MAX(w.week_start) last_week FROM jobs j JOIN week_rows w ON w.job_id=j.id WHERE j.stage='complete' GROUP BY j.id HAVING last_week >= date('now','-14 days')\").all());"
    ```
 3. **Set up access** (option A):
-   - Open `http://umbrel.local:4933/setup.html` and create Todd's admin.
+   - Open `http://umbrel.local:4933/setup.html` and create Todd's admin. **This first login becomes the owner** (M13: the only login with Bonuses, Alarms and Loans), so it must be Todd's own, not a shared or throwaway one.
    - Add the users per brief §3.1: Chloe, Tracy and Jill (accounts); Aaron and Jordan (design_pm + scheduling); Sam and Michael (scheduling); Showroom (showroom).
    - Fill in **Business details and invoicing** on the Users page.
    - With option B, run the tool instead and check that Todd can log in.

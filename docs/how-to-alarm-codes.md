@@ -43,11 +43,11 @@ To clear it: change or remove the code at the panel, then either **Edit** the sl
    - **Holder:** a person from the pay list, or **Someone else…** and their **Name** (a temp, a cleaner or anyone not on the pay list).
    - **Type:** Office, Staff or Temp.
    - **Date given** (optional, not in the future).
-   - **Code:** 1 to 12 digits. A leading 0 is kept. Leave it empty for no code.
+   - **Code:** 1 to 12 digits, shown as dots while you type (a phone still shows the number pad). A leading 0 is kept. Leave it empty for no code.
    - **Note** (optional).
 3. Press **Add slot**.
 
-The code box is emptied after every save, whether it worked or not. If the save is refused, the message ends "The code wasn't saved: type it again."
+The code box is emptied after every save, whether it worked or not. If the save is refused, the message ends "The code wasn't saved: type it again." (or, when the page itself catches the mistake, "Type the code again.").
 
 ### Change a slot or its code
 

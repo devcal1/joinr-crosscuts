@@ -4,7 +4,7 @@ This document is committed, identical, in both repos: `devcal1/joinr-crosscuts` 
 
 **Version 2 (M11, plan approved by Todd 2026-10-13)** adds one optional item field, `drawers` (the won quote's drawer lines). The wire `contract` number stays **1**: the field is optional, an older Crosscuts ignores it, and a Joinr that doesn't send it is read as "no drawer data". The version 2 text was written in the Crosscuts repo first; the copy in `tenon-quotr` follows in task J2 (Crosscuts `docs/plans/m11-contracts.md` §13), which needs Todd's go.
 
-**M13 note (Crosscuts copy only, 2026-10-16):** this copy gains one explanatory line about `estimatedHours` (under "What Crosscuts does with an item"). It changes nothing on the wire, so there is no version bump. The `tenon-quotr` copy follows only with Todd's OK for a Joinr change (Crosscuts CLAUDE.md rule 12). Until then the two copies differ by that line; don't "fix" the difference by editing `tenon-quotr`.
+**M13 note (Crosscuts copy only, 2026-10-16):** this copy gains one explanatory line about `estimatedHours` (under "What Crosscuts does with an item"). It changes nothing on the wire, so there is no version bump. The `tenon-quotr` copy follows only with Todd's OK for a Joinr change (Crosscuts CLAUDE.md rule 12). Until then the copies differ by that line, and also by M11's version 2 (`drawers`), which the `tenon-quotr` copy gets with task J2; don't "fix" either difference by editing `tenon-quotr`.
 
 ## Purpose
 
