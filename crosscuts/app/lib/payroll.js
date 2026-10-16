@@ -474,6 +474,10 @@ function deleteRun(db, req, id) {
       "DELETE FROM pay_days WHERE timesheet_id IN (SELECT id FROM pay_timesheets WHERE pay_run_id = ?)"
     ).run(id);
     db.prepare("DELETE FROM pay_timesheets WHERE pay_run_id = ?").run(id);
+    // A bonus share paid against this run (only possible if the run was finalised, then reopened)
+    // keeps its paid date and loses only the pay-run note, which is all it is (M13 contracts
+    // §12.2 item 1), so the delete never fails on the foreign key and says nothing about bonuses.
+    db.prepare("UPDATE bonus_shares SET pay_run_id = NULL WHERE pay_run_id = ?").run(id);
     db.prepare("DELETE FROM pay_runs WHERE id = ?").run(id);
     audit.log(req, {
       action: "payrun.delete",
