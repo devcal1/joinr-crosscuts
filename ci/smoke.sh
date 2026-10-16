@@ -279,7 +279,7 @@ expect_jq '.setupNeeded == false and .loggedIn == true' "auth status after setup
 
 req GET /api/auth/me "$ADMIN"
 expect_status 200 "me as admin"
-expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 30 and .user.isOwner == true' "setup user is the owner, an admin with all 30 keys"
+expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 35 and .user.isOwner == true' "setup user is the owner, an admin with all 35 keys"
 
 # ============================================================================
 step "b. logged out: every routed API is 401, pages redirect"
@@ -940,13 +940,13 @@ expect_status 403 "show GET /schedule.html"
 req GET /api/users/meta "$ADMIN"
 expect_status 200 "admin GET /api/users/meta"
 expect_jq '.roles | index("workshop") != null' "the roles include workshop"
-expect_jq '.keys | length == 30' "30 feature keys (M10 adds orders.view and orders.receive; M11 stock.count and stock.order; M13 bonuses.manage, alarms.manage and loans.manage)"
-expect_jq '.presets.admin | length == 27 and (index("bonuses.manage") == null) and (index("alarms.manage") == null) and (index("loans.manage") == null)' "the admin preset is the 27 keys without M13's three owner-only keys"
+expect_jq '.keys | length == 35' "35 feature keys (M10 adds orders.view and orders.receive; M11 stock.count and stock.order; M13 bonuses.manage, alarms.manage and loans.manage; department notes add the five notes.* keys)"
+expect_jq '.presets.admin | length == 32 and (index("notes.scheduling") != null) and (index("notes.design") != null) and (index("notes.ordering") != null) and (index("notes.accounts") != null) and (index("notes.admin") != null) and (index("bonuses.manage") == null) and (index("alarms.manage") == null) and (index("loans.manage") == null)' "the admin preset is the 32 keys (all five notes.* keys) without M13's three owner-only keys"
 expect_jq '.presets.workshop == ["board.view","planner.view"]' "the workshop preset is board.view and planner.view"
 # M10 (docs/plans/m10-contracts.md section 10.1): the two new roles and their presets.
 expect_jq '.roles | index("ordering") != null and index("workshop_manager") != null' "the roles include ordering and workshop_manager"
-expect_jq '.presets.ordering == ["board.view","jobs.view","design.view","photos.search","orders.view","orders.edit","orders.mark_ordered","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count","stock.order"]' "the ordering preset is as M10 section 3 plus M11's stock keys"
-expect_jq '.presets.workshop_manager == ["board.view","orders.view","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count"]' "the workshop_manager preset is as M10 section 3 plus stock.count (M11)"
+expect_jq '.presets.ordering == ["board.view","jobs.view","design.view","photos.search","orders.view","orders.edit","orders.mark_ordered","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count","stock.order","notes.ordering"]' "the ordering preset is as M10 section 3 plus M11's stock keys and notes.ordering"
+expect_jq '.presets.workshop_manager == ["board.view","orders.view","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count","notes.ordering"]' "the workshop_manager preset is as M10 section 3 plus stock.count (M11) and notes.ordering"
 
 echo "per-user override (revoke board.edit from sched)..."
 req PUT "/api/users/$SCHED_ID/overrides/board.edit" "$ADMIN" '{"effect":"revoke"}'
@@ -1245,6 +1245,8 @@ for f in "$(dirname "$0")"/smoke-m12-*.sh; do [ -f "$f" ] && source "$f"; done
 for f in "$(dirname "$0")"/smoke-m13-*.sh; do [ -f "$f" ] && source "$f"; done
 # M14 suites (ci/smoke-m14-*.sh, docs/plans/m9-contracts.md section 13): same rules.
 for f in "$(dirname "$0")"/smoke-m14-*.sh; do [ -f "$f" ] && source "$f"; done
+# M15 suites (ci/smoke-m15-*.sh, docs/plans/notes-contracts.md): same rules.
+for f in "$(dirname "$0")"/smoke-m15-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

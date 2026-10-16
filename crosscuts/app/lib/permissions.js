@@ -37,6 +37,13 @@ const KEYS = [
   "bonuses.manage",
   "alarms.manage",
   "loans.manage",
+  // Department notes (docs/plans/notes-contracts.md section 2): one key per department, so the
+  // weekly Notes sheet is open only to that department.
+  "notes.scheduling",
+  "notes.design",
+  "notes.ordering",
+  "notes.accounts",
+  "notes.admin",
 ];
 
 // M13 (docs/plans/m13-contracts.md section 3): owner-only keys. The admin preset doesn't get them;
@@ -52,18 +59,18 @@ const PRESETS = {
   accounts: [
     "board.view", "jobs.view", "jobs.value", "photos.search", "accounts.view",
     "invoices.edit", "reports.upload", "tasks.use", "messages.use",
-    "planner.view", "planner.edit", "orders.view",
+    "planner.view", "planner.edit", "orders.view", "notes.accounts",
   ],
   design_pm: [
     "board.view", "jobs.view", "jobs.edit", "jobs.value", "photos.search",
     "photos.admin", "design.view", "orders.edit", "inspections.edit",
     "scheduling.view", "tasks.use", "messages.use", "planner.view", "planner.edit",
-    "orders.view", "orders.receive",
+    "orders.view", "orders.receive", "notes.design",
   ],
   scheduling: [
     "board.view", "board.edit", "workers.edit", "jobs.view", "photos.search",
     "scheduling.view", "leave.edit", "tasks.use", "messages.use",
-    "planner.view", "planner.edit", "orders.view",
+    "planner.view", "planner.edit", "orders.view", "notes.scheduling",
   ],
   showroom: ["photos.search"],
   // M7: the workshop TV and workshop logins (docs/plans/m7-contracts.md section 4).
@@ -73,11 +80,11 @@ const PRESETS = {
   ordering: [
     "board.view", "jobs.view", "design.view", "photos.search", "orders.view", "orders.edit",
     "orders.mark_ordered", "orders.receive", "tasks.use", "messages.use", "planner.view", "planner.edit",
-    "stock.count", "stock.order",
+    "stock.count", "stock.order", "notes.ordering",
   ],
   workshop_manager: [
     "board.view", "orders.view", "orders.receive", "tasks.use", "messages.use",
-    "planner.view", "planner.edit", "stock.count",
+    "planner.view", "planner.edit", "stock.count", "notes.ordering",
   ],
 };
 

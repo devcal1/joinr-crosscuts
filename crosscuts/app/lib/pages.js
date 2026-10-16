@@ -49,6 +49,10 @@ const PAGE_ACCESS = {
   "/loanprint.html": "loans.manage",
 };
 
+// Department notes (docs/plans/notes-contracts.md): anyone holding any of the five department keys
+// may open the page; the API checks the key for the department asked for.
+PAGE_ACCESS["/notes.html"] = require("./notes").DEPT_KEYS;
+
 // Any .html page not listed above.
 const DEFAULT_PAGE_ACCESS = "login";
 
