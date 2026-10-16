@@ -25,6 +25,8 @@ const OVERRIDES_END = "(function(){var o=document.getElementById('overrideList')
 // 0.1.18: opens the Planner New event dialog and chooses Every year; opens the Accounts menu in the bar.
 const PLANNER_YEAR = "(function(){document.getElementById('plNew').click();setTimeout(function(){var s=[].find.call(document.querySelectorAll('dialog select, .cc-dialog select'),function(x){return [].some.call(x.options,function(o){return o.value==='annually'})});s.value='annually';s.dispatchEvent(new Event('change',{bubbles:true}));s.scrollIntoView({block:'center'})},300)})()";
 const ACCOUNTS_MENU = "(function(){var b=[].find.call(document.querySelectorAll('#cc-shell button, #cc-shell a'),function(e){return e.textContent.trim()==='Accounts'});b.click()})()";
+// 0.1.19: opens a department menu in the bar (by its label).
+const DEPT_MENU = label => "(function(){var b=[].find.call(document.querySelectorAll('#cc-shell button, #cc-shell a'),function(e){return e.textContent.trim()==='" + label + "'});b.click()})()";
 const PAGES = [
   ["login", "/login.html", 1440, false], ["dashboard", "/", 1440, true], ["search", "/search.html", 1440, true],
   ["photo-admin", "/admin.html", 1440, true], ["users", "/users.html", 1440, true], ["audit", "/audit.html", 1440, true],
@@ -127,6 +129,10 @@ const PAGES = [
   ["bas-month-0118", c => "/bas.html#" + c.basOpen, 1440, true],
   ["adminaccounts-0118", c => "/adminaccounts.html#" + c.lastMonth, 1440, true],
   ["accounts-menu-0118", "/", 1440, true, undefined, undefined, { js: ACCOUNTS_MENU, viewport: true }],
+  // 0.1.19: the Scheduling and Admin menus open (Notes first), and the Design/PM Notes page (seed-notes.js).
+  ["scheduling-menu-0119", "/", 1440, true, undefined, undefined, { js: DEPT_MENU("Scheduling"), viewport: true }],
+  ["admin-menu-0119", "/", 1440, true, undefined, undefined, { js: DEPT_MENU("Admin"), viewport: true }],
+  ["design-notes-0119", "/notes.html?dept=design", 1440, true],
   ["dashboard-leavers", "/", 1440, true, undefined, ".dash-lines"], ["phone-dashboard-leavers", "/", 375, true, undefined, ".dash-lines"],
 ];
 // seed.js's own M13 logins, by the role name an entry gives (made with the throwaway password
