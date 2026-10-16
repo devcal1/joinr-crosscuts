@@ -1,0 +1,145 @@
+/* The job bonus and bonuses owed prints (/bonusprint.html; docs/plans/m13-contracts.md section 8.1).
+   On screen: the house-style frame with the sheet as a white A4 box on the ink ground (a document,
+   so dark on white). On paper: only the sheet, A4 portrait, black on white, no letterhead, on its
+   own named page (bpsheet) so nothing here can reach another page's print. Sizes are in mm and pt
+   so the screen box and the printed page match. Colours come from tokens.css, except in the print
+   block. Page classes are bp-. */
+body.bp-body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--body);
+  font-family: var(--font);
+}
+
+.bp-page {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.bp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 14px;
+}
+.bp-status { flex: 1 1 260px; margin: 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.bp-status:empty { display: none; }
+
+/* the sheet scrolls inside its own box on a narrow screen, never the page */
+.bp-scroll { overflow-x: auto; }
+
+/* ---------- the sheet (screen) ---------- */
+
+.bp-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 10pt;
+  line-height: 1.35;
+}
+.bp-sheet :where(h1, h2, p, dl, dd, ul) { margin: 0; }
+.bp-sheet-error { min-height: 0; }
+.bp-loading, .bp-error { font-size: 12pt; }
+.bp-error { font-weight: 700; }
+
+.bp-strong { font-weight: 700; }
+.bp-pre { white-space: pre-line; overflow-wrap: anywhere; }
+.bp-small { margin-top: 2mm; font-size: 8.5pt; }
+.bp-gap { margin-top: 6mm; }
+
+/* the ruled DRAFT box */
+.bp-stamp {
+  margin-bottom: 4mm;
+  padding: 2mm 4mm;
+  border: 0.6mm solid var(--ink);
+  font-size: 14pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.bp-titlerow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.5mm solid var(--ink);
+}
+.bp-titlebox { min-width: 0; }
+.bp-h1 { font-size: 17pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
+.bp-sub { margin-top: 2mm; font-size: 13pt; font-weight: 700; overflow-wrap: anywhere; }
+.bp-meta { display: grid; grid-template-columns: auto auto; gap: 1mm 4mm; flex: none; font-size: 10pt; }
+.bp-meta dt { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; align-self: center; }
+.bp-meta dd { font-weight: 700; }
+
+.bp-blocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5mm 8mm; margin-top: 5mm; }
+.bp-blocks .bp-block { margin-top: 0; }
+.bp-block { min-width: 0; margin-top: 6mm; break-inside: avoid; page-break-inside: avoid; }
+.bp-blockh {
+  padding-bottom: 1mm;
+  margin-bottom: 1.5mm;
+  border-bottom: 0.3mm solid var(--ink);
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.bp-kv { display: grid; grid-template-columns: 30mm minmax(0, 1fr); gap: 0; }
+.bp-kv dt, .bp-kv dd { padding: 1.2mm 0; border-bottom: 0.2mm solid var(--ink); }
+.bp-kv dt { padding-right: 2mm; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.6; }
+.bp-kv dd { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+.bp-checks { padding: 0; list-style: none; }
+.bp-checks li { display: flex; gap: 2.5mm; padding: 0.8mm 0; }
+.bp-box { flex: none; min-width: 7mm; font-family: var(--mono); font-weight: 700; }
+.bp-ticked { margin-top: 1.5mm; font-weight: 700; }
+
+.bp-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+.bp-table th {
+  padding: 1.2mm 1.5mm;
+  border-bottom: 0.3mm solid var(--ink);
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.bp-table td { padding: 1.2mm 1.5mm; border-bottom: 0.2mm solid var(--ink); vertical-align: top; overflow-wrap: anywhere; }
+.bp-table tfoot td { border-top: 0.4mm solid var(--ink); border-bottom: 0; font-weight: 700; }
+.bp-table tr { break-inside: avoid; page-break-inside: avoid; }
+.bp-table .bp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bp-table .bp-c-label { width: 18mm; font-weight: 700; }
+.bp-table .bp-c-points { width: 24mm; white-space: nowrap; }
+.bp-table .bp-c-date { width: 28mm; white-space: nowrap; }
+.bp-table .bp-c-paid { width: 62mm; }
+
+.bp-foot { margin-top: 8mm; font-size: 8pt; }
+
+@media (max-width: 600px) {
+  .bp-page { padding: 12px 8px 32px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+.bp-sheet { page: bpsheet; }
+@page bpsheet {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html:has(> body.bp-body), body.bp-body { background: #fff; color: #000; }
+  body.bp-body > :not(main) { display: none !important; }
+  body.bp-body .bp-toolbar { display: none !important; }
+  .bp-page { max-width: none; margin: 0; padding: 0; }
+  .bp-scroll { overflow: visible; }
+  .bp-sheet { width: auto; min-height: 0; padding: 0; background: #fff; color: #000; }
+  .bp-sheet * { color: #000; border-color: #000; background: #fff; }
+  .bp-table thead { display: table-header-group; }
+}
+/* style-check: print-end */

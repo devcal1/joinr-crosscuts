@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Users - Crosscuts</title>
+<link rel="icon" href="logo.png">
 <link rel="stylesheet" href="users.css">
+<link rel="stylesheet" href="orderui.css">
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -66,11 +68,13 @@
 
     <section class="card hs-card" id="detail" hidden>
       <div class="detail-head hs-sectionbar">
-        <h2 id="detailTitle"></h2>
+        <h2 class="us-title" id="detailTitle"></h2>
         <button class="hs-btn hs-btn-quiet" type="button" id="detailClose">Close</button>
       </div>
 
-      <div class="detail-grid">
+      <p class="us-lock" id="usOwnerLock" hidden>Only the owner can change the owner's login.</p>
+
+      <div class="detail-grid" id="usDetailGrid">
         <div class="detail-col">
           <div class="hs-sectionbar"><h3 class="hs-sectionbar-title">Profile and roles</h3></div>
           <div class="field">
@@ -90,7 +94,7 @@
             <button class="hs-btn" type="button" id="toggleDisabled"></button>
             <button class="hs-btn hs-btn-stop" type="button" id="signOutAll">Sign out everywhere</button>
           </div>
-          <div class="field">
+          <div class="field" id="usResetBox">
             <label for="resetPassword">Reset password</label>
             <div class="inline">
               <input class="hs-input" id="resetPassword" type="text" autocomplete="off" minlength="8"
@@ -99,12 +103,22 @@
             </div>
             <div class="hint">Signs them out everywhere and makes them choose a new password at next sign-in.</div>
           </div>
+          <p class="us-lock" id="usResetLock" hidden></p>
+
+          <div class="us-transfer" id="usTransferBox" hidden>
+            <div class="hs-sectionbar"><h3 class="hs-sectionbar-title">Ownership</h3></div>
+            <p class="text-muted small">Make this admin the owner. Only the owner can do this.</p>
+            <div class="actions">
+              <button class="hs-btn hs-btn-check" type="button" id="usTransfer">Transfer ownership</button>
+            </div>
+          </div>
         </div>
 
         <div class="detail-col">
           <div class="hs-sectionbar"><h3 class="hs-sectionbar-title">Overrides</h3></div>
-          <p class="text-muted small">Each key starts from what the person's roles give them. Grant or revoke to make an
+          <p class="text-muted small" id="usOverrideIntro">Each key starts from what the person's roles give them. Grant or revoke to make an
             exception for this person only.</p>
+          <p class="us-ownerkeys" id="usOwnerKeys" hidden>The owner holds every key.</p>
           <div class="override-list" id="overrideList"></div>
         </div>
       </div>
@@ -268,6 +282,7 @@
 
   <script src="/shell/shell.js"></script>
   <script src="/shared.js"></script>
+  <script src="/orderui.js"></script>
   <script src="/users.js"></script>
 </body>
 </html>

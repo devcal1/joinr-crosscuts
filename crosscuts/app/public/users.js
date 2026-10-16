@@ -13,10 +13,23 @@
     workshop_manager: "Workshop Manager",
   };
 
-  let meta = { roles: [], keys: [], presets: {} };
+  let meta = { roles: [], keys: [], presets: {}, ownerOnlyKeys: [], ownerId: null };
   let users = [];
   let selectedId = null;
-  let myId = null; // best effort, from /api/auth/me; stays null if unavailable
+  let myId = null; // best effort, from cc.me; stays null if unavailable
+  let amOwner = false; // M13: the viewer is the owner (cc.me.isOwner); the server enforces the rules
+
+  // M13 (docs/plans/m13-contracts.md section 10.1): the owner-only keys from GET /api/users/meta.
+  const ownerOnly = () => new Set(meta.ownerOnlyKeys || []);
+  // The first owner-only key (in KEYS order) a user holds by a grant override, or null: only the
+  // owner may reset that login's password (section 3.4).
+  function grantedOwnerKey(u) {
+    const keys = ownerOnly();
+    const granted = new Set(u.overrides.filter((o) => o.effect === "grant").map((o) => o.key));
+    return meta.keys.find((k) => keys.has(k) && granted.has(k)) || null;
+  }
+  // The OWNER mark (uppercase and letterspaced by users.css).
+  const ownerMark = () => h("span", { class: "us-owner", text: "Owner" });
 
   function h(tag, attrs, ...kids) {
     const el = document.createElement(tag);
@@ -104,7 +117,7 @@
         select(u.id);
       });
       tr.append(
-        h("td", {}, nameBtn),
+        h("td", {}, nameBtn, u.isOwner ? ownerMark() : null),
         h("td", { text: u.username }),
         h(
           "td",
@@ -132,6 +145,14 @@
     $("detail").scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
+  // After an ownership transfer the page reloads and opens the new owner's detail (#user=<id>).
+  function selectFromHash() {
+    const m = /^#user=(\d+)$/.exec(location.hash);
+    if (!m) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    if (users.some((u) => u.id === Number(m[1]))) select(Number(m[1]));
+  }
+
   // --- Detail panel ---
 
   function renderDetail(resetForm) {
@@ -140,7 +161,22 @@
     if (!u) return;
     const self = myId !== null && u.id === myId;
 
-    $("detailTitle").textContent = `${u.displayName} (${u.username})${self ? " - you" : ""}`;
+    $("detailTitle").replaceChildren(`${u.displayName} (${u.username})${self ? " - you" : ""}`, u.isOwner ? ownerMark() : "");
+
+    // M13 (section 10.1): nobody but the owner changes the owner's login, so anyone else sees the
+    // owner's detail without its controls (the effective keys still show).
+    const locked = u.isOwner && !amOwner;
+    $("usOwnerLock").hidden = !locked;
+    $("usDetailGrid").hidden = locked;
+
+    // Only the owner resets the password of a login holding an owner-only key by a grant override.
+    const heldKey = amOwner ? null : grantedOwnerKey(u);
+    $("usResetBox").hidden = !!heldKey;
+    $("usResetLock").hidden = !heldKey;
+    $("usResetLock").textContent = heldKey ? `Only the owner can reset this password (they hold ${heldKey}).` : "";
+
+    // Transfer ownership: the owner, on another enabled admin's detail.
+    $("usTransferBox").hidden = !(amOwner && !u.isOwner && !u.disabled && u.roles.includes("admin"));
     // Reset the edit form only when switching user or after a profile save, so
     // changing an override doesn't wipe a half-typed name or unsaved role ticks.
     if (resetForm || $("detail").dataset.forUser !== String(u.id)) {
@@ -163,26 +199,73 @@
   }
 
   function renderOverrides(u) {
+    const list = $("overrideList");
+    list.innerHTML = "";
+    // M13: the owner holds every key, so Default/Grant/Revoke are pointless there. A leftover
+    // override (from before M13 or a transfer) shows with Clear only. Only the owner sees this
+    // (anyone else gets the locked detail).
+    $("usOverrideIntro").hidden = u.isOwner;
+    $("usOwnerKeys").hidden = !u.isOwner;
+    if (u.isOwner) {
+      list.hidden = !u.overrides.length;
+      for (const o of u.overrides) {
+        list.append(
+          h(
+            "div",
+            { class: "ov-row" },
+            h("div", { class: "ov-key" }, o.key, h("small", { text: `leftover ${o.effect} override` })),
+            h("button", {
+              type: "button",
+              class: "hs-btn hs-btn-quiet us-clear",
+              text: "Clear",
+              "aria-label": `Clear the leftover override for ${o.key}`,
+              onclick: () => setOverride(u, o.key, "default", o.effect),
+            }),
+            h("div", { class: "ov-eff on", text: "allowed" })
+          )
+        );
+      }
+      return;
+    }
+    list.hidden = false;
     const preset = presetKeys(u.roles);
     const effective = new Set(u.perms);
     const byKey = new Map(u.overrides.map((o) => [o.key, o.effect]));
-    const list = $("overrideList");
-    list.innerHTML = "";
+    const keysOwnerOnly = ownerOnly();
     for (const key of meta.keys) {
       const cur = byKey.get(key) || "default";
       const inPreset = preset.has(key);
+      const isOwnerKey = keysOwnerOnly.has(key);
+      // Only the owner grants or revokes an owner-only key (for anyone, themselves included).
+      const lockedKey = isOwnerKey && !amOwner;
+      const noteId = lockedKey ? `us-oknote-${key.replace(/[^a-z0-9]/gi, "-")}` : null;
       const seg = h("div", { class: "seg", role: "group", "aria-label": `Override for ${key}` });
       for (const [v, label] of [["default", "Default"], ["grant", "Grant"], ["revoke", "Revoke"]]) {
         seg.append(
-          h("button", { type: "button", "data-v": v, "aria-pressed": String(cur === v), text: label, onclick: () => setOverride(u, key, v, cur) })
+          h("button", {
+            type: "button",
+            "data-v": v,
+            "aria-pressed": String(cur === v),
+            "aria-describedby": noteId,
+            disabled: lockedKey,
+            text: label,
+            onclick: () => setOverride(u, key, v, cur),
+          })
         );
       }
       const on = effective.has(key);
       list.append(
         h(
           "div",
-          { class: "ov-row" },
-          h("div", { class: "ov-key" }, key, h("small", { text: inPreset ? "from role" : "not in role" })),
+          { class: "ov-row" + (lockedKey ? " us-row-locked" : "") },
+          h(
+            "div",
+            { class: "ov-key" },
+            key,
+            h("small", { text: inPreset ? "from role" : "not in role" }),
+            isOwnerKey && !lockedKey ? h("small", { class: "us-ownerkey", text: "owner only" }) : null,
+            lockedKey ? h("small", { class: "us-ownerkey", id: noteId, text: "Only the owner can grant this" }) : null
+          ),
           seg,
           h("div", { class: "ov-eff " + (on ? "on" : "off"), text: on ? "allowed" : "denied" })
         )
@@ -196,7 +279,12 @@
     const box = $("effectiveChips");
     box.innerHTML = "";
     if (!u.perms.length) box.append(h("span", { class: "text-muted", text: "No permissions." }));
-    for (const k of u.perms) box.append(h("span", { class: "chip hs-pill " + (preset.has(k) ? "hs-pill-na" : "granted"), text: k, title: preset.has(k) ? "From role" : "Granted by override" }));
+    for (const k of u.perms) {
+      // The owner holds every key as the owner, not by an override.
+      const fromRole = preset.has(k);
+      const title = fromRole ? "From role" : u.isOwner ? "Held as the owner" : "Granted by override";
+      box.append(h("span", { class: "chip hs-pill " + (fromRole ? "hs-pill-na" : "granted"), text: k, title }));
+    }
   }
 
   // --- Actions ---
@@ -264,6 +352,41 @@
       await load();
     })
   );
+
+  // M13 (section 10.1): the owner hands ownership to another enabled admin, typing their username
+  // and the owner's own password (POST /api/users/:id/owner). A refusal shows its sentence in the
+  // dialog; on success the page reloads (cc.me, the menu and the list) on the new owner's detail.
+  $("usTransfer").addEventListener("click", async () => {
+    const u = selected();
+    if (!u || !window.OrderUI) return;
+    const ui = OrderUI.ui;
+    const confirmInput = h("input", { class: "hs-input", type: "text", autocomplete: "off", autocapitalize: "none", spellcheck: "false", maxlength: "64" });
+    const passwordInput = h("input", { class: "hs-input", type: "password", autocomplete: "current-password", maxlength: "200" });
+    const done = await ui.dialog({
+      title: "Transfer ownership",
+      note: `${u.displayName} becomes the owner and gets every key. You stay an admin without the owner-only keys unless they grant them back.`,
+      fields: [ui.field(`Type ${u.username} to confirm`, confirmInput), ui.field("Your password", passwordInput)],
+      submit: "Transfer",
+      submitClass: "hs-btn-check",
+      focus: confirmInput,
+      run: async () => {
+        if (!confirmInput.value.trim()) throw new Error(`Type ${u.username} to confirm`);
+        if (!passwordInput.value) throw new Error("Enter your password");
+        try {
+          return await api(`/api/users/${u.id}/owner`, {
+            method: "POST",
+            body: JSON.stringify({ confirmUsername: confirmInput.value, password: passwordInput.value }),
+          });
+        } finally {
+          passwordInput.value = "";
+        }
+      },
+    });
+    if (done && done.to) {
+      location.hash = `user=${done.to.id}`;
+      location.reload();
+    }
+  });
 
   $("detailClose").addEventListener("click", () => {
     selectedId = null;
@@ -790,13 +913,14 @@
 
   guarded(async () => {
     meta = await api("/api/users/meta");
-    // Who am I? Used only to disable self-destructive buttons; the server enforces the rules.
-    try {
-      const me = await api("/api/auth/me");
-      if (me && me.user) myId = me.user.id;
-    } catch (e) {
-      /* auth may be unavailable in dev */
+    // Who am I? Used only to disable self-destructive buttons and hide what only the owner may
+    // use (cc.me.isOwner, M13); the server enforces the rules.
+    const cc = window.cc && window.cc.ready ? await window.cc.ready : null;
+    if (cc && cc.me && !cc.dev) {
+      myId = cc.me.id;
+      amOwner = !!cc.me.isOwner;
     }
     await load();
+    selectFromHash();
   })();
 })();

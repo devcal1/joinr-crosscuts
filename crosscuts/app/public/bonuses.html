@@ -6,16 +6,127 @@
 <title>Bonuses - Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
+<link rel="stylesheet" href="bonuses.css">
 </head>
 <body>
   <div id="cc-shell"></div>
 
-  <!-- SCAFFOLD placeholder (docs/plans/m13-contracts.md section 1): replaced in M13 Wave 2 E. -->
-  <main>
-    <h1>Bonuses</h1>
+  <!-- Job bonuses (bonuses.js; docs/plans/m13-contracts.md sections 4 and 10.2). Gated by
+       bonuses.manage (lib/pages.js), an owner-only key. -->
+  <main class="bo-page" id="boPage">
+    <div class="bo-head">
+      <h1 id="boTitle" tabindex="-1">Bonuses</h1>
+      <div id="boHeadActions" class="bo-head-actions"></div>
+    </div>
+    <p id="boStatus" class="bo-status" role="status" aria-live="polite">Loading...</p>
+
+    <!-- The tabs (no ?id): Jobs, Owed, Settings, kept in the hash -->
+    <section id="boLists" hidden>
+      <div class="bo-tabs" role="tablist" aria-label="Bonuses">
+        <button type="button" role="tab" class="bo-tab" id="boTabJobs" aria-controls="boJobs" data-tab="jobs">Jobs</button>
+        <button type="button" role="tab" class="bo-tab" id="boTabOwed" aria-controls="boOwed" data-tab="owed">Owed</button>
+        <button type="button" role="tab" class="bo-tab" id="boTabSettings" aria-controls="boSettings" data-tab="settings">Settings</button>
+      </div>
+
+      <!-- Jobs: every job bonus -->
+      <div id="boJobs" class="bo-panel" role="tabpanel" aria-labelledby="boTabJobs" hidden>
+        <div class="bo-tools">
+          <label class="bo-inline">
+            <span class="hs-label">Show</span>
+            <select id="boFilter" class="hs-input bo-filter">
+              <option value="draft">Draft</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="owed">Owed</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+          <button type="button" class="hs-btn hs-btn-primary bo-push" id="boNew">New bonus</button>
+        </div>
+        <p id="boJobsEmpty" class="bo-empty" hidden></p>
+        <div id="boJobsWrap" class="bo-wrap" hidden>
+          <table class="bo-table bo-table-jobs">
+            <thead>
+              <tr>
+                <th scope="col" class="bo-c-job">Job</th>
+                <th scope="col" class="bo-c-status">Status</th>
+                <th scope="col" class="bo-c-money">Price</th>
+                <th scope="col" class="bo-c-ticked">Ticked</th>
+                <th scope="col" class="bo-c-money">Earned</th>
+                <th scope="col" class="bo-c-money">Lost</th>
+                <th scope="col" class="bo-c-money">Owed</th>
+                <th scope="col" class="bo-c-open"><span class="bo-sr">Open</span></th>
+              </tr>
+            </thead>
+            <tbody id="boJobRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Owed: earned, paid and owed per person -->
+      <div id="boOwed" class="bo-panel" role="tabpanel" aria-labelledby="boTabOwed" hidden>
+        <div class="bo-tools">
+          <p class="bo-intro">Each person's confirmed bonus shares: earned, paid and still owed. Bonuses stay out of the pay run.</p>
+          <a class="hs-btn bo-push" id="boOwedPrint" href="bonusprint.html?summary=1">Print</a>
+        </div>
+        <p id="boOwedEmpty" class="bo-empty" hidden></p>
+        <div id="boOwedWrap" class="bo-wrap" hidden>
+          <table class="bo-table bo-table-owed">
+            <thead>
+              <tr>
+                <th scope="col" class="bo-c-person">Person</th>
+                <th scope="col" class="bo-c-money">Earned</th>
+                <th scope="col" class="bo-c-money">Paid</th>
+                <th scope="col" class="bo-c-money">Owed</th>
+              </tr>
+            </thead>
+            <tbody id="boOwedRows"></tbody>
+            <tfoot id="boOwedFoot"></tfoot>
+          </table>
+        </div>
+        <div id="boOwedPeople" class="bo-owedpeople"></div>
+      </div>
+
+      <!-- Settings: the rate and who shares a bonus -->
+      <form id="boSettings" class="bo-panel bo-settings" role="tabpanel" aria-labelledby="boTabSettings" novalidate hidden>
+        <div class="bo-card">
+          <h2 class="bo-h2">Rate</h2>
+          <div class="bo-field bo-rate">
+            <label class="hs-label" for="boRate">Bonus rate (% of the job price)</label>
+            <div class="bo-suffix">
+              <input class="hs-input" id="boRate" type="text" inputmode="decimal" autocomplete="off" maxlength="7">
+              <span aria-hidden="true">%</span>
+            </div>
+            <span class="bo-hint">Up to two decimal places, for example 1.50.</span>
+          </div>
+        </div>
+
+        <div class="bo-card">
+          <h2 class="bo-h2">Share points</h2>
+          <p class="bo-intro">Each person's share of a job's bonus is their points out of the total. Whole numbers from 0 to 1000.</p>
+          <p id="boHoldersEmpty" class="bo-empty bo-empty-small" hidden>Nobody shares the bonus yet. Add a person.</p>
+          <ol id="boHolders" class="bo-holders"></ol>
+          <div class="bo-holders-foot">
+            <button type="button" class="hs-btn" id="boAddHolder">Add person</button>
+            <p class="bo-total" id="boTotal" aria-live="polite"></p>
+          </div>
+        </div>
+
+        <p class="bo-intro">Confirmed bonuses keep the rate and shares they were confirmed with.</p>
+        <div class="bo-actions">
+          <button type="submit" class="hs-btn hs-btn-primary" id="boSettingsSave">Save</button>
+        </div>
+        <p id="boSettingsMsg" class="bo-msg" role="status" tabindex="-1"></p>
+      </form>
+    </section>
+
+    <!-- One bonus (?id=N), built by bonuses.js -->
+    <section id="boBonus" class="bo-bonus" aria-labelledby="boTitle" hidden></section>
   </main>
 
   <script src="shared.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="bonuses.js"></script>
 </body>
 </html>

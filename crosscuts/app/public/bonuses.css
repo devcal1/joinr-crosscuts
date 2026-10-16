@@ -1,0 +1,292 @@
+/* Job bonuses (bonuses.html; docs/plans/m13-contracts.md section 10.2). Tokens come from tokens.css,
+   hs- components from components.css, the dialogs from orderui.css and the shell's cc-dialog. Page
+   classes here are prefixed bo-. Nothing prints from this page (the prints are bonusprint.html). */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.bo-page { max-width: 1240px; margin: 0 auto; padding: 22px 16px 48px; }
+.bo-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- header ---------- */
+.bo-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 6px; }
+.bo-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
+.bo-head h1:focus { outline: none; }
+.bo-head h1:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.bo-head-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.bo-status { margin: 0 0 12px; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.bo-status:empty { display: none; }
+.bo-status-ok { color: var(--go-tint); }
+.bo-status-err { color: var(--orange-tint); }
+.bo-intro { margin: 0; color: var(--label); font-size: 13px; max-width: 760px; }
+.bo-note { display: block; margin: 2px 0 0; color: var(--label); font-size: 12px; }
+.bo-strong { color: var(--white); font-weight: 700; }
+.bo-joblink { font-weight: 700; overflow-wrap: anywhere; }
+.bo-attend, .bo-table td.bo-attend { color: var(--orange-tint); }
+.bo-hint { color: var(--muted); font-size: 12px; }
+.bo-num { font-variant-numeric: tabular-nums; }
+
+/* ---------- tabs ---------- */
+.bo-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 16px; border-bottom: 1px solid var(--hairline); }
+.bo-tab {
+  margin-bottom: -1px;
+  padding: 9px 14px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--label);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.bo-tab:hover { color: var(--white); }
+.bo-tab[aria-selected="true"] { color: var(--white); border-bottom-color: var(--teal); }
+.bo-tab:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+.bo-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 12px; }
+.bo-inline { display: flex; flex-direction: column; gap: 4px; }
+.bo-filter { width: auto; min-width: 180px; }
+.bo-push { margin-left: auto; }
+
+.bo-empty {
+  margin: 0 0 16px;
+  padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  color: var(--label);
+}
+.bo-empty-small { margin: 0; padding: 10px 12px; font-size: 13px; }
+
+/* ---------- tables (scroll inside their own box if they must) ---------- */
+.bo-wrap {
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.bo-wrap-inner { margin-bottom: 0; background: var(--ink); }
+.bo-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.bo-table-jobs { min-width: 900px; }
+.bo-table-owed, .bo-table-lines { min-width: 520px; }
+.bo-table-shares { min-width: 420px; }
+.bo-table-paid { min-width: 720px; }
+.bo-table th {
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.bo-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.bo-table tbody tr:last-child td { border-bottom: 0; }
+.bo-table tbody tr:hover { background: var(--raised); }
+.bo-table tfoot td { border-top: 1px solid var(--na); border-bottom: 0; color: var(--white); font-weight: 700; }
+.bo-table .bo-c-job { width: auto; }
+.bo-table .bo-c-person { width: auto; }
+.bo-table .bo-c-status { width: 130px; }
+.bo-table .bo-c-money { width: 130px; text-align: right; font-variant-numeric: tabular-nums; }
+.bo-table .bo-c-ticked { width: 90px; white-space: nowrap; }
+.bo-table .bo-c-date { width: 130px; white-space: nowrap; }
+.bo-table .bo-c-points { width: 110px; white-space: nowrap; }
+.bo-table .bo-c-paid { width: 230px; }
+.bo-table .bo-c-act { width: 130px; text-align: right; }
+.bo-table .bo-c-open { width: 84px; text-align: right; }
+
+/* ---------- owed ---------- */
+.bo-owedpeople { display: flex; flex-direction: column; gap: 0; }
+.bo-owedhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+.bo-owedsum { color: var(--orange-tint); font-weight: 700; font-variant-numeric: tabular-nums; }
+.bo-owedhead .hs-btn { margin-left: auto; }
+
+/* ---------- cards and fields ---------- */
+.bo-card {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 12px 16px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.bo-h2 {
+  margin: 0 0 10px;
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bo-h2-inline { margin: 0; }
+.bo-h3 {
+  margin: 14px 0 8px;
+  color: var(--label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.bo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.bo-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bo-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.bo-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bo-wide { grid-column: 1 / -1; }
+.bo-flabel { line-height: 1.3; }
+.bo-area { resize: vertical; min-height: 64px; line-height: 1.45; }
+.bo-prefix, .bo-suffix { display: flex; align-items: center; gap: 6px; }
+.bo-prefix > span, .bo-suffix > span { color: var(--label); font-weight: 700; }
+.bo-rate { max-width: 260px; }
+.bo-form .hs-input:disabled, .bo-form select.hs-input:disabled {
+  color: var(--body);
+  border-color: var(--hairline);
+  background: var(--ink);
+  cursor: default;
+  opacity: 1;
+}
+.bo-form .hs-input:disabled:hover { border-color: var(--hairline); }
+.bo-form textarea.hs-input:disabled { resize: none; }
+.bo-form select.hs-input:disabled { -webkit-appearance: none; appearance: none; }
+.bo-joinr { margin: 10px 0 0; }
+.bo-joinr[hidden] { display: none; }
+
+/* the seven checks */
+.bo-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin: 0; padding: 0; list-style: none; }
+.bo-check { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 32px; }
+.bo-checklabel { display: inline-flex; align-items: center; gap: 8px; color: var(--body); cursor: pointer; }
+.bo-checklabel input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
+.bo-checklabel input:disabled { cursor: default; }
+.bo-suggest { color: var(--label); font-size: 12px; }
+.bo-usesug { padding: 5px 8px; }
+.bo-ticked { margin: 12px 0 0; color: var(--white); font-weight: 700; }
+
+.bo-figs { max-width: 420px; }
+.bo-figs .v { text-align: right; }
+
+/* the settings */
+.bo-settings { max-width: 760px; }
+.bo-settings > .bo-intro { margin-bottom: 10px; }
+.bo-holders { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.bo-holder { display: grid; grid-template-columns: 22px minmax(0, 1fr) 150px auto; align-items: center; gap: 8px 10px; }
+.bo-holder-n { color: var(--label); font-size: 12px; font-weight: 700; text-align: right; }
+.bo-holder-points { display: flex; align-items: center; gap: 6px; }
+.bo-points { width: 80px; text-align: right; }
+.bo-holder-moves { display: flex; flex-wrap: wrap; gap: 4px; }
+.bo-holder-moves .hs-btn { padding: 6px 8px; }
+.bo-holders-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; }
+.bo-total { margin: 0 0 0 auto; color: var(--white); font-weight: 700; }
+
+/* the new bonus job picker (inside the dialog) */
+.bo-jobpick { display: flex; flex-direction: column; max-height: 280px; overflow-y: auto; border: 1px solid var(--hairline); border-radius: var(--r-control); }
+.bo-jobpick:empty { display: none; }
+.bo-jobopt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 8px 10px; border-bottom: 1px solid var(--hairline); cursor: pointer; }
+.bo-jobopt:last-child { border-bottom: 0; }
+.bo-jobopt:hover { background: var(--raised); }
+.bo-jobopt input { margin: 0; accent-color: var(--teal); align-self: center; }
+.bo-jobopt-name { color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.bo-jobopt-meta { color: var(--label); font-size: 12px; }
+.bo-jobopt-off { cursor: default; }
+.bo-jobopt-off .bo-jobopt-name { color: var(--muted); }
+.bo-jobopt-off:hover { background: none; }
+.bo-jobpick-msg { margin: 0; }
+.bo-jobpick-msg:empty { display: none; }
+
+/* ---------- one bonus ---------- */
+.bo-bonus { max-width: 980px; }
+.bo-meta { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 16px; }
+.bo-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; color: var(--body); }
+.bo-meta-line .hs-label { min-width: 48px; }
+.bo-meta-line .bo-note { display: inline; margin: 0; font-size: 13px; }
+.bo-form { margin: 0; }
+
+.bo-actionbox { margin: 4px 0 18px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.bo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bo-card .bo-actions { margin-top: 12px; }
+.bo-msg { margin: 10px 0 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.bo-msg:empty { display: none; }
+.bo-msg-ok { color: var(--go-tint); }
+.bo-msg-err { color: var(--orange-tint); }
+.bo-msg:focus { outline: none; }
+.bo-msg:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.bo-dirty { margin: 8px 0 0; color: var(--orange-tint); font-size: 13px; }
+.bo-actionbox > .bo-hint { margin: 8px 0 0; }
+
+/* ---------- narrow screens: each table row is a card ---------- */
+@media (max-width: 900px) {
+  .bo-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bo-grid-3 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .bo-page { padding-top: 16px; }
+  .bo-head h1 { font-size: 20px; }
+  .bo-head-actions { margin-left: 0; }
+  .bo-filter { min-width: 0; width: 100%; }
+  .bo-inline { flex: 1 1 100%; }
+  .bo-push { margin-left: 0; }
+  .bo-checks { grid-template-columns: minmax(0, 1fr); }
+  .bo-card { padding: 12px; }
+  .bo-holder { grid-template-columns: 18px minmax(0, 1fr); }
+  .bo-holder-points, .bo-holder-moves { grid-column: 2; }
+  .bo-total { margin-left: 0; }
+  .bo-owedhead .hs-btn { margin-left: 0; }
+  .bo-wrap { overflow: visible; background: none; border: 0; }
+  .bo-table, .bo-table tbody, .bo-table tfoot, .bo-table tr, .bo-table td { display: block; width: auto !important; min-width: 0; }
+  .bo-table thead { display: none; }
+  .bo-table tbody tr, .bo-table tfoot tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+  }
+  .bo-wrap-inner .bo-table tbody tr { background: var(--ink); }
+  .bo-table tbody tr:hover { background: var(--surface); }
+  .bo-table tfoot td { border-top: 0; }
+  .bo-table td { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 8px; padding: 3px 0; border: 0; text-align: left !important; }
+  .bo-table td::before {
+    content: attr(data-label);
+    padding-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  .bo-table td > .bo-note { grid-column: 2; margin: 0; }
+  .bo-table td > .hs-badge { justify-self: start; }
+  .bo-table td.bo-c-open, .bo-table td.bo-c-act { display: block; padding-top: 8px; }
+  .bo-table td.bo-c-open::before, .bo-table td.bo-c-act::before { content: none; }
+  .bo-actions .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
+}
+@media (max-width: 420px) {
+  .bo-grid-4 { grid-template-columns: minmax(0, 1fr); }
+}
