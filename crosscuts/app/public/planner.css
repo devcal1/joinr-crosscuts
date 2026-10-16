@@ -342,6 +342,10 @@ a.pl-chip-static { cursor: pointer; }
 .pl-notes { white-space: pre-wrap; }
 .pl-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 14px; }
 .pl-wide { grid-column: 1 / -1; }
+/* Custom repeat: the label on its own line, then the number and the unit side by side. */
+.pl-fields .cc-field.pl-every { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 10px; align-items: center; }
+.pl-fields .pl-every .cc-field-label { grid-column: 1 / -1; }
+.pl-fields .cc-field.pl-every[hidden] { display: none; }
 .pl-formdlg .hs-input { color-scheme: dark; }
 .pl-formdlg .hs-input:disabled { opacity: 0.5; }
 .pl-notes-in { resize: vertical; min-height: 80px; font-family: var(--font); }

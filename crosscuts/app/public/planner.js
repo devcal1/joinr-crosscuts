@@ -42,8 +42,12 @@
     ["fortnightly", "Every two weeks"],
     ["monthly", "Every month"],
     ["annually", "Every year"],
+    ["custom", "Custom\u2026"],
   ];
   var REPEAT_LABELS = { weekly: "Every week", fortnightly: "Every two weeks", monthly: "Every month", annually: "Every year" };
+  var REPEAT_UNITS = ["day", "week", "month", "year"];
+  var EVERY_DEFAULT = 2;
+  var UNIT_DEFAULT = "week";
   var SCREEN_LANES = 3; // items a day in the month grid on screen, then "+N more"
   var PRINT_LANES = 4; // and on paper, so a busy month still fits one A4 landscape page (M7 · 4.3)
   var TILE_CAP = 6; // items in a day tile of the two weeks on screen, then "+N more" (all on paper)
@@ -141,9 +145,14 @@
     }
     return fmtDay(item.start) + ", " + timeText(item);
   }
-  function repeatText(repeat, until) {
+  // "Every 3 weeks"; "Every day" for 1 day.
+  function everyText(every, unit) {
+    return "Every " + (Number(every) === 1 ? unit : every + " " + unit + "s");
+  }
+  function repeatText(repeat, until, every, unit) {
     if (!repeat || repeat === "none") return "";
-    return (REPEAT_LABELS[repeat] || repeat) + (until ? " until " + fmtShort(until) : "");
+    var base = repeat === "custom" ? everyText(every, unit) : REPEAT_LABELS[repeat] || repeat;
+    return base + (until ? " until " + fmtShort(until) : "");
   }
   function layerLabel(id) {
     return state.labels[id] || LAYER_LABELS[id] || id;
@@ -849,7 +858,7 @@
     var rows = [["Layer", layerLabel(item.layer)], ["When", whenText(item)]];
     if (item.overdue) rows.push(["Status", el("span", { class: "pl-flag", text: "Overdue" })]);
     if (!auto) {
-      if (item.repeat && item.repeat !== "none") rows.push(["Repeats", repeatText(item.repeat, item.repeatUntil)]);
+      if (item.repeat && item.repeat !== "none") rows.push(["Repeats", repeatText(item.repeat, item.repeatUntil, item.repeatEvery, item.repeatUnit)]);
       if (item.reminder) {
         rows.push(["Reminder", (REMINDER_LABELS[item.reminder] || item.reminder) + (item.remindLayer ? ", to everyone on this layer" : "")]);
       }
@@ -1002,14 +1011,15 @@
       if (!postable().some(function (l) { return l.id === layer; })) layer = postable()[0] ? postable()[0].id : "";
       return {
         title: "", layer: layer, allDay: true, startDate: ctx.date, endDate: ctx.date,
-        startTime: "09:00", endTime: "10:00", repeat: "none", repeatUntil: "", reminder: "",
-        remindLayer: false, job: null, notes: "",
+        startTime: "09:00", endTime: "10:00", repeat: "none", repeatEvery: EVERY_DEFAULT, repeatUnit: UNIT_DEFAULT,
+        repeatUntil: "", reminder: "", remindLayer: false, job: null, notes: "",
       };
     }
     var s = ctx.series;
     var v = {
       title: s.title, layer: s.layer, allDay: !!s.allDay, startDate: s.startDate, endDate: s.endDate,
       startTime: s.startTime || "09:00", endTime: s.endTime || "10:00", repeat: s.repeat || "none",
+      repeatEvery: s.repeatEvery || EVERY_DEFAULT, repeatUnit: s.repeatUnit || UNIT_DEFAULT,
       repeatUntil: s.repeatUntil || "", reminder: s.reminder || "", remindLayer: !!s.remindLayer,
       job: s.job || null, notes: s.notes || "",
     };
@@ -1059,6 +1069,8 @@
     var fStartTime = input("time", { step: "300" });
     var fEndTime = input("time", { step: "300" });
     var fRepeat = select(REPEAT_OPTIONS);
+    var fEvery = input("number", { min: "1", max: "99", step: "1", inputmode: "numeric", class: "pl-every-n" });
+    var fUnit = select(REPEAT_UNITS.map(function (u) { return [u, u + "s"]; }), { "aria-label": "Unit of time" });
     var fUntil = input("date");
     var fReminder = select([]);
     var fRemindLayer = el("input", { type: "checkbox", class: "pl-check" });
@@ -1075,6 +1087,9 @@
     var fStartTimeWrap = field("Start time", fStartTime);
     var fEndTimeWrap = field("End time", fEndTime);
     var fUntilWrap = field("Until (optional)", fUntil);
+    // Custom repeat: "Every [number] [days|weeks|months|years]", shown only with Repeats = Custom.
+    var fEveryWrap = field("Every", fEvery, "pl-wide pl-every");
+    fEveryWrap.append(fUnit);
     var remindLayerWrap = el(
       "label",
       { class: "pl-checkrow" },
@@ -1093,6 +1108,8 @@
       fStartTime.value = v.startTime;
       fEndTime.value = v.endTime;
       fRepeat.value = v.repeat;
+      fEvery.value = v.repeatEvery;
+      fUnit.value = v.repeatUnit;
       fUntil.value = v.repeatUntil;
       fNotes.value = v.notes;
       fJob.value = v.job ? jobLabel(v.job) : "";
@@ -1115,6 +1132,9 @@
       fStartTimeWrap.hidden = allDay;
       fEndTimeWrap.hidden = allDay;
       fUntilWrap.hidden = fRepeat.value === "none";
+      fEveryWrap.hidden = fRepeat.value !== "custom";
+      // "1 day", "3 weeks": the unit reads singular for 1.
+      Array.prototype.forEach.call(fUnit.options, function (o) { o.textContent = Number(fEvery.value) === 1 ? o.value : o.value + "s"; });
       fUntil.min = fStart.value || "";
       fEnd.min = fStart.value || "";
       remindLayerWrap.hidden = fLayer.value === "personal";
@@ -1122,13 +1142,18 @@
       if (!fReminder.value) fRemindLayer.checked = false;
       showWarning();
     }
+    // The repeat rule differs from the one the form started with (the number and unit count only for Custom).
+    function ruleChanged() {
+      if (fRepeat.value !== init.repeat) return true;
+      return fRepeat.value === "custom" && (Number(fEvery.value) !== init.repeatEvery || fUnit.value !== init.repeatUnit);
+    }
     function showWarning() {
       var text = "";
       if (scope === "later" && series && series.repeat !== "none") {
         var exc = series.exceptions || [];
         var d = item.occurrence;
         if (d === series.startDate) {
-          if (exc.length && (fStart.value !== init.startDate || fRepeat.value !== init.repeat || fAllDay.checked !== init.allDay)) {
+          if (exc.length && (fStart.value !== init.startDate || ruleChanged() || fAllDay.checked !== init.allDay)) {
             text = WARN_SERIES;
           }
         } else if (exc.some(function (x) { return x.occurrence >= d; })) {
@@ -1153,7 +1178,13 @@
       if (!endTouched || !fEndTime.value || fEndTime.value <= fStartTime.value) fEndTime.value = addMinutes(fStartTime.value, 60);
     });
     fEndTime.addEventListener("change", function () { endTouched = true; });
-    fRepeat.addEventListener("change", sync);
+    fRepeat.addEventListener("change", function () {
+      // Choosing Custom with nothing typed yet starts at "Every 2 weeks".
+      if (fRepeat.value === "custom" && !fEvery.value) fEvery.value = EVERY_DEFAULT;
+      sync();
+    });
+    fEvery.addEventListener("input", sync);
+    fUnit.addEventListener("change", sync);
     fReminder.addEventListener("change", sync);
     fLayer.addEventListener("change", sync);
 
@@ -1174,6 +1205,12 @@
         reminder: fReminder.value || null,
         remindLayer: fLayer.value !== "personal" && !!fReminder.value && fRemindLayer.checked,
       };
+      if (fRepeat.value === "custom") {
+        var n = fEvery.value.trim();
+        if (!/^\d{1,2}$/.test(n) || Number(n) < 1) throw new Error("Every must be a whole number from 1 to 99");
+        v.repeatEvery = Number(n);
+        v.repeatUnit = fUnit.value;
+      }
       if (state.canJobs) {
         var text = fJob.value.trim();
         if (!text) v.jobId = null;
@@ -1192,6 +1229,7 @@
         startDate: init.startDate, endDate: init.allDay ? init.endDate : init.startDate,
         startTime: init.allDay ? null : init.startTime, endTime: init.allDay ? null : init.endTime,
         repeat: init.repeat, repeatUntil: init.repeat === "none" ? null : init.repeatUntil || null,
+        repeatEvery: init.repeat === "custom" ? init.repeatEvery : null, repeatUnit: init.repeat === "custom" ? init.repeatUnit : null,
         reminder: init.reminder || null, remindLayer: init.layer !== "personal" && !!init.reminder && init.remindLayer,
         jobId: init.job ? init.job.id : null,
       };
@@ -1224,7 +1262,7 @@
       if (!one) {
         if (differs(["layer"])) take(["layer"]);
         if (differs(["jobId"])) take(["jobId"]);
-        if (differs(["repeat", "repeatUntil"])) take(["repeat", "repeatUntil"]);
+        if (differs(["repeat", "repeatUntil", "repeatEvery", "repeatUnit"])) take(["repeat", "repeatUntil", "repeatEvery", "repeatUnit"]);
         if (differs(["reminder", "remindLayer"])) take(["reminder", "remindLayer"]);
       }
       return changed ? out : null;
@@ -1284,7 +1322,7 @@
     });
     form.append(el("h2", { class: "cc-dialog-title", text: title }));
     if (!create && series) {
-      form.append(el("p", { class: "cc-dialog-note", text: layerLabel(series.layer) + (series.repeat !== "none" ? " · " + repeatText(series.repeat, series.repeatUntil) : "") }));
+      form.append(el("p", { class: "cc-dialog-note", text: layerLabel(series.layer) + (series.repeat !== "none" ? " · " + repeatText(series.repeat, series.repeatUntil, series.repeatEvery, series.repeatUnit) : "") }));
     }
     var grid = el("div", { class: "pl-fields" });
     grid.append(
@@ -1297,6 +1335,7 @@
       fEndTimeWrap,
       field("Repeats", fRepeat),
       fUntilWrap,
+      fEveryWrap,
       field("Reminder", fReminder),
       remindLayerWrap
     );
@@ -1304,7 +1343,7 @@
     grid.append(field("Notes", fNotes, "pl-wide"));
     form.append(grid);
     if (one) {
-      [fLayer, fAllDay, fRepeat, fUntil, fReminder, fRemindLayer, fJob].forEach(function (c) { c.disabled = true; });
+      [fLayer, fAllDay, fRepeat, fEvery, fUnit, fUntil, fReminder, fRemindLayer, fJob].forEach(function (c) { c.disabled = true; });
       form.append(el("p", { class: "cc-dialog-note pl-onenote", text: CHANGE_LATER_NOTE }));
     }
     form.append(warn, err);

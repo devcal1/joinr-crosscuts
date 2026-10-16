@@ -196,7 +196,7 @@ req GET "/api/planner/events?from=2042-06-15&to=2042-07-31" "$ACCT"
 expect_jq "[.events[] | select(.eventId == $M7E_ANT) | [.start, .startTime, .endTime]] == [[\"2042-07-01\",\"09:00\",\"10:30\"]]" "a timed annual event keeps its times"
 
 m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2040-05-01","endDate":"2040-06-05","repeat":"annually"}' "An annual event can't last longer than 28 days"
-m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2040-05-01","repeat":"yearly"}' "repeat must be one of none, weekly, fortnightly, monthly, annually"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2040-05-01","repeat":"yearly"}' "repeat must be one of none, weekly, fortnightly, monthly, annually, custom"
 
 # One occurrence: move it, then cancel another; a date that isn't on the yearly rule is refused.
 m7e_upd "$ACCT" "$M7E_ANU"
@@ -266,6 +266,197 @@ req DELETE "/api/planner/events/$M7E_AND?scope=later&occurrence=2040-09-01&updat
 expect_status 204 "delete from the first occurrence"
 req GET "/api/planner/events/$M7E_AND" "$ACCT"
 expect_status 404 "the annual series is gone"
+
+echo "--- custom repeats (migration 030: every N days / weeks / months / years) ---"
+# 2045+ dates, so nothing else in this file or the live reminder timer meets them. The route still
+# allows 62 days a request, so the months-long rules are asked month by month.
+m7e_month_last() { # YYYY MM -> the last day of that month
+  case $2 in
+    02) if [ $(($1 % 4)) -eq 0 ]; then echo 29; else echo 28; fi ;; # 2000-2099: every fourth year
+    04 | 06 | 09 | 11) echo 30 ;;
+    *) echo 31 ;;
+  esac
+}
+# Comma-joined starts of EVENT_ID over whole months given as YYYY-MM -> M7E_STARTS.
+m7e_months() { # JAR EVENT_ID YYYY-MM...
+  local jar=$1 id=$2 ym all=""
+  shift 2
+  for ym in "$@"; do
+    m7e_starts "$jar" "$ym-01" "$ym-$(m7e_month_last "${ym%-*}" "${ym#*-}")" "$id"
+    if [ -n "$M7E_STARTS" ]; then all="${all:+$all,}$M7E_STARTS"; fi
+  done
+  M7E_STARTS=$all
+}
+# A PATCH of the whole series as acct -> M7E_UPD (the new updatedAt); BODY_FIELDS is the JSON after scope.
+m7e_patch_all() { # ID WHAT FIELDS_JSON_FRAGMENT
+  m7e_upd "$ACCT" "$1"
+  req PATCH "/api/planner/events/$1" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"all\",$3}"
+  expect_status 200 "$2"
+  M7E_UPD=$(jqr '.updatedAt')
+}
+
+# Every 3 weeks: the same weekday three weeks apart; repeatUntil is the last start allowed.
+m7e_post "$ACCT" '{"title":"M7E Every 3 weeks","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatEvery":3,"repeatUnit":"week","repeatUntil":"2045-02-12"}' "every 3 weeks"
+M7E_CW=$M7E_ID
+expect_jq '.repeat == "custom" and .repeatEvery == 3 and .repeatUnit == "week" and .repeatDay == null and .repeatUntil == "2045-02-12"' "created as every 3 weeks"
+m7e_starts "$ACCT" 2045-01-01 2045-03-01 "$M7E_CW"
+expect_eq "$M7E_STARTS" "2045-01-02,2045-01-23" "every 3 weeks, until 12 Feb: two, none in the weeks between"
+req GET "/api/planner/events?from=2045-01-20&to=2045-01-26" "$ACCT"
+expect_status 200 "GET one week of the 3-weekly event"
+expect_jq "[.events[] | select(.eventId == $M7E_CW) | [.start, .repeat, .repeatEvery, .repeatUnit]] == [[\"2045-01-23\",\"custom\",3,\"week\"]]" "occurrences carry repeat, repeatEvery and repeatUnit"
+req GET "/api/planner/events/$M7E_CW" "$ACCT"
+expect_jq '.repeat == "custom" and .repeatEvery == 3 and .repeatUnit == "week"' "the series reads back as every 3 weeks"
+m7e_patch_all "$M7E_CW" "clear repeatUntil" '"repeatUntil":null'
+expect_jq '.repeat == "custom" and .repeatEvery == 3 and .repeatUntil == null' "no end: still every 3 weeks"
+m7e_starts "$ACCT" 2045-01-01 2045-03-01 "$M7E_CW"
+expect_eq "$M7E_STARTS" "2045-01-02,2045-01-23,2045-02-13" "every 3 weeks with no end"
+
+# A multi-day event may last up to the step (here 14 days) and no longer.
+m7e_post "$ACCT" '{"title":"M7E Every 2 weeks, 14 days","layer":"accounts","allDay":true,"startDate":"2045-05-01","endDate":"2045-05-14","repeat":"custom","repeatEvery":2,"repeatUnit":"week"}' "14 days every 2 weeks"
+M7E_2W=$M7E_ID
+req GET "/api/planner/events?from=2045-05-10&to=2045-05-20" "$ACCT"
+expect_jq "[.events[] | select(.eventId == $M7E_2W) | [.start, .end]] == [[\"2045-05-01\",\"2045-05-14\"],[\"2045-05-15\",\"2045-05-28\"]]" "back-to-back 14-day occurrences"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-05-01","endDate":"2045-05-15","repeat":"custom","repeatEvery":2,"repeatUnit":"week"}' "An event that repeats every 2 weeks can't last longer than 14 days"
+# Turning that event into every 1 week is Weekly, whose limit is a week.
+m7e_upd "$ACCT" "$M7E_2W"
+req PATCH "/api/planner/events/$M7E_2W" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"all\",\"repeat\":\"custom\",\"repeatEvery\":1,\"repeatUnit\":\"week\"}"
+expect_status 400 "every 1 week is Weekly, so 14 days is too long"
+expect_jq '.error == "A weekly event can'"'"'t last longer than a week"' "the weekly sentence"
+
+# Every 10 days (weekends included), timed, with a reminder.
+m7e_post "$ACCT" '{"title":"M7E Every 10 days","layer":"company","allDay":false,"startDate":"2045-03-01","startTime":"09:00","endTime":"10:00","repeat":"custom","repeatEvery":10,"repeatUnit":"day","reminder":"hour1"}' "every 10 days"
+M7E_TD=$M7E_ID
+expect_jq '.repeat == "custom" and .repeatEvery == 10 and .repeatUnit == "day" and .repeatDay == null and .startTime == "09:00"' "created as every 10 days"
+m7e_starts "$ACCT" 2045-03-01 2045-04-15 "$M7E_TD"
+expect_eq "$M7E_STARTS" "2045-03-01,2045-03-11,2045-03-21,2045-03-31,2045-04-10" "every 10 days across March and April"
+m7e_run "2045-03-10T21:00:30Z" 5
+[ "$M7E_SENT" -ge 1 ] || fail "hour1 on 2045-03-11 09:00 AEDT: expected sent >= 1, got $M7E_SENT"
+ok
+m7e_notifs "$ACCT" "$(m7e_link "$M7E_TD" 2045-03-11)"
+expect_eq "$M7E_N" 1 "the 10-day event's reminder is sent for its 11 Mar occurrence"
+# One occurrence: move it, cancel another; a date that isn't on the 10-day rule is refused.
+m7e_upd "$ACCT" "$M7E_TD"
+req PATCH "/api/planner/events/$M7E_TD" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"one\",\"occurrence\":\"2045-03-11\",\"title\":\"M7E Ten moved\",\"startDate\":\"2045-03-12\",\"startTime\":\"11:00\",\"endTime\":\"12:00\"}"
+expect_status 200 "move the 11 Mar occurrence"
+M7E_UPD=$(jqr '.updatedAt')
+req PATCH "/api/planner/events/$M7E_TD" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"one\",\"occurrence\":\"2045-03-12\",\"title\":\"x\"}"
+expect_status 400 "12 Mar is not on the 10-day rule"
+expect_jq '.error == "That date isn'"'"'t an occurrence of this event"' "the occurrence sentence"
+req PATCH "/api/planner/events/$M7E_TD" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"one\",\"occurrence\":\"2045-03-21\",\"repeatEvery\":7}"
+expect_status 400 "the rule can't change for one occurrence"
+expect_jq '.error == "Change that for this and all later occurrences"' "the one-occurrence sentence"
+req DELETE "/api/planner/events/$M7E_TD?scope=one&occurrence=2045-03-21&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+expect_status 204 "cancel the 21 Mar occurrence"
+m7e_starts "$ACCT" 2045-03-01 2045-04-15 "$M7E_TD"
+expect_eq "$M7E_STARTS" "2045-03-01,2045-03-12,2045-03-31,2045-04-10" "moved to the 12th, the 21st gone"
+# This and all later, changing the interval: both halves stay custom.
+m7e_upd "$ACCT" "$M7E_TD"
+req PATCH "/api/planner/events/$M7E_TD" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"later\",\"occurrence\":\"2045-03-31\",\"repeatEvery\":5,\"title\":\"M7E Every 5 days later\"}"
+expect_status 200 "split the 10-day series at 31 Mar, now every 5 days"
+expect_jq ".repeat == \"custom\" and .repeatEvery == 5 and .repeatUnit == \"day\" and .startDate == \"2045-03-31\" and .splitFromId == $M7E_TD" "the new half is every 5 days"
+M7E_TD2=$(jqr '.id')
+req GET "/api/planner/events/$M7E_TD" "$ACCT"
+expect_jq '.repeat == "custom" and .repeatEvery == 10 and .repeatUntil == "2045-03-30"' "the original half is still every 10 days and ends the day before"
+m7e_starts "$ACCT" 2045-03-01 2045-04-15 "$M7E_TD"
+expect_eq "$M7E_STARTS" "2045-03-01,2045-03-12" "the original half stops at the split"
+m7e_starts "$ACCT" 2045-03-01 2045-04-15 "$M7E_TD2"
+expect_eq "$M7E_STARTS" "2045-03-31,2045-04-05,2045-04-10,2045-04-15" "the new half runs every 5 days"
+
+# Every 6 months from the 31st: the day is clamped to the month's end and comes back to the 31st.
+m7e_post "$ACCT" '{"title":"M7E Every 6 months","layer":"accounts","allDay":true,"startDate":"2045-08-31","repeat":"custom","repeatEvery":6,"repeatUnit":"month"}' "every 6 months from the 31st"
+M7E_SM=$M7E_ID
+expect_jq '.repeat == "custom" and .repeatEvery == 6 and .repeatUnit == "month" and .repeatDay == 31' "created as every 6 months, day 31"
+m7e_months "$ACCT" "$M7E_SM" 2045-08 2045-09 2045-10 2045-11 2045-12 2046-01 2046-02 2046-03 2046-08 2047-02 2047-03
+expect_eq "$M7E_STARTS" "2045-08-31,2046-02-28,2046-08-31,2047-02-28" "every 6 months: 31 Aug, 28 Feb, 31 Aug, 28 Feb, nothing in between"
+# Cancel the February one, then delete from the second August on.
+m7e_upd "$ACCT" "$M7E_SM"
+req DELETE "/api/planner/events/$M7E_SM?scope=one&occurrence=2046-02-28&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+expect_status 204 "cancel the Feb 2046 occurrence"
+m7e_months "$ACCT" "$M7E_SM" 2045-08 2046-02 2046-08 2047-02
+expect_eq "$M7E_STARTS" "2045-08-31,2046-08-31,2047-02-28" "the cancelled one is gone"
+m7e_upd "$ACCT" "$M7E_SM"
+req DELETE "/api/planner/events/$M7E_SM?scope=later&occurrence=2046-08-31&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+expect_status 204 "delete from Aug 2046 on"
+req GET "/api/planner/events/$M7E_SM" "$ACCT"
+expect_jq '.repeat == "custom" and .repeatEvery == 6 and .repeatUnit == "month" and .repeatUntil == "2046-08-30"' "repeatUntil is the day before, still every 6 months"
+m7e_months "$ACCT" "$M7E_SM" 2045-08 2046-02 2046-08 2047-02
+expect_eq "$M7E_STARTS" "2045-08-31" "only the first is left"
+m7e_upd "$ACCT" "$M7E_SM"
+req DELETE "/api/planner/events/$M7E_SM?scope=later&occurrence=2045-08-31&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+expect_status 204 "delete from the first occurrence"
+req GET "/api/planner/events/$M7E_SM" "$ACCT"
+expect_status 404 "the 6-monthly series is gone"
+
+# Every 2 years from 29 Feb: 28 Feb in a common year, 29 Feb when it is a leap year.
+m7e_post "$ACCT" '{"title":"M7E Every 2 years","layer":"accounts","allDay":true,"startDate":"2048-02-29","repeat":"custom","repeatEvery":2,"repeatUnit":"year"}' "every 2 years from 29 Feb"
+M7E_SY=$M7E_ID
+expect_jq '.repeat == "custom" and .repeatEvery == 2 and .repeatUnit == "year" and .repeatDay == 29' "created as every 2 years, day 29"
+m7e_year_starts "$ACCT" 2048 2057 02 "$M7E_SY"
+expect_eq "$M7E_STARTS" "2048-02-29,2050-02-28,2052-02-29,2054-02-28,2056-02-29" "every 2 years from 29 Feb 2048"
+m7e_year_starts "$ACCT" 2048 2051 03 "$M7E_SY"
+expect_eq "$M7E_STARTS" "" "nothing in the month after"
+
+# Every day (the one case with no plain option), with an end.
+m7e_post "$ACCT" '{"title":"M7E Every day","layer":"accounts","allDay":true,"startDate":"2045-06-01","repeat":"custom","repeatEvery":1,"repeatUnit":"day","repeatUntil":"2045-06-05"}' "every day"
+M7E_DY=$M7E_ID
+expect_jq '.repeat == "custom" and .repeatEvery == 1 and .repeatUnit == "day"' "every 1 day stays custom"
+m7e_starts "$ACCT" 2045-05-25 2045-06-30 "$M7E_DY"
+expect_eq "$M7E_STARTS" "2045-06-01,2045-06-02,2045-06-03,2045-06-04,2045-06-05" "five days, then the end"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-06-01","endDate":"2045-06-02","repeat":"custom","repeatEvery":1,"repeatUnit":"day"}' "An event that repeats every day can't last longer than 1 day"
+
+# Every 1 week / month / year is the plain option.
+m7e_post "$ACCT" '{"title":"M7E One week","layer":"accounts","allDay":true,"startDate":"2045-06-01","repeat":"custom","repeatEvery":1,"repeatUnit":"week"}' "every 1 week"
+expect_jq '.repeat == "weekly" and .repeatEvery == null and .repeatUnit == null' "every 1 week is Weekly"
+m7e_post "$ACCT" '{"title":"M7E One month","layer":"accounts","allDay":true,"startDate":"2045-06-15","repeat":"custom","repeatEvery":1,"repeatUnit":"month"}' "every 1 month"
+expect_jq '.repeat == "monthly" and .repeatEvery == null and .repeatUnit == null and .repeatDay == 15' "every 1 month is Monthly"
+m7e_post "$ACCT" '{"title":"M7E One year","layer":"accounts","allDay":true,"startDate":"2045-06-15","repeat":"custom","repeatEvery":1,"repeatUnit":"year"}' "every 1 year"
+expect_jq '.repeat == "annually" and .repeatEvery == null and .repeatUnit == null and .repeatDay == 15' "every 1 year is Every year"
+
+# Switching the rule on one series, custom to and from the plain options and never.
+m7e_patch_all "$M7E_CW" "custom to weekly" '"repeat":"weekly"'
+expect_jq '.repeat == "weekly" and .repeatEvery == null and .repeatUnit == null' "reads back as weekly"
+m7e_starts "$ACCT" 2045-01-01 2045-01-31 "$M7E_CW"
+expect_eq "$M7E_STARTS" "2045-01-02,2045-01-09,2045-01-16,2045-01-23,2045-01-30" "every week"
+m7e_patch_all "$M7E_CW" "weekly to every 2 months" '"repeat":"custom","repeatEvery":2,"repeatUnit":"month"'
+expect_jq '.repeat == "custom" and .repeatEvery == 2 and .repeatUnit == "month" and .repeatDay == 2' "every 2 months, day 2"
+m7e_months "$ACCT" "$M7E_CW" 2045-01 2045-02 2045-03 2045-04 2045-05
+expect_eq "$M7E_STARTS" "2045-01-02,2045-03-02,2045-05-02" "every 2 months"
+m7e_patch_all "$M7E_CW" "custom to annually" '"repeat":"annually"'
+expect_jq '.repeat == "annually" and .repeatEvery == null and .repeatUnit == null and .repeatDay == 2' "reads back as annually"
+m7e_year_starts "$ACCT" 2045 2047 01 "$M7E_CW"
+expect_eq "$M7E_STARTS" "2045-01-02,2046-01-02,2047-01-02" "every year"
+m7e_patch_all "$M7E_CW" "annually to every 4 years" '"repeat":"custom","repeatEvery":4,"repeatUnit":"year"'
+expect_jq '.repeat == "custom" and .repeatEvery == 4 and .repeatUnit == "year" and .repeatDay == 2' "every 4 years"
+m7e_year_starts "$ACCT" 2045 2054 01 "$M7E_CW"
+expect_eq "$M7E_STARTS" "2045-01-02,2049-01-02,2053-01-02" "every 4 years"
+m7e_patch_all "$M7E_CW" "every 4 years to every 5 days" '"repeat":"custom","repeatEvery":5,"repeatUnit":"day"'
+expect_jq '.repeat == "custom" and .repeatEvery == 5 and .repeatUnit == "day" and .repeatDay == null' "every 5 days, no day of the month"
+m7e_patch_all "$M7E_CW" "only the number" '"repeatEvery":8'
+expect_jq '.repeat == "custom" and .repeatEvery == 8 and .repeatUnit == "day"' "a new number keeps the unit"
+m7e_starts "$ACCT" 2045-01-01 2045-01-20 "$M7E_CW"
+expect_eq "$M7E_STARTS" "2045-01-02,2045-01-10,2045-01-18" "every 8 days"
+m7e_patch_all "$M7E_CW" "custom to never" '"repeat":"none"'
+expect_jq '.repeat == "none" and .repeatEvery == null and .repeatUnit == null and .repeatUntil == null' "stops repeating"
+m7e_starts "$ACCT" 2045-01-01 2045-03-01 "$M7E_CW"
+expect_eq "$M7E_STARTS" "2045-01-02" "just the one date"
+
+# Refusals.
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom"}' "repeatEvery must be a whole number from 1 to 99"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatUnit":"week"}' "repeatEvery must be a whole number from 1 to 99"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatEvery":0,"repeatUnit":"week"}' "repeatEvery must be a whole number from 1 to 99"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatEvery":100,"repeatUnit":"week"}' "repeatEvery must be a whole number from 1 to 99"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatEvery":2.5,"repeatUnit":"week"}' "repeatEvery must be a whole number from 1 to 99"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatEvery":"3","repeatUnit":"week"}' "repeatEvery must be a whole number from 1 to 99"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatEvery":3}' "repeatUnit must be day, week, month or year"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"custom","repeatEvery":3,"repeatUnit":"fortnight"}' "repeatUnit must be day, week, month or year"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"weekly","repeatEvery":3,"repeatUnit":"week"}' "repeatEvery and repeatUnit only go with repeat custom"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeatEvery":3}' "repeatEvery and repeatUnit only go with repeat custom"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","endDate":"2045-01-05","repeat":"custom","repeatEvery":3,"repeatUnit":"day"}' "An event that repeats every 3 days can't last longer than 3 days"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-01","endDate":"2045-01-22","repeat":"custom","repeatEvery":3,"repeatUnit":"week"}' "An event that repeats every 3 weeks can't last longer than 21 days"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-01","endDate":"2045-01-29","repeat":"custom","repeatEvery":2,"repeatUnit":"month"}' "An event that repeats every 2 months can't last longer than 28 days"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-01","endDate":"2045-01-29","repeat":"custom","repeatEvery":2,"repeatUnit":"year"}' "An event that repeats every 2 years can't last longer than 28 days"
+# Unchanged: a PATCH with an unknown repeat still names the full list.
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"daily"}' "repeat must be one of none, weekly, fortnightly, monthly, annually, custom"
 
 echo "--- reminders on the weekly (before it is edited) ---"
 req POST /api/planner/reminders/run "$ACCT" '{}'

@@ -28,8 +28,14 @@ const REMINDER_LABELS = {
   day_before: "7:00 the day before",
 };
 
-const REPEATS = ["none", "weekly", "fortnightly", "monthly", "annually"];
-const STEP_DAYS = { weekly: 7, fortnightly: 14 };
+const REPEATS = ["none", "weekly", "fortnightly", "monthly", "annually", "custom"];
+// Custom repeats (migration 030): "every N <unit>". Days and weeks step in days, months and years in months.
+const REPEAT_UNITS = ["day", "week", "month", "year"];
+const UNIT_DAYS = { day: 1, week: 7 };
+const UNIT_MONTHS = { month: 1, year: 12 };
+const EVERY_MAX = 99;
+// "Every 1 week / month / year" is the plain option; only "every 1 day" has none, so it stays custom.
+const PLAIN_FOR_ONE = { week: "weekly", month: "monthly", year: "annually" };
 const STEP_MAX_SPAN = { weekly: 7, fortnightly: 14, monthly: 28, annually: 28 };
 const STEP_SENTENCE = {
   weekly: "A weekly event can't last longer than a week",
@@ -46,7 +52,7 @@ const STALE = "Someone else changed this event. Reload to see it.";
 // The body fields a PATCH may carry (updatedAt, scope and occurrence are not fields).
 const FIELDS = [
   "layer", "title", "notes", "allDay", "startDate", "endDate", "startTime", "endTime",
-  "repeat", "repeatUntil", "reminder", "remindLayer", "jobId",
+  "repeat", "repeatEvery", "repeatUnit", "repeatUntil", "reminder", "remindLayer", "jobId",
 ];
 // The fields a one-off change ("this one") may carry.
 const ONE_OFF_FIELDS = ["title", "notes", "startDate", "endDate", "startTime", "endTime"];
@@ -101,11 +107,56 @@ function monthlyDate(start, n, repeatDay) {
 // repeat_months = 12). These two translate at the edge, so the rest of the code, the API and the page
 // only ever see 'annually'.
 function rowRepeat(row) {
+  if (row.repeat_unit) return "custom";
   return row.repeat === "monthly" && row.repeat_months === 12 ? "annually" : row.repeat;
 }
 
-function storedRepeat(repeat) {
-  return repeat === "annually" ? { repeat: "monthly", repeatMonths: 12 } : { repeat, repeatMonths: 1 };
+function storedRepeat(c) {
+  // A custom day/week repeat is stored as 'weekly', a custom month/year one as 'monthly' (migration 030),
+  // told apart by repeat_unit and repeat_every; the other repeats leave both NULL.
+  if (c.repeat === "custom") {
+    return { repeat: UNIT_DAYS[c.repeatUnit] ? "weekly" : "monthly", repeatMonths: 1, repeatUnit: c.repeatUnit, repeatEvery: c.repeatEvery };
+  }
+  return c.repeat === "annually"
+    ? { repeat: "monthly", repeatMonths: 12, repeatUnit: null, repeatEvery: null }
+    : { repeat: c.repeat, repeatMonths: 1, repeatUnit: null, repeatEvery: null };
+}
+
+// "3 weeks", or "day" for every 1 day.
+function everyWords(every, unit) {
+  return every === 1 ? unit : `${every} ${unit}s`;
+}
+
+// Whether a rule falls on a fixed day of the month (repeat_day is set exactly then).
+function usesDay(repeat, unit) {
+  return repeat === "monthly" || repeat === "annually" || (repeat === "custom" && !!UNIT_MONTHS[unit]);
+}
+
+// The step of a repeat rule: {days} or {months}; null for none. Plain and custom rules share this.
+function stepOf(s) {
+  if (s.repeat === "weekly") return { days: 7 };
+  if (s.repeat === "fortnightly") return { days: 14 };
+  if (s.repeat === "monthly") return { months: 1 };
+  if (s.repeat === "annually") return { months: 12 };
+  if (s.repeat === "custom") {
+    return UNIT_DAYS[s.repeatUnit] ? { days: UNIT_DAYS[s.repeatUnit] * s.repeatEvery } : { months: UNIT_MONTHS[s.repeatUnit] * s.repeatEvery };
+  }
+  return null;
+}
+
+// The longest an event of this rule may last, in days, and the 400 sentence when it is longer.
+// A custom day/week repeat can't last longer than its step (so occurrences never overlap); a custom
+// month/year one gets the same 28 days as monthly and annual.
+function maxSpan(c) {
+  if (c.repeat !== "custom") return STEP_MAX_SPAN[c.repeat];
+  return UNIT_DAYS[c.repeatUnit] ? UNIT_DAYS[c.repeatUnit] * c.repeatEvery : 28;
+}
+
+function spanSentence(c) {
+  if (c.repeat === "custom") {
+    return `An event that repeats every ${everyWords(c.repeatEvery, c.repeatUnit)} can't last longer than ${maxSpan(c)} day${maxSpan(c) === 1 ? "" : "s"}`;
+  }
+  return STEP_SENTENCE[c.repeat];
 }
 
 function toMinutes(t) {
@@ -126,14 +177,19 @@ function norm(series) {
   const startDate = pick("start_date", "startDate");
   const endDate = pick("end_date", "endDate") || startDate;
   let repeat = pick("repeat", "repeat") || "none";
-  if (repeat === "monthly" && pick("repeat_months", "repeatMonths") === 12) repeat = "annually";
+  const repeatUnit = pick("repeat_unit", "repeatUnit") || null;
+  const repeatEvery = pick("repeat_every", "repeatEvery") || null;
+  if (repeatUnit) repeat = "custom";
+  else if (repeat === "monthly" && pick("repeat_months", "repeatMonths") === 12) repeat = "annually";
   let repeatDay = pick("repeat_day", "repeatDay");
-  if ((repeat === "monthly" || repeat === "annually") && (repeatDay === undefined || repeatDay === null)) repeatDay = ymd(startDate).d;
+  if (usesDay(repeat, repeatUnit) && (repeatDay === undefined || repeatDay === null)) repeatDay = ymd(startDate).d;
   return {
     startDate,
     endDate,
     span: daysBetween(startDate, endDate) + 1,
     repeat,
+    repeatEvery: repeat === "custom" ? repeatEvery : null,
+    repeatUnit: repeat === "custom" ? repeatUnit : null,
     repeatUntil: pick("repeat_until", "repeatUntil") || null,
     repeatDay: repeatDay === undefined || repeatDay === null ? null : Number(repeatDay),
     startTime: pick("start_time", "startTime") || null,
@@ -156,35 +212,24 @@ function occurrenceDates(series, from, to) {
     return out;
   }
   const earliest = addDays(from, -(L - 1)); // an occurrence starting before this ends before from
-  if (STEP_DAYS[s.repeat]) {
-    const step = STEP_DAYS[s.repeat];
-    let n = Math.max(0, Math.ceil(daysBetween(s.startDate, earliest) / step));
+  const step = stepOf(s);
+  if (!step) return out;
+  if (step.days) {
+    let n = Math.max(0, Math.ceil(daysBetween(s.startDate, earliest) / step.days));
     for (;; n++) {
-      const start = addDays(s.startDate, n * step);
+      const start = addDays(s.startDate, n * step.days);
       if (start > lastStart) break;
       if (addDays(start, L - 1) >= from) out.push(start);
     }
     return out;
   }
-  if (s.repeat === "monthly") {
-    let n = Math.max(0, monthsBetween(s.startDate, earliest) - 1);
-    for (;; n++) {
-      const start = monthlyDate(s.startDate, n, s.repeatDay);
-      if (start > lastStart) break;
-      if (addDays(start, L - 1) >= from) out.push(start);
-    }
-    return out;
-  }
-  if (s.repeat === "annually") {
-    // Every 12 months from the start: the same month and day, the day clamped to the month's length
-    // (29 Feb falls on 28 Feb in a year that isn't a leap year), as the monthly rule does.
-    let n = Math.max(0, Math.floor(monthsBetween(s.startDate, earliest) / 12) - 1);
-    for (;; n++) {
-      const start = monthlyDate(s.startDate, n * 12, s.repeatDay);
-      if (start > lastStart) break;
-      if (addDays(start, L - 1) >= from) out.push(start);
-    }
-    return out;
+  // Every step.months months from the start (1 monthly, 12 annually, N or 12N custom): the same day of
+  // the month, clamped to the month's length (29 Feb falls on 28 Feb in a year that isn't a leap year).
+  let n = Math.max(0, Math.floor(monthsBetween(s.startDate, earliest) / step.months) - 1);
+  for (;; n++) {
+    const start = monthlyDate(s.startDate, n * step.months, s.repeatDay);
+    if (start > lastStart) break;
+    if (addDays(start, L - 1) >= from) out.push(start);
   }
   return out;
 }
@@ -197,13 +242,11 @@ function isOccurrence(series, date) {
   if (!s.startDate || date < s.startDate) return false;
   if (s.repeat === "none") return date === s.startDate;
   if (s.repeatUntil && date > s.repeatUntil) return false;
-  if (STEP_DAYS[s.repeat]) return daysBetween(s.startDate, date) % STEP_DAYS[s.repeat] === 0;
-  if (s.repeat === "monthly") return monthlyDate(s.startDate, monthsBetween(s.startDate, date), s.repeatDay) === date;
-  if (s.repeat === "annually") {
-    const n = monthsBetween(s.startDate, date);
-    return n % 12 === 0 && monthlyDate(s.startDate, n, s.repeatDay) === date;
-  }
-  return false;
+  const step = stepOf(s);
+  if (!step) return false;
+  if (step.days) return daysBetween(s.startDate, date) % step.days === 0;
+  const n = monthsBetween(s.startDate, date);
+  return n % step.months === 0 && monthlyDate(s.startDate, n, s.repeatDay) === date;
 }
 
 function normException(ex) {
@@ -318,6 +361,8 @@ function occItem(user, row, occ) {
     startTime: row.all_day ? null : occ.startTime,
     endTime: row.all_day ? null : occ.endTime,
     repeat: rowRepeat(row),
+    repeatEvery: row.repeat_every == null ? null : row.repeat_every,
+    repeatUnit: row.repeat_unit || null,
     repeatUntil: row.repeat_until || null,
     changed: occ.changed,
     reminder: row.reminder || null,
@@ -376,6 +421,8 @@ function present(db, user, row) {
     startTime: row.start_time || null,
     endTime: row.end_time || null,
     repeat: rowRepeat(row),
+    repeatEvery: row.repeat_every == null ? null : row.repeat_every,
+    repeatUnit: row.repeat_unit || null,
     repeatUntil: row.repeat_until || null,
     repeatDay: row.repeat_day == null ? null : row.repeat_day,
     splitFromId: row.split_from_id == null ? null : row.split_from_id,
@@ -554,6 +601,8 @@ function baseOf(row) {
     startTime: row.start_time || null,
     endTime: row.end_time || null,
     repeat: rowRepeat(row),
+    repeatEvery: row.repeat_every == null ? null : row.repeat_every,
+    repeatUnit: row.repeat_unit || null,
     repeatUntil: row.repeat_until || null,
     repeatDay: row.repeat_day == null ? null : row.repeat_day,
     reminder: row.reminder || null,
@@ -617,7 +666,27 @@ function buildSeries(db, user, base, body) {
 
   let repeat = creating ? "none" : b.repeat;
   if (given("repeat") && body.repeat !== null) repeat = body.repeat;
-  if (!REPEATS.includes(repeat)) throw bad("repeat must be one of none, weekly, fortnightly, monthly, annually");
+  if (!REPEATS.includes(repeat)) throw bad("repeat must be one of none, weekly, fortnightly, monthly, annually, custom");
+
+  // Custom: "every N <unit>". Both come from the body or, when the event is already custom, from it.
+  let repeatEvery = null, repeatUnit = null;
+  const everyGiven = given("repeatEvery") && body.repeatEvery !== null;
+  const unitGiven = given("repeatUnit") && body.repeatUnit !== null;
+  if (repeat === "custom") {
+    const kept = !creating && b.repeat === "custom";
+    const every = everyGiven ? body.repeatEvery : kept ? b.repeatEvery : undefined;
+    const unit = unitGiven ? body.repeatUnit : kept ? b.repeatUnit : undefined;
+    if (!Number.isInteger(every) || every < 1 || every > EVERY_MAX) throw bad("repeatEvery must be a whole number from 1 to 99");
+    if (!REPEAT_UNITS.includes(unit)) throw bad("repeatUnit must be day, week, month or year");
+    // Every 1 week, month or year is just Weekly, Monthly or Every year.
+    if (every === 1 && PLAIN_FOR_ONE[unit]) repeat = PLAIN_FOR_ONE[unit];
+    else {
+      repeatEvery = every;
+      repeatUnit = unit;
+    }
+  } else if (everyGiven || unitGiven) {
+    throw bad("repeatEvery and repeatUnit only go with repeat custom");
+  }
 
   let repeatUntil = null;
   if (repeat !== "none") {
@@ -630,14 +699,15 @@ function buildSeries(db, user, base, body) {
   }
 
   let repeatDay = null;
-  if (repeat === "monthly" || repeat === "annually") {
-    const keep = !creating && (b.repeat === "monthly" || b.repeat === "annually") && startDate === b.startDate && b.repeatDay != null;
+  if (usesDay(repeat, repeatUnit)) {
+    const keep = !creating && startDate === b.startDate && b.repeatDay != null;
     repeatDay = keep ? b.repeatDay : ymd(startDate).d;
     const S = ymd(startDate);
     if (Math.min(repeatDay, daysInMonth(S.y, S.m)) !== S.d) repeatDay = S.d;
   }
-  if (repeat !== "none" && daysBetween(startDate, endDate) + 1 > STEP_MAX_SPAN[repeat]) {
-    throw bad(STEP_SENTENCE[repeat]);
+  if (repeat !== "none") {
+    const rule = { repeat, repeatEvery, repeatUnit };
+    if (daysBetween(startDate, endDate) + 1 > maxSpan(rule)) throw bad(spanSentence(rule));
   }
 
   let reminder;
@@ -670,7 +740,7 @@ function buildSeries(db, user, base, body) {
 
   return {
     layer, title, notes, allDay, startDate, endDate, startTime, endTime,
-    repeat, repeatUntil, repeatDay, reminder, remindLayer, jobId,
+    repeat, repeatEvery, repeatUnit, repeatUntil, repeatDay, reminder, remindLayer, jobId,
   };
 }
 
@@ -738,18 +808,18 @@ function requireBody(body) {
 }
 
 function insertSeries(db, ownerId, actorId, c, ts, splitFromId) {
-  const st = storedRepeat(c.repeat);
+  const st = storedRepeat(c);
   const info = db
     .prepare(
       `INSERT INTO planner_events (layer, owner_id, title, notes, job_id, all_day, start_date, end_date,
-         start_time, end_time, repeat, repeat_months, repeat_until, repeat_day, split_from_id, reminder,
-         remind_layer, created_at, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         start_time, end_time, repeat, repeat_months, repeat_unit, repeat_every, repeat_until, repeat_day,
+         split_from_id, reminder, remind_layer, created_at, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       c.layer, ownerId, c.title, c.notes, c.jobId, c.allDay ? 1 : 0, c.startDate, c.endDate,
-      c.startTime, c.endTime, st.repeat, st.repeatMonths, c.repeatUntil, c.repeatDay, splitFromId, c.reminder,
-      c.remindLayer ? 1 : 0, ts, ts, actorId
+      c.startTime, c.endTime, st.repeat, st.repeatMonths, st.repeatUnit, st.repeatEvery, c.repeatUntil,
+      c.repeatDay, splitFromId, c.reminder, c.remindLayer ? 1 : 0, ts, ts, actorId
     );
   return Number(info.lastInsertRowid);
 }
@@ -911,22 +981,22 @@ function updateWhole(db, req, g, body) {
   // A one-off change keeps the shape it was made in (times on a timed series, dates on an all-day
   // one), so switching All day on the whole series clears them too (M7 · 4.3).
   const clears = changed.includes("startDate") || changed.includes("repeat") || changed.includes("repeatDay")
-    || changed.includes("allDay");
+    || changed.includes("repeatEvery") || changed.includes("repeatUnit") || changed.includes("allDay");
   const visible = changed.filter((k) => k !== "repeatDay" || !changed.includes("startDate"));
-  const st = storedRepeat(cand.repeat);
+  const st = storedRepeat(cand);
   db.transaction(() => {
     const ts = nextStamp(row.updated_at);
     const info = db
       .prepare(
         `UPDATE planner_events SET layer = ?, title = ?, notes = ?, job_id = ?, all_day = ?, start_date = ?,
-           end_date = ?, start_time = ?, end_time = ?, repeat = ?, repeat_months = ?, repeat_until = ?,
-           repeat_day = ?, reminder = ?, remind_layer = ?, updated_at = ?, updated_by = ?
+           end_date = ?, start_time = ?, end_time = ?, repeat = ?, repeat_months = ?, repeat_unit = ?,
+           repeat_every = ?, repeat_until = ?, repeat_day = ?, reminder = ?, remind_layer = ?, updated_at = ?, updated_by = ?
          WHERE id = ? AND updated_at = ? AND removed_at IS NULL`
       )
       .run(
         cand.layer, cand.title, cand.notes, cand.jobId, cand.allDay ? 1 : 0, cand.startDate, cand.endDate,
-        cand.startTime, cand.endTime, st.repeat, st.repeatMonths, cand.repeatUntil, cand.repeatDay, cand.reminder,
-        cand.remindLayer ? 1 : 0, ts, user.id, row.id, row.updated_at
+        cand.startTime, cand.endTime, st.repeat, st.repeatMonths, st.repeatUnit, st.repeatEvery, cand.repeatUntil,
+        cand.repeatDay, cand.reminder, cand.remindLayer ? 1 : 0, ts, user.id, row.id, row.updated_at
       );
     if (info.changes !== 1) throw conflict(STALE, { event: present(db, user, loadRow(db, row.id) || row) });
     let cleared = 0;
