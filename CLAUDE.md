@@ -53,7 +53,7 @@ New UI follows the company house style: the TH Cabinets Brand & Document Style G
   - Red `#EF4444` is only for overdue and destructive actions.
   - Violet `#8B5CF6` to fuchsia `#D946EF` is the gradient for numbered discs.
   - The four-colour spectrum (teal, violet, fuchsia, orange) appears only as thin rules.
-- **Type and components:** Arial or Helvetica, bold and regular only, with uppercase always letterspaced. No icons, emoji or shadows. Buttons are outlined uppercase text.
+- **Type and components:** Arial or Helvetica, bold and regular only, with uppercase always letterspaced. No icons, emoji or shadows. Buttons are outlined uppercase text. (The browser's own clock and calendar glyphs on time and date inputs are the browser's controls, not icons, and are allowed: Todd, 2026-10-16.)
 - **Shell CSS:** uses these through `cc-` prefixed custom properties (non-negotiable 8). The re-theme of the whole app is M1.2 (`docs/plans/style-plan.md`).
 - **Four named exceptions, approved by Todd (the first two on 2026-10-10, the third on 2026-10-11, the fourth on 2026-10-12). There are no others.**
   - **Worker colours:** each worker keeps their own colour (the `hue` per worker, computed in `lib/schedule.js` and `public/shared.js`), wherever workers appear.
