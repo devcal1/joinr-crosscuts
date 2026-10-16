@@ -106,7 +106,7 @@ The drawer tabs list counts **per job**, and Todd wants them "filled in automati
 - **The month's value:**
   - **Recommended:** counts × price per sheet, worked out, with an optional adjustment and a note.
   - **The alternative** is a typed value, as today (question 2).
-- **Accounts** gets a **Stock value** item in the Accounts menu (`accounts.view`): one row per month (value, counted by, finished date), read-only, printable.
+- **Accounts** got a **Stock value** item in the Accounts menu (`accounts.view`): one row per month (value, counted by, finished date), read-only, printable. (removed at Todd's request, 2026-10-16; the page, menu item and notice are gone.)
 
 ### 2.5 Keys, menus, dashboard
 
@@ -115,13 +115,13 @@ The drawer tabs list counts **per job**, and Todd wants them "filled in automati
   - **`stock.order`** lets you edit the stock, paint and board lists, prices, orders and the drawer order page. Presets: ordering (and admin).
   - Adding drawer counts on a job's Orders uses `orders.edit`, like any order line (Design/PM and Ordering today).
 - **Ordering menu:** Orders, Deliveries, **Drawer order** (`stock.order`), **Stock order** (`stock.count`), **Paint order** (`stock.order`), **Board stocktake** (`stock.count`).
-- **Accounts menu:** **Stock value** (`accounts.view`).
+- **Accounts menu:** ~~Stock value~~ (removed at Todd's request, 2026-10-16).
 - **Dashboard:**
   - For `stock.count`: "Stock count due" and "Board count due" in the last three days of a month and the first seven of the next, until done.
   - For `stock.order`: "Stock counted, order to place" and "N drawer lines to order".
 - **Notifications:**
   - "Stock counted" and "Board count finished" go to `stock.order` holders.
-  - A board count finished also goes to `accounts.view` holders ("stock value for <month> is ready").
+  - ~~A board count finished also goes to `accounts.view` holders~~ (removed at Todd's request, 2026-10-16).
 
 ### 2.6 Building it
 
@@ -132,7 +132,7 @@ The drawer tabs list counts **per job**, and Todd wants them "filled in automati
   - **Boards:** `boards`, `board_counts` (a month) and `board_count_lines`.
   - Nothing on `orders` changes.
 - **Server:** `lib/drawers.js`, `lib/stock.js`, `lib/paint.js`, `lib/boards.js`, and routes for each.
-- **Pages:** `drawers`, `stock`, `paint` and `boards`, each with its print view, plus `stockvalue`. The job page gets the drawer grid.
+- **Pages:** `drawers`, `stock`, `paint` and `boards`, each with its print view, (a `stockvalue` page was added and later removed, 2026-10-16). The job page gets the drawer grid.
 - **Elsewhere:** the menus, the dashboard, notifications, `public/users.js`, and smoke (`smoke-m11-*.sh`, the key counts).
 - **Docs:** `how-to-order-drawers.md`, `how-to-do-the-stocktake.md`, `auth.md`, and the brief's §3 (Orders, and the new pages).
 - **Version 0.1.15.** Probably two build waves: A is the lists, stock order and board count; B is the drawer order and the paint order. The detail comes in 2.1 contracts.
@@ -167,12 +167,12 @@ These replace sections 2 and 3 where they differ.
 1. **Drawer counts come from Joinr.** Joinr sends the won quote's **Drawers** and **Inner Drawers** lines (catalogue name and quantity) with the intake item. Crosscuts maps each catalogue name to a brand, height and length through a **drawer name list that Ordering keeps** (`stock.order`); names not on the list are flagged. On accept, the counts land on the job as its drawer grid, an order line "Drawers (EDGE)" or "Drawers (DTC)" with its counts in `order_drawer_counts`, as in section 2.1. **Design/PM checks and corrects the grid at design sign-off** before it goes on the drawer order; jobs not from Joinr (or accepted before this) get their grid typed in by Design/PM. The Drawer order page, Mark ordered and receiving are as section 2.1.
    - **This needs a Joinr-side change** (tenon-quotr: the intake read and its contract `docs/integrations/joinr-crosscuts-intake.md` gain the drawer lines), run as its own task like M6's task J. Each push, migration and production deploy there needs Todd's go.
 2. **Design/PM fills in a job's drawers** (checks Joinr's counts, or types them for jobs without them).
-3. **Board stock value = counts × a price per sheet**, worked out when the count is finished, with an optional adjustment and a note. Accounts sees it on Stock value.
-4. **Ordering keeps the board prices** (`stock.order`). The Workshop Manager counts without seeing prices; Accounts sees the month's value, not the prices.
+3. **Board stock value = counts × a price per sheet**, worked out when the count is finished, with an optional adjustment and a note. (Accounts' Stock value page was removed at Todd's request, 2026-10-16.)
+4. **Ordering keeps the board prices** (`stock.order`). The Workshop Manager counts without seeing prices; Accounts does not see the prices.
 5. **Stock and paint orders show on Deliveries**, in their own "Stock and paint" group (the stock order per supplier group), for the Workshop Manager to mark received.
 6. **Paint is ordered per job:** a paint order line with a job becomes an order line on that job, so it counts toward the job's "all ordered" and its 50% progress invoice, and its receiving shows as that job's line. **One paint order can mix** job lines and lines with no job (thinners, primer, sanding discs), which are workshop stock. This replaces section 2.3's "not on Orders" and lead's default 3 for paint.
 7. **The three lists (stock items, paints, boards) are typed in by hand** on their pages. No paste box. Orders and counts start fresh.
-8. **No stock-value history:** the Stock value page starts with the first count done in Crosscuts.
+8. **No stock-value history:** the values start with the first count done in Crosscuts (the Accounts Stock value page was removed at Todd's request, 2026-10-16).
 9. **The painted-door order form** (`Joinr_paintOrder - Copy.xlsx`) is left out of M11 (lead's default 8 confirmed).
 
 Section 3's other lead's defaults stand. **Plan approved (2026-10-13).** Next: M11 · 2.1 contracts, which must also specify the Joinr contract change (the new intake fields, how an older Joinr without them is handled, and the mapping list).

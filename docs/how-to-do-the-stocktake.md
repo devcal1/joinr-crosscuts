@@ -1,9 +1,9 @@
 # How to do the monthly stock order, the board stocktake and paint orders in Crosscuts
 
-For Todd, Ordering, the Workshop Manager and Accounts. Four jobs live under the **Ordering** menu:
+For Todd, Ordering and the Workshop Manager. Four jobs live under the **Ordering** menu:
 
 - **Stock order:** the monthly hardware order. The Workshop Manager counts what's on the shelf; Ordering decides what to order.
-- **Board stocktake:** the monthly count of sheets. Ordering turns it into a stock value for Accounts.
+- **Board stocktake:** the monthly count of sheets. Ordering turns it into a stock value.
 - **Paint order:** paint, hardener, thinners, primer and sanding discs.
 - **Drawer order:** see [how-to-order-drawers.md](how-to-order-drawers.md).
 
@@ -11,7 +11,6 @@ Who does what:
 - **The Workshop Manager** (and Ordering and admin) counts: types **Have** on the stock order and quantities on the board stocktake. Counting needs the `stock.count` key.
 - **Ordering** (and admin) keeps the lists, types what to order, marks it ordered, sets board prices and confirms the stock value. That needs the `stock.order` key.
 - **The Workshop Manager** (and Ordering, Design/PM and admin) marks deliveries received on **Deliveries**.
-- **Accounts** sees each month's board stock value on **Stock value**.
 
 The stock order and board stocktake are not order lines on jobs: they have no job and no effect on any invoice. Paint can be (see below).
 
@@ -70,18 +69,12 @@ The **Value** tab appears once the count is finished. It shows each counted boar
 
 1. **Boards with no price.** Any counted board with a quantity above zero and no price is marked **No price** in orange. Type its price per sheet (ex GST) beside it and press **Set price**. The value can't be confirmed while any such board has no price.
 2. **Adjustment.** If the worked-out figure needs a correction (damaged sheets, offcuts), type it in **Adjustment (ex GST)**, as dollars and cents. A negative takes off (`-125.50`). A note is needed whenever the adjustment isn't zero. **The adjustment and its note save as you type them**, before you confirm, so reloading the page keeps them.
-3. Press **Confirm value** and check the figure in the dialog. **The value is the sheets counted times each board's price, plus the adjustment.** Confirming freezes each board's price as it is now. Accounts is told ("Board stock value: <Month>").
+3. Press **Confirm value** and check the figure in the dialog. **The value is the sheets counted times each board's price, plus the adjustment.** Confirming freezes each board's price as it is now.
 
 ### Changing a count or a value
 
 - **Reopen count** (Ordering, on the **Value** tab) takes a counted month back to counting, so the Workshop Manager can change a quantity. It works only before the value is confirmed.
-- **Reopen** (admin only) takes a confirmed month's value back: the frozen prices and value are cleared, the count stays finished, and Accounts sees "Waiting for the value" until Ordering confirms it again.
-
-## Stock value (Accounts)
-
-Open **Accounts**, then **Stock value**. It lists each month, newest first: the board stock value (ex GST), who counted it and when, who confirmed it and when, and the adjustment (hover for its note; the note is printed too). A month that's been counted but not confirmed shows **Waiting for the value**.
-
-It's read-only, and it never shows board prices. **Print** prints the list. The page starts with the first count done in Crosscuts; there's no history before that.
+- **Reopen** (admin only) takes a confirmed month's value back: the frozen prices and value are cleared, the count stays finished, and the month shows as waiting for the value until Ordering confirms it again.
 
 ## Paint orders
 

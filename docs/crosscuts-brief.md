@@ -130,8 +130,7 @@ Chromebooks (Chrome). No touch input is required.
   stock "have" and the board quantities; Workshop Manager, Ordering, admin) and
   `stock.order` (the stock, paint and board lists, board prices, the drawer
   order, paint orders, confirming the board stock value; Ordering, admin).
-  Accounts sees each month's confirmed board stock value through
-  `accounts.view`. 27 keys in all.
+  (Accounts had a read-only Stock value page on `accounts.view`; it was removed at Todd's request, 2026-10-16.) 27 keys in all.
 - **M13 owner and owner-only keys (approved by Todd 2026-10-16):** one login is
   **the owner** (Todd's; a mark on the login, not a role), and three
   **owner-only keys**: `bonuses.manage` (the Bonuses page), `alarms.manage`
@@ -262,9 +261,9 @@ to build it.
      no job are workshop stock. Received on Deliveries.
    - **Board stocktake.** The Workshop Manager counts the boards monthly.
      Ordering keeps a price per sheet (ex GST) and confirms the value: counts ×
-     prices, plus an optional adjustment and note. Accounts sees each confirmed
-     month on **Stock value** in its menu (no prices, no history before the first
-     count in Crosscuts).
+     prices, plus an optional adjustment and note. The confirmed value stays on the
+     Boards page for Ordering (Accounts' Stock value page was removed at Todd's request, 2026-10-16). There is
+     no history before the first count in Crosscuts.
 
    The lists (stock items, paints, boards) are typed in by hand. Orders and counts
    start fresh. Detail: `docs/plans/m11-plan.md` §5 and

@@ -85,10 +85,10 @@ The "come later" items of 3c arrive in M11 (0.1.15), inside the dropdowns, so th
 | Paint order | `/paint.html` | `stock.order` |
 | Board stocktake | `/boards.html` | `stock.count` |
 
-- **Accounts** gains **Stock value** (`/stockvalue.html`, `accounts.view`), after BAS sales. Its order is now Accounts, Pay runs, BAS sales, Stock value, Supplier accounts, Reports.
+- **Accounts** gained **Stock value** (`/stockvalue.html`, `accounts.view`), after BAS sales (removed at Todd's request, 2026-10-16; the menu item and page are gone). Its order is again Accounts, Pay runs, BAS sales, Supplier accounts, Reports.
 - **Who sees what:** the Workshop Manager sees Ordering with Orders, Deliveries, Stock order and Board stocktake. Ordering and admin see all six. A receiver without `stock.order` has no Paint order entry and opens a paint order from a link on Deliveries (the page itself is gated by `stock.order` or `orders.receive`).
 - **The pages carry the shared menu bar** (`#cc-shell`), like every page except login, setup and photo search.
-- **No new colour.** The Ordering rule stays orange (`--layer-install`); Stock value takes the Accounts rule as the other Accounts items do.
+- **No new colour.** The Ordering rule stays orange (`--layer-install`); the Accounts items take the Accounts rule.
 - **Dashboard:** no menu change. The stock count, board count and drawer reminders are lines on the dashboard (`docs/how-to-do-the-stocktake.md`).
 
 ## 3e. M12 Design/PM tools (Todd approved the M12 plan, 2026-10-14)
@@ -124,7 +124,7 @@ M13 (0.1.17) adds three items inside existing dropdowns, so the bar's width does
 | Bonuses | `/bonuses.html` | `bonuses.manage` |
 | Alarms | `/alarms.html` | `alarms.manage` |
 
-- **Accounts** gains **Loans** (`/loans.html`, `loans.manage`), after Supplier accounts. Its order is now Accounts, Pay runs, BAS sales, Stock value, Supplier accounts, Loans, Reports.
+- **Accounts** gains **Loans** (`/loans.html`, `loans.manage`), after Supplier accounts. Its order is now Accounts, Pay runs, BAS sales, Supplier accounts, Loans, Reports.
 - **Who sees what:** the owner sees all three. Another admin sees none of them (Users and Audit as before). An Accounts login the owner grants `loans.manage` sees Loans under Accounts, and none of the Admin items (someone given `loans.manage` with no other Accounts key gets an Accounts menu holding only Loans). Nobody else sees any of them.
 - **Sub-pages:** the bonus print (`/bonusprint.html`) lights up Bonuses and the loan statement (`/loanprint.html`) lights up Loans (`PAGE_ALIASES`). They're not on the menu.
 - **The pages carry the shared menu bar** (`#cc-shell`), hidden in print as on every page. The Alarms page has no print at all.

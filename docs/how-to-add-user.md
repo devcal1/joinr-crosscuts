@@ -15,7 +15,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
 ## Roles, in plain English
 
 - **Admin:** everything, including users and the audit log, **except the three owner-only pages** (Bonuses, Alarms and Loans), which only the owner has (below).
-- **Accounts:** bookkeeping, invoices, job values, photo search. From M11 it also sees each month's board stock value, on **Accounts**, then **Stock value** (the value, not the prices).
+- **Accounts:** bookkeeping, invoices, job values, photo search.
 - **Design/PM:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view. From M11 it also **checks each job's drawer grid** (Joinr's drawer counts, or ones typed in) before the grid goes on the Drawer order. From M12 it makes and sends each job's **stone orders** (the job's Benchtops section and Design/PM, then **Stone orders**) and has the **Batten calculator**.
 - **Scheduling:** the board (moving jobs, workers, leave). From M12 it can print a job's stone orders and benchtop sheet from the job page (as can Accounts).
 - **Showroom:** photo search only. Used for the shared showroom account.

@@ -75,9 +75,8 @@ The last three are the owner-only keys (M13): no preset has them, admin included
 | `/stock.html` (Stock order) | Ordering | `stock.count` or `stock.order` |
 | `/boards.html` (Board stocktake) | Ordering | `stock.count` or `stock.order` |
 | `/paint.html` (Paint order) | Ordering | `stock.order` or `orders.receive` |
-| `/stockvalue.html` (Stock value) | Accounts | `accounts.view` |
 
-The menu entries are by key: Drawer order and Paint order show for `stock.order`, Stock order and Board stocktake for `stock.count`, Stock value for `accounts.view`. So the Workshop Manager sees Orders, Deliveries, Stock order and Board stocktake under Ordering, and no Drawer order or Paint order. Someone with only `orders.receive` (the Workshop Manager, and Design/PM) can still open a paint order from a link on Deliveries, to read it and mark it received.
+The menu entries are by key: Drawer order and Paint order show for `stock.order`, Stock order and Board stocktake for `stock.count`. So the Workshop Manager sees Orders, Deliveries, Stock order and Board stocktake under Ordering, and no Drawer order or Paint order. Someone with only `orders.receive` (the Workshop Manager, and Design/PM) can still open a paint order from a link on Deliveries, to read it and mark it received.
 
 What the keys and the keys already there decide on these pages:
 
@@ -88,7 +87,6 @@ What the keys and the keys already there decide on these pages:
 | See board prices, and a board count's worked-out value | `stock.order` (the Workshop Manager and everyone else get no price in the answer) |
 | Confirm a board stock value | `stock.order` |
 | Reopen a confirmed board stock value | `users.admin` |
-| See the confirmed board stock values (Stock value) | `accounts.view` (a month waiting to be confirmed shows no figure) |
 | Add or edit a job's drawer grid; fill or refill it from Joinr | `orders.edit` |
 | Check or uncheck a drawer grid | `jobs.edit` |
 | Use the Drawer order page; set the drawer supplier names; set the litres factor | `stock.order` |

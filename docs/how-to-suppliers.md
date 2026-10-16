@@ -40,3 +40,13 @@ Choose Save as PDF in the print dialog to keep a copy.
 ## The Friday round-up
 
 If any statements for last month are still **Waiting**, the Friday round-up says so ("3 supplier statements still waiting for September"). When that's the only thing in it, its link opens this page on that month. Set the line to Have statement or N/A and it drops out of the next round-up.
+
+## Admin accounts (BAS, Workcover, insurance)
+
+Some bills aren't from suppliers: the BAS, Workcover, business insurance. They have their own page so they don't sit in the supplier list. Open **Accounts**, then **Admin accounts** (it comes right after **Supplier accounts**).
+
+It works exactly like Supplier accounts: the same monthly lines (statement, total, reconciled, paid, entered in MYOB, note, statement file), the same **Previous month** and **Next month**, the same access (Accounts to see, Accounts edit access to change), and the same **Print** and **Print blank form**. The only differences:
+
+- You add the accounts under **Accounts**, below the list, with **Add account** (for example **BAS**, **Workcover**, **Business insurance**). **Rename** and **Archive** work as they do for suppliers, and archived accounts keep the months they already have lines in.
+- An admin account and a supplier can't share a name.
+- These accounts are never offered as suppliers on Orders, Stock or Paint, and the Friday round-up's "statements still waiting" line counts suppliers only.

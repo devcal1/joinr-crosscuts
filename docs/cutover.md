@@ -29,7 +29,7 @@ So:
   - type each month's sales (including GST, and the GST if known) from June 2023 up to the current month. BAS sales no longer reads invoices (Todd, 2026-10-16), so every month, the cutover month and later ones too, is typed in full from your own records;
   - lodge the months already lodged with the ATO, so they lock.
 
-  On **Supplier accounts** ([how-to-suppliers.md](how-to-suppliers.md)), add the suppliers once and start with the month before cutover.
+  On **Supplier accounts** ([how-to-suppliers.md](how-to-suppliers.md)), add the suppliers once and start with the month before cutover. The same goes for **Admin accounts** (BAS, Workcover, insurance; see the last section of that guide).
 - **Users and settings must be put back after the load.** Two ways to do it; Todd picks one (Q1 at the end):
   - **A. Re-create them by hand** (recommended). About 15 minutes: run setup, add the nine logins, re-enter the business details. No new code.
   - **B. Carry them across with a small tool.** It copies users, roles, overrides and settings from the pre-cutover Crosscuts database into the loaded one. That is new code that writes to the live database, so it needs Todd's sign-off and must pass the rehearsal first.
