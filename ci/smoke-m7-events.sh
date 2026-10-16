@@ -41,6 +41,22 @@ m7e_starts() { # JAR FROM TO EVENT_ID
   M7E_STARTS=$(jqr "[.events[] | select(.eventId == $4) | .start] | join(\",\")")
 }
 
+# Like m7e_starts over several years (the route allows 62 days at most): asks one month of each
+# year, month MM (the month the event falls in) -> M7E_STARTS.
+m7e_year_starts() { # JAR Y1 Y2 MM EVENT_ID
+  local y last all=""
+  for ((y = $2; y <= $3; y++)); do
+    case $4 in
+      02) if [ $((y % 4)) -eq 0 ]; then last=29; else last=28; fi ;; # 2000-2099: every fourth year
+      04 | 06 | 09 | 11) last=30 ;;
+      *) last=31 ;;
+    esac
+    m7e_starts "$1" "$y-$4-01" "$y-$4-$last" "$5"
+    if [ -n "$M7E_STARTS" ]; then all="${all:+$all,}$M7E_STARTS"; fi
+  done
+  M7E_STARTS=$all
+}
+
 # The series' current updatedAt as JAR -> M7E_UPD.
 m7e_upd() { # JAR ID
   req GET "/api/planner/events/$2" "$1"
@@ -151,6 +167,105 @@ expect_eq "$M7E_STARTS" "2036-02-29" "monthly: 29 Feb 2036"
 m7e_post "$ACCT" '{"title":"M7E Monthly until","layer":"accounts","allDay":true,"startDate":"2035-01-31","repeat":"monthly","repeatUntil":"2035-03-31"}' "monthly with an end"
 m7e_starts "$ACCT" 2035-03-01 2035-04-30 "$M7E_ID"
 expect_eq "$M7E_STARTS" "2035-03-31" "repeatUntil 31 Mar: no April"
+
+echo "--- annual repeats (migration 027: stored as monthly x 12, presented as 'annually') ---"
+# 2040+ dates, so nothing else in this file or the live reminder timer meets them.
+m7e_post "$ACCT" '{"title":"M7E Annual leap day","layer":"accounts","allDay":true,"startDate":"2040-02-29","repeat":"annually"}' "annual from 29 Feb"
+M7E_AN=$M7E_ID
+expect_jq '.repeat == "annually" and .repeatDay == 29 and .repeatUntil == null' "created as annually, day 29"
+m7e_year_starts "$ACCT" 2040 2044 02 "$M7E_AN"
+expect_eq "$M7E_STARTS" "2040-02-29,2041-02-28,2042-02-28,2043-02-28,2044-02-29" "annual leap day: 28 Feb in common years, 29 Feb in leap years"
+req GET "/api/planner/events?from=2041-02-01&to=2041-03-31" "$ACCT"
+expect_status 200 "GET a month range for the annual event"
+expect_jq "[.events[] | select(.eventId == $M7E_AN) | [.start, .repeat]] == [[\"2041-02-28\",\"annually\"]]" "occurrences carry repeat annually; no March occurrence"
+m7e_starts "$ACCT" 2040-03-01 2040-04-30 "$M7E_AN"
+expect_eq "$M7E_STARTS" "" "nothing in the months either side of the yearly date (not monthly)"
+req GET "/api/planner/events/$M7E_AN" "$ACCT"
+expect_status 200 "GET the annual series"
+expect_jq '.repeat == "annually"' "the series reads back as annually"
+
+m7e_post "$ACCT" '{"title":"M7E Annual until","layer":"accounts","allDay":true,"startDate":"2040-03-15","repeat":"annually","repeatUntil":"2042-03-14"}' "annual with an end"
+M7E_ANU=$M7E_ID
+expect_jq '.repeat == "annually" and .repeatDay == 15 and .repeatUntil == "2042-03-14"' "annual until stored"
+m7e_year_starts "$ACCT" 2040 2045 03 "$M7E_ANU"
+expect_eq "$M7E_STARTS" "2040-03-15,2041-03-15" "repeatUntil 14 Mar 2042: no third year"
+
+m7e_post "$ACCT" '{"title":"M7E Annual timed","layer":"accounts","allDay":false,"startDate":"2040-07-01","startTime":"09:00","endTime":"10:30","repeat":"annually"}' "a timed annual event"
+M7E_ANT=$M7E_ID
+req GET "/api/planner/events?from=2042-06-15&to=2042-07-31" "$ACCT"
+expect_jq "[.events[] | select(.eventId == $M7E_ANT) | [.start, .startTime, .endTime]] == [[\"2042-07-01\",\"09:00\",\"10:30\"]]" "a timed annual event keeps its times"
+
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2040-05-01","endDate":"2040-06-05","repeat":"annually"}' "An annual event can't last longer than 28 days"
+m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2040-05-01","repeat":"yearly"}' "repeat must be one of none, weekly, fortnightly, monthly, annually"
+
+# One occurrence: move it, then cancel another; a date that isn't on the yearly rule is refused.
+m7e_upd "$ACCT" "$M7E_ANU"
+req PATCH "/api/planner/events/$M7E_ANU" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"one\",\"occurrence\":\"2041-03-15\",\"title\":\"M7E Annual moved\",\"startDate\":\"2041-03-17\",\"endDate\":\"2041-03-17\"}"
+expect_status 200 "move the 2041 occurrence"
+M7E_UPD=$(jqr '.updatedAt')
+m7e_year_starts "$ACCT" 2040 2045 03 "$M7E_ANU"
+expect_eq "$M7E_STARTS" "2040-03-15,2041-03-17" "the 2041 occurrence shows on its new date"
+req PATCH "/api/planner/events/$M7E_ANU" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"one\",\"occurrence\":\"2041-04-15\",\"title\":\"x\"}"
+expect_status 400 "a monthly date is not an annual occurrence"
+expect_jq '.error == "That date isn'"'"'t an occurrence of this event"' "the occurrence sentence"
+req DELETE "/api/planner/events/$M7E_ANU?scope=one&occurrence=2040-03-15&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+expect_status 204 "cancel the 2040 occurrence"
+m7e_year_starts "$ACCT" 2040 2045 03 "$M7E_ANU"
+expect_eq "$M7E_STARTS" "2041-03-17" "the cancelled year is gone"
+
+# This and all later: the annual series splits and both halves stay annual.
+m7e_upd "$ACCT" "$M7E_ANT"
+req PATCH "/api/planner/events/$M7E_ANT" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"later\",\"occurrence\":\"2042-07-01\",\"title\":\"M7E Annual timed later\"}"
+expect_status 200 "split the annual series at 2042"
+expect_jq ".repeat == \"annually\" and .splitFromId == $M7E_ANT and .startDate == \"2042-07-01\" and .repeatDay == 1" "the new half is annual"
+M7E_ANT2=$(jqr '.id')
+req GET "/api/planner/events/$M7E_ANT" "$ACCT"
+expect_jq '.repeat == "annually" and .repeatUntil == "2042-06-30"' "the original half stays annual and ends the day before"
+m7e_year_starts "$ACCT" 2040 2045 07 "$M7E_ANT2"
+expect_eq "$M7E_STARTS" "2042-07-01,2043-07-01,2044-07-01,2045-07-01" "the new half carries on yearly"
+m7e_year_starts "$ACCT" 2040 2045 07 "$M7E_ANT"
+expect_eq "$M7E_STARTS" "2040-07-01,2041-07-01" "the original half stops at the split"
+
+# The whole series: a change of date moves the yearly date; changing the rule round-trips.
+m7e_upd "$ACCT" "$M7E_AN"
+req PATCH "/api/planner/events/$M7E_AN" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"all\",\"startDate\":\"2040-04-10\",\"endDate\":\"2040-04-10\"}"
+expect_status 200 "move the whole annual series"
+expect_jq '.repeat == "annually" and .repeatDay == 10 and .startDate == "2040-04-10"' "still annual, day 10"
+M7E_UPD=$(jqr '.updatedAt')
+m7e_year_starts "$ACCT" 2040 2043 04 "$M7E_AN"
+expect_eq "$M7E_STARTS" "2040-04-10,2041-04-10,2042-04-10,2043-04-10" "the new yearly date"
+req PATCH "/api/planner/events/$M7E_AN" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"all\",\"repeat\":\"monthly\"}"
+expect_status 200 "annual to monthly"
+M7E_UPD=$(jqr '.updatedAt')
+expect_jq '.repeat == "monthly" and .repeatDay == 10' "reads back as monthly"
+m7e_starts "$ACCT" 2040-04-01 2040-05-31 "$M7E_AN"
+expect_eq "$M7E_STARTS" "2040-04-10,2040-05-10" "now every month"
+req PATCH "/api/planner/events/$M7E_AN" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"all\",\"repeat\":\"annually\"}"
+expect_status 200 "monthly back to annual"
+M7E_UPD=$(jqr '.updatedAt')
+expect_jq '.repeat == "annually" and .repeatDay == 10' "reads back as annually"
+m7e_year_starts "$ACCT" 2040 2041 04 "$M7E_AN"
+expect_eq "$M7E_STARTS" "2040-04-10,2041-04-10" "yearly again"
+req PATCH "/api/planner/events/$M7E_AN" "$ACCT" "{\"updatedAt\":\"$M7E_UPD\",\"scope\":\"all\",\"repeat\":\"none\"}"
+expect_status 200 "annual to never"
+expect_jq '.repeat == "none" and .repeatUntil == null' "stops repeating"
+m7e_year_starts "$ACCT" 2040 2045 04 "$M7E_AN"
+expect_eq "$M7E_STARTS" "2040-04-10" "just the one date"
+
+# Delete from the second occurrence on, then the whole series.
+m7e_post "$ACCT" '{"title":"M7E Annual delete","layer":"accounts","allDay":true,"startDate":"2040-09-01","repeat":"annually"}' "annual to delete"
+M7E_AND=$M7E_ID
+req DELETE "/api/planner/events/$M7E_AND?scope=later&occurrence=2041-09-01&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+expect_status 204 "delete from the second year"
+req GET "/api/planner/events/$M7E_AND" "$ACCT"
+expect_jq '.repeat == "annually" and .repeatUntil == "2041-08-31"' "repeatUntil is the day before, still annual"
+M7E_UPD=$(jqr '.updatedAt')
+m7e_year_starts "$ACCT" 2040 2045 09 "$M7E_AND"
+expect_eq "$M7E_STARTS" "2040-09-01" "only the first year is left"
+req DELETE "/api/planner/events/$M7E_AND?scope=later&occurrence=2040-09-01&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+expect_status 204 "delete from the first occurrence"
+req GET "/api/planner/events/$M7E_AND" "$ACCT"
+expect_status 404 "the annual series is gone"
 
 echo "--- reminders on the weekly (before it is edited) ---"
 req POST /api/planner/reminders/run "$ACCT" '{}'

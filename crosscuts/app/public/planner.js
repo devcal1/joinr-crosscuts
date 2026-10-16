@@ -41,8 +41,9 @@
     ["weekly", "Every week"],
     ["fortnightly", "Every two weeks"],
     ["monthly", "Every month"],
+    ["annually", "Every year"],
   ];
-  var REPEAT_LABELS = { weekly: "Every week", fortnightly: "Every two weeks", monthly: "Every month" };
+  var REPEAT_LABELS = { weekly: "Every week", fortnightly: "Every two weeks", monthly: "Every month", annually: "Every year" };
   var SCREEN_LANES = 3; // items a day in the month grid on screen, then "+N more"
   var PRINT_LANES = 4; // and on paper, so a busy month still fits one A4 landscape page (M7 · 4.3)
   var TILE_CAP = 6; // items in a day tile of the two weeks on screen, then "+N more" (all on paper)
