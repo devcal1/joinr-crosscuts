@@ -4,6 +4,8 @@ This document is committed, identical, in both repos: `devcal1/joinr-crosscuts` 
 
 **Version 2 (M11, plan approved by Todd 2026-10-13)** adds one optional item field, `drawers` (the won quote's drawer lines). The wire `contract` number stays **1**: the field is optional, an older Crosscuts ignores it, and a Joinr that doesn't send it is read as "no drawer data". The version 2 text was written in the Crosscuts repo first; the copy in `tenon-quotr` follows in task J2 (Crosscuts `docs/plans/m11-contracts.md` §13), which needs Todd's go.
 
+**M13 note (Crosscuts copy only, 2026-10-16):** this copy gains one explanatory line about `estimatedHours` (under "What Crosscuts does with an item"). It changes nothing on the wire, so there is no version bump. The `tenon-quotr` copy follows only with Todd's OK for a Joinr change (Crosscuts CLAUDE.md rule 12). Until then the two copies differ by that line; don't "fix" the difference by editing `tenon-quotr`.
+
 ## Purpose
 
 Crosscuts (TH Cabinets' operations app on an Umbrel server, on the workshop LAN) learns about quotes that are **won** in Joinr, so Design/PM can turn them into jobs without retyping. Crosscuts **pulls**; Joinr never calls Crosscuts (it has no public address). The endpoint is read-only.
@@ -105,6 +107,8 @@ Accept: application/json
 ## What Crosscuts does with an item (for reference; not binding on Joinr)
 
 One intake record per `rootQuoteId`. `won` → shown as new (or updated if not yet decided); after a decision (accepted, linked, ignored), any later item marks the record "Changed in Joinr" and alerts Design/PM; jobs are never edited or deleted automatically. The key is kept in a file on the Umbrel, never in a URL or a log.
+
+**Hours (M13, Crosscuts copy only):** Joinr's `estimatedHours.factory` and `estimatedHours.site` are **half the hours typed on the quote** (Joinr's engine halves them for its overhead sum), so Crosscuts doubles them back for the quoted factory and install hours on a job's bonus; `office` and `travel` aren't used.
 
 **Drawers (version 2).** Crosscuts maps each `drawers` name to a drawer brand, height and length through a list its Ordering team keeps, and fills in a drawer grid on the job when the record is accepted or linked. It never changes a grid by itself afterwards: the job page says "Changed in Joinr" and offers a refill.
 - **Absent or `null`** is "not reported". An older Joinr gets no grid, and a job accepted before this field existed has none.

@@ -30,7 +30,7 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 
 A role is a preset: a set of feature keys. A user's effective permissions are the union of their roles' keys, then each override is applied. A **grant** adds a key; a **revoke** removes it. Unknown keys in overrides are refused (400).
 
-`accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`. M7 (Staff planner) adds `planner.view` and `planner.edit` and the **workshop** role (`board.view` and `planner.view` only). Which planner layers a person sees and posts to is decided by their **roles**, not their keys (`lib/planner/layers.js`): see `docs/plans/m7-contracts.md` section 5. M8 (Pay runs) adds no key: the pay-run pages and `/api/payruns` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes), and reopening a finalised pay run needs `users.admin`: see `docs/plans/m8-contracts.md`. M9 (BAS sales and supplier accounts) adds no key: the BAS and supplier pages and `/api/bas` and `/api/suppliers` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes; a supplier statement file downloads with `accounts.view`), and reopening a lodged BAS month needs `users.admin`: see `docs/plans/m9-contracts.md`. M10 (New roles) adds `orders.view` (see order lines without the job pages: the Orders page, `GET /api/orders`, the Ordering menu; the job page's Orders section stays under `jobs.view`) and `orders.receive` (receive a line, undo it, change its received date, write a delivery note; the Deliveries page), and the **ordering** and **workshop_manager** roles. Ordering marks lines ordered, so marking a job's last line ordered makes its progress invoice due: see `docs/plans/m10-contracts.md`. M11 (Ordering pages) adds `stock.count` (type Have on the monthly stock order and quantities on the board stocktake, and see those lists without board prices) and `stock.order` (keep the stock, paint and board lists and the drawer name list, set board prices, type the stock order, run the Drawer order page and paint orders, confirm the board stock value), making **27 keys**: see `docs/plans/m11-contracts.md`. No role is added, but the Ordering preset gains both keys and the Workshop Manager preset gains `stock.count` (admin holds every key); no migration is needed for a key. The pages and what gates them are in "Ordering pages" below. M12 (Design/PM tools) adds no key and changes no role or preset (still 27 keys): the Stone orders page and the Batten calculator need `design.view`, a job's stone orders are seen and printed with `jobs.view` and changed with `jobs.edit`: see `docs/plans/m12-contracts.md` and "Design/PM tools" below.
+`accounts.view`, `invoices.edit` and `orders.mark_ordered` went live in M2 (Accounts): see `docs/plans/m2-contracts.md`. `design.view`, `orders.edit` and `inspections.edit` went live in M3 (Design/PM), and `jobs.view` now also opens the Pipeline and Orders pages: see `docs/plans/m3-contracts.md`. `tasks.use`, `messages.use` and `reports.upload` went live in M4 (Collaboration), and `accounts.view` now also opens the report library: see `docs/plans/m4-contracts.md`. `leave.edit` went live in M5 (Scheduling extras), and `scheduling.view` now also opens Availability and Lookahead: see `docs/plans/m5-contracts.md`. M6 (Joinr intake) adds no key: the inbox needs `design.view`, accepting/linking/ignoring and Sync now need `jobs.edit`, and the Joinr connection settings and the one-off import need `users.admin`: see `docs/plans/m6-contracts.md`. Backup adds no key: its section on the Users page and its routes (`/api/backup/status`, `/api/backup/run`) need `users.admin`: see `docs/plans/backup-contracts.md`. M7 (Staff planner) adds `planner.view` and `planner.edit` and the **workshop** role (`board.view` and `planner.view` only). Which planner layers a person sees and posts to is decided by their **roles**, not their keys (`lib/planner/layers.js`): see `docs/plans/m7-contracts.md` section 5. M8 (Pay runs) adds no key: the pay-run pages and `/api/payruns` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes), and reopening a finalised pay run needs `users.admin`: see `docs/plans/m8-contracts.md`. M9 (BAS sales and supplier accounts) adds no key: the BAS and supplier pages and `/api/bas` and `/api/suppliers` use the Accounts keys (`accounts.view` reads, `invoices.edit` writes; a supplier statement file downloads with `accounts.view`), and reopening a lodged BAS month needs `users.admin`: see `docs/plans/m9-contracts.md`. M10 (New roles) adds `orders.view` (see order lines without the job pages: the Orders page, `GET /api/orders`, the Ordering menu; the job page's Orders section stays under `jobs.view`) and `orders.receive` (receive a line, undo it, change its received date, write a delivery note; the Deliveries page), and the **ordering** and **workshop_manager** roles. Ordering marks lines ordered, so marking a job's last line ordered makes its progress invoice due: see `docs/plans/m10-contracts.md`. M11 (Ordering pages) adds `stock.count` (type Have on the monthly stock order and quantities on the board stocktake, and see those lists without board prices) and `stock.order` (keep the stock, paint and board lists and the drawer name list, set board prices, type the stock order, run the Drawer order page and paint orders, confirm the board stock value), making **27 keys**: see `docs/plans/m11-contracts.md`. No role is added, but the Ordering preset gains both keys and the Workshop Manager preset gains `stock.count` (admin holds every key); no migration is needed for a key. The pages and what gates them are in "Ordering pages" below. M12 (Design/PM tools) adds no key and changes no role or preset (still 27 keys): the Stone orders page and the Batten calculator need `design.view`, a job's stone orders are seen and printed with `jobs.view` and changed with `jobs.edit`: see `docs/plans/m12-contracts.md` and "Design/PM tools" below. M13 (Owner-only) adds `bonuses.manage`, `alarms.manage` and `loans.manage`, making **30 keys**. They are the **owner-only keys**: the admin preset is every key **except** these three (still 27), no other preset has them, and only the owner holds them unless the owner grants one to someone: see `docs/plans/m13-contracts.md` and "The owner and owner-only keys" below.
 
 | Feature key | Admin | Accounts | Design/PM | Scheduling | Showroom | Workshop | Ordering | Workshop Manager |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -61,6 +61,11 @@ A role is a preset: a set of feature keys. A user's effective permissions are th
 | `orders.receive` | Yes | | Yes | | | | Yes | Yes |
 | `stock.count` | Yes | | | | | | Yes | Yes |
 | `stock.order` | Yes | | | | | | Yes | |
+| `bonuses.manage` | | | | | | | | |
+| `alarms.manage` | | | | | | | | |
+| `loans.manage` | | | | | | | | |
+
+The last three are the owner-only keys (M13): no preset has them, admin included. The owner holds them, with every other key, and can grant one to someone else.
 
 ### Ordering pages (M11)
 
@@ -108,6 +113,47 @@ Drawer lines and paint job lines are ordinary order lines, so `orders.view` show
 
 So Ordering (with `design.view` and `jobs.view`, without `jobs.edit`) reads and prints stone orders but can't change them, and Accounts and Scheduling see and print them from the job page only. A stone order is not an order line: `orders.*` keys play no part, and it never affects the progress invoice.
 
+### The owner and owner-only keys (M13)
+
+Approved by Todd 2026-10-16 (`docs/plans/m13-plan.md` §5, `docs/plans/m13-contracts.md` §3).
+
+**The owner** is one login, marked on the login (`users.is_owner`), not a role. Migration 026 marked the first-run setup user (Todd); from then on first-run setup marks the first admin. There is always exactly one owner, and the owner is always an enabled admin. The Users page shows an **OWNER** mark by the owner's name.
+
+**What the owner holds:** every key (all 30), whatever their roles and overrides. Overrides don't apply to the owner ("The owner holds every key, so overrides don't apply", 409). The admin preset is every key except the three owner-only ones, so another admin has 27.
+
+| Key | Opens | Menu |
+|---|---|---|
+| `bonuses.manage` | `/bonuses.html` and `/bonusprint.html`: job bonuses, the rate and share points, confirming, paying, the owed summary and the prints ([how-to-bonuses.md](how-to-bonuses.md)) | Admin, Bonuses |
+| `alarms.manage` | `/alarms.html`: alarm slots and codes (Show), the alarm company, the weekly times; the leavers line on the dashboard ([how-to-alarm-codes.md](how-to-alarm-codes.md)) | Admin, Alarms |
+| `loans.manage` | `/loans.html` and `/loanprint.html`: loans, rates, repayments and the statement ([how-to-loans.md](how-to-loans.md)) | Accounts, Loans |
+
+**Only the owner** (each refusal is a 403 with this sentence):
+
+| Action | Refused for anyone else with |
+|---|---|
+| Change the owner's login (display name, roles, disable, overrides) | "Only the owner can change the owner's login" |
+| Reset the owner's password | "Only the owner can reset the owner's password" |
+| Sign the owner out everywhere | "Only the owner can sign the owner out" |
+| Grant or revoke an owner-only key, for anyone (themselves included) | "Only the owner can grant or revoke <key>" |
+| Reset the password of a login that holds an owner-only key **by a grant override** | "Only the owner can reset the password of someone holding <key>" |
+| Hand over ownership | "Only the owner can hand over ownership" |
+
+The password rule for holders is Todd's (2026-10-16): otherwise another admin could reset, say, an Accounts login granted `loans.manage` and sign in as them to read the loans. Disabling such a login, or signing it out, stays open to any admin, because that only takes access away. A revoke override doesn't count as holding the key.
+
+The owner can't disable themselves or remove their own admin role (the existing self rules), and nobody else may act on the owner, which is what keeps exactly one enabled-admin owner.
+
+**Handing over ownership** (`POST /api/users/:id/owner`): on the Users page, the owner opens another **enabled admin** and presses **Transfer ownership**, types that person's username and their own password, then **Transfer**. The new owner gets every key. The old owner stays an admin with the admin preset's 27 keys (plus any grant override left from before), and gets an owner-only key back only if the new owner grants it. No sessions end. It writes a `user.owner` audit row. Refusals: "You're already the owner", "The new owner must be an enabled admin", "Type <username> to confirm", "That password isn't right".
+
+**The audit log:** rows about bonuses, alarms and loans (entity types `bonus`, `bonus_settings`, `alarm_slot`, `alarm_company`, `alarm_times`, `loan`) are shown only to someone holding the matching key, so the owner sees them all and other admins see none of them. They're left out of the count, and their action names (such as `bonus.confirm`) aren't offered in the filter either. Asking for them by entity type gives an empty list, not a refusal. The rows keep their before and after values for the key holders, except alarm codes, which never enter the log (a code change says "set", "changed" or "cleared"; a Show names the slot only). Rows about the users themselves (`user.override` naming an owner-only key, `user.owner`) are ordinary user rows, seen by everyone with `audit.view`. The list of private entity types is `PRIVATE_ENTITY_TYPES` in `lib/audit.js`.
+
+**No notices, tasks, comments or Planner items** come from these three areas (the admin role sees all of those). The only prompt is the alarm leavers line, on the Alarms page and on the dashboard of whoever holds `alarms.manage`.
+
+**What this doesn't protect** (stated plainly, as the plan does):
+- **Anyone with the Umbrel itself, or the backup passphrase, can read the database:** bonuses and loans in plain, and the alarm codes too, because the alarm code key file sits beside the database in `data/config/` and goes into the same backup archive. The guards protect the figures **inside Crosscuts** only. The code encryption protects the codes in the plain pre-migration copies on the Umbrel and in the database file on its own.
+- A non-owner admin can still disable a holder of an owner-only key, or sign them out, and can use every other part of Crosscuts as before.
+
+**A database with no owner** can only be one that had no enabled admin when migration 026 ran, which the last-admin rule has prevented since M1. Then nobody holds the owner-only keys and every "only the owner" guard refuses everyone. There is no "claim ownership" button: fixing it is a hand step on the Umbrel for Todd (one `UPDATE` setting `is_owner = 1` on one enabled admin), with Claude, after a backup.
+
 ### Planner layers
 
 The Planner (M7) has seven layers. `planner.view` is needed to see any of them and `planner.edit` to add, change or delete anything; beyond that, the layers follow a person's **roles**, and a key override never adds a department layer. "Admin" here means the admin role. Someone with several roles gets every layer any of their roles gives.
@@ -146,7 +192,7 @@ Cookies are SameSite=Lax. Every non-GET request must also send an `Origin` heade
 
 ## First admin
 
-`/setup.html` creates the first admin and logs them in with "remember" on. It works only while there are no users. After that, `/api/auth/setup` returns 404.
+`/setup.html` creates the first admin and logs them in with "remember" on. It works only while there are no users. After that, `/api/auth/setup` returns 404. From M13 the first admin is also marked **the owner** (above).
 
 ## Why scrypt
 
@@ -157,11 +203,12 @@ Passwords and PINs use Node's built-in `crypto.scrypt` (N=2^15, r=8, p=1). The p
 There is **no email reset.**
 
 - Another admin can reset the password on the Users page. The user must change it at next login, and their sessions end.
+- **Except (M13):** only the owner can reset the owner's password, and the password of a login holding an owner-only key by a grant override. Another admin sees "Only the owner can reset this password (they hold <key>)." in place of the reset box.
+- **So if the owner forgets their password, no other admin can reset it**, and there is no recovery path yet. Keep the owner's password in the password manager. A recovery runbook, with a manual step on the Umbrel, is to be written. It is not yet available.
+- If the only admin forgets their password, the same applies (the only admin is the owner). Keep a second admin account.
 
 ## Password expiry
 
 A password lasts six months. At the first sign-in after that, the user must choose a new one before Crosscuts shows anything else. Sessions that are already signed in, such as the workshop TV, keep working: the check happens only at sign-in. Changing a password signs that person out on their other devices.
 
 While a password change is pending, the server refuses every API call except who-am-I, the change itself and lock (403, `mustChangePassword`), so the rule holds even outside the browser.
-- If the only admin forgets their password, there is **no recovery path yet**. A recovery runbook, with a manual step on the Umbrel, is to be written. It is not yet available.
-- Until then, keep a second admin account.
