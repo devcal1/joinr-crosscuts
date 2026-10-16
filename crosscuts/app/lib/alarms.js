@@ -63,6 +63,13 @@ function dayLabel(s) {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+// A positive integer id from a body value: a number or a digit string, the same forms
+// lib/bonuses.js takes for a person (M13 4.3), else null.
+function bodyId(v) {
+  const n = typeof v === "string" && /^[1-9]\d*$/.test(v) ? Number(v) : v;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
 function isPlainObject(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
@@ -186,8 +193,9 @@ function holderInput(body) {
     if (t.length > HOLDER_NAME_MAX) throw bad(`Holder name must be ${HOLDER_NAME_MAX} characters or fewer`);
     return { kind: "name", name: t };
   }
-  if (typeof v !== "number" || !Number.isSafeInteger(v) || v < 1) throw bad(MSG_PERSON);
-  return k === "personId" ? { kind: "person", personId: v } : { kind: "person", workerId: v };
+  const pid = bodyId(v);
+  if (pid === null) throw bad(MSG_PERSON);
+  return k === "personId" ? { kind: "person", personId: pid } : { kind: "person", workerId: pid };
 }
 
 // Resolves a person holder to a pay_people id (inside the caller's transaction: a worker with no row
@@ -380,14 +388,36 @@ function restoreSlot(db, req, id) {
   return getSlot(db, id);
 }
 
-// {code}: the only answer that carries one (the route adds Cache-Control: no-store). Check order as
-// section 5.3; the audit row names the slot number only.
+// The reveal's audit row (M13 4.3, A-m4). audit.log never throws (an audit failure must not break
+// the request it records), but a code must never be shown without its row: so this is a plain
+// insert into audit_log, the same columns as audit.log writes, that throws on any failure.
+function mustAudit(db, req, { action, entityType, entityId, after }) {
+  const user = req && req.user ? req.user : null;
+  db.prepare(
+    `INSERT INTO audit_log (actor_user_id, actor_label, action, entity_type, entity_id, before_json, after_json, ip)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    user && user.id != null ? user.id : null,
+    user && user.username ? String(user.username) : "system",
+    action,
+    entityType,
+    String(entityId),
+    null,
+    JSON.stringify(after),
+    req && req.ip ? String(req.ip) : null
+  );
+}
+
+// {code}: the only answer that carries one (the route adds Cache-Control: no-store and no ETag).
+// Check order as section 5.3; the audit row names the slot number only. The row is written inside
+// the transaction by an insert that throws, and the code is handed back only once it has committed:
+// if the row can't be written, the request fails and the code is never shown.
 function reveal(db, req, id) {
   const row = slotRow(db, id);
   if (!row) throw notFound();
   const code = alarmcode.decrypt(db, row);
   db.transaction(() => {
-    audit.log(req, { action: "alarm_slot.reveal", entityType: "alarm_slot", entityId: row.id, after: { slot: row.slot } });
+    mustAudit(db, req, { action: "alarm_slot.reveal", entityType: "alarm_slot", entityId: row.id, after: { slot: row.slot } });
   })();
   return { code };
 }

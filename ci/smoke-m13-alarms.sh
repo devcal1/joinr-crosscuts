@@ -1,10 +1,12 @@
 # M13 smoke, Wave 1 C: alarm holders and codes.
 # Sourced by ci/smoke.sh after the M12 suites, so it shares that script's helpers (step, req, hdr,
-# expect_status, expect_jq, expect_eq, jqr, fail, ok) and the cookie jars ($ADMIN, the owner, $ACCT
-# $DPM) and $CONTAINER. No shebang and no `set`: the caller owns both.
+# expect_status, expect_jq, expect_eq, jqr, fail, ok, create_user, login, own_password, new_jar),
+# the cookie jars ($ADMIN, the owner, $ACCT $DPM), $WORK and $CONTAINER. No shebang and no `set`:
+# the caller owns both.
 # It does not assume a pristine database: it uses slot numbers 900-909 only and clears them first,
 # its names carry a run tag, and it checks only its own rows. Made-up names and codes only (this
-# repo is public). Its audit rows are read as the owner ($ADMIN).
+# repo is public). Its audit rows are read as the owner ($ADMIN). Its own second admin (to prove
+# a non-owner admin can't Show a code) is disabled at the end.
 # Contract: docs/plans/m13-contracts.md sections 5, 7.2 and 11.4.
 
 # ============================================================================
@@ -22,6 +24,7 @@ M13_A_KEYFILE=/data/config/alarm-code-key
 M13_A_AWAY=/tmp/m13-alarm-code-key
 M13_A_MISSING_SHOW="The alarm code key is missing, so codes can't be shown. Restore config/alarm-code-key from a backup."
 M13_A_MISSING_SAVE="The alarm code key is missing. Restore config/alarm-code-key from a backup, or clear every saved code, before saving a new one."
+M13_A_INVALID_FILE="The alarm code key file (config/alarm-code-key) isn't a valid key. Restore it from a backup, or remove it so a new one can be made."
 
 # Today is the server's (Sydney) date.
 req GET /api/orders/deliveries "$ADMIN"
@@ -76,6 +79,25 @@ expect_status 200 "admin GET /api/alarms/summary"
 expect_jq '.leavers | type == "array"' "the summary lists leavers"
 req GET /api/alarms/summary "$ACCT"
 expect_status 403 "acct GET /api/alarms/summary"
+for M13_A_GET in /api/alarms /api/alarms/summary; do
+  req GET "$M13_A_GET" "$ADMIN"
+  expect_eq "$(hdr Cache-Control)" "no-store" "GET $M13_A_GET is Cache-Control: no-store"
+done
+
+# A second admin of its own (not the owner, so without alarms.manage), disabled at the end.
+M13_A_ADM_USER="m13aladm$M13_A_TAG"
+M13_A_ADM_PW="M13-Al-Adm-Passw0rd-$M13_A_TAG"
+create_user "$M13_A_ADM_USER" "M13 Alarm Admin $M13_A_TAG" "Tmp-$M13_A_ADM_PW" admin
+M13_A_ADM_ID=$CREATED_ID
+M13_A_ADM="$WORK/jar-m13-al-adm"
+new_jar "$M13_A_ADM"
+login "$M13_A_ADM" "$M13_A_ADM_USER" "Tmp-$M13_A_ADM_PW"
+expect_status 200 "login the second admin"
+own_password "$M13_A_ADM" "Tmp-$M13_A_ADM_PW" "$M13_A_ADM_PW"
+req GET /api/auth/me "$M13_A_ADM"
+expect_jq '.user.isOwner == false and (.user.perms | index("alarms.manage")) == null' "the second admin isn't the owner and lacks alarms.manage"
+req GET /api/alarms "$M13_A_ADM"
+expect_status 403 "the second admin GET /api/alarms"
 
 echo "--- slots 900-909 cleared first ---"
 req GET /api/alarms "$ADMIN"
@@ -117,6 +139,13 @@ req POST "/api/alarms/slots/$M13_A_S900/reveal" "$ADMIN"
 expect_status 200 "Show slot 900"
 expect_jq ".code == \"$M13_A_C1\"" "reveal answers the code with its leading zeros"
 expect_eq "$(hdr Cache-Control)" "no-store" "reveal is Cache-Control: no-store"
+expect_eq "$(hdr ETag)" "" "reveal carries no ETag (a hash of the code)"
+req POST "/api/alarms/slots/$M13_A_S900/reveal" "$M13_A_ADM" '{}'
+expect_status 403 "the second admin (not the owner) can't Show a code"
+m13_a_no_codes "the second admin's refusal"
+req POST "/api/alarms/slots/$M13_A_S900/reveal" "$ACCT" '{}'
+expect_status 403 "acct can't Show a code"
+m13_a_no_codes "acct's refusal"
 
 req POST /api/alarms/slots "$ADMIN" "$(jq -nc --arg n "$M13_A_TEMP" --arg c "$M13_A_C2" '{slot:901, holderName:$n, type:"temp", code:$c}')"
 expect_status 201 "slot 901, a typed name with a 12-digit code"
@@ -146,8 +175,11 @@ const D = require("better-sqlite3");
 const d = new D("/data/db/photos.db", { readonly: true });
 const [s1, s2, mark, c1, c2] = process.argv.slice(1);
 const bad = [];
+// Not the key id (16 hex characters, which could hold "0042" by chance) nor a row or user id (a
+// number such as 10042): neither can carry a code.
+const skip = (k) => k === "code_key_id" || k === "id" || /_id$/.test(k) || /_by$/.test(k);
 for (const r of d.prepare("SELECT * FROM alarm_slots WHERE id IN (?, ?)").all(Number(s1), Number(s2))) {
-  for (const [k, v] of Object.entries(r)) if (v != null && (String(v).includes(c1) || String(v).includes(c2))) bad.push("alarm_slots." + k);
+  for (const [k, v] of Object.entries(r)) if (!skip(k) && v != null && (String(v).includes(c1) || String(v).includes(c2))) bad.push("alarm_slots." + k);
 }
 const rows = d.prepare("SELECT id, before_json, after_json FROM audit_log WHERE id > ? OR entity_type LIKE ?").all(Number(mark), "alarm%");
 for (const r of rows) for (const v of [r.before_json, r.after_json]) if (v && (v.includes(c1) || v.includes(c2))) bad.push("audit_log " + r.id);
@@ -171,6 +203,15 @@ expect_jq '.error == "Slot 900 is already in use"' "the in-use sentence"
 req POST /api/alarms/slots "$ADMIN" "$(jq -nc --arg n "$M13_A_OFFICE" '{slot:1000, holderName:$n, type:"office"}')"
 expect_status 400 "slot 1000"
 expect_jq '.error == "The slot number must be a whole number from 1 to 999"' "the slot-number sentence"
+req POST /api/alarms/slots "$ADMIN" "{\"slot\":903,\"personId\":\"$M13_A_PID\",\"type\":\"office\"}"
+expect_status 201 "slot 903 with the person's id as a digit string (as bonuses take it)"
+expect_jq ".slot == 903 and .personId == $M13_A_PID and .name == \"$M13_A_PERSON\"" "slot 903 is the person's"
+M13_A_S903=$(jqr '.id')
+req POST "/api/alarms/slots/$M13_A_S903/remove" "$ADMIN" '{}'
+expect_status 200 "remove slot 903"
+req POST /api/alarms/slots "$ADMIN" '{"slot":903,"personId":"12a","type":"office"}'
+expect_status 400 "a person id that isn't a number"
+expect_jq '.error == "Holder must be a person from the pay list"' "the person sentence"
 req POST /api/alarms/slots "$ADMIN" "$(jq -nc --arg n "$M13_A_OFFICE" '{slot:903, holderName:$n, type:"office", bogus:1}')"
 expect_status 400 "an unknown field"
 expect_jq '.error == "Unknown field: bogus"' "the unknown field is named"
@@ -261,6 +302,29 @@ expect_eq "$M13_A_NOKEY" "none" "no new key was made while a code exists"
 req PATCH "/api/alarms/slots/$M13_A_S901" "$ADMIN" '{"code":null}'
 expect_status 200 "clear 901's code with the key missing"
 expect_jq '.code.set == false' "901's code is cleared"
+# A file that isn't a valid key (M13 4.3, A-m5): with no code saved anywhere, its own sentence
+# (there is nothing to clear); with codes saved elsewhere (a database that isn't pristine), the
+# missing-key one. Either way the file is never overwritten.
+M13_A_CODES=$(docker exec "$CONTAINER" node -e '
+const D = require("better-sqlite3");
+const d = new D("/data/db/photos.db", { readonly: true });
+console.log(String(d.prepare("SELECT COUNT(*) AS n FROM alarm_slots WHERE code_ct IS NOT NULL").get().n));
+d.close();' | tr -d '\r') || fail "counting the saved codes failed"
+docker exec "$CONTAINER" sh -c "printf 'm13-not-a-key\n' > $M13_A_KEYFILE" || fail "writing a file that isn't a key failed"
+ok
+req GET /api/alarms "$ADMIN"
+expect_status 200 "the overview with a file that isn't a key"
+expect_jq '.keyState == "missing"' "a file that isn't a key counts as missing"
+req PATCH "/api/alarms/slots/$M13_A_S902" "$ADMIN" '{"code":"5"}'
+expect_status 409 "save a code with a file that isn't a key"
+if [ "$M13_A_CODES" = 0 ]; then
+  expect_jq ".error == \"$M13_A_INVALID_FILE\"" "the not-a-valid-key sentence"
+else
+  expect_jq ".error == \"$M13_A_MISSING_SAVE\"" "the missing-key save sentence (codes saved elsewhere)"
+fi
+M13_A_JUNK=$(docker exec "$CONTAINER" cat "$M13_A_KEYFILE" | tr -d '\r')
+expect_eq "$M13_A_JUNK" "m13-not-a-key" "the file that isn't a key was not overwritten"
+docker exec "$CONTAINER" rm -f "$M13_A_KEYFILE" || fail "removing the file that isn't a key failed"
 docker exec "$CONTAINER" sh -c "mv $M13_A_AWAY $M13_A_KEYFILE" || fail "moving the key file back failed"
 ok
 req PATCH "/api/alarms/slots/$M13_A_S901" "$ADMIN" "$(jq -nc --arg c "$M13_A_C2" '{code:$c}')"
@@ -296,8 +360,12 @@ expect_jq 'length == 7 and .[0].day == 1 and .[0].label == "Monday" and .[6].lab
   "seven days, Monday first, as sent"
 
 echo "--- the server log ---"
-M13_A_LOGHITS=$(docker logs "$CONTAINER" 2>&1 | grep -c "$M13_A_C2" || true)
-expect_eq "${M13_A_LOGHITS//$'\r'/}" "0" "the server log never holds the 12-digit code"
+# Read first, so a failed `docker logs` fails the suite instead of looking like a clean log.
+docker logs "$CONTAINER" >"$WORK/m13-alarm-logs.txt" 2>&1 || fail "docker logs failed"
+[ -s "$WORK/m13-alarm-logs.txt" ] || fail "docker logs gave nothing to search"
+if grep -qF -- "$M13_A_C2" "$WORK/m13-alarm-logs.txt"; then fail "the server log holds the 12-digit code"; fi
+ok
+rm -f "$WORK/m13-alarm-logs.txt"
 
 echo "--- clean-up ---"
 for M13_A_ID in "$M13_A_S901" "$M13_A_S902"; do
@@ -308,3 +376,5 @@ req GET /api/alarms "$ADMIN"
 expect_jq '[.slots[] | select(.removedDate == null and .slot >= 900 and .slot <= 909)] | length == 0' "no slot 900-909 left in use"
 req PATCH "/api/payruns/people/$M13_A_PID" "$ACCT" '{"archived":false}'
 expect_status 200 "acct restores the person"
+req PATCH "/api/users/$M13_A_ADM_ID" "$ADMIN" '{"disabled":true}'
+expect_status 200 "the owner disables the suite's second admin"

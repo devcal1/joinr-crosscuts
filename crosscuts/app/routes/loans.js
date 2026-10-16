@@ -15,6 +15,8 @@ const KEY = "loans.manage";
 
 function handle(fn) {
   return (req, res) => {
+    // Nothing from this area is kept by a browser or a proxy (M13 4.3): every GET, refusals too.
+    if (req.method === "GET") res.set("Cache-Control", "no-store");
     try {
       fn(req, res);
     } catch (e) {

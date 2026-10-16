@@ -15,8 +15,9 @@
 #
 # Checks, in order (section 16.3): 1 access; 2 nothing set up; 3 passphrase not usable;
 # 4 passphrase only; 5 event loop; 6 half set up; 7 the copy; 8 second run; 9 wrong password
-# and the refusal lock; 10 daemon down; 11 no leaks; 12 restore drill; 13 clean-up. Plus, for
-# information only, whether this image's 7-Zip reads a passphrase from stdin (section 18 item 2).
+# and the refusal lock; 10 daemon down; 11 no leaks; 12 restore drill (db, files and, M13, key);
+# 13 clean-up. Plus, for information only, whether this image's 7-Zip reads a passphrase from
+# stdin (section 18 item 2).
 
 BK_PP='ciBackupPass-5d2e8f1a7c3'          # the test passphrase: 24 characters
 BK_PP_SHORT='ciShortPw01'                  # 11 characters: not usable
@@ -672,7 +673,7 @@ docker logs "$CONTAINER" >"$WORK/bk-logs.txt" 2>&1
 bk_scan "$WORK/bk-logs.txt" "docker logs"
 
 # ============================================================================
-step "backup-12. restore drill: restore.js db and files in a throwaway container"
+step "backup-12. restore drill: restore.js db, files and key in a throwaway container"
 # ============================================================================
 
 BK_DRILL="$WORK/bk-drill"
@@ -763,6 +764,99 @@ bk_out=$(printf '%s\n' "$BK_PP_WRONG" | docker run --rm -i --network none -v "$B
 expect_eq "$bk_rc" 1 "restore.js db with a wrong passphrase exits 1"
 bk_state_after=$(bk_drill_state) || fail "could not read the drill folder"
 expect_eq "$bk_state_after" "$bk_state_before" "a refused restore changed nothing in db/ or config/"
+
+echo "--- restore.js key puts back only the alarm code key ---"
+# M13 (docs/plans/m13-contracts.md section 12.2 item 4). The drill's db/ and config/ files by
+# sha256, and the key file's sha256 and mode.
+bk_key_state() {
+  bk_drill node -e '
+const fs = require("fs");
+const crypto = require("crypto");
+const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+const files = (d) => Object.fromEntries(fs.readdirSync(d).filter((n) => fs.lstatSync(d + "/" + n).isFile()).sort().map((n) => [n, sha(d + "/" + n)]));
+const k = "/data/config/alarm-code-key";
+const has = fs.existsSync(k);
+process.stdout.write(JSON.stringify({ db: files("/data/db"), config: files("/data/config"),
+  key: has ? sha(k) : null, keyMode: has ? (fs.statSync(k).mode & 0o777).toString(8) : null }));'
+}
+# bk_key_run ARCHIVE [ARGS...]: restore.js key in the drill, the passphrase on stdin; sets bk_rc
+# and bk_out.
+bk_key_run() {
+  local arch=$1
+  shift
+  bk_rc=0
+  bk_out=$(printf '%s\n' "$BK_PP" | docker run --rm -i --network none -v "$BK_DRILL:/data" "$IMAGE" \
+    node tools/restore.js key "$arch" "$@" 2>&1) || bk_rc=$?
+}
+# db --config above brought the archive's key back, so the drill's key is now the archive's.
+bk_key0=$(bk_key_state) || fail "could not read the drill folder"
+BK_KEY_ARCH=$(printf '%s' "$bk_key0" | jq -r '.key // ""')
+[ -n "$BK_KEY_ARCH" ] || fail "restore.js db --config did not bring config/alarm-code-key back: $bk_key0"
+ok
+# A different made-up key in its place (mode 644), as if the file had been replaced by mistake.
+bk_drill node -e '
+const fs = require("fs");
+fs.writeFileSync("/data/config/alarm-code-key", "ab".repeat(32) + "\n");
+fs.chmodSync("/data/config/alarm-code-key", 0o644);' || fail "could not write the made-up key"
+bk_key1=$(bk_key_state) || fail "could not read the drill folder"
+BK_KEY_MADE=$(printf '%s' "$bk_key1" | jq -r '.key // ""')
+[ -n "$BK_KEY_MADE" ] && [ "$BK_KEY_MADE" != "$BK_KEY_ARCH" ] || fail "the made-up key is not in place: $bk_key1"
+ok
+
+bk_key_run "/data/in/$BK_NEWEST" --yes
+[ "$bk_rc" = 0 ] || fail "restore.js key exited $bk_rc: ${bk_out:0:1500}"
+ok
+bk_key2=$(bk_key_state) || fail "could not read the drill folder"
+printf '%s' "$bk_key2" | jq -e --arg k "$BK_KEY_ARCH" '.key == $k and .keyMode == "600"' >/dev/null \
+  || fail "restore.js key did not put the archive's key back with mode 600: $bk_key2"
+ok
+printf '%s' "$bk_key2" | jq -e --arg m "$BK_KEY_MADE" \
+  '[.config | to_entries[] | select(.key | startswith("alarm-code-key.before-restore-")) | .value] == [$m]' >/dev/null \
+  || fail "the replaced key was not kept as alarm-code-key.before-restore-<stamp>: $bk_key2"
+ok
+printf '%s' "$bk_key2" | jq -e --argjson b "$bk_key1" \
+  '.db == $b.db and [.config | to_entries[] | select(.key | startswith("alarm-code-key") | not)] == [$b.config | to_entries[] | select(.key | startswith("alarm-code-key") | not)]' >/dev/null \
+  || fail "restore.js key touched something besides the key file: $bk_key1 then $bk_key2"
+ok
+
+bk_key_run "/data/in/$BK_NEWEST" --yes
+[ "$bk_rc" = 0 ] || fail "restore.js key (the same key again) exited $bk_rc: ${bk_out:0:1500}"
+case $bk_out in *"already the same"*) ok ;; *) fail "restore.js key again didn't say the key is already the same: ${bk_out:0:600}" ;; esac
+bk_key3=$(bk_key_state) || fail "could not read the drill folder"
+expect_eq "$bk_key3" "$bk_key2" "restore.js key with the same key changed nothing"
+
+echo "--- restore.js key refusals change nothing ---"
+bk_rc=0
+bk_out=$(printf 'no\n%s\n' "$BK_PP" | docker run --rm -i --network none -v "$BK_DRILL:/data" "$IMAGE" \
+  node tools/restore.js key "/data/in/$BK_NEWEST" 2>&1) || bk_rc=$?
+expect_eq "$bk_rc" 3 "restore.js key without the stop confirmed exits 3"
+bk_rc=0
+bk_out=$(printf '%s\n' "$BK_PP_WRONG" | docker run --rm -i --network none -v "$BK_DRILL:/data" "$IMAGE" \
+  node tools/restore.js key "/data/in/$BK_NEWEST" --yes 2>&1) || bk_rc=$?
+expect_eq "$bk_rc" 1 "restore.js key with a wrong passphrase exits 1"
+bk_key_run "/data/in/$BK_NEWEST" --yes --config
+expect_eq "$bk_rc" 2 "restore.js key with --config is a usage error (exit 2)"
+# Two archives made from the newest one (same name, own folders): one without the key file, one
+# whose key file isn't a key. 7-Zip and the test passphrase are CI values, as above.
+docker exec "$CONTAINER" rm -rf /tmp/bk-k /tmp/bk-k-nokey.7z /tmp/bk-k-junk.7z
+bk_7z x -bsp0 -bso0 -y "-p$BK_PP" -o/tmp/bk-k -- "$BK_ARCHIVES/$BK_NEWEST" >/dev/null 2>&1 || fail "7z x of the newest archive failed"
+docker exec "$CONTAINER" rm -f /tmp/bk-k/config/alarm-code-key
+docker exec "$CONTAINER" sh -c "cd /tmp/bk-k && \"$BK_7Z\" a -t7z -mhe=on -bsp0 -bso0 \"-p$BK_PP\" -- /tmp/bk-k-nokey.7z * >/dev/null 2>&1" \
+  || fail "7z a of the archive without a key failed"
+docker exec "$CONTAINER" sh -c "printf 'm13-not-a-key\n' > /tmp/bk-k/config/alarm-code-key && cd /tmp/bk-k && \"$BK_7Z\" a -t7z -mhe=on -bsp0 -bso0 \"-p$BK_PP\" -- /tmp/bk-k-junk.7z * >/dev/null 2>&1" \
+  || fail "7z a of the archive with a junk key failed"
+mkdir -p "$BK_DRILL/in/nokey" "$BK_DRILL/in/junk"
+docker cp "$CONTAINER:/tmp/bk-k-nokey.7z" "$BK_DRILL/in/nokey/$BK_NEWEST" >/dev/null
+docker cp "$CONTAINER:/tmp/bk-k-junk.7z" "$BK_DRILL/in/junk/$BK_NEWEST" >/dev/null
+docker exec "$CONTAINER" rm -rf /tmp/bk-k /tmp/bk-k-nokey.7z /tmp/bk-k-junk.7z
+bk_key_run "/data/in/nokey/$BK_NEWEST" --yes
+expect_eq "$bk_rc" 1 "restore.js key from an archive with no key file exits 1"
+case $bk_out in *"has no alarm code key"*) ok ;; *) fail "restore.js key (no key file) didn't say why: ${bk_out:0:600}" ;; esac
+bk_key_run "/data/in/junk/$BK_NEWEST" --yes
+expect_eq "$bk_rc" 1 "restore.js key from an archive whose key isn't 64 hex characters exits 1"
+case $bk_out in *"not 64 hex characters"*) ok ;; *) fail "restore.js key (junk key) didn't say why: ${bk_out:0:600}" ;; esac
+bk_key4=$(bk_key_state) || fail "could not read the drill folder"
+expect_eq "$bk_key4" "$bk_key2" "the refused key restores changed nothing in db/ or config/"
 
 # ============================================================================
 step "backup-13. clean-up: the stand-in and the backup set-up removed"

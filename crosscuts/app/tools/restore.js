@@ -13,6 +13,8 @@
 //                                                config files)
 //   files <folder>                               decrypt every <name>.7z in <folder> into
 //                                                uploads/files/ (never overwrites)
+//   key <archive> [--yes]                        put back only config/alarm-code-key from the
+//                                                archive (m13-contracts.md section 12.2 item 4)
 //
 // <archive> is a path, or a bare name looked up in db/backups/archives.
 // The passphrase: a hidden prompt on a terminal, else one line read from standard input (CI).
@@ -45,6 +47,10 @@ const UNVERIFIED = ".unverified";
 const LIVE = "photos.db";
 const MIGRATIONS_DIR = path.join(__dirname, "..", "db", "migrations");
 const IS_POSIX = typeof process.getuid === "function";
+// The alarm code key (m13-contracts.md section 5.1): 64 hex characters and a newline. The same
+// rule lib/alarmcode.js reads it by, copied here because this file never requires the app's lib/.
+const ALARM_KEY = "alarm-code-key";
+const ALARM_KEY_RE = /^[0-9a-fA-F]{64}$/;
 
 const USAGE = [
   "Usage: node tools/restore.js <command>",
@@ -54,6 +60,7 @@ const USAGE = [
   "  db <archive> [--config] [--yes] [--unverified]",
   "                                                restore the database from an archive",
   "  files <folder>                                put the private files in <folder> back",
+  "  key <archive> [--yes]                         put back only the alarm code key from an archive",
   "",
   "Run it with Crosscuts stopped. See docs/restore.md.",
 ].join("\n");
@@ -653,6 +660,94 @@ async function cmdFiles(arg) {
   return EXIT.ok;
 }
 
+// ---- key ----------------------------------------------------------------------------------------
+// Puts back only config/alarm-code-key (m13-contracts.md section 12.2 item 4), for a lost or
+// damaged key file: every archive since the first code was saved holds the same key. Nothing else
+// is touched: no database, no other config file. The archive is opened and checked as `check`
+// does; one with no key file, or whose key isn't 64 hex characters, is refused (exit 1) before
+// anything changes. A current key file that differs is kept as alarm-code-key.before-restore-<stamp>
+// (as `db --config` keeps a config file); the new one is written with mode 600.
+async function cmdKey(arg, flags) {
+  const target = resolveArchive(arg, false);
+  await confirmStopped(flags.yes);
+  const passphrase = await askPassphrase();
+  let dir;
+  try {
+    dir = makeStaging();
+    const a = await openArchive(target.file, passphrase, dir);
+    if (!a.configFiles.includes(ALARM_KEY)) {
+      throw new CliError(`This archive has no alarm code key (config/${ALARM_KEY}). Nothing was changed.`);
+    }
+    const data = fs.readFileSync(path.join(dir, manifest.CONFIG_FOLDER, ALARM_KEY));
+    if (!ALARM_KEY_RE.test(data.toString("utf8").trim())) {
+      throw new CliError("The alarm code key in this archive is not 64 hex characters. Nothing was changed.");
+    }
+
+    // lib/config.js makes the config folder when this file loads, as for every command.
+    const cfg = lstatOrNull(CONFIG_DIR);
+    if (!cfg || !cfg.isDirectory()) throw new CliError("The config folder could not be read. Nothing was changed.");
+    const to = path.join(CONFIG_DIR, ALARM_KEY);
+    const st = lstatOrNull(to);
+    if (st && !st.isFile()) {
+      throw new CliError(`Something that is not a file is named config/${ALARM_KEY}. Nothing was changed.`);
+    }
+    say(`Archive: ${target.name}`);
+    if (st && fs.readFileSync(to).equals(data)) {
+      try {
+        fs.chmodSync(to, 0o600);
+      } catch {
+        // Windows: modes don't apply
+      }
+      say(`config/${ALARM_KEY} is already the same as the archive's. Nothing was changed.`);
+      return EXIT.ok;
+    }
+    const aside = `${to}.before-restore-${stamp()}`;
+    if (st && lstatOrNull(aside) !== null) {
+      throw new CliError("A key .before-restore file with this time already exists. Try again in a second. Nothing was changed.");
+    }
+
+    // Keep the current file (renamed, never deleted), then move the new one in.
+    const tmp = path.join(CONFIG_DIR, `.${ALARM_KEY}.restore-${process.pid}`);
+    let setAside = false;
+    try {
+      if (st) {
+        fs.renameSync(to, aside);
+        setAside = true;
+      }
+      fs.writeFileSync(tmp, data, { mode: 0o600, flag: "wx" });
+      try {
+        fs.chmodSync(tmp, 0o600);
+      } catch {
+        // Windows: modes don't apply
+      }
+      chownLike(tmp, cfg.uid, cfg.gid);
+      fs.renameSync(tmp, to);
+    } catch (e) {
+      try {
+        fs.rmSync(tmp, { force: true });
+      } catch {
+        // left for a person to remove; a dotfile is never archived
+      }
+      if (setAside) {
+        try {
+          fs.renameSync(aside, to);
+        } catch {
+          warn(`Warning: the previous key file could not be put back; it is config/${path.basename(aside)}.`);
+        }
+      }
+      throw new CliError(`The key file could not be written (${safeErrorCode(e)}). Nothing was changed unless a line above says so.`);
+    }
+
+    say(`Restored config/${ALARM_KEY} from the archive (mode 600). Nothing else was changed.`);
+    say(st ? `The previous key file was kept, renamed: ${path.basename(aside)}.` : "There was no key file before.");
+    say("");
+    say("Start Crosscuts in umbrelOS, log in, open Alarms and Show a code to check it.");
+    return EXIT.ok;
+  } finally {
+    removeStaging(dir);
+  }
+}
+
 // ---- main ---------------------------------------------------------------------------------------
 function parseArgs(argv) {
   const flags = { config: false, yes: false, unverified: false };
@@ -690,6 +785,9 @@ async function main(argv) {
     case "files":
       if (extra || flags.config || flags.yes || flags.unverified) break;
       return cmdFiles(arg);
+    case "key":
+      if (extra || flags.config || flags.unverified) break;
+      return cmdKey(arg, flags);
     default:
       break;
   }

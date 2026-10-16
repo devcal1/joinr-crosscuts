@@ -1,10 +1,12 @@
 # M13 smoke, Wave 1 B: job bonuses.
 # Sourced by ci/smoke.sh after the M12 suites, so it shares that script's helpers (step, req,
-# expect_status, expect_jq, expect_eq, jqr, fail, ok) and the cookie jars ($ADMIN is the owner and
-# holds bonuses.manage; $ACCT and $DPM don't). No shebang and no `set`: the caller owns both.
+# expect_status, expect_jq, expect_eq, jqr, hdr, fail, ok) and the cookie jars ($ADMIN is the owner
+# and holds bonuses.manage; $ACCT, $DPM and $SCHED don't: $SCHED is granted it for one check and the
+# grant is removed). No shebang and no `set`: the caller owns both.
 # It does not assume a pristine database: it reads the bonus settings first and puts them back at
-# the end, its job and people carry a run tag, and it checks only its own rows. Made-up names and
-# figures only (this repo is public).
+# the end, its jobs and people carry a run tag, its two pay runs sit on free fortnights far ahead
+# and are deleted at the end, and it checks only its own rows. Made-up names and figures only (this
+# repo is public).
 # Contract: docs/plans/m13-contracts.md sections 4, 7.1 and 11.3.
 
 # ============================================================================
@@ -36,6 +38,10 @@ done
 req GET /api/bonuses "$ADMIN"
 expect_status 200 "admin GET /api/bonuses"
 expect_jq '(.bonuses | type) == "array"' "the list is an array"
+for M13_B_GET in /api/bonuses /api/bonuses/settings /api/bonuses/people /api/bonuses/jobs /api/bonuses/summary /api/bonuses/999999999; do
+  req GET "$M13_B_GET" "$ADMIN"
+  expect_eq "$(hdr Cache-Control)" "no-store" "GET $M13_B_GET is Cache-Control: no-store"
+done
 req GET /api/bonuses "$ACCT"
 expect_status 403 "acct GET /api/bonuses"
 req GET /api/bonuses/summary "$DPM"
@@ -124,6 +130,29 @@ expect_status 200 "admin searches the jobs"
 expect_jq "[.jobs[] | select(.id == $M13_B_JOB)][0] | .hasBonus == true and .archived == false and .name == \"$M13_B_JOB_NAME\"" \
   "the job is found and has a bonus"
 
+echo "--- the price is prefilled only for a jobs.value holder ---"
+req GET /api/auth/me "$SCHED"
+expect_status 200 "sched GET /api/auth/me"
+M13_B_SCHED_ID=$(jqr '.user.id')
+expect_jq '(.user.perms | index("jobs.value")) == null and (.user.perms | index("bonuses.manage")) == null' \
+  "sched holds neither jobs.value nor bonuses.manage"
+req POST /api/job-records "$ADMIN" "$(jq -nc --arg n "M13 Test Job V $M13_B_TAG" '{name:$n,valueCents:1000000}')"
+expect_status 201 "admin makes a second job with a value"
+M13_B_JOB2=$(jqr '.id')
+req PUT "/api/users/$M13_B_SCHED_ID/overrides/bonuses.manage" "$ADMIN" '{"effect":"grant"}'
+expect_status 200 "the owner grants sched bonuses.manage"
+req POST /api/bonuses "$SCHED" "{\"jobId\":$M13_B_JOB2}"
+expect_status 201 "sched creates the second job's bonus"
+M13_B_ID2=$(jqr '.id')
+expect_jq '.priceCents == null and .possibleCents == null and .earnedCents == null and .shares == []' \
+  "no price prefilled for someone without jobs.value"
+req DELETE "/api/bonuses/$M13_B_ID2" "$SCHED"
+expect_status 200 "sched deletes that draft"
+req DELETE "/api/users/$M13_B_SCHED_ID/overrides/bonuses.manage" "$ADMIN"
+expect_status 200 "the owner removes sched's bonuses.manage"
+req GET /api/bonuses "$SCHED"
+expect_status 403 "sched GET /api/bonuses without the grant"
+
 echo "--- the maths ---"
 req PATCH "/api/bonuses/$M13_B_ID" "$ADMIN" \
   '{"checks":{"drawn":true,"ordered":true,"assembled":true,"installed":true,"noFuss":true},"actualFactoryMin":1200,"actualInstallMin":500}'
@@ -207,10 +236,60 @@ req GET "/api/bonuses/$M13_B_ID" "$ADMIN"
 expect_status 200 "GET the confirmed bonus"
 expect_jq '.rateBp == 150 and .earnedCents == 32143' "the confirmed bonus keeps 1.50% and 32143"
 
+echo "--- pay runs of its own: one left open, one finalised ---"
+# Far ahead on the pay fortnight grid, on fortnights with no run yet; both are removed at the end.
+req GET /api/payruns "$ACCT"
+expect_status 200 "acct reads the pay runs"
+M13_B_GRID=$(jqr '.current.startDate')
+M13_B_GRID_K=400
+# m13_b_new_run: acct makes a pay run on the next free fortnight; sets M13_B_NEWRUN and its start.
+m13_b_new_run() {
+  local start
+  while [ "$M13_B_GRID_K" -lt 520 ]; do
+    start=$(date -u -d "$M13_B_GRID $((M13_B_GRID_K * 14)) day" +%F)
+    M13_B_GRID_K=$((M13_B_GRID_K + 1))
+    req POST /api/payruns "$ACCT" "{\"startDate\":\"$start\"}"
+    if [ "$STATUS" = 201 ]; then
+      M13_B_NEWRUN=$(jqr '.id')
+      M13_B_NEWRUN_START=$(jqr '.startDate')
+      ok
+      return 0
+    fi
+    [ "$STATUS" = 409 ] || fail "acct POST /api/payruns $start: expected 201 or 409, got $STATUS: ${BODY:0:300}"
+  done
+  fail "no free pay fortnight for a test pay run"
+}
+m13_b_new_run
+M13_B_RUN_OPEN=$M13_B_NEWRUN
+m13_b_new_run
+M13_B_RUN_FIN=$M13_B_NEWRUN
+M13_B_RUN_FIN_START=$M13_B_NEWRUN_START
+req POST "/api/payruns/$M13_B_RUN_FIN/finalise" "$ACCT"
+expect_status 200 "acct finalises the second test pay run"
+
 echo "--- paying ---"
 req POST "/api/bonuses/$M13_B_ID/shares/$M13_B_PB/paid" "$ADMIN" '{"payRunId":999999999}'
 expect_status 400 "mark B paid in no such pay run"
 expect_jq '.error == "No such pay run"' "the pay run sentence"
+req POST "/api/bonuses/$M13_B_ID/shares/$M13_B_PB/paid" "$ADMIN" "{\"payRunId\":$M13_B_RUN_OPEN}"
+expect_status 400 "mark B paid in an open pay run"
+expect_jq '.error == "Choose a finalised pay run"' "the finalised-only sentence"
+req POST "/api/bonuses/people/$M13_B_PA/paid" "$ADMIN" "{\"bonusIds\":[$M13_B_ID],\"payRunId\":$M13_B_RUN_OPEN}"
+expect_status 400 "mark all A's shares paid in an open pay run"
+expect_jq '.error == "Choose a finalised pay run"' "the finalised-only sentence (mark all paid)"
+req GET /api/bonuses/summary "$ADMIN"
+expect_status 200 "the summary's pay runs"
+expect_jq "(.payRuns | all(.status == \"finalised\")) and ([.payRuns[] | select(.id == $M13_B_RUN_OPEN)] | length == 0) and ([.payRuns[] | select(.id == $M13_B_RUN_FIN)] | length == 1)" \
+  "the pickers list finalised pay runs only"
+# The review's repro (A-M2): the open pay run was never taken, so Accounts can still delete it.
+req DELETE "/api/payruns/$M13_B_RUN_OPEN" "$ACCT"
+expect_status 204 "acct deletes the open test pay run"
+req POST "/api/bonuses/$M13_B_ID/shares/$M13_B_PC/paid" "$ADMIN" "{\"payRunId\":$M13_B_RUN_FIN}"
+expect_status 200 "mark C paid in the finalised pay run"
+expect_jq "[.shares[] | select(.personId == $M13_B_PC)][0].paid | .date == \"$M13_B_TODAY\" and .payRun.id == $M13_B_RUN_FIN and .payRun.startDate == \"$M13_B_RUN_FIN_START\"" \
+  "C's share names the finalised pay run"
+req POST "/api/bonuses/$M13_B_ID/shares/$M13_B_PC/paid" "$ADMIN" '{"undo":true}'
+expect_status 200 "undo C's payment"
 req POST "/api/bonuses/$M13_B_ID/shares/$M13_B_PB/paid" "$ADMIN" "{\"paidDate\":\"$(m13_b_day -1)\"}"
 expect_status 400 "mark B paid before the confirmed date"
 expect_jq ".error == \"The paid date can't be before the bonus was confirmed ($M13_B_TODAY_LABEL)\"" "the before-confirmed sentence"
@@ -282,7 +361,8 @@ req GET "/api/bonuses/$M13_B_ID" "$ADMIN"
 expect_status 404 "GET the deleted bonus"
 
 echo "--- audit ---"
-# Only this run's rows: a deleted bonus's id can be given again to a later one (an earlier run's).
+# Only this run's rows (above the high-water mark noted before the create). A deleted draft's id
+# is never given again (lib/bonuses.js), so the bonus's rows are all this run's anyway.
 req GET "/api/audit?entityType=bonus&entityId=$M13_B_ID&limit=200" "$ADMIN"
 expect_status 200 "the bonus's audit rows, as the owner"
 for M13_B_ACTION in bonus.create bonus.update bonus.confirm bonus.paid bonus.unpaid bonus.reopen bonus.delete; do
@@ -290,7 +370,9 @@ for M13_B_ACTION in bonus.create bonus.update bonus.confirm bonus.paid bonus.unp
 done
 expect_jq "[.rows[] | select(.id > $M13_B_AUDIT0 and .action == \"bonus.confirm\")][0].after | .earnedCents == 32143 and .rateBp == 150 and .ticked == 5 and .confirmedDate == \"$M13_B_TODAY\" and (.shares | length) == 3" \
   "the confirm row holds the frozen figures"
-expect_jq "[.rows[] | select(.id > $M13_B_AUDIT0 and .action == \"bonus.paid\")] | length == 2" "two bonus.paid rows (B, then A by Mark all paid)"
+expect_jq "[.rows[] | select(.id > $M13_B_AUDIT0 and .action == \"bonus.paid\")] | length == 3" "three bonus.paid rows (B, C, then A by Mark all paid)"
+expect_jq "[.rows[] | select(.id > $M13_B_AUDIT0 and .action == \"bonus.paid\" and .after.personId == $M13_B_PC and .after.payRunId == $M13_B_RUN_FIN)] | length == 1" \
+  "C's bonus.paid row names the finalised pay run"
 req GET "/api/audit?entityType=bonus_settings&action=bonus_settings.update&limit=200" "$ADMIN"
 expect_status 200 "the settings audit rows"
 expect_jq "[.rows[] | select(.after.rateBp == 150 and (.after.holders | map(.personId) | index($M13_B_PA)) != null)] | length >= 1" \
@@ -299,6 +381,12 @@ req GET /api/audit "$ACCT"
 expect_status 403 "acct has no audit.view"
 
 echo "--- put back ---"
+# The finalised test pay run: no share names it any more (C's payment was undone), so it can be
+# reopened (users.admin) and deleted (no sheet was typed in).
+req POST "/api/payruns/$M13_B_RUN_FIN/reopen" "$ADMIN"
+expect_status 200 "admin reopens the finalised test pay run"
+req DELETE "/api/payruns/$M13_B_RUN_FIN" "$ACCT"
+expect_status 204 "acct deletes the test pay run"
 req PUT /api/bonuses/settings "$ADMIN" "$M13_B_SAVED"
 expect_status 200 "the settings put back"
 expect_jq "({rateBp: .rateBp, holders: [.holders[] | {personId: .personId, points: .points}]} | tojson) == $(jq -nc --arg s "$M13_B_SAVED" '$s')" \
