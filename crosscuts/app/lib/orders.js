@@ -648,37 +648,6 @@ function deliveries(db, today = sydneyToday()) {
   };
 }
 
-// {materials, materialsIn} for the Scheduling page; `from` is today.
-function upcoming(db, from, to) {
-  const materials = db
-    .prepare(
-      `SELECT o.id, o.job_id, j.name AS job_name, o.supplier, o.description, o.expected_date
-       FROM orders o JOIN jobs j ON j.id = o.job_id
-       WHERE o.status = 'ordered' AND o.expected_date IS NOT NULL AND o.expected_date <= ? AND j.archived = 0
-       ORDER BY o.expected_date, j.name COLLATE NOCASE, o.id`
-    )
-    .all(to)
-    .map((r) => ({
-      id: r.id,
-      jobId: r.job_id,
-      jobName: r.job_name,
-      supplier: r.supplier,
-      description: r.description,
-      expectedDate: r.expected_date,
-      overdue: r.expected_date < from,
-    }));
-  const materialsIn = db
-    .prepare(
-      `SELECT id, name, materials_in_date FROM jobs
-       WHERE materials_in_date IS NOT NULL AND materials_in_date >= ?
-         AND stage NOT IN ('complete','invoiced','lost','archived')
-       ORDER BY materials_in_date DESC, name COLLATE NOCASE, id`
-    )
-    .all(addDays(from, -13))
-    .map((r) => ({ jobId: r.id, jobName: r.name, materialsInDate: r.materials_in_date }));
-  return { materials, materialsIn };
-}
-
 module.exports = {
   STATUSES,
   markMaterialsOrdered,
@@ -692,6 +661,5 @@ module.exports = {
   deliveries,
   cancelLine,
   refreshMaterialsIn,
-  upcoming,
   cutNote,
 };

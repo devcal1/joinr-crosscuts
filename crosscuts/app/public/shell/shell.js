@@ -23,9 +23,6 @@
       dept: "scheduling",
       items: [
         { label: "Board", href: "/schedule.html", key: "board.view" },
-        { label: "Scheduling", href: "/scheduling.html", key: "scheduling.view" },
-        { label: "Lookahead", href: "/lookahead.html", key: "scheduling.view" },
-        { label: "Availability", href: "/availability.html", key: "scheduling.view" },
         { label: "Workers", href: "/workers.html", key: "workers.edit" },
       ],
     },
@@ -88,6 +85,7 @@
       items: [
         { label: "Users", href: "/users.html", key: "users.admin" },
         { label: "Audit", href: "/audit.html", key: "audit.view" },
+        { label: "Availability", href: "/availability.html", key: "users.admin" },
         // M13 (docs/plans/m13-contracts.md section 9): owner-only keys.
         { label: "Bonuses", href: "/bonuses.html", key: "bonuses.manage" },
         { label: "Alarms", href: "/alarms.html", key: "alarms.manage" },

@@ -35,26 +35,33 @@ m5b_audit() {
   M5B_AUDIT=$(jqr '.total')
 }
 
-echo "--- access ---"
-for j in "$SHOW" "$ACCT"; do
+echo "--- access: admins only (Todd, 2026-10-16: Availability moved to the Admin menu) ---"
+for j in "$SHOW" "$ACCT" "$DPM" "$SCHED"; do
   req GET /api/availability "$j"
-  expect_status 403 "GET /api/availability without scheduling.view"
+  expect_status 403 "GET /api/availability without users.admin"
+  req GET /availability.html "$j"
+  expect_status 403 "GET /availability.html without users.admin"
 done
-req GET /api/availability "$DPM"
-expect_status 200 "dpm GET /api/availability"
+req GET /api/availability "$ADMIN"
+expect_status 200 "admin GET /api/availability"
 expect_jq 'has("workers") and has("leave")' "the list has workers and leave"
-req GET /api/availability "$SCHED"
-expect_status 200 "sched GET /api/availability"
-req GET /availability.html "$SCHED"
-expect_status 200 "sched GET /availability.html"
-req GET /availability.html "$SHOW"
-expect_status 403 "show GET /availability.html"
+req GET /availability.html "$ADMIN"
+expect_status 200 "admin GET /availability.html"
+# The Scheduling and Lookahead pages and their routes are gone (same decision).
+req GET /scheduling.html "$ADMIN"
+expect_status 404 "admin GET /scheduling.html is gone"
+req GET /lookahead.html "$ADMIN"
+expect_status 404 "admin GET /lookahead.html is gone"
+req GET /api/scheduling/upcoming "$ADMIN"
+expect_status 404 "admin GET /api/scheduling/upcoming is gone"
+req GET /api/scheduling/lookahead "$ADMIN"
+expect_status 404 "admin GET /api/scheduling/lookahead is gone"
 
 echo "--- setup: a worker with a board row ---"
 req POST /api/workers "$ADMIN" '{"name":"CI M5B Worker"}'
 expect_status 201 "create the CI worker"
 M5B_W=$(jqr '.id')
-req GET /api/availability "$SCHED"
+req GET /api/availability "$ADMIN"
 expect_jq "[.workers[] | select(.id == $M5B_W)][0] | .name == \"CI M5B Worker\" and .daysPerWeek == null and .regularDaysOff == [] and .archived == false" "a new worker has no pattern"
 req POST /api/rows "$ADMIN" "{\"weekStart\":\"$M5B_MON\",\"panel\":\"manufacturing\",\"jobName\":\"CI M5B Job\"}"
 expect_status 201 "create the CI board row"
@@ -75,8 +82,19 @@ req POST /api/availability/leave "$ACCT" "$LEAVE_BODY"
 expect_status 403 "acct POST leave"
 req PATCH "/api/availability/workers/$M5B_W" "$DPM" '{"daysPerWeek":3}'
 expect_status 403 "dpm PATCH worker pattern"
+# Scheduling-only user: no longer writes leave (admins only since 2026-10-16) ...
 req POST /api/availability/leave "$SCHED" "$LEAVE_BODY"
-expect_status 201 "sched POST leave"
+expect_status 403 "sched POST leave"
+req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":3}'
+expect_status 403 "sched PATCH worker pattern"
+req DELETE "/api/availability/leave/1" "$SCHED"
+expect_status 403 "sched DELETE leave"
+# ... but the board still reads availability (away, overDays) through /api/schedule.
+req GET "/api/schedule?week=$M5B_MON" "$SCHED"
+expect_status 200 "sched GET /api/schedule still works"
+expect_jq '.weeks[0] | has("away") and has("overDays")' "the board week still carries away and overDays for sched"
+req POST /api/availability/leave "$ADMIN" "$LEAVE_BODY"
+expect_status 201 "admin POST leave"
 expect_jq ".worker.id == $M5B_W and .worker.name == \"CI M5B Worker\" and .from == \"$M5B_TUE\" and .to == \"$M5B_THU\" and .kind == \"leave\" and .note == \"CI holiday\"" "the leave object echoes its fields"
 expect_jq '.days == 3 and (.id | type == "number") and (.createdBy.id | type == "number") and (.createdAt | type == "string")' "days counts weekdays; createdBy and createdAt are set"
 M5B_LEAVE=$(jqr '.id')
@@ -93,35 +111,35 @@ expect_eq "$M5B_AWAY" "leave" "the wed chip is away: leave"
 expect_eq "$M5B_OVER" "false" "leave alone does not mean over days"
 m5b_state mon
 expect_eq "$M5B_WEEK_AWAY" "null" "no away on the Monday before the leave"
-req GET "/api/availability?from=$M5B_MON&to=$M5B_FRI&workerId=$M5B_W" "$DPM"
+req GET "/api/availability?from=$M5B_MON&to=$M5B_FRI&workerId=$M5B_W" "$ADMIN"
 expect_status 200 "GET /api/availability with from, to and workerId"
 expect_jq "(.leave | length == 1) and .leave[0].id == $M5B_LEAVE and (.workers | length > 0)" "the filtered list has the leave"
-req GET "/api/availability?from=2035-04-01&to=2035-04-30&workerId=$M5B_W" "$DPM"
+req GET "/api/availability?from=2035-04-01&to=2035-04-30&workerId=$M5B_W" "$ADMIN"
 expect_jq '.leave | length == 0' "leave outside the dates is not listed"
-req GET "/api/availability?from=nope" "$DPM"
+req GET "/api/availability?from=nope" "$ADMIN"
 expect_status 400 "GET /api/availability with a bad from"
 
 echo "--- a regular day off, and leave beating it ---"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"regularDaysOff":["fri"]}'
-expect_status 200 "sched PATCH regularDaysOff"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"regularDaysOff":["fri"]}'
+expect_status 200 "admin PATCH regularDaysOff"
 expect_jq '.regularDaysOff == ["fri"] and .daysPerWeek == null' "the worker echoes the day off"
 req POST "/api/rows/$M5B_ROW/assignments" "$ADMIN" "{\"day\":\"fri\",\"workerId\":$M5B_W}"
 expect_status 201 "assign the worker on fri"
 m5b_state fri
 expect_eq "$M5B_AWAY" "off" "the fri chip is away: off"
 expect_eq "$M5B_WEEK_AWAY" "off" "week.away has fri as off"
-req POST /api/availability/leave "$SCHED" "{\"workerId\":$M5B_W,\"from\":\"$M5B_FRI\",\"to\":\"$M5B_FRI\",\"kind\":\"sick\"}"
-expect_status 201 "sched POST sick leave on the day off"
+req POST /api/availability/leave "$ADMIN" "{\"workerId\":$M5B_W,\"from\":\"$M5B_FRI\",\"to\":\"$M5B_FRI\",\"kind\":\"sick\"}"
+expect_status 201 "admin POST sick leave on the day off"
 expect_jq '.days == 1 and .note == ""' "a one-day leave covers one weekday; note defaults to empty"
 M5B_SICK=$(jqr '.id')
 m5b_state fri
 expect_eq "$M5B_AWAY" "sick" "leave beats the regular day off"
-req DELETE "/api/availability/leave/$M5B_SICK" "$SCHED"
-expect_status 204 "sched DELETE the sick leave"
+req DELETE "/api/availability/leave/$M5B_SICK" "$ADMIN"
+expect_status 204 "admin DELETE the sick leave"
 m5b_state fri
 expect_eq "$M5B_AWAY" "off" "the day off shows again"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"regularDaysOff":[]}'
-expect_status 200 "sched PATCH regularDaysOff to none"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"regularDaysOff":[]}'
+expect_status 200 "admin PATCH regularDaysOff to none"
 expect_jq '.regularDaysOff == []' "the day off is cleared"
 m5b_state fri
 expect_eq "$M5B_AWAY" "null" "no away once the day off is cleared"
@@ -132,51 +150,51 @@ expect_status 201 "assign the worker on mon"
 req POST "/api/rows/$M5B_ROW/assignments" "$ADMIN" "{\"day\":\"tue\",\"workerId\":$M5B_W}"
 expect_status 201 "assign the worker on tue"
 # Now assigned on mon, tue, wed and fri: four distinct days.
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":3}'
-expect_status 200 "sched PATCH daysPerWeek 3"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"daysPerWeek":3}'
+expect_status 200 "admin PATCH daysPerWeek 3"
 expect_jq '.daysPerWeek == 3' "the worker echoes daysPerWeek"
 m5b_state mon
 expect_eq "$M5B_OVER" "false" "the first three days are within the pattern"
 expect_eq "$M5B_IN_OVER" "true" "week.overDays has the worker"
 m5b_state fri
 expect_eq "$M5B_OVER" "true" "only the fourth day (fri) is over days (4 days against 3)"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":4}'
-expect_status 200 "sched PATCH daysPerWeek 4"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"daysPerWeek":4}'
+expect_status 200 "admin PATCH daysPerWeek 4"
 expect_jq '.daysPerWeek == 4' "daysPerWeek changed"
 m5b_state fri
 expect_eq "$M5B_OVER" "false" "4 days against 4 is not over"
 expect_eq "$M5B_IN_OVER" "false" "week.overDays no longer has the worker"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":3,"regularDaysOff":["thu","mon"]}'
-expect_status 200 "sched PATCH both fields"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"daysPerWeek":3,"regularDaysOff":["thu","mon"]}'
+expect_status 200 "admin PATCH both fields"
 expect_jq '.daysPerWeek == 3 and .regularDaysOff == ["mon","thu"]' "days off come back in week order"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":null,"regularDaysOff":[]}'
-expect_status 200 "sched PATCH the pattern back to full time"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"daysPerWeek":null,"regularDaysOff":[]}'
+expect_status 200 "admin PATCH the pattern back to full time"
 expect_jq '.daysPerWeek == null and .regularDaysOff == []' "full time again"
 m5b_state mon
 expect_eq "$M5B_OVER" "false" "no pattern, not over"
 expect_eq "$M5B_IN_OVER" "false" "no pattern, not in week.overDays"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":2}'
-expect_status 200 "sched PATCH only daysPerWeek"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"regularDaysOff":["fri"]}'
-expect_status 200 "sched PATCH only regularDaysOff"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"daysPerWeek":2}'
+expect_status 200 "admin PATCH only daysPerWeek"
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"regularDaysOff":["fri"]}'
+expect_status 200 "admin PATCH only regularDaysOff"
 expect_jq '.daysPerWeek == 2 and .regularDaysOff == ["fri"]' "a field that is left out is left alone"
 
 echo "--- removing leave ---"
-req DELETE "/api/availability/leave/$M5B_LEAVE" "$SCHED"
-expect_status 204 "sched DELETE leave"
+req DELETE "/api/availability/leave/$M5B_LEAVE" "$ADMIN"
+expect_status 204 "admin DELETE leave"
 m5b_state wed
 expect_eq "$M5B_AWAY" "null" "removing the leave clears away"
 expect_eq "$M5B_WEEK_AWAY" "null" "removing the leave clears week.away"
-req DELETE "/api/availability/leave/$M5B_LEAVE" "$SCHED"
+req DELETE "/api/availability/leave/$M5B_LEAVE" "$ADMIN"
 expect_status 404 "DELETE leave that is already removed"
-req DELETE "/api/availability/leave/999999999" "$SCHED"
+req DELETE "/api/availability/leave/999999999" "$ADMIN"
 expect_status 404 "DELETE leave that does not exist"
-req GET "/api/availability?from=$M5B_MON&to=$M5B_FRI&workerId=$M5B_W" "$SCHED"
+req GET "/api/availability?from=$M5B_MON&to=$M5B_FRI&workerId=$M5B_W" "$ADMIN"
 expect_jq '.leave | length == 0' "removed leave is not listed"
 
 echo "--- validation: leave ---"
 leave_bad() { # what json
-  req POST /api/availability/leave "$SCHED" "$2"
+  req POST /api/availability/leave "$ADMIN" "$2"
   expect_status 400 "$1"
 }
 leave_bad "from is not a real date" "{\"workerId\":$M5B_W,\"from\":\"2035-02-30\",\"to\":\"2035-03-01\",\"kind\":\"leave\"}"
@@ -191,24 +209,24 @@ leave_bad "unknown kind" "{\"workerId\":$M5B_W,\"from\":\"2035-03-05\",\"to\":\"
 leave_bad "no kind" "{\"workerId\":$M5B_W,\"from\":\"2035-03-05\",\"to\":\"2035-03-05\"}"
 M5B_LONG_NOTE=$(printf 'n%.0s' $(seq 1 501))
 leave_bad "a 501 character note" "{\"workerId\":$M5B_W,\"from\":\"2035-03-05\",\"to\":\"2035-03-05\",\"kind\":\"other\",\"note\":\"$M5B_LONG_NOTE\"}"
-req POST /api/availability/leave "$SCHED" '[1]'
+req POST /api/availability/leave "$ADMIN" '[1]'
 expect_status 400 "a body that is not an object"
-req GET "/api/availability?from=2035-03-01&to=2035-03-31&workerId=$M5B_W" "$SCHED"
+req GET "/api/availability?from=2035-03-01&to=2035-03-31&workerId=$M5B_W" "$ADMIN"
 expect_jq '.leave | length == 0' "no refused request wrote anything"
 # The limits themselves are allowed: 366 days and a 500 character note.
 M5B_NOTE500=$(printf 'n%.0s' $(seq 1 500))
-req POST /api/availability/leave "$SCHED" "{\"workerId\":$M5B_W,\"from\":\"2035-01-01\",\"to\":\"2036-01-01\",\"kind\":\"other\",\"note\":\"$M5B_NOTE500\"}"
+req POST /api/availability/leave "$ADMIN" "{\"workerId\":$M5B_W,\"from\":\"2035-01-01\",\"to\":\"2036-01-01\",\"kind\":\"other\",\"note\":\"$M5B_NOTE500\"}"
 expect_status 201 "366 days with a 500 character note is allowed"
 expect_jq '.days > 200' "a year of leave counts its weekdays"
 M5B_YEAR=$(jqr '.id')
 m5b_state wed
 expect_eq "$M5B_AWAY" "other" "year-long leave shows on the board"
-req DELETE "/api/availability/leave/$M5B_YEAR" "$SCHED"
+req DELETE "/api/availability/leave/$M5B_YEAR" "$ADMIN"
 expect_status 204 "remove the year-long leave"
 
 echo "--- validation: pattern ---"
 pattern_bad() { # what json
-  req PATCH "/api/availability/workers/$M5B_W" "$SCHED" "$2"
+  req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" "$2"
   expect_status 400 "$1"
 }
 pattern_bad "daysPerWeek 0" '{"daysPerWeek":0}'
@@ -220,9 +238,9 @@ pattern_bad "regularDaysOff has five days" '{"regularDaysOff":["mon","tue","wed"
 pattern_bad "regularDaysOff has a weekend day" '{"regularDaysOff":["sat"]}'
 pattern_bad "regularDaysOff is not a list" '{"regularDaysOff":"fri"}'
 pattern_bad "an empty body" '{}'
-req PATCH "/api/availability/workers/999999999" "$SCHED" '{"daysPerWeek":3}'
+req PATCH "/api/availability/workers/999999999" "$ADMIN" '{"daysPerWeek":3}'
 expect_status 404 "PATCH an unknown worker"
-req GET /api/availability "$SCHED"
+req GET /api/availability "$ADMIN"
 expect_jq "[.workers[] | select(.id == $M5B_W)][0] | .daysPerWeek == 2 and .regularDaysOff == [\"fri\"]" "no refused request changed the pattern"
 
 echo "--- audit ---"
@@ -235,7 +253,7 @@ m5b_audit worker.pattern "$M5B_W"
 ok
 
 echo "--- cleanup ---"
-req PATCH "/api/availability/workers/$M5B_W" "$SCHED" '{"daysPerWeek":null,"regularDaysOff":[]}'
+req PATCH "/api/availability/workers/$M5B_W" "$ADMIN" '{"daysPerWeek":null,"regularDaysOff":[]}'
 expect_status 200 "clear the CI worker's pattern"
 req DELETE "/api/rows/$M5B_ROW" "$ADMIN"
 expect_status 204 "delete the CI board row"

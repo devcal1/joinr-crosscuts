@@ -107,13 +107,13 @@
     renderWorkers();
     syncFilter();
     renderLeave();
-    $("addLeave").hidden = !can("leave.edit");
+    $("addLeave").hidden = !can("users.admin");
   }
 
   function renderWorkers() {
     const tbody = $("workers");
     tbody.replaceChildren();
-    const edit = can("leave.edit");
+    const edit = can("users.admin");
     for (const w of workers) {
       const name = el("td", { class: "av-name", text: w.name });
       if (w.archived) name.append(el("span", { class: "hs-badge hs-badge-na av-tag", text: "Archived" }));
@@ -149,7 +149,7 @@
     const rows = leave.filter((l) => (showPast || l.to >= today) && (!wid || String(l.worker.id) === wid));
     const tbody = $("leave");
     tbody.replaceChildren();
-    const edit = can("leave.edit");
+    const edit = can("users.admin");
     for (const l of rows) {
       const acts = el("td", { class: "av-acts" });
       if (edit) {
@@ -341,10 +341,10 @@
   $("addLeave").addEventListener("click", openAddLeave);
   load();
   // The shell finishes loading permissions after first paint: redraw so the buttons follow
-  // leave.edit.
+  // users.admin.
   function onReady() {
     if (loaded) render();
-    else $("addLeave").hidden = !can("leave.edit");
+    else $("addLeave").hidden = !can("users.admin");
   }
   if (window.cc && window.cc.loaded) onReady();
   document.addEventListener("cc:ready", onReady);

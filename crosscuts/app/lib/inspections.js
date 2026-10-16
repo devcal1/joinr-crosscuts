@@ -199,17 +199,4 @@ function cancel(db, id, req) {
   })();
 }
 
-// Booked inspections from <= date <= to, soonest first (no time: last that day),
-// on jobs that aren't archived.
-function upcoming(db, from, to) {
-  return db
-    .prepare(
-      `${SELECT_BASE}
-       WHERE i.status = 'booked' AND i.date >= ? AND i.date <= ? AND j.archived = 0
-       ORDER BY i.date, (i.time IS NULL), i.time, i.id`
-    )
-    .all(from, to)
-    .map(present);
-}
-
-module.exports = { STATUSES, TIME_RE, present, listForJob, create, update, cancel, upcoming };
+module.exports = { STATUSES, TIME_RE, present, listForJob, create, update, cancel };

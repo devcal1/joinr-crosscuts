@@ -127,7 +127,7 @@ expect_status 201 "create the 2035-01-01 board row"
 M8_ROW=$(jqr '.rowId')
 req POST "/api/rows/$M8_ROW/assignments" "$ADMIN" "{\"day\":\"mon\",\"workerId\":$M8_W}"
 expect_status 201 "the test worker on Monday"
-req POST /api/availability/leave "$SCHED" "{\"workerId\":$M8_W,\"from\":\"2035-01-03\",\"to\":\"2035-01-03\",\"kind\":\"leave\"}"
+req POST /api/availability/leave "$ADMIN" "{\"workerId\":$M8_W,\"from\":\"2035-01-03\",\"to\":\"2035-01-03\",\"kind\":\"leave\"}"
 expect_status 201 "leave on 2035-01-03"
 req POST /api/payruns/holidays "$ACCT" '{"date":"2035-01-04","name":"M8 Test Holiday"}'
 expect_status 201 "add a holiday on 2035-01-04"
@@ -142,7 +142,7 @@ req GET "/api/payruns/$M8_RUN/timesheets/$M8_TSO" "$ACCT"
 expect_status 200 "GET the office person's sheet"
 expect_jq '(.suggestions | length == 10) and ([.suggestions[] | .job] | all(. == ""))' "the office person has no job suggestions"
 expect_jq '.suggestions["2035-01-04"].pholMin == 480' "the office person gets the holiday"
-req PATCH "/api/availability/workers/$M8_OFF" "$SCHED" '{"regularDaysOff":["thu"]}'
+req PATCH "/api/availability/workers/$M8_OFF" "$ADMIN" '{"regularDaysOff":["thu"]}'
 expect_status 200 "the off worker has Thursdays off"
 req POST "/api/payruns/$M8_RUN/timesheets" "$ACCT" "{\"workerId\":$M8_OFF}"
 expect_status 201 "add a sheet for the off worker"
@@ -151,7 +151,7 @@ expect_jq '.suggestions["2035-01-04"].reason == "dayoff" and .suggestions["2035-
 expect_jq '.suggestions["2035-01-11"].reason == "dayoff" and .suggestions["2035-01-03"].reason == null' "only Thursdays are days off"
 req DELETE "/api/payruns/$M8_RUN/timesheets/$M8_TSD" "$ACCT"
 expect_status 204 "remove the off worker's empty sheet"
-req PATCH "/api/availability/workers/$M8_OFF" "$SCHED" '{"regularDaysOff":[]}'
+req PATCH "/api/availability/workers/$M8_OFF" "$ADMIN" '{"regularDaysOff":[]}'
 expect_status 200 "the off worker's days off cleared"
 req GET "/api/payruns/$M8_RUN/timesheets/999999999" "$ACCT"
 expect_status 404 "a sheet that isn't in the run"

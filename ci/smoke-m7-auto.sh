@@ -114,11 +114,11 @@ for d in tue thu; do
 done
 
 # Thursday to the next Tuesday: two weekday runs either side of the weekend.
-req POST /api/availability/leave "$SCHED" \
+req POST /api/availability/leave "$ADMIN" \
   "$(jq -nc --argjson w "$M7A_W" --arg n "$M7A_LNOTE" '{workerId:$w,from:"2035-06-07",to:"2035-06-12",kind:"sick",note:$n}')"
 expect_status 201 "leave over a weekend"
 M7A_LEAVE=$(jqr '.id')
-req POST /api/availability/leave "$SCHED" "{\"workerId\":$M7A_WOLD,\"from\":\"2035-06-07\",\"to\":\"2035-06-07\",\"kind\":\"leave\"}"
+req POST /api/availability/leave "$ADMIN" "{\"workerId\":$M7A_WOLD,\"from\":\"2035-06-07\",\"to\":\"2035-06-07\",\"kind\":\"leave\"}"
 expect_status 201 "leave for the worker about to be archived"
 req PATCH "/api/workers/$M7A_WOLD" "$ADMIN" '{"archived":true}'
 expect_status 200 "archive that worker"
@@ -225,7 +225,9 @@ echo "--- links per viewer ---"
 m7a_get "$SCHED" "$M7A_FROM" "$M7A_TO"
 m7a_one "a:materials_due:$M7A_JA:2035-06-07" ".link == \"/job.html?id=$M7A_JA#orders\"" "sched: materials link to the job's orders"
 m7a_one "a:materials_ordered:$M7A_JA" ".link == \"/job.html?id=$M7A_JA#orders\"" "sched: materials ordered link"
-m7a_one "a:leave:$M7A_LEAVE:2035-06-07" '.link == "/availability.html"' "sched: who's away links to Availability"
+m7a_one "a:leave:$M7A_LEAVE:2035-06-07" '.link == null' "sched (no users.admin since 2026-10-16): no Availability link"
+m7a_get "$ADMIN" "$M7A_FROM" "$M7A_TO"
+m7a_one "a:leave:$M7A_LEAVE:2035-06-07" '.link == "/availability.html"' "admin: who's away links to Availability"
 m7a_get "$WSHOP" "$M7A_FROM" "$M7A_TO"
 for id in "a:promised_install:$M7A_JA" "a:materials_ordered:$M7A_JA" "a:materials_due:$M7A_JA:2035-06-07" "a:inspection:$M7A_I1"; do
   m7a_one "$id" '.link == null' "wshop: no link on $id"
@@ -235,7 +237,7 @@ expect_jq "[.weeks[] | select(.weekStart == \"$M7A_MON\") | (.manufacturing + .i
 m7a_one "a:leave:$M7A_LEAVE:2035-06-07" '.link == null' "wshop: no Availability link"
 m7a_get "$ACCT" "$M7A_FROM" "$M7A_TO"
 m7a_one "a:invoice_due:$M7A_INVC" ".link == \"/accounts.html?invoice=$M7A_INVC\"" "acct: the invoice link"
-m7a_one "a:leave:$M7A_LEAVE:2035-06-07" '.link == null' "acct (no scheduling.view): no Availability link"
+m7a_one "a:leave:$M7A_LEAVE:2035-06-07" '.link == null' "acct (no users.admin): no Availability link"
 
 echo "--- layers= narrows ---"
 m7a_get "$ADMIN" "$M7A_FROM" "$M7A_TO" "company"
@@ -290,7 +292,7 @@ m7a_one "a:promised_install:$M7A_JA" '.start == "2035-06-15"' "the promised inst
 
 req POST "/api/inspections/$M7A_I1/cancel" "$DPM" '{}'
 expect_status 200 "cancel the timed inspection"
-req DELETE "/api/availability/leave/$M7A_LEAVE" "$SCHED"
+req DELETE "/api/availability/leave/$M7A_LEAVE" "$ADMIN"
 expect_status 204 "remove the leave"
 req POST "/api/invoices/$M7A_INVC/paid" "$ACCT" '{}'
 expect_status 200 "mark job C's deposit paid"

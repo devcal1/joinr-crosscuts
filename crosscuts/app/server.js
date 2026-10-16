@@ -62,7 +62,6 @@ const routers = [
   require("./routes/settings"),
   require("./routes/orders"),
   require("./routes/inspections"),
-  require("./routes/scheduling"),
   require("./routes/people"),
   require("./routes/files"),
   require("./routes/tasks"),
