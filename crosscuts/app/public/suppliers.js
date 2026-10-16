@@ -16,6 +16,23 @@
   const P = window.Periods;
   const $ = (id) => document.getElementById(id);
 
+  // One page, two kinds of account: Supplier accounts (/suppliers.html) and Admin accounts
+  // (/adminaccounts.html, body data-kind="admin"; docs/plans/m9-contracts.md section 13). Same
+  // machinery, so only the API base, the page path and the words differ.
+  const KINDS = {
+    supplier: {
+      api: "/api/suppliers", page: "/suppliers.html", title: "Supplier accounts",
+      one: "supplier", many: "suppliers", One: "Supplier", Many: "Suppliers",
+      form: "Supplier statements form",
+    },
+    admin: {
+      api: "/api/admin-accounts", page: "/adminaccounts.html", title: "Admin accounts",
+      one: "account", many: "accounts", One: "Account", Many: "Accounts",
+      form: "Admin accounts form",
+    },
+  };
+  const K = KINDS[document.body.dataset.kind] || KINDS.supplier;
+
   const STATES = [
     ["have", "Have statement"],
     ["waiting", "Waiting"],
@@ -131,7 +148,7 @@
 
   function renderHeader() {
     $("suMonth").textContent = P.longLabel(period);
-    document.title = `Supplier accounts ${P.longLabel(period)} - Crosscuts`;
+    document.title = `${K.title} ${P.longLabel(period)} - Crosscuts`;
     const prev = month && "prev" in month ? month.prev : period > P.HISTORY_START ? P.addMonths(period, -1) : null;
     const next = month && "next" in month ? month.next : period < current ? P.addMonths(period, 1) : null;
     const pb = $("suPrev");
@@ -142,7 +159,7 @@
     nb.dataset.to = next || "";
     pb.setAttribute("aria-label", prev ? `Previous month, ${P.longLabel(prev)}` : "Previous month");
     nb.setAttribute("aria-label", next ? `Next month, ${P.longLabel(next)}` : "Next month");
-    $("suBlank").href = `/suppliers.html?period=${period}&print=blank`;
+    $("suBlank").href = `${K.page}?period=${period}&print=blank`;
     const bits = [];
     if (period === current) bits.push("This month is still running; statements usually arrive after it ends.");
     bits.push(canEdit ? "Each line saves on its own as you change it." : "View only.");
@@ -519,7 +536,7 @@
     R.busyText = "Saving...";
     renderMsg(R);
     try {
-      const line = await call("PUT", `/api/suppliers/months/${sentPeriod}/${R.id}`, Object.assign({}, body, { updatedAt: R.server.updatedAt }));
+      const line = await call("PUT", `${K.api}/months/${sentPeriod}/${R.id}`, Object.assign({}, body, { updatedAt: R.server.updatedAt }));
       if (R.dead) return;
       applyServer(R, line, body);
       R.refused = refused;
@@ -590,7 +607,7 @@
   async function lineNow(R) {
     let m;
     try {
-      m = await call("GET", `/api/suppliers/months/${period}`);
+      m = await call("GET", `${K.api}/months/${period}`);
     } catch (e) {
       return null;
     }
@@ -616,7 +633,7 @@
     if (btn) btn.disabled = true;
     let line = R.stale ? R.stale.line : null;
     try {
-      const m = await call("GET", `/api/suppliers/months/${period}`);
+      const m = await call("GET", `${K.api}/months/${period}`);
       if (R.dead) return;
       month = m;
       const fresh = (m.lines || []).find((l) => l.supplier.id === R.id);
@@ -699,7 +716,7 @@
       try {
         const fd = new FormData();
         fd.append("file", file, file.name);
-        const line = await call("POST", `/api/suppliers/months/${period}/${R.id}/file`, fd);
+        const line = await call("POST", `${K.api}/months/${period}/${R.id}/file`, fd);
         if (R.dead) return;
         if (R.stale) R.stale.line = line;
         else applyServer(R, line, before);
@@ -747,7 +764,7 @@
           return;
         }
         // fileId: the server refuses (409) if the line holds another file by the time this arrives.
-        const line = await call("DELETE", `/api/suppliers/months/${period}/${R.id}/file?fileId=${encodeURIComponent(f.id)}`);
+        const line = await call("DELETE", `${K.api}/months/${period}/${R.id}/file?fileId=${encodeURIComponent(f.id)}`);
         if (R.dead) return;
         applyServer(R, line, before);
         R.fileError = null;
@@ -866,7 +883,7 @@
     const empty = $("suEmpty");
     empty.hidden = has;
     empty.textContent = has ? "" :
-      `No suppliers are listed for ${P.longLabel(period)}.` + (canEdit ? " Add one with Add supplier below." : "");
+      `No ${K.many} are listed for ${P.longLabel(period)}.` + (canEdit ? ` Add one with Add ${K.one} below.` : "");
     updateFooter();
   }
 
@@ -914,7 +931,7 @@
     status.hidden = false;
     status.textContent = "Loading...";
     try {
-      const m = await call("GET", `/api/suppliers/months/${p}`);
+      const m = await call("GET", `${K.api}/months/${p}`);
       if (seq !== loadSeq) return;
       month = m;
       status.textContent = opts && opts.notice ? opts.notice : "";
@@ -952,12 +969,12 @@
     if (!canEdit) return;
     const st = $("suManageStatus");
     try {
-      const data = await call("GET", `/api/suppliers${showArchived ? "?all=1" : ""}`);
+      const data = await call("GET", `${K.api}${showArchived ? "?all=1" : ""}`);
       suppliers = data.suppliers || [];
       st.textContent = "";
       renderSuppliers();
     } catch (e) {
-      st.textContent = `Couldn't load the suppliers: ${e.message}`;
+      st.textContent = `Couldn't load the ${K.many}: ${e.message}`;
     }
   }
 
@@ -966,7 +983,7 @@
     list.replaceChildren();
     const shown = suppliers.filter((s) => showArchived || !s.archived);
     if (!shown.length) {
-      list.append(el("li", { class: "su-none", text: showArchived ? "No suppliers yet." : "No suppliers yet. Add the first with Add supplier." }));
+      list.append(el("li", { class: "su-none", text: showArchived ? `No ${K.many} yet.` : `No ${K.many} yet. Add the first with Add ${K.one}.` }));
       return;
     }
     for (const s of shown) {
@@ -1018,7 +1035,7 @@
   }
   async function refreshMonth() {
     const seq = ++loadSeq;
-    const m = await call("GET", `/api/suppliers/months/${period}`);
+    const m = await call("GET", `${K.api}/months/${period}`);
     if (seq !== loadSeq) return;
     month = m;
     renderHeader();
@@ -1028,7 +1045,7 @@
 
   async function setArchived(s, archived) {
     if (archived && !confirm(`Archive ${s.name}? It won't be listed from ${P.longLabel(current)} on. Months that already have a line for it keep it.`)) return;
-    await call("PATCH", `/api/suppliers/${s.id}`, { archived });
+    await call("PATCH", `${K.api}/${s.id}`, { archived });
     toast(archived ? `Archived ${s.name}.` : `Restored ${s.name}.`);
     await afterSupplierChange();
     const item = $("suSupplierList").querySelector(`.su-sitem[data-id="${s.id}"] button:last-child`);
@@ -1050,14 +1067,14 @@
     if (ok.disabled) return;
     const name = $("suAddName").value.trim();
     if (!name) {
-      $("suAddError").textContent = "Give the supplier a name";
+      $("suAddError").textContent = `Give the ${K.one} a name`;
       $("suAddName").focus();
       return;
     }
     ok.disabled = true;
     $("suAddError").textContent = "";
     try {
-      const s = await call("POST", "/api/suppliers", { name, fromPeriod: period });
+      const s = await call("POST", K.api, { name, fromPeriod: period });
       $("suAddDlg").close();
       toast(`Added ${s.name}.`);
       await afterSupplierChange();
@@ -1089,7 +1106,7 @@
     if (ok.disabled || !s) return;
     const name = $("suRenameName").value.trim();
     if (!name) {
-      $("suRenameError").textContent = "Give the supplier a name";
+      $("suRenameError").textContent = `Give the ${K.one} a name`;
       $("suRenameName").focus();
       return;
     }
@@ -1100,7 +1117,7 @@
     ok.disabled = true;
     $("suRenameError").textContent = "";
     try {
-      const updated = await call("PATCH", `/api/suppliers/${s.id}`, { name });
+      const updated = await call("PATCH", `${K.api}/${s.id}`, { name });
       $("suRenameDlg").close();
       toast(`Renamed ${s.name} to ${updated.name}.`);
       await afterSupplierChange();
@@ -1116,7 +1133,7 @@
   // ------------------------------------------------------------- the prints ---
 
   function printTitle() {
-    return `Supplier accounts ${P.longLabel(period)}`;
+    return `${K.title} ${P.longLabel(period)}`;
   }
 
   // The month's list as saved, for paper.
@@ -1125,12 +1142,12 @@
     box.replaceChildren();
     const head = el("div", { class: "su-p-head" },
       el("div", null,
-        el("h1", { class: "su-p-h1", text: "Supplier accounts" }),
+        el("h1", { class: "su-p-h1", text: K.title }),
         el("p", { class: "su-p-month", text: P.longLabel(period) })),
       el("p", { class: "su-p-meta", text: `Printed ${longDate(todayISO())}` }));
     box.append(head);
     if (!rows.length) {
-      box.append(el("p", { class: "su-p-empty", text: `No suppliers are listed for ${P.longLabel(period)}.` }));
+      box.append(el("p", { class: "su-p-empty", text: `No ${K.many} are listed for ${P.longLabel(period)}.` }));
       return;
     }
     const table = el("table", { class: "su-p-table" });
@@ -1139,7 +1156,7 @@
       el("col", { class: "su-pc-tick" }), el("col", { class: "su-pc-tick" }), el("col", { class: "su-pc-tick" }),
       el("col", { class: "su-pc-note" }));
     const hr = el("tr");
-    for (const [t, cls] of [["Supplier", ""], ["Statement", ""], ["Total", "num"], ["Reconciled", "tick"], ["Paid", "tick"], ["MYOB", "tick"], ["Note", ""]]) {
+    for (const [t, cls] of [[K.One, ""], ["Statement", ""], ["Total", "num"], ["Reconciled", "tick"], ["Paid", "tick"], ["MYOB", "tick"], ["Note", ""]]) {
       hr.append(el("th", { scope: "col", class: cls ? `su-p-${cls}` : null, text: t }));
     }
     const tb = el("tbody");
@@ -1186,7 +1203,7 @@
   // ------------------------------------------------------ the blank paper form ---
 
   const FORM_COLS = [
-    ["Supplier name", "su-fc-name"],
+    [`${K.One} name`, "su-fc-name"],
     ["Have statement", "su-fc-wide"],
     ["Waiting", "su-fc-box"],
     ["N/A", "su-fc-box"],
@@ -1204,7 +1221,7 @@
   function buildForm(names) {
     const sheet = el("article", { class: "su-sheet" });
     sheet.append(el("div", { class: "su-f-head" },
-      el("h1", { class: "su-f-h1", text: "Suppliers" }),
+      el("h1", { class: "su-f-h1", text: K.Many }),
       el("div", { class: "su-f-line" }, el("span", { class: "su-f-label", text: "Month" }), el("span", { class: "su-f-rule" }))));
     const table = el("table", { class: "su-form" });
     const cg = el("colgroup");
@@ -1236,26 +1253,26 @@
 
   async function bootBlank() {
     $("suBlankView").hidden = false;
-    document.title = "Supplier statements form";
+    document.title = K.form;
     const asked = params.get("period");
     const p = asked && inRange(asked) ? asked : defaultPeriod();
-    $("suBlankBack").href = `/suppliers.html?period=${p}`;
+    $("suBlankBack").href = `${K.page}?period=${p}`;
     const pages = $("suBlankPages");
     const state = $("suBlankState");
     let names = [];
     try {
-      const m = await call("GET", `/api/suppliers/months/${p}`);
+      const m = await call("GET", `${K.api}/months/${p}`);
       names = (m.lines || []).map((l) => l.supplier.name);
-      state.textContent = `${names.length} ${names.length === 1 ? "supplier" : "suppliers"} listed for ${P.longLabel(p)}, then ${BLANK_ROWS} blank rows. The month is left blank to fill in.`;
+      state.textContent = `${names.length} ${names.length === 1 ? K.one : K.many} listed for ${P.longLabel(p)}, then ${BLANK_ROWS} blank rows. The month is left blank to fill in.`;
     } catch (e) {
-      pages.replaceChildren(el("p", { class: "su-message su-error", text: `Couldn't load the suppliers for ${P.longLabel(p)}: ${e.message}` }));
+      pages.replaceChildren(el("p", { class: "su-message su-error", text: `Couldn't load the ${K.many} for ${P.longLabel(p)}: ${e.message}` }));
       return;
     }
     pages.replaceChildren(buildForm(names));
     const btn = $("suBlankPrint");
     btn.disabled = false;
     btn.addEventListener("click", () => {
-      document.title = "Supplier statements form";
+      document.title = K.form;
       window.print();
     });
   }
@@ -1320,7 +1337,7 @@
     let p = defaultPeriod();
     if (asked) {
       if (inRange(asked)) p = asked;
-      else notice = `There is no supplier list for that month (they go from ${P.label(P.HISTORY_START)} to this month); showing ${P.longLabel(p)}.`;
+      else notice = `There is no ${K.one} list for that month (they go from ${P.label(P.HISTORY_START)} to this month); showing ${P.longLabel(p)}.`;
     }
     await Promise.all([loadMonth(p, { notice }), loadSuppliers()]);
   }

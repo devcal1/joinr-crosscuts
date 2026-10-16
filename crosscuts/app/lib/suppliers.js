@@ -19,7 +19,23 @@ const NOTE_MAX = 500;
 const TOTAL_LIMIT = 1000000000;
 const STATES = ["have", "waiting", "na"];
 const TICKS = ["reconciled", "paid", "myob"];
-const CLASH = "A supplier with that name already exists";
+// Supplier accounts and Admin accounts (m9-contracts.md section 13) share these tables and this
+// code; `kind` tells them apart and every query below filters by it. Names stay unique across both
+// kinds (the column is UNIQUE). Each kind has its own audit names.
+const KINDS = {
+  supplier: {
+    kind: "supplier",
+    clash: "A supplier with that name already exists",
+    entity: "supplier",
+    statement: "supplier_statement",
+  },
+  admin: {
+    kind: "admin",
+    clash: "An account with that name already exists",
+    entity: "admin_account",
+    statement: "admin_account_statement",
+  },
+};
 const STALE = "Someone else changed this line; reload it";
 const REPLACED = "This statement was replaced meanwhile; reload the line";
 
@@ -59,6 +75,10 @@ function periodOr404(period, today) {
   return period;
 }
 
+function make(cfg) {
+const KIND = cfg.kind;
+const CLASH = cfg.clash;
+
 function toSupplier(row) {
   return {
     id: row.id,
@@ -70,7 +90,7 @@ function toSupplier(row) {
 }
 
 function supplierRow(db, id) {
-  return db.prepare("SELECT * FROM suppliers WHERE id = ?").get(id);
+  return db.prepare("SELECT * FROM suppliers WHERE id = ? AND kind = ?").get(id, KIND);
 }
 
 function supplierOr404(db, id) {
@@ -117,15 +137,16 @@ const LISTED_SQL = `
     LEFT JOIN users uu ON uu.id = st.updated_by
     LEFT JOIN files f ON f.id = st.file_id AND f.removed_at IS NULL
     LEFT JOIN users fu ON fu.id = f.uploaded_by
-   WHERE (st.supplier_id IS NOT NULL
+   WHERE s.kind = @kind
+     AND (st.supplier_id IS NOT NULL
           OR (s.from_period <= @period AND (s.archived_from IS NULL OR @period < s.archived_from)))`;
 
 function listedRows(db, period) {
-  return db.prepare(`${LISTED_SQL} ORDER BY s.name, s.id`).all({ period });
+  return db.prepare(`${LISTED_SQL} ORDER BY s.name, s.id`).all({ period, kind: KIND });
 }
 
 function listedRow(db, period, supplierId) {
-  return db.prepare(`${LISTED_SQL} AND s.id = @id`).get({ period, id: supplierId }) || null;
+  return db.prepare(`${LISTED_SQL} AND s.id = @id`).get({ period, id: supplierId, kind: KIND }) || null;
 }
 
 // A joined row (LISTED_SQL) -> line (section 7.3).
@@ -217,9 +238,9 @@ function upsertLine(db, req, period, supplierId, line, fields, fileId) {
 
 function list(db, { all = false } = {}) {
   const sql = all
-    ? "SELECT * FROM suppliers ORDER BY name, id"
-    : "SELECT * FROM suppliers WHERE archived_from IS NULL ORDER BY name, id";
-  return db.prepare(sql).all().map(toSupplier);
+    ? "SELECT * FROM suppliers WHERE kind = ? ORDER BY name, id"
+    : "SELECT * FROM suppliers WHERE kind = ? AND archived_from IS NULL ORDER BY name, id";
+  return db.prepare(sql).all(KIND).map(toSupplier);
 }
 
 function create(db, req, { name, fromPeriod } = {}) {
@@ -243,12 +264,12 @@ function create(db, req, { name, fromPeriod } = {}) {
       assertNoClash(db, n, null);
       const now = nowIso();
       const info = db
-        .prepare("INSERT INTO suppliers (name, from_period, created_at, updated_at) VALUES (?, ?, ?, ?)")
-        .run(n, from, now, now);
+        .prepare("INSERT INTO suppliers (name, from_period, kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+        .run(n, from, KIND, now, now);
       const newId = Number(info.lastInsertRowid);
       audit.log(req, {
-        action: "supplier.create",
-        entityType: "supplier",
+        action: `${cfg.entity}.create`,
+        entityType: cfg.entity,
         entityId: newId,
         after: { name: n, fromPeriod: from },
       });
@@ -329,7 +350,7 @@ function update(db, req, id, body) {
         nextStamp(row.updated_at),
         id
       );
-      audit.log(req, { action: "supplier.update", entityType: "supplier", entityId: id, before, after });
+      audit.log(req, { action: `${cfg.entity}.update`, entityType: cfg.entity, entityId: id, before, after });
     })();
   } catch (e) {
     if (!(e instanceof HttpError) && isUniqueError(e)) throw conflict(CLASH);
@@ -410,8 +431,8 @@ function saveLine(db, req, period, supplierId, body) {
 
     upsertLine(db, req, period, supplierId, line, next, undefined);
     audit.log(req, {
-      action: "supplier_statement.update",
-      entityType: "supplier_statement",
+      action: `${cfg.statement}.update`,
+      entityType: cfg.statement,
       entityId: `${supplierId}:${period}`,
       before,
       after,
@@ -433,8 +454,8 @@ function attach(db, req, period, supplierId, accepted) {
     // The old link goes first: file_id is UNIQUE, and the new id is different anyway.
     upsertLine(db, req, period, supplierId, line, fieldsOf(line), fileId);
     audit.log(req, {
-      action: "supplier_statement.file",
-      entityType: "supplier_statement",
+      action: `${cfg.statement}.file`,
+      entityType: cfg.statement,
       entityId: `${supplierId}:${period}`,
       before: old ? { fileId: old.id, name: old.name } : null,
       after: { fileId, name: accepted.originalName },
@@ -456,8 +477,8 @@ function detach(db, req, period, supplierId, fileId) {
     files.remove(db, line.file.id, userId);
     upsertLine(db, req, period, supplierId, line, fieldsOf(line), null);
     audit.log(req, {
-      action: "supplier_statement.file",
-      entityType: "supplier_statement",
+      action: `${cfg.statement}.file`,
+      entityType: cfg.statement,
       entityId: `${supplierId}:${period}`,
       before: { fileId: line.file.id, name: line.file.name },
       after: null,
@@ -475,12 +496,18 @@ function waitingCount(db, period) {
       `SELECT COUNT(*) AS n
          FROM suppliers s
          LEFT JOIN supplier_statements st ON st.supplier_id = s.id AND st.period = @period
-        WHERE (st.supplier_id IS NOT NULL
+        WHERE s.kind = @kind
+          AND (st.supplier_id IS NOT NULL
                OR (s.from_period <= @period AND (s.archived_from IS NULL OR @period < s.archived_from)))
           AND COALESCE(st.state, 'waiting') = 'waiting'`
     )
-    .get({ period });
+    .get({ period, kind: KIND });
   return Number(row.n);
 }
 
-module.exports = { list, create, update, month, saveLine, attach, detach, waitingCount };
+return { list, create, update, month, saveLine, attach, detach, waitingCount };
+}
+
+// The suppliers (the default export, as before) and the admin accounts (.admin). Only suppliers
+// feed the Friday round-up.
+module.exports = { ...make(KINDS.supplier), admin: make(KINDS.admin) };

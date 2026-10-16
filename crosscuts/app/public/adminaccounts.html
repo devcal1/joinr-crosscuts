@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin accounts - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="suppliers.css">
+</head>
+<body data-kind="admin">
+  <div id="cc-shell"></div>
+
+  <main class="su-page" id="suPage">
+    <!-- The month's list (/adminaccounts.html?period=YYYY-MM) -->
+    <div id="suMonthView" hidden>
+      <div class="su-head">
+        <h1><span class="su-kicker">Admin accounts</span> <span id="suMonth"></span></h1>
+        <div class="su-nav" role="group" aria-label="Month">
+          <button id="suPrev" class="hs-btn" type="button">Previous month</button>
+          <button id="suNext" class="hs-btn" type="button">Next month</button>
+        </div>
+        <div class="su-actions" role="group" aria-label="Print">
+          <button id="suPrint" class="hs-btn" type="button">Print</button>
+          <a id="suBlank" class="hs-btn" href="/adminaccounts.html?print=blank">Print blank form</a>
+        </div>
+      </div>
+      <p id="suMeta" class="su-meta"></p>
+      <p id="suStatus" class="su-status" role="status" aria-live="polite">Loading...</p>
+
+      <p id="suEmpty" class="su-empty" hidden></p>
+      <div id="suTableWrap" class="su-tablewrap" hidden>
+        <table class="su-table" id="suTable">
+          <thead>
+            <tr>
+              <th scope="col" class="su-c-name">Account</th>
+              <th scope="col" class="su-c-state">Statement</th>
+              <th scope="col" class="su-c-total num">Total</th>
+              <th scope="col" class="su-c-tick">Reconciled</th>
+              <th scope="col" class="su-c-tick">Paid</th>
+              <th scope="col" class="su-c-tick">Entered in MYOB</th>
+              <th scope="col" class="su-c-note">Note</th>
+              <th scope="col" class="su-c-file">Statement file</th>
+            </tr>
+          </thead>
+          <tbody id="suRows"></tbody>
+          <tfoot>
+            <tr id="suFoot"></tr>
+          </tfoot>
+        </table>
+      </div>
+      <p id="suLive" class="su-sr" role="status" aria-live="polite"></p>
+
+      <section id="suManage" class="su-manage" aria-labelledby="suManageTitle" hidden>
+        <div class="hs-sectionbar">
+          <h2 id="suManageTitle">Accounts</h2>
+          <button id="suAdd" class="hs-btn hs-btn-primary" type="button">Add account</button>
+        </div>
+        <div class="su-manage-tools">
+          <label class="su-check"><input id="suShowArchived" type="checkbox"> Show archived</label>
+          <p class="su-manage-note">Archived accounts stay on the months they already have lines in.</p>
+        </div>
+        <p id="suManageStatus" class="su-status" role="status" aria-live="polite"></p>
+        <ul id="suSupplierList" class="su-slist"></ul>
+      </section>
+
+      <!-- Print of the month (hidden on screen, built from the saved lines) -->
+      <section id="suPrintMonth" class="su-printmonth" aria-hidden="true"></section>
+    </div>
+
+    <!-- The blank paper form (/adminaccounts.html?period=YYYY-MM&print=blank) -->
+    <div id="suBlankView" hidden>
+      <div class="su-toolbar">
+        <button id="suBlankPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print</button>
+        <a id="suBlankBack" class="hs-btn" href="/adminaccounts.html">Back</a>
+        <span id="suBlankState" class="su-blank-state" role="status" aria-live="polite"></span>
+      </div>
+      <div class="su-scroll">
+        <div id="suBlankPages" class="su-pages">
+          <p class="su-message">Loading...</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <input id="suPick" type="file" class="su-pick" accept=".pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+
+  <dialog id="suAddDlg" class="cc-dialog su-dialog" aria-labelledby="suAddTitle">
+    <form id="suAddForm" class="cc-dialog-form" method="dialog">
+      <h2 id="suAddTitle" class="cc-dialog-title">Add account</h2>
+      <p id="suAddNote" class="cc-dialog-note"></p>
+      <div class="cc-field">
+        <label class="cc-field-label" for="suAddName">Name</label>
+        <input id="suAddName" class="hs-input" type="text" maxlength="100" autocomplete="off" required>
+      </div>
+      <p id="suAddError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="suAddCancel" class="hs-btn" type="button">Cancel</button>
+        <button id="suAddOk" class="hs-btn hs-btn-primary" type="submit">Add account</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="suRenameDlg" class="cc-dialog su-dialog" aria-labelledby="suRenameTitle">
+    <form id="suRenameForm" class="cc-dialog-form" method="dialog">
+      <h2 id="suRenameTitle" class="cc-dialog-title">Rename account</h2>
+      <p class="cc-dialog-note">The new name shows on every month, past ones included.</p>
+      <div class="cc-field">
+        <label class="cc-field-label" for="suRenameName">Name</label>
+        <input id="suRenameName" class="hs-input" type="text" maxlength="100" autocomplete="off" required>
+      </div>
+      <p id="suRenameError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="suRenameCancel" class="hs-btn" type="button">Cancel</button>
+        <button id="suRenameOk" class="hs-btn hs-btn-primary" type="submit">Rename</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="shared.js"></script>
+  <script src="/periods.js"></script>
+  <script src="suppliers.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>
