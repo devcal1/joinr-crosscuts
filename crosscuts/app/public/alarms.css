@@ -65,6 +65,7 @@ body {
 
 /* ---------- the slot tables (scroll inside their own box if they must) ---------- */
 .al-wrap {
+  position: relative; /* keeps the .al-sr spans inside the scrolling box (B-m3) */
   margin-bottom: 12px;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -199,7 +200,9 @@ body {
 
 /* the slot dialog */
 .al-num { max-width: 140px; }
-.al-codein { max-width: 220px; font-family: var(--mono); letter-spacing: 0.12em; }
+/* The code box shows dots while typing (contracts section 12.2): a text input, so phones keep the
+   number pad (inputmode="numeric"), masked by text-security rather than type="password". */
+.al-codein { max-width: 220px; font-family: var(--mono); letter-spacing: 0.12em; -webkit-text-security: disc; }
 
 /* ---------- narrow screens: each slot is a card ---------- */
 @media (max-width: 900px) {

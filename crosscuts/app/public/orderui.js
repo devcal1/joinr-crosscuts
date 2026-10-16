@@ -129,10 +129,18 @@
   let open = null; // the dialog on screen; a second call replaces it (its promise resolves null)
 
   // A modal on the shell's cc-dialog frame. spec: {title, note, hint, fields, submit,
-  // submitClass, cancel, focus, wide, run}. `focus` is the control to start on: a node, or
-  // "cancel" for the cancel button (a confirm's safe choice); the submit button otherwise.
+  // submitClass, cancel, focus, wide, run, keepDisabled}. `focus` is the control to start on: a
+  // node, or "cancel" for the cancel button (a confirm's safe choice); the submit button otherwise.
   // `run()` returns a promise of the response to resolve with, undefined to close with null
   // (nothing to send), or throws a sentence to show (marked `refused` when the server said no).
+  //
+  // Two opt-in additions (M13, docs/plans/m13-contracts.md section 12.3), unused by the older pages,
+  // which behave exactly as before:
+  //   - a thrown sentence may name its input (`error.field`, a control inside this dialog; fail()
+  //     below builds one): that input gets aria-invalid="true" and the focus, instead of the start
+  //     control. The mark goes when the input is changed or the dialog is sent again.
+  //   - `keepDisabled: true`: a control that was disabled before sending stays disabled after a
+  //     refusal (otherwise every control is turned back on).
   function dialog(spec) {
     ensureStyles();
     if (open) open.dismiss();
@@ -163,9 +171,42 @@
       const me = { dismiss: () => dlg.open && dlg.close() };
       open = me;
 
+      let wasDisabled = null; // keepDisabled: the controls that were off before sending
       function setBusy(on) {
         busy = on;
-        for (const n of form.querySelectorAll("button, input, textarea, select")) n.disabled = on;
+        const controls = form.querySelectorAll("button, input, textarea, select");
+        if (spec.keepDisabled && on) wasDisabled = new Set([...controls].filter((n) => n.disabled));
+        for (const n of controls) n.disabled = on || (spec.keepDisabled && !!wasDisabled && wasDisabled.has(n));
+      }
+
+      // The inputs a refusal named (opt-in: only when a thrown sentence carries `field`).
+      const marked = new Set();
+      function unmark(n) {
+        n.removeAttribute("aria-invalid");
+        n.classList.remove("ou-invalid");
+        marked.delete(n);
+      }
+      function unmarkAll() {
+        for (const n of [...marked]) unmark(n);
+      }
+      function markField(n) {
+        if (!(n instanceof Element) || !form.contains(n)) return null;
+        n.setAttribute("aria-invalid", "true");
+        n.classList.add("ou-invalid");
+        if (!marked.has(n)) {
+          marked.add(n);
+          const off = () => {
+            unmark(n);
+            n.removeEventListener("input", off);
+            n.removeEventListener("change", off);
+          };
+          n.addEventListener("input", off);
+          n.addEventListener("change", off);
+        }
+        // A group (a list of radios, say) is marked as a whole; its first usable control is focused.
+        const target = n.matches("input, select, textarea, button") ? n
+          : n.querySelector("input:checked:not(:disabled)") || n.querySelector("input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)");
+        return target && !target.disabled && target.offsetParent !== null ? target : null;
       }
 
       cancel.addEventListener("click", () => dlg.close());
@@ -204,6 +245,7 @@
         e.preventDefault();
         if (busy) return;
         err.textContent = "";
+        if (marked.size) unmarkAll();
         setBusy(true);
         try {
           const r = await spec.run();
@@ -214,13 +256,24 @@
           setBusy(false);
           if (ex && ex.refused) refused = true;
           err.textContent = (ex && ex.message) || "That didn't save. Try again.";
-          if (start && typeof start.focus === "function") start.focus();
+          const named = ex && ex.field ? markField(ex.field) : null;
+          if (named) named.focus();
+          else if (start && typeof start.focus === "function") start.focus();
         }
       });
 
       dlg.showModal();
       start.focus();
     });
+  }
+
+  // A sentence for a dialog's run() to throw that names the input it is about (opt-in, see
+  // dialog()). `refused` marks it as the server's answer, as the pages' own refusals are.
+  function fail(message, field, refused) {
+    const e = new Error(message);
+    if (field) e.field = field;
+    if (refused) e.refused = true;
+    return e;
   }
 
   function fieldBox(label, input, opts) {
@@ -570,7 +623,8 @@
   window.OrderUI = {
     receive, note, undoReceived, edit, noteBlock, actions, kindLabel, paintLink, receiveItem, undoReceivedItem,
     // The frame the dialogs above are built on, for the M11 pages: dialog(spec) as described at
-    // dialog(); field(label, input, {wide, hint}); the inputs; and the date helpers.
-    ui: { dialog, field: fieldBox, dateInput, textInput, textArea, todayISO, fmtDate, validDate, sendVia },
+    // dialog(); field(label, input, {wide, hint}); the inputs; and the date helpers. fail(message,
+    // field, refused) is the M13 pages' sentence that names its input.
+    ui: { dialog, field: fieldBox, dateInput, textInput, textArea, todayISO, fmtDate, validDate, sendVia, fail },
   };
 })();
