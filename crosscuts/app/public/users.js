@@ -660,7 +660,7 @@
   $("joinrImport").addEventListener(
     "click",
     guarded(async () => {
-      if (!confirm("Import every quote that is currently won in Joinr into the New from Joinr page? Quotes already there are not duplicated.")) return;
+      if (!confirm("Import every quote that is currently won in Joinr? Each one not already in Crosscuts becomes a Won job straight away (or is linked to the one job with its quote number), with a task for the Design/PM team. Quotes already there are not duplicated.")) return;
       showJoinrError("");
       showJoinrResult("Importing...", true);
       const btn = $("joinrImport");
