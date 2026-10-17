@@ -17,6 +17,33 @@ req GET /battens.html "$ACCT"
 expect_status 403 "acct GET /battens.html"
 req GET /battens.html "$SCHED"
 expect_status 403 "sched GET /battens.html"
+# --- 2026-10-18: the Tools page (design.view, same as battens) and the menu entries in shell.js
+req GET /tools.html "$DPM"
+expect_status 200 "dpm GET /tools.html"
+case $BODY in *"/battens.html"*) ok ;; *) fail "GET /tools.html: no link to the batten calculator" ;; esac
+req GET /tools.html "$ORDR"
+expect_status 200 "ordr GET /tools.html"
+req GET /tools.html "$ACCT"
+expect_status 403 "acct GET /tools.html"
+req GET /tools.html "$SCHED"
+expect_status 403 "sched GET /tools.html"
+req GET /battens.html "$DPM"
+case $BODY in *'href="/tools.html"'*) ok ;; *) fail "GET /battens.html: no Back to Tools link" ;; esac
+# The menu: Pipeline is in the Scheduling list (jobs.view, which Scheduling holds) as well as
+# Design/PM; the Design/PM list has Tools, not the Batten calculator.
+req GET /shell/shell.js "$SCHED"
+expect_status 200 "sched GET /shell/shell.js"
+M12_SHELL=$BODY
+M12_SCHED_LIST=${M12_SHELL#*'id: "scheduling"'}
+M12_SCHED_LIST=${M12_SCHED_LIST%%'id: "design"'*}
+case $M12_SCHED_LIST in *'"/pipeline.html", key: "jobs.view"'*) ok ;; *) fail "shell.js: no Pipeline item in the Scheduling menu" ;; esac
+case $M12_SHELL in *'label: "Tools", href: "/tools.html", key: "design.view"'*) ok ;; *) fail "shell.js: no Tools item in the Design/PM menu" ;; esac
+case $M12_SHELL in *'label: "Batten calculator"'*) fail "shell.js: the Batten calculator is still a menu item" ;; *) ok ;; esac
+case $M12_SHELL in *'"/battens.html": "/tools.html"'*) ok ;; *) fail "shell.js: battens.html does not light up Tools" ;; esac
+# A scheduling login reads the pipeline but cannot move anything (smoke-m3-pipeline.sh has the
+# POST /api/job-records/:id/stage 403 for sched); the page itself is 200.
+req GET /pipeline.html "$SCHED"
+expect_status 200 "sched GET /pipeline.html"
 req GET /battens.js "$DPM"
 expect_status 200 "dpm GET /battens.js"
 case $BODY in *"Battens"*"solve"*) ok ;; *) fail "GET /battens.js: not the batten maths: ${BODY:0:200}" ;; esac

@@ -103,7 +103,8 @@ Drawer lines and paint job lines are ordinary order lines, so `orders.view` show
 | Page | Menu | Needs |
 |---|---|---|
 | `/stone.html` (Stone orders) | Design/PM | `design.view` |
-| `/battens.html` (Batten calculator) | Design/PM | `design.view` |
+| `/tools.html` (Tools: tiles for the tools) | Design/PM | `design.view` |
+| `/battens.html` (Batten calculator, opened from Tools) | Design/PM (lights up Tools) | `design.view` |
 | `/stoneprint.html` (stone order and benchtop sheet prints) | none (from the job and the Stone orders page) | `jobs.view` or `design.view` |
 
 | Action | Key |
