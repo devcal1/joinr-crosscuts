@@ -110,6 +110,8 @@ app.listen(PORT, () => {
   require("./lib/tasks").startReminder(require("./db"));
   // The Joinr intake pull, every 5 minutes once a key is set (JOINR_SYNC_DISABLED=1 turns it off).
   require("./lib/joinr-sync").start(require("./db"));
+  // Joinr's open-quotes list (sent and won quotes for the Pipeline), same schedule (J3, 0.1.20).
+  require("./lib/joinr-open-quotes").start(require("./db"));
   // Backups: the nightly snapshot and the Saturday copy to the NAS (BACKUP_DISABLED=1 turns it
   // all off). Wrapped so nothing it does at start can ever stop the board: only a safe error code
   // is logged (docs/plans/backup-contracts.md section 11.3).

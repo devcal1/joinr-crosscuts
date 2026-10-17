@@ -360,8 +360,12 @@ text above where they differ.
   default to Quoted and Lead is refused as a target. Quoted shows the quoted jobs
   as single lines plus a **From Joinr** group: Joinr won quotes still waiting in
   the inbox, each a link to the quote in Joinr (read-only
-  `GET /api/pipeline/joinr-quotes`). Joinr *sent* quotes joining Quoted is a later
-  step (J3), which touches Joinr and waits for Todd's two yeses (`CLAUDE.md` rule 12).
+  `GET /api/pipeline/joinr-quotes`). **0.1.20 (2026-10-17, J3 Crosscuts side):** Joinr's
+  new open-quotes list (contract version 3) adds *sent* quotes; Crosscuts fetches it every
+  5 minutes and on the Pipeline's Refresh button into a cache (migration 031), and the From
+  Joinr group then shows sent and won lines (a job already accepted, linked, ignored or
+  withdrawn in the inbox is left out). Until Joinr releases the endpoint Crosscuts keeps
+  today's list (`docs/plans/m3-contracts.md` section 13.1).
 - **Stock value and the board value step removed (2026-10-16/17).** Accounts'
   Stock value page went on the 16th; on the 17th the board stocktake lost its
   confirm-value step (counts × prices, adjustment, note), its routes and the

@@ -103,9 +103,13 @@
   const liveEl = document.getElementById("plLive");
 
   const jobs = new Map(); // id -> job object from the API
-  // Joinr quotes listed in Quoted (GET /api/pipeline/joinr-quotes). Read-only lines, not jobs.
-  // TODO "J3": sent quotes will join these once Joinr supplies them (needs Todd's go, rule 12).
+  // Joinr quotes listed in Quoted (GET /api/pipeline/joinr-quotes). Read-only lines, not jobs:
+  // sent and won quotes from Joinr's open-quotes list (J3), or, until Joinr offers that list,
+  // the won quotes still waiting in the inbox. joinrMeta is the rest of that answer.
   let joinrQuotes = [];
+  let joinrMeta = { source: "intake", configured: false, fetchedAt: null, truncated: false, unreachable: false };
+  let refreshing = false;
+  let agoTimer = null;
   const busy = new Set(); // ids with a move in flight
   const showAll = { complete: false, invoiced: false };
   const cols = {}; // stage -> { root, count, cards, foot, hint }
@@ -193,15 +197,111 @@
     }
     // The Joinr lines are extra: if they fail to load the jobs still show.
     try {
-      joinrQuotes = await api("/api/pipeline/joinr-quotes");
+      takeJoinr(await api("/api/pipeline/joinr-quotes"));
     } catch (e) {
-      joinrQuotes = [];
+      takeJoinr(null);
     }
     jobs.clear();
     for (const j of list) jobs.set(j.id, j);
     loaded = true;
     statusEl.textContent = "";
     renderAll();
+  }
+
+  // Keeps the Joinr answer: the lines and the facts about them.
+  function takeJoinr(data) {
+    if (data && Array.isArray(data.quotes)) {
+      joinrQuotes = data.quotes;
+      joinrMeta = {
+        source: data.source === "cache" ? "cache" : "intake",
+        configured: !!data.configured,
+        fetchedAt: typeof data.fetchedAt === "string" ? data.fetchedAt : null,
+        truncated: !!data.truncated,
+        unreachable: !!data.unreachable,
+      };
+    } else {
+      joinrQuotes = [];
+      joinrMeta = { source: "intake", configured: false, fetchedAt: null, truncated: false, unreachable: false };
+    }
+  }
+
+  // "3 min ago" for the Updated line.
+  function ago(iso) {
+    const t = Date.parse(iso || "");
+    if (!Number.isFinite(t)) return "";
+    const mins = Math.floor((Date.now() - t) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + " min ago";
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + (hrs === 1 ? " hour ago" : " hours ago");
+    const days = Math.floor(hrs / 24);
+    return days + (days === 1 ? " day ago" : " days ago");
+  }
+  function clockTime(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: "Australia/Sydney" });
+  }
+  function joinrUpdatedText() {
+    if (joinrMeta.source !== "cache" || !joinrMeta.fetchedAt) return "";
+    if (joinrMeta.unreachable) return "Joinr not reachable — showing the list from " + clockTime(joinrMeta.fetchedAt);
+    return "Updated " + ago(joinrMeta.fetchedAt);
+  }
+
+  // The "From Joinr" block's own line: when the list was fetched, and Refresh. Everyone with
+  // jobs.view can press it (this page needs jobs.view); the server holds it to once a minute.
+  function buildJoinrMeta() {
+    const kids = [];
+    const updated = joinrUpdatedText();
+    if (updated) {
+      kids.push(el("span", { class: "pl-joinr-updated" + (joinrMeta.unreachable ? " pl-joinr-warn" : ""), text: updated }));
+    }
+    if (joinrMeta.configured) {
+      const btn = el("button", { type: "button", class: "hs-btn pl-joinr-refresh", text: refreshing ? "Refreshing..." : "Refresh" });
+      btn.disabled = refreshing;
+      btn.addEventListener("click", refreshJoinr);
+      kids.push(btn);
+    }
+    const out = [];
+    if (kids.length) out.push(el("div", { class: "pl-joinr-meta" }, ...kids));
+    if (joinrMeta.truncated) out.push(el("p", { class: "pl-joinr-note", text: "Showing the newest quotes only" }));
+    return out;
+  }
+
+  async function refreshJoinr() {
+    if (refreshing) return;
+    refreshing = true;
+    renderColumn("quoted");
+    let res;
+    try {
+      res = await request("POST", "/api/pipeline/joinr-quotes/refresh", {});
+    } catch (e) {
+      res = { ok: false, status: 0, body: {} };
+    }
+    refreshing = false;
+    if (!res.ok) {
+      renderColumn("quoted");
+      toast("Could not refresh from Joinr", true);
+      return;
+    }
+    takeJoinr(res.body);
+    renderColumn("quoted");
+    const rf = res.body.refresh || {};
+    const wait = rf.retryAfterSeconds ? " Try again in " + rf.retryAfterSeconds + " s." : "";
+    if (rf.status === "ok") toast("Updated from Joinr");
+    else if (rf.status === "recent") toast("Just updated." + wait);
+    else if (rf.status === "limited") toast("Joinr asked us to wait." + wait, true);
+    else if (rf.status === "unavailable") toast("Joinr's list of sent quotes is not available yet", true);
+    else toast("Could not reach Joinr", true);
+  }
+
+  // Keeps "Updated 3 min ago" honest while the page stays open.
+  function startAgoTimer() {
+    if (agoTimer) return;
+    agoTimer = setInterval(() => {
+      const node = document.querySelector(".pl-joinr-updated");
+      if (node) node.textContent = joinrUpdatedText();
+    }, 30000);
   }
 
   // ---- rendering ------------------------------------------------------------
@@ -266,9 +366,11 @@
     } else if (stage === "quoted") {
       // Quoted is a list of single lines: Crosscuts jobs first (draggable), then the Joinr quotes.
       const kids = list.map((j) => buildLine(j, { today, soon, thisYear, editable }));
-      if (joinrQuotes.length) {
-        if (kids.length) kids.push(el("p", { class: "pl-sub", text: "From Joinr" }));
-        kids.push(...joinrQuotes.map(buildJoinrLine));
+      const joinrMetaKids = buildJoinrMeta();
+      if (joinrQuotes.length || joinrMetaKids.length) {
+        if (kids.length || joinrMetaKids.length) kids.push(el("p", { class: "pl-sub", text: "From Joinr" }));
+        kids.push(...joinrMetaKids, ...joinrQuotes.map(buildJoinrLine));
+        startAgoTimer();
       }
       c.cards.replaceChildren(...(kids.length ? kids : [el("p", { class: "pl-empty", text: "No jobs." })]));
     } else if (!list.length) {
@@ -397,9 +499,9 @@
   }
 
   // A Joinr quote as one line: number, client, site, value, all one link to the quote in
-  // Joinr (new tab). The Joinr status word sits small at the end ("Won" today).
+  // Joinr (new tab). The Joinr status word sits small at the end ("Sent" or "Won").
   function buildJoinrLine(q) {
-    const text = [q.quoteNumber, q.clientName, q.siteAddress].filter(Boolean).join(" · ") || "Joinr quote";
+    const text = [q.quoteNumber, q.clientName, q.siteAddress || q.label].filter(Boolean).join(" · ") || "Joinr quote";
     const value = q.valueCents != null ? money.format(q.valueCents / 100) : "";
     const status = q.joinrStatus ? q.joinrStatus.charAt(0).toUpperCase() + q.joinrStatus.slice(1) : "";
     const kids = [el("span", { class: "pl-line-text", text })];
