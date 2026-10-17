@@ -458,6 +458,145 @@ m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-01",
 # Unchanged: a PATCH with an unknown repeat still names the full list.
 m7e_bad '{"title":"V","layer":"accounts","allDay":true,"startDate":"2045-01-02","repeat":"daily"}' "repeat must be one of none, weekly, fortnightly, monthly, annually, custom"
 
+echo "--- custom repeats where people meet them: the home tile and the job page (dated from today) ---"
+# The home "Your work" tile reads [today, tomorrow] and the job page reads [today, today + 89] (20 rows
+# at most), both from the server's today, so the 2045 dates above can't reach them. These events are
+# dated from the server's today (Sydney) and every expectation is worked out from it. A run that
+# starts in the last two minutes before Sydney midnight waits the midnight out, so today can't move
+# while the block runs. No reminder is set, so the live timer has nothing to send, and every event
+# is deleted at the end so later suites see the days they look at as they were.
+M7E_SECS_LEFT=$(($(TZ=Australia/Sydney date -d "tomorrow 00:00" +%s) - $(date +%s)))
+if [ "$M7E_SECS_LEFT" -ge 0 ] && [ "$M7E_SECS_LEFT" -lt 150 ]; then
+  echo "(Sydney midnight in ${M7E_SECS_LEFT}s: waiting it out)"
+  sleep $((M7E_SECS_LEFT + 3))
+fi
+req GET /api/planner/layers "$ACCT"
+expect_status 200 "the server's today, as the home tile reads it"
+M7E_T=$(jqr '.today')
+m7e_day() { date -u -d "$M7E_T $1 days" +%F; } # DAYS from today, e.g. -2 or +21
+M7E_T1=$(m7e_day +1); M7E_T89=$(m7e_day +89)
+# The first of last month, and the firsts 2 and 4 months on from it (the first of next month and of the
+# month after): an every-2-months rule from the first of last month lands on exactly those, never on a
+# clamped day, so no month length matters. Which of them fall in a window depends on the day of the
+# month the suite runs on, so each expectation is worked out from them below.
+M7E_MFIRST="${M7E_T:0:7}-01"
+M7E_F0=$(date -u -d "$M7E_MFIRST - 1 month" +%F)
+M7E_F1=$(date -u -d "$M7E_MFIRST + 1 month" +%F)
+M7E_F2=$(date -u -d "$M7E_MFIRST + 3 months" +%F)
+m7e_between() { # LO HI DATE... -> the dates in [LO, HI], comma-joined, in the order given
+  local lo=$1 hi=$2 d out=""
+  shift 2
+  for d in "$@"; do
+    if [[ $d == "$lo" || $d > "$lo" ]] && [[ $d == "$hi" || $d < "$hi" ]]; then out="${out:+$out,}$d"; fi
+  done
+  printf '%s' "$out"
+}
+# Comma-joined dates FIRST, FIRST+STEP, ... (COUNT of them), all as days from today.
+m7e_run_days() { # FIRST STEP COUNT
+  local k out=""
+  for ((k = 0; k < $3; k++)); do out="${out:+$out,}$(m7e_day $(($1 + $2 * k)))"; done
+  printf '%s' "$out"
+}
+# Comma-joined starts of EVENT_ID in the last response (a list under KEY: events or rows).
+m7e_got() { # KEY EVENT_ID
+  jqr "[.$1[] | select(.eventId == $2) | .start] | join(\",\")"
+}
+# POST an accounts all-day custom event starting DAYS from today -> M7E_ID.
+m7e_cust() { # TITLE DAYS EVERY UNIT [JOB_ID]
+  m7e_post "$ACCT" "{\"title\":\"$1\",\"layer\":\"accounts\",\"allDay\":true,\"startDate\":\"$(m7e_day "$2")\",\"repeat\":\"custom\",\"repeatEvery\":$3,\"repeatUnit\":\"$4\"${5:+,\"jobId\":$5}}" "$1"
+}
+# The series' whole-series DELETE as acct.
+m7e_drop() { # ID
+  m7e_upd "$ACCT" "$1"
+  req DELETE "/api/planner/events/$1?scope=all&updatedAt=$(jq -rn --arg u "$M7E_UPD" '$u|@uri')" "$ACCT"
+  expect_status 204 "delete event $1"
+}
+
+# --- the home tile: GET /api/planner/events?from=today&to=tomorrow ---
+# Every 2 days from two days ago: -2, today, +2. Only today is in the tile's window.
+m7e_cust "M7E Home every 2 days" -2 2 day
+M7E_H2D=$M7E_ID
+# Every 3 weeks from 20 days ago, timed: -20, tomorrow, +22. Only tomorrow is in the window.
+m7e_post "$ACCT" "{\"title\":\"M7E Home every 3 weeks\",\"layer\":\"accounts\",\"allDay\":false,\"startDate\":\"$(m7e_day -20)\",\"startTime\":\"09:00\",\"endTime\":\"10:00\",\"repeat\":\"custom\",\"repeatEvery\":3,\"repeatUnit\":\"week\"}" "home every 3 weeks"
+M7E_H3W=$M7E_ID
+# Every 2 months from the first of last month: in the window only when tomorrow is a first on the rule.
+m7e_post "$ACCT" "{\"title\":\"M7E Home every 2 months\",\"layer\":\"accounts\",\"allDay\":true,\"startDate\":\"$M7E_F0\",\"repeat\":\"custom\",\"repeatEvery\":2,\"repeatUnit\":\"month\"}" "home every 2 months from the first of last month"
+M7E_HM=$M7E_ID
+expect_jq '.repeat == "custom" and .repeatEvery == 2 and .repeatUnit == "month" and .repeatDay == 1' "created as every 2 months, day 1"
+
+req GET "/api/planner/events?from=$M7E_T&to=$M7E_T1" "$ACCT"
+expect_status 200 "the home tile's request, as acct"
+expect_jq ".today == \"$M7E_T\"" "the response names the same today"
+expect_eq "$(m7e_got events "$M7E_H2D")" "$M7E_T" "every 2 days from two days ago: today only (not two days ago, not tomorrow, not the day after)"
+expect_jq "[.events[] | select(.eventId == $M7E_H2D) | [.title, .layer, .allDay, .startTime, .repeat, .repeatEvery, .repeatUnit]] == [[\"M7E Home every 2 days\",\"accounts\",true,null,\"custom\",2,\"day\"]]" "that occurrence carries its title, layer and repeat"
+expect_jq "[.events[] | select(.eventId == $M7E_H2D) | .id] == [\"e:$M7E_H2D:$M7E_T\"]" "the item id the tile links to"
+expect_jq "[.events[] | select(.eventId == $M7E_H3W) | [.start, .startTime, .endTime, .allDay, .repeatEvery, .repeatUnit]] == [[\"$M7E_T1\",\"09:00\",\"10:00\",false,3,\"week\"]]" "every 3 weeks: tomorrow's occurrence, timed, and no other"
+expect_eq "$(m7e_got events "$M7E_HM")" "$(m7e_between "$M7E_T" "$M7E_T1" "$M7E_F0" "$M7E_F1" "$M7E_F2")" "every 2 months: only a first on the rule that is today or tomorrow"
+# A wider window finds the rest of each series, no more.
+req GET "/api/planner/events?from=$(m7e_day -2)&to=$(m7e_day +3)" "$ACCT"
+expect_eq "$(m7e_got events "$M7E_H2D")" "$(m7e_run_days -2 2 3)" "every 2 days: three in six days, two days apart"
+req GET "/api/planner/events?from=$(m7e_day -21)&to=$(m7e_day +22)" "$ACCT"
+expect_eq "$(m7e_got events "$M7E_H3W")" "$(m7e_run_days -20 21 3)" "every 3 weeks: three in 44 days, 21 days apart"
+# Someone whose layers don't include Accounts sees none of them on the tile.
+req GET "/api/planner/events?from=$M7E_T&to=$M7E_T1" "$DPM"
+expect_status 200 "the home tile's request, as a design/PM user"
+expect_jq "[.events[] | select(.eventId == $M7E_H2D or .eventId == $M7E_H3W or .eventId == $M7E_HM)] | length == 0" "design/PM sees no Accounts events on the tile"
+
+# --- the job page: GET /api/planner/job/:id, today to today + 89 ---
+req POST /api/job-records "$ADMIN" '{"name":"CI M7E Custom Job"}'
+expect_status 201 "create the custom-repeat job"
+M7E_CJ=$(jqr '.id')
+m7e_cust "M7E Job every 3 weeks" -20 3 week "$M7E_CJ"
+M7E_J3W=$M7E_ID
+m7e_cust "M7E Job every 10 days" -3 10 day "$M7E_CJ"
+M7E_J10D=$M7E_ID
+m7e_post "$ACCT" "{\"title\":\"M7E Job every 2 months\",\"layer\":\"accounts\",\"allDay\":true,\"startDate\":\"$M7E_F0\",\"repeat\":\"custom\",\"repeatEvery\":2,\"repeatUnit\":\"month\",\"jobId\":$M7E_CJ}" "job every 2 months from the first of last month"
+M7E_JM=$M7E_ID
+req POST /api/job-records "$ADMIN" '{"name":"CI M7E Other Job"}'
+expect_status 201 "create another job"
+M7E_OJ=$(jqr '.id')
+m7e_cust "M7E Other job every 4 days" -1 4 day "$M7E_OJ"
+M7E_JO=$M7E_ID
+
+# Every 3 weeks: +1, +22, +43, +64, +85 (the next, +106, is past the window; -20 is before it).
+# Every 10 days: +7 ... +87, nine of them (the one 3 days ago is before the window, +97 past it).
+M7E_W3=$(m7e_run_days 1 21 5)
+M7E_W10=$(m7e_run_days 7 10 9)
+M7E_WM=$(m7e_between "$M7E_T" "$M7E_T89" "$M7E_F0" "$M7E_F1" "$M7E_F2")
+M7E_NM=0
+if [ -n "$M7E_WM" ]; then M7E_NM=$(($(tr -cd ',' <<<"$M7E_WM" | wc -c) + 1)); fi
+req GET "/api/planner/job/$M7E_CJ" "$ACCT"
+expect_status 200 "GET /api/planner/job/:id as acct"
+expect_jq ".more == false and (.rows | length) == $((5 + 9 + M7E_NM))" "the job's rows: 5 + 9 + $M7E_NM monthly, none cut off"
+expect_eq "$(m7e_got rows "$M7E_J3W")" "$M7E_W3" "every 3 weeks: five in the next 90 days, 21 days apart (the one 20 days ago is not shown)"
+expect_eq "$(m7e_got rows "$M7E_J10D")" "$M7E_W10" "every 10 days: nine, from a week away (the one 3 days ago is not shown)"
+expect_eq "$(m7e_got rows "$M7E_JM")" "$M7E_WM" "every 2 months: the firsts on the rule that fall inside the window"
+expect_jq "[.rows[] | select(.eventId == $M7E_J3W) | [.title, .layer, .repeat, .repeatEvery, .repeatUnit, .job.id, .link]] | unique == [[\"M7E Job every 3 weeks\",\"accounts\",\"custom\",3,\"week\",$M7E_CJ,\"/job.html?id=$M7E_CJ\"]]" "each row carries the title, layer, repeat and job"
+expect_jq "[.rows[].start] as \$s | \$s == (\$s | sort) and (\$s | first) >= \"$M7E_T\" and (\$s | last) <= \"$M7E_T89\"" "rows run in date order, inside today to today + 89"
+expect_jq "[.rows[] | select(.eventId == $M7E_JO)] | length == 0" "the other job's custom event is not on this job"
+req GET "/api/planner/job/$M7E_OJ" "$ACCT"
+expect_eq "$(m7e_got rows "$M7E_JO")" "$(m7e_run_days 3 4 20)" "the other job: every 4 days from +3 (the one yesterday is not shown); 22 fall in the window, the page keeps 20"
+expect_jq '.more == true' "and says there is more"
+expect_jq "[.rows[].eventId] | unique == [$M7E_JO]" "the other job shows only its own event"
+# A viewer without the Accounts layer sees none of this job's custom events.
+req GET "/api/planner/job/$M7E_CJ" "$DPM"
+expect_status 200 "GET /api/planner/job/:id as a design/PM user"
+expect_jq '.rows == [] and .more == false' "design/PM sees no Accounts events on the job page"
+# Every day (custom 1 day): the page shows 20 rows and says there is more.
+req POST /api/job-records "$ADMIN" '{"name":"CI M7E Daily Job"}'
+expect_status 201 "create the daily job"
+M7E_DJ=$(jqr '.id')
+m7e_cust "M7E Job every day" -1 1 day "$M7E_DJ"
+M7E_JDAY=$M7E_ID
+req GET "/api/planner/job/$M7E_DJ" "$ACCT"
+expect_status 200 "GET /api/planner/job/:id for the daily job"
+expect_eq "$(m7e_got rows "$M7E_JDAY")" "$(m7e_run_days 0 1 20)" "every day: today to the 20th day, nothing from yesterday"
+expect_jq '.more == true and (.rows | length) == 20' "twenty rows and 'more'"
+
+for M7E_X in "$M7E_H2D" "$M7E_H3W" "$M7E_HM" "$M7E_J3W" "$M7E_J10D" "$M7E_JM" "$M7E_JO" "$M7E_JDAY"; do m7e_drop "$M7E_X"; done
+req GET "/api/planner/job/$M7E_CJ" "$ACCT"
+expect_jq '.rows == [] and .more == false' "after the deletes the job page is empty again"
+
 echo "--- reminders on the weekly (before it is edited) ---"
 req POST /api/planner/reminders/run "$ACCT" '{}'
 expect_status 403 "acct can't run the sweep"
