@@ -823,7 +823,7 @@
     var depts = h("ul", { class: "cc-depts" });
     depts.appendChild(
       h("li", { class: "cc-dashboard" }, [
-        h("a", { class: "cc-link", href: "/", "aria-current": path === "/" || path === "/index.html" ? "page" : false, text: "Dashboard" }),
+        h("a", { class: "cc-dash", href: "/", "aria-current": path === "/" || path === "/index.html" ? "page" : false, text: "Dashboard" }),
       ])
     );
     DEPARTMENTS.forEach(function (d) {
