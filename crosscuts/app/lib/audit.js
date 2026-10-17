@@ -108,4 +108,35 @@ function hiddenEntityTypes(perms) {
   return Object.keys(PRIVATE_ENTITY_TYPES).filter((t) => !has(PRIVATE_ENTITY_TYPES[t]));
 }
 
-module.exports = { log, PRIVATE_ENTITY_TYPES, hiddenEntityTypes };
+// Department notes (Todd, 2026-10-17): a note's audit rows (entity dept_note: note.create, update,
+// remove, ack, unack) are shown only to readers who hold that note's department key
+// (notes.<dept>). Every such row carries the department in its before or after JSON.
+const NOTE_ENTITY_TYPE = "dept_note";
+
+// The department ids whose notes the user may read (perms: a Set or an array of keys).
+function heldNoteDepts(perms) {
+  const has =
+    perms instanceof Set
+      ? (k) => perms.has(k)
+      : Array.isArray(perms)
+        ? (k) => perms.includes(k)
+        : () => false;
+  // Lazy, so audit.js stays free of a load-order cycle with notes.js (which requires audit).
+  return require("./notes").DEPT_IDS.filter((d) => has("notes." + d));
+}
+
+// WHERE clause (for audit_log) that drops the note rows of departments the user does not hold;
+// null when every department is held.
+function noteDeptClause(perms) {
+  const held = heldNoteDepts(perms);
+  if (held.length === require("./notes").DEPT_IDS.length) return null;
+  if (!held.length) return { sql: `entity_type IS NOT '${NOTE_ENTITY_TYPE}'`, args: [] };
+  const dept = `COALESCE(json_extract(CASE WHEN json_valid(after_json) THEN after_json END, '$.dept'),
+    json_extract(CASE WHEN json_valid(before_json) THEN before_json END, '$.dept'))`;
+  return {
+    sql: `(entity_type IS NOT '${NOTE_ENTITY_TYPE}' OR ${dept} IN (${held.map(() => "?").join(", ")}))`,
+    args: held,
+  };
+}
+
+module.exports = { log, PRIVATE_ENTITY_TYPES, hiddenEntityTypes, noteDeptClause };

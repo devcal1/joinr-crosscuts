@@ -1,7 +1,7 @@
 // /api/audit -- read-only view of audit_log (all routes need audit.view).
 const { defineRoutes } = require("../lib/routes");
 const db = require("../db");
-const { hiddenEntityTypes } = require("../lib/audit");
+const { hiddenEntityTypes, noteDeptClause } = require("../lib/audit");
 
 const r = defineRoutes("/api/audit");
 
@@ -47,12 +47,21 @@ function str(v) {
 // as a WHERE clause and its arguments (null when nothing is hidden). Hidden rows count in neither
 // rows nor total, and their action names aren't listed.
 function hiddenClause(req) {
-  const hidden = hiddenEntityTypes(req.user ? req.user.perms : []);
-  if (!hidden.length) return null;
-  return {
-    sql: `(entity_type IS NULL OR entity_type NOT IN (${hidden.map(() => "?").join(", ")}))`,
-    args: hidden,
-  };
+  const perms = req.user ? req.user.perms : [];
+  const hidden = hiddenEntityTypes(perms);
+  const parts = [];
+  const args = [];
+  if (hidden.length) {
+    parts.push(`(entity_type IS NULL OR entity_type NOT IN (${hidden.map(() => "?").join(", ")}))`);
+    args.push(...hidden);
+  }
+  // Department notes: only the readers of that note's department see its rows (2026-10-17).
+  const notes = noteDeptClause(perms);
+  if (notes) {
+    parts.push(notes.sql);
+    args.push(...notes.args);
+  }
+  return parts.length ? { sql: parts.join(" AND "), args } : null;
 }
 
 r.get("/", "audit.view", (req, res) => {

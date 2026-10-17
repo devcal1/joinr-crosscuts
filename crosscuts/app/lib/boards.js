@@ -372,7 +372,15 @@ function reopenCount(db, req, period) {
       action: "board_count.reopen_count",
       entityType: "board_count",
       entityId: period,
-      before: { status: "counted", counted_at: row.counted_at, counted_by: row.counted_by },
+      // What was really there, including the valued_at/valued_by of a legacy 'valued' month that
+      // this wipes.
+      before: {
+        status: row.status,
+        counted_at: row.counted_at,
+        counted_by: row.counted_by,
+        valued_at: row.valued_at,
+        valued_by: row.valued_by,
+      },
     });
   })();
   return count(db, period, today);

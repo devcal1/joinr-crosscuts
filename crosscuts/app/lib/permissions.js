@@ -54,7 +54,7 @@ const OWNER_ONLY_SET = new Set(OWNER_ONLY_KEYS);
 const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"];
 
 const PRESETS = {
-  // M13: every key except the owner-only ones (27 keys).
+  // M13: every key except the owner-only ones (32 keys).
   admin: KEYS.filter((k) => !OWNER_ONLY_SET.has(k)),
   accounts: [
     "board.view", "jobs.view", "jobs.value", "photos.search", "accounts.view",
