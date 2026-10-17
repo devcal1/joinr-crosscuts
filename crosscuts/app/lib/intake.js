@@ -496,4 +496,4 @@ function acknowledge(db, req, id) {
   return get(db, user, id);
 }
 
-module.exports = { list, counts, get, matches, accept, link, ignore, acknowledge, forJob, VIEWS };
+module.exports = { list, counts, get, matches, accept, link, ignore, acknowledge, forJob, quoteOf, VIEWS };

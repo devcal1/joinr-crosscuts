@@ -132,7 +132,7 @@ All are synchronous, take the better-sqlite3 handle `db` first, and are safe ins
 
 ### `lib/jobstage.js` (scaffold writes in full; Wave 1 A owns it afterwards)
 New exports. The existing ones (`setStage`, `onScheduled`, `onSentToBacklog`, `onFinishedComplete`, `onDesignReadyToCut`, `createBoardJob`) keep their behaviour; the board routes keep calling them.
-- `STAGES` (the ten, in order), `MANUAL_STAGES` = `lead quoted won design_ordering ready_to_cut lost archived`, `DERIVED_STAGES` = `on_board complete invoiced`.
+- `STAGES` (the ten, in order), `MANUAL_STAGES` = `quoted won design_ordering ready_to_cut lost archived` (`lead` was dropped on 2026-10-17, see section 13), `DERIVED_STAGES` = `on_board complete invoiced`.
 - `STAGE_DATE` = `{quoted:'quoted_date', won:'won_date', ready_to_cut:'ready_to_cut_date'}`.
 - `allowedTargets(fromStage)`: the pipeline rules, pure. It returns the manual stages a job may be moved to from `fromStage` (never `fromStage` itself):
   - `on_board` → `[]` (trap 2);
@@ -321,7 +321,7 @@ Page classes take a page prefix (`pl-` pipeline, `or-` orders, `sc-` scheduling,
 
 Loads `tokens.css`, `pipeline.css`, `shared.js`, `pipeline.js` and the shell.
 
-**Columns**, in order: Lead · Quoted · Won · Design / ordering · Ready to cut · On board · Complete · Invoiced · Lost · Archived (the labels as `jobs.js`).
+**Columns**, in order (Lead was removed 2026-10-17, section 13): Quoted · Won · Design / ordering · Ready to cut · On board · Complete · Invoiced · Lost · Archived (the labels as `jobs.js`).
 - Each column header shows the label and the count.
 - Lost and Archived are always drop zones. Their cards show only when the **Show lost and archived** toggle is on (`hs-btn` with `aria-pressed`; remembered in `localStorage` inside try/catch).
 - Data: `GET /api/job-records?archived=0`, plus `?stage=archived` when the toggle is on. Jobs with `archived = 1` in another stage aren't shown.
@@ -601,3 +601,14 @@ These override the text above where they differ.
 - **To start:** `moveStage` removes the backlog row when leaving `ready_to_cut` and on any move to `archived` or `lost`. The admin's derived override on `PATCH` removes it when the job was `ready_to_cut`. The `job.stage` audit `after` carries `toStart:'removed'`; `setStage` and `onFinishedComplete` gained an optional trailing `auditExtra`.
 - **`materials.in`:** sent only if no `materials.in` notification exists for the job yet (one per job, per recipient).
 - **Order dates:** `orderedDate` and `receivedDate` after Sydney today → 400.
+
+## 13. Pipeline starts at Quoted; Joinr quote lines (Todd, 2026-10-17)
+
+These override sections 2, 4 and 6 above where they differ.
+- **The Lead stage is retired.** No Leads column. `lead` stays in `STAGES` (migration 003's CHECK allows it and tables are not rebuilt), but it is no longer in `MANUAL_STAGES` or any picker, so nothing can move a job to it: `moveStage`, `POST /api/job-records` and `PATCH /api/job-records/:id` answer 400 `"The Lead stage is no longer used; start jobs at Quoted"` for `stage:'lead'`, admin included. A job created by hand now defaults to `quoted` (with `quoted_date` set, as entering quoted does). A job still at `lead` (there should be none live) shows in the Quoted column and as "Quoted" on the Jobs list and job page, is listed by `GET /api/job-records?stage=quoted`, and moves on as normal (`allowedTargets('lead')` is every manual stage). `PRE_BOARD` and the photo page's open stages still include `lead` so an old row behaves as quoted.
+- **Quoted is a list of single lines**, in a column a little wider than the others:
+  - a Crosscuts job at `quoted` (or legacy `lead`): one line, `name · client` and the value (when present), the whole line a link to `/job.html?id=`. Still draggable by the line and movable with **Move to…** (a press without a drag opens the job);
+  - then, under a small "From Joinr" label, one line per Joinr quote: `Q-1042 · Smith · 12 Harbour St`, the value, and the Joinr status word small at the end ("Won"). The whole line is a link to the quote's Joinr page, opening in a new tab (`rel="noopener"`). These are not jobs: not draggable, no Move to…. The column count includes them.
+- **`GET /api/pipeline/joinr-quotes`** (`routes/pipeline.js`, access `jobs.view`, read-only): returns an array, newest won first (`wonAt`, else `last_seen_at`), of `{id, quoteNumber, clientName, siteAddress, joinrStatus, wonAt, url, valueCents}` and nothing else (no raw payload). `valueCents` is present only with `jobs.value`. It reads `joinr_intake` rows with `state = 'new'` (`LISTED_STATES` in the route): won in Joinr and not yet dealt with. `accepted` and `linked` records are left out because they already have a job, which has its own card in the column of its stage (listing the quote too would show it twice); `ignored` ones were declined; `withdrawn` ones were un-won or deleted in Joinr. No migration; `joinr-sync` and the intake inbox are unchanged (`intake.quoteOf` is now exported).
+- **Sent quotes, task "J3" (not built; needs Todd's go because Joinr is hands-off, CLAUDE.md rule 12).** Joinr only sends WON quotes today, so Quoted can only list those. Once Joinr also supplies SENT quotes, they join this same list with `joinrStatus: 'sent'` and the page shows that word instead of "Won"; the route and `pipeline.js` (`buildJoinrLine`) need no other change. Comments in `routes/pipeline.js` and `public/pipeline.js` mark the spot.
+- **Tests:** `ci/smoke-m3-pipeline.sh` (new job is quoted; a move or create to lead is 400; a legacy `lead` row is listed as quoted and moves on), `ci/smoke-m6-inbox.sh` (the linked manual job is `quoted`; the new route lists new, not accepted, ignored or withdrawn; no value without `jobs.value`; 403 for showroom) and `ci/smoke-m6-intake.sh` (against the stand-in Joinr: the won quote is listed with its latest-revision url, the withdrawn one is not).

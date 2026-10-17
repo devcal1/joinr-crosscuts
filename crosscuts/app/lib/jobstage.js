@@ -15,8 +15,11 @@ const STAGES = [
   "on_board", "complete", "invoiced", "lost", "archived",
 ];
 // Stages a user may move a job to by hand; the derived ones are set by the
-// board hooks (and later accounts).
-const MANUAL_STAGES = ["lead", "quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+// board hooks (and later accounts). "lead" is retired (Todd, 2026-10-17): it stays
+// in STAGES because migration 003's CHECK allows it and old rows may hold it, but
+// nothing can move a job to it. A job still at lead shows and moves as quoted.
+const RETIRED_STAGE_MSG = "The Lead stage is no longer used; start jobs at Quoted";
+const MANUAL_STAGES = ["quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
 const DERIVED_STAGES = ["on_board", "complete", "invoiced"];
 // The key date a stage fills on entry when it is still empty.
 const STAGE_DATE = { quoted: "quoted_date", won: "won_date", ready_to_cut: "ready_to_cut_date" };
@@ -185,6 +188,7 @@ function moveStage(db, jobId, { stage, from } = {}, req, { override = false } = 
   if (typeof stage !== "string" || !STAGES.includes(stage)) {
     throw bad(`stage must be one of ${STAGES.join(", ")}`);
   }
+  if (stage === "lead") throw bad(RETIRED_STAGE_MSG);
   if (!MANUAL_STAGES.includes(stage)) {
     throw bad(`stage '${stage}' is set automatically and cannot be changed by hand`);
   }
@@ -255,6 +259,7 @@ module.exports = {
   // M3
   STAGES,
   MANUAL_STAGES,
+  RETIRED_STAGE_MSG,
   DERIVED_STAGES,
   STAGE_DATE,
   allowedTargets,

@@ -28,7 +28,7 @@ const ACCOUNTS_MENU = "(function(){var b=[].find.call(document.querySelectorAll(
 const PAGES = [
   ["login", "/login.html", 1440, false], ["dashboard", "/", 1440, true], ["search", "/search.html", 1440, true],
   ["photo-admin", "/admin.html", 1440, true], ["users", "/users.html", 1440, true], ["audit", "/audit.html", 1440, true],
-  ["jobs", "/jobs.html", 1440, true], ["job", "/job.html?id=1", 1440, true], ["accounts", "/accounts.html", 1440, true],
+  ["jobs", "/jobs.html", 1440, true], ["pipeline", "/pipeline.html", 1440, true], ["job", "/job.html?id=1", 1440, true], ["accounts", "/accounts.html", 1440, true],
   ["board-tv", "/schedule.html", 1920, true], ["workers", "/workers.html", 1440, true], ["phone-dashboard", "/", 390, true],
   ["setup", "/setup.html", 1440, false], ["design", "/design.html", 1440, true], ["scheduling", "/scheduling.html", 1440, true], ["board-laptop", "/schedule.html", 1440, true], ["phone-board", "/schedule.html", 390, true],
   ["tasks", "/tasks.html", 1440, true], ["messages", "/messages.html", 1440, true], ["reports", "/reports.html", 1440, true],

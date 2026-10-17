@@ -31,6 +31,7 @@
 
   const TOP_TAGS = 20;
   const RECENT_DAYS = 180;
+  // "lead" is retired but old rows may hold it; they count as quoted, so still open.
   const OPEN_STAGES = new Set(["lead", "quoted", "won", "design_ordering", "ready_to_cut", "on_board"]);
 
   let canJobs = false; // jobs.view: the job picker, column and filter exist only for holders
