@@ -12,6 +12,7 @@
 const crypto = require("crypto");
 const config = require("./joinr-config");
 const notify = require("./notify");
+const intake = require("./intake");
 
 const PATH = "/api/integrations/crosscuts/won-quotes";
 const TIMEOUT_MS = 15 * 1000;
@@ -563,8 +564,18 @@ function applyItemInner(db, item) {
         )
         .run(item.rootQuoteId, item.quoteId, item.quoteNumber, item.status, item.event, payload, now, now);
       const id = Number(info.lastInsertRowid);
-      alert(db, "joinr.new", id, titleFor("New from Joinr", item), item.clientName || "");
-      return { action: "created" };
+      // 2026-10-18 (Todd): a won quote becomes a Won job (or links to the one job with its quote
+      // number) with no person clicking; the design team gets a task and an alert. It runs in a
+      // savepoint: if it fails, the record stays `new` for a person, with the old alert, and the
+      // sync carries on (like the other hooks, it never throws).
+      let auto = null;
+      try {
+        auto = intake.autoDecide(db, id);
+      } catch (e) {
+        console.error(`[joinr] could not make a job from quote ${item.quoteNumber || item.rootQuoteId} automatically: ${scrub(e && e.message)}`);
+      }
+      if (!auto) alert(db, "joinr.new", id, titleFor("New from Joinr", item), item.clientName || "");
+      return { action: "created", ...(auto ? { decided: auto.state, jobId: auto.jobId } : {}) };
     }
 
     const update = (extraSql = "", extraArgs = []) =>

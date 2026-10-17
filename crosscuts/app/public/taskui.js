@@ -241,7 +241,11 @@
       var n = dlg.querySelector("#tk-notes");
       if (n) v.notes = n.value;
       var a = dlg.querySelector("#tk-assignee");
-      if (a) v.assigneeId = a.value ? Number(a.value) : null;
+      if (a) {
+        // "Design/PM team" (2026-10-18) is a task for the whole team, not one person.
+        if (a.value === "team:design") v.team = "design";
+        else v.assigneeId = a.value ? Number(a.value) : null;
+      }
       var d = dlg.querySelector("#tk-due");
       if (d) v.dueDate = d.value || null;
       var j = dlg.querySelector("#tk-job");
@@ -302,8 +306,11 @@
       guarded(async function () {
         var v = formValues();
         if (!v.title) throw new Error("Give the task a title");
-        if (!v.assigneeId) throw new Error("Choose who it is for");
-        var body = { title: v.title, assigneeId: v.assigneeId, notes: v.notes ? v.notes.trim() : "" };
+        if (!v.assigneeId && !v.team) throw new Error("Choose who it is for");
+        if (v.team && pendingFiles.length) throw new Error("Team tasks can't have files. Remove the file or choose a person");
+        var body = { title: v.title, notes: v.notes ? v.notes.trim() : "" };
+        if (v.team) body.team = v.team;
+        else body.assigneeId = v.assigneeId;
         if (v.dueDate) body.dueDate = v.dueDate;
         if (v.jobId) body.jobId = v.jobId;
         else if (v.jobId === undefined && o.jobId) body.jobId = o.jobId; // no job picker without jobs.view
@@ -405,6 +412,12 @@
       var want = String(drafted("assignee", selectedId ? String(selectedId) : ""));
       var sel = el("select", { class: "hs-input tk-select", id: "tk-assignee" });
       if (create) sel.append(el("option", { value: "", text: "Choose a person" }));
+      // Members of the design team can also give a task to the whole team.
+      if (create && can("notes.design")) {
+        var teamOpt = el("option", { value: "team:design", text: "Design/PM team" });
+        if (want === "team:design") teamOpt.selected = true;
+        sel.append(teamOpt);
+      }
       var seen = false;
       people.forEach(function (p) {
         var opt = el("option", { value: String(p.id), text: p.displayName });
@@ -472,7 +485,7 @@
         });
         box.append(ul);
       }
-      if (editable()) {
+      if (editable() && !task.team) {
         var input = el("input", { type: "file", id: "tk-pick", class: "tk-pick", accept: ".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.docx,.csv", "aria-label": "Choose a file to attach" });
         var btn = el("button", { type: "button", class: "hs-btn", text: "Attach" });
         btn.addEventListener("click", function () { attachSelected(input); });
@@ -495,7 +508,8 @@
       var grid = el("div", { class: "tk-fields" });
       if (canEdit) {
         grid.append(field("Title", "tk-title", el("input", { class: "hs-input", id: "tk-title", type: "text", maxlength: "200", value: drafted("title", create ? "" : task.title), autocomplete: "off" }), true));
-        grid.append(field("Assignee", "tk-assignee", peopleSelect(create ? null : task.assignee.id)));
+        if (!create && task.team) grid.append(readField("Assignee", el("span", { text: task.assignee.name })));
+        else grid.append(field("Assignee", "tk-assignee", peopleSelect(create ? null : task.assignee.id)));
         grid.append(field("Due date", "tk-due", el("input", { class: "hs-input tk-date", id: "tk-due", type: "date", value: drafted("due", create ? "" : task.dueDate || "") })));
         if (can("jobs.view")) {
           // The job the task starts with: the one passed in (a new task from a job page) or its own.
@@ -531,13 +545,14 @@
 
       if (!create) {
         var meta = "Raised by " + task.createdBy.name + ", " + ago(task.createdAt) + ".";
+        if (task.team) meta += " Any one of the team can finish it, and that finishes it for everyone.";
         if (task.status === "done" && task.doneBy) meta += " Finished by " + task.doneBy.name + ", " + ago(task.doneAt) + ".";
         if (task.status === "cancelled") meta += " Cancelled.";
         form.append(el("p", { class: "tk-meta", text: meta }));
-        if (!canEdit && task.status === "open") form.append(el("p", { class: "tk-meta", text: "Only the person who raised it, the assignee or an admin can change the details." }));
+        if (!canEdit && task.status === "open" && !task.team) form.append(el("p", { class: "tk-meta", text: "Only the person who raised it, the assignee or an admin can change the details." }));
       }
 
-      form.append(filesBlock());
+      if (create || !task.team) form.append(filesBlock()); // a team task has no files
 
       form.append(el("p", { class: "cc-dialog-error tk-message" + (messageKind === "ok" ? " cc-dialog-ok" : ""), role: "status", "aria-live": "polite", text: message }));
 

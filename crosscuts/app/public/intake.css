@@ -30,6 +30,7 @@ a.hs-btn:hover { text-decoration: none; }
 .in-tab[aria-pressed="true"] .in-tab-n { color: var(--teal-tint); }
 .in-tab-n.in-attn { color: var(--orange-tint); }
 
+.in-intro { margin: 0 0 12px; color: var(--body); max-width: 70ch; }
 .in-message { min-height: 20px; margin: 0 0 8px; }
 .in-message.err { color: var(--stop-tint); }
 .in-message.ok { color: var(--go-tint); }

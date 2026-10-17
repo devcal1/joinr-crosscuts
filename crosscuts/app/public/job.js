@@ -1893,7 +1893,7 @@
       sumItem("Last seen", el("span", { class: "jo-sumval", text: [fmtInstant(it.lastSeenAt), agoText(it.lastSeenAt)].filter(Boolean).join(", ") || "Unknown" }))
     );
     if (it.state === "accepted" || it.state === "linked") {
-      const who = it.decidedBy && it.decidedBy.name ? " by " + it.decidedBy.name : "";
+      const who = it.decidedBy && it.decidedBy.id == null && it.decidedBy.name ? " automatically" : it.decidedBy && it.decidedBy.name ? " by " + it.decidedBy.name : "";
       const on = it.decidedAt ? " on " + fmtInstant(it.decidedAt) : "";
       items.push(sumItem("Decision", el("span", { class: "jo-sumval", text: (it.state === "linked" ? "Linked" : "Accepted") + who + on })));
     }

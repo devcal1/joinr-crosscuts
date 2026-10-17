@@ -5,12 +5,19 @@
 const audit = require("./audit");
 const drawers = require("./drawers");
 const invoices = require("./invoices");
+const jobstage = require("./jobstage");
+const teamTasks = require("./team-tasks");
 const { HttpError, bad, notFound, conflict } = require("./httperror");
 const { DATE_RE, sydneyToday } = require("./time");
 
 const BENCHTOPS = new Set(["laminate", "stone", "none"]);
 const VIEWS = ["new", "changed", "decided", "ignored", "withdrawn", "all"];
 const LIST_LIMIT = 500;
+
+// The actor for a decision Crosscuts makes itself (2026-10-18): a won quote becomes a job with no
+// person clicking. No user (decided_by stays NULL); lib/audit.js writes actorLabel as the actor.
+const SYSTEM_LABEL = "Joinr (automatic)";
+const SYSTEM_REQ = Object.freeze({ user: null, ip: null, actorLabel: SYSTEM_LABEL });
 
 function userCan(user, key) {
   if (!user) return false;
@@ -148,7 +155,13 @@ function toObject(db, user, row) {
     job: row.job_id != null ? { id: row.job_id, name: row.job_name } : null,
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
-    decidedBy: row.decided_by != null ? { id: row.decided_by, name: row.decided_by_name } : null,
+    // A decision Crosscuts made itself (decided_by NULL) says so; an undecided record has no decider.
+    decidedBy:
+      row.decided_by != null
+        ? { id: row.decided_by, name: row.decided_by_name }
+        : row.decided_at && (row.state === "accepted" || row.state === "linked")
+          ? { id: null, name: SYSTEM_LABEL }
+          : null,
     decidedAt: row.decided_at,
     matches: Number(row.match_count) || 0,
     quote,
@@ -306,9 +319,12 @@ function payloadDrawers(payload) {
   }
 }
 
-function accept(db, req, id) {
+// Accept's work, in the caller's transaction (a savepoint when nested): creates the Won job from
+// the record and marks it accepted. `req` is a request or SYSTEM_REQ (no user: decided_by NULL).
+// Returns the new job's id.
+function acceptTx(db, req, id) {
   const user = req && req.user;
-  const jobId = db.transaction(() => {
+  return db.transaction(() => {
     const row = loadRow(db, id);
     if (row.state !== "new") throw conflict("This quote has already been dealt with");
     // Accept builds the job from the stored values, whoever may see them.
@@ -374,6 +390,11 @@ function accept(db, req, id) {
     if (lines) drawers.fillFromJoinr(db, newId, lines, req, { quoteNumber: str(row.quote_number, 100) });
     return newId;
   })();
+}
+
+function accept(db, req, id) {
+  const user = req && req.user;
+  const jobId = acceptTx(db, req, id);
   const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
   return { item: get(db, user, id), job: camelJob(user, job) };
 }
@@ -396,11 +417,10 @@ function linkFills(q, row) {
   ];
 }
 
-function link(db, req, id, jobId) {
+// Link's work, in the caller's transaction (a savepoint when nested). Returns the job's id.
+function linkTx(db, req, id, jid) {
   const user = req && req.user;
-  const jid = parseId(jobId);
-  if (!jid) throw bad("jobId is required");
-  const result = db.transaction(() => {
+  return db.transaction(() => {
     const row = loadRow(db, id);
     if (row.state !== "new") throw conflict("This quote has already been dealt with");
     const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jid);
@@ -419,6 +439,13 @@ function link(db, req, id, jobId) {
         before[col] = job[col];
         after[col] = v;
       }
+    }
+    // A job still at Quoted (or the retired Lead) is about to move to Won below: its won date is the
+    // Joinr one (set here, so moveStage leaves it alone and the fill is one job.update).
+    const goesToWon = (job.stage === "quoted" || job.stage === "lead") && isEmpty(job.won_date);
+    if (goesToWon) {
+      before.won_date = job.won_date;
+      after.won_date = wonDateOf(q);
     }
     const now = new Date().toISOString();
     const cols = Object.keys(after);
@@ -443,11 +470,22 @@ function link(db, req, id, jobId) {
     if (upd.changes !== 1) throw conflict("This quote has already been dealt with");
 
     audit.log(req, { action: "job.update", entityType: "job", entityId: jid, before, after });
+    // 2026-10-18: a won quote makes a job still at Quoted (or the retired Lead) a Won job. A job
+    // already further along stays where it is. A move the pipeline rules refuse (the job has week
+    // rows) is skipped: the link still stands.
+    let moved = false;
+    if (job.stage === "quoted" || job.stage === "lead") {
+      try {
+        moved = jobstage.moveStage(db, jid, { stage: "won", from: job.stage }, req).changed;
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+      }
+    }
     audit.log(req, {
       action: "joinr.link",
       entityType: "joinr_intake",
       entityId: row.id,
-      after: { jobId: jid, rootQuoteId: row.root_quote_id, filled: cols.filter((c) => c !== "external_ref") },
+      after: { jobId: jid, rootQuoteId: row.root_quote_id, filled: cols.filter((c) => c !== "external_ref"), ...(moved ? { stage: "won" } : {}) },
     });
     // Link filled an empty value: an invoice waiting for one falls due.
     if ("value_cents" in after) invoices.onValueSet(db, jid, req);
@@ -456,8 +494,47 @@ function link(db, req, id, jobId) {
     if (lines) drawers.fillFromJoinr(db, jid, lines, req, { quoteNumber: str(row.quote_number, 100) });
     return jid;
   })();
+}
+
+function link(db, req, id, jobId) {
+  const user = req && req.user;
+  const jid = parseId(jobId);
+  if (!jid) throw bad("jobId is required");
+  const result = linkTx(db, req, id, jid);
   const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(result);
   return { item: get(db, user, id), job: camelJob(user, job) };
+}
+
+// A won quote that has just arrived (2026-10-18, Todd): no person decides. Exactly one live job
+// with the same quote number and no Joinr link is linked (as Link does); otherwise a Won job is
+// made (as Accept does). Then one task for the design team and an alert to its members.
+// Runs as one unit: if anything fails, nothing is kept and the record stays `new` for a person
+// (the caller catches). Returns {state: 'accepted' | 'linked', jobId}, or null if the record
+// is not waiting.
+function autoDecide(db, id) {
+  const req = SYSTEM_REQ;
+  return db.transaction(() => {
+    const row = loadRow(db, id);
+    if (row.state !== "new") return null;
+    const found = matches(db, row.id);
+    let state;
+    let jobId;
+    if (found.length === 1) {
+      jobId = linkTx(db, req, row.id, found[0].id);
+      state = "linked";
+    } else {
+      jobId = acceptTx(db, req, row.id);
+      state = "accepted";
+    }
+    const job = db.prepare("SELECT name FROM jobs WHERE id = ?").get(jobId);
+    teamTasks.createFromJoinr(db, req, {
+      jobId,
+      jobName: job && job.name,
+      mode: state === "linked" ? "linked" : "created",
+      quoteNumber: str(row.quote_number, 100),
+    });
+    return { state, jobId };
+  })();
 }
 
 function ignore(db, req, id) {
@@ -496,4 +573,4 @@ function acknowledge(db, req, id) {
   return get(db, user, id);
 }
 
-module.exports = { list, counts, get, matches, accept, link, ignore, acknowledge, forJob, quoteOf, httpUrl, VIEWS };
+module.exports = { list, counts, get, matches, accept, link, autoDecide, ignore, acknowledge, forJob, quoteOf, httpUrl, SYSTEM_REQ, VIEWS };

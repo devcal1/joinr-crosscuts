@@ -88,6 +88,26 @@ M6_Q1=c6000000-0000-4000-8000-000000000001
 M6_Q2=c6000000-0000-4000-8000-000000000002
 M6_Q3=c6000000-0000-4000-8000-000000000003
 M6_Q1B=c6000000-0000-4000-8000-0000000001b1
+M6_Q6=c6000000-0000-4000-8000-000000000006
+M6_Q7=c6000000-0000-4000-8000-000000000007
+M6_Q8=c6000000-0000-4000-8000-000000000008
+M6_Q10=c6000000-0000-4000-8000-000000000010
+
+# Joinr is wired to make a job by itself (2026-10-18, Todd): a won quote that arrives from the puller
+# or the import becomes a Won job at once (or links to the one live job with its quote number), with
+# a team task and an alert for the Design/PM team, and no person decides. Where this suite needs a
+# quote to wait for a person, it first makes a job that already holds the quote's root id, which makes
+# the automatic Accept fail (the row then stays `new`).
+m6_alerts() { # KIND INTAKE_ID -> how many alerts of KIND for that record dpm has (read or not)
+  req GET "/api/notifications?limit=100" "$DPM"
+  expect_status 200 "dpm notifications"
+  jqr "[.rows[] | select(.kind == \"$1\" and .link == \"/intake.html?item=$2\")] | length"
+}
+m6_hold() { # ROOT_ID WHY -> M6_HOLD (a job that already holds that Joinr root id)
+  req POST /api/job-records "$DPM" "{\"name\":\"M6 holds $1\",\"externalRef\":\"$1\"}"
+  expect_status 201 "$2"
+  M6_HOLD=$(jqr '.id')
+}
 
 echo "--- start the stand-in Joinr inside the container ---"
 docker exec "$CONTAINER" rm -f /data/config/joinr-api-key /data/config/joinr-base-url
@@ -157,7 +177,7 @@ expect_eq "$(m6_intake_count "$M6_Q0")" "0" "the quote won before the first sync
 req GET /api/joinr/status "$DPM"
 expect_jq '.lastOkAt != null and .lastRunAt != null and .lastError == null' "status after the first sync"
 
-echo "--- a won quote: one new record and a joinr.new alert for Design/PM ---"
+echo "--- a won quote becomes a Won job by itself, with a team task and an alert (2026-10-18) ---"
 M6_Q1_ITEM='{"quoteNumber":"CI-M6-0001","siteAddress":"1 Far Future St, Sydney","clientName":"M6 Client One","clientPhone":"0400 000 001","quoteDate":"2099-03-01","wonAt":"2099-03-02T01:00:00Z","valueIncGstCents":1234567,"estimatedHours":{"office":2,"factory":30,"site":12,"travel":3},"spec":{"sheetCount":24,"twoPac":true,"benchtop":"stone","jobType":"Kitchen"},"raw":{"doorsPanels":["2pac (S4)"],"benchtops":["Caesarstone"],"jobTypes":["Kitchen"]}}'
 m6_event "$M6_Q1" "$M6_Q1" won won "$M6_Q1_ITEM"
 m6_sync "$DPM" "sync after a won event"
@@ -165,43 +185,120 @@ expect_jq '.ok == true' "the sync is ok"
 m6_fake GET /_control/requests
 m6_expect_out '.requests[-1].query.after != null' "later syncs ask with after"
 expect_eq "$(m6_intake_count "$M6_Q1")" "1" "one intake record for the won quote"
-expect_eq "$(m6_intake_field "$M6_Q1" state)" "new" "the record is new"
+expect_eq "$(m6_intake_field "$M6_Q1" state)" "accepted" "the record was accepted automatically"
 expect_eq "$(m6_intake_field "$M6_Q1" quote_number)" "CI-M6-0001" "the record has the quote number"
 expect_eq "$(m6_intake_field "$M6_Q1" joinr_status)" "won" "the record has the Joinr status"
 expect_eq "$(m6_intake_field "$M6_Q1" changed)" "0" "the record is not flagged"
+expect_eq "$(m6_intake_field "$M6_Q1" decided_by)" "null" "no person decided (decided_by is NULL)"
 expect_eq "$(m6_sql "SELECT payload FROM joinr_intake WHERE root_quote_id = '$M6_Q1'" | jq -r '.[0].payload | fromjson | .valueIncGstCents')" "1234567" "the payload keeps the value"
 M6_Q1_ID=$(m6_intake_field "$M6_Q1" id)
+M6_Q1_JOB=$(m6_intake_field "$M6_Q1" job_id)
 expect_eq "$(m6_cursor)" "2" "the cursor moved past the item"
+req GET "/api/job-records/$M6_Q1_JOB" "$DPM"
+expect_status 200 "GET the job the sync made"
+expect_jq ".name == \"1 Far Future St, Sydney\" and .stage == \"won\" and .source == \"joinr\" and .externalRef == \"$M6_Q1\" and .valueCents == 1234567 and .sheetCount == 24 and .isTwoPac == true and .benchtop == \"stone\" and .wonDate == \"2099-03-02\"" "the job is the Accept mapping: Won, from Joinr, the quote's fields"
+req GET "/api/joinr/intake/$M6_Q1_ID" "$DPM"
+expect_jq '.state == "accepted" and .decidedBy.id == null and .decidedBy.name == "Joinr (automatic)" and .decidedAt != null' "the intake object says the decision was automatic"
+req GET "/api/audit?action=joinr.accept&entityId=$M6_Q1_ID&limit=1" "$ADMIN"
+expect_jq '.rows[0].actorUserId == null and .rows[0].actorLabel == "Joinr (automatic)"' "joinr.accept is audited as Joinr (automatic)"
+req GET "/api/audit?action=job.create&entityId=$M6_Q1_JOB&limit=1" "$ADMIN"
+expect_jq '.rows[0].actorUserId == null and .rows[0].actorLabel == "Joinr (automatic)"' "job.create is audited as Joinr (automatic)"
 
+echo "--- the alert goes to the Design/PM team (notes.design), not to the others ---"
 req GET "/api/notifications?limit=100" "$DPM"
 expect_status 200 "dpm notifications"
-expect_jq "[.rows[] | select(.kind == \"joinr.new\" and .link == \"/intake.html?item=$M6_Q1_ID\")] | length == 1" "dpm has one joinr.new alert for the record"
-expect_jq "(.rows[] | select(.kind == \"joinr.new\" and .link == \"/intake.html?item=$M6_Q1_ID\") | .title) | startswith(\"New from Joinr: CI-M6-0001\")" "the alert title names the quote"
-req GET "/api/notifications?limit=100" "$SCHED"
-expect_jq '[.rows[] | select(.kind | startswith("joinr."))] | length == 0' "sched gets no Joinr alert"
-req GET "/api/notifications?limit=100" "$SHOW"
-expect_jq '[.rows[] | select(.kind | startswith("joinr."))] | length == 0' "show gets no Joinr alert"
+expect_jq "[.rows[] | select(.kind == \"joinr.job\" and .link == \"/job.html?id=$M6_Q1_JOB\")] | length == 1" "dpm has one joinr.job alert linking the job"
+expect_jq "(.rows[] | select(.kind == \"joinr.job\" and .link == \"/job.html?id=$M6_Q1_JOB\") | .title) == \"Job created from Joinr: 1 Far Future St, Sydney\"" "the alert title names the job"
+expect_jq '[.rows[] | select(.kind == "joinr.new" and (.title | contains("CI-M6-0001")))] | length == 0' "no 'new from Joinr' alert for an automatic job"
+req GET "/api/notifications?limit=100" "$ADMIN"
+expect_jq "[.rows[] | select(.kind == \"joinr.job\" and .link == \"/job.html?id=$M6_Q1_JOB\")] | length == 1" "admin (notes.design) has the alert too"
+for pair in "SCHED:$SCHED" "ACCT:$ACCT" "SHOW:$SHOW"; do
+  who=${pair%%:*}; jar=${pair#*:}
+  req GET "/api/notifications?limit=100" "$jar"
+  expect_status 200 "$who notifications"
+  expect_jq '[.rows[] | select(.kind | startswith("joinr."))] | length == 0' "$who gets no Joinr alert"
+done
 
-echo "--- the same event again: still one record, no second alert ---"
+echo "--- the Design/PM team task for the new job ---"
+req GET "/api/tasks?view=mine" "$DPM"
+expect_status 200 "dpm GET /api/tasks?view=mine"
+expect_jq "[.rows[] | select(.job.id == $M6_Q1_JOB)] | length == 1" "the team task is in dpm's Mine"
+expect_jq ".rows[] | select(.job.id == $M6_Q1_JOB) | .title == \"New job from Joinr: 1 Far Future St, Sydney - set up the job\" and .team == \"design\" and .assignee.name == \"Design/PM team\" and .assignee.id == null and .createdBy.name == \"Joinr (automatic)\" and .createdBy.id == null and .status == \"open\" and .dueDate == null and .canEdit == true" "its title, team, assignee label, creator label and no due date"
+M6_Q1_TASK=$(jqr ".rows[] | select(.job.id == $M6_Q1_JOB) | .id")
+req GET "/api/tasks?view=mine" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 1" "it is in admin's Mine too (every member sees it)"
+req GET "/api/tasks?view=job&jobId=$M6_Q1_JOB" "$DPM"
+expect_jq "[.rows[].id] == [$M6_Q1_TASK]" "the job's task list has it for a member"
+for pair in "SCHED:$SCHED" "ACCT:$ACCT"; do
+  who=${pair%%:*}; jar=${pair#*:}
+  req GET "/api/tasks?view=open" "$jar"
+  expect_status 200 "$who GET /api/tasks?view=open"
+  expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 0" "$who (not on the team) does not see it in All open"
+  req GET "/api/tasks?view=job&jobId=$M6_Q1_JOB" "$jar"
+  expect_jq '.rows | length == 0' "$who does not see it on the job's task list"
+  req GET "/api/tasks/$M6_Q1_TASK" "$jar"
+  expect_status 404 "$who GET the team task by id"
+  req POST "/api/tasks/$M6_Q1_TASK/done" "$jar"
+  expect_status 404 "$who cannot finish it"
+done
+req GET "/api/tasks/$M6_Q1_TASK" "$SHOW"
+expect_status 403 "show GET the team task"
+req GET /api/auth/me "$DPM"
+M6_DPM_ID=$(jqr '.user.id')
+req GET /api/notifications/unread-count "$DPM"
+expect_jq '.tasks >= 1' "the menu bar count includes the team task"
+req POST "/api/tasks/$M6_Q1_TASK/done" "$DPM"
+expect_status 200 "dpm ticks the team task done"
+expect_jq ".status == \"done\" and .doneBy.id == $M6_DPM_ID and .doneAt != null" "done records who and when"
+req GET "/api/tasks?view=mine" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 0" "it is closed for admin too"
+req GET "/api/tasks?view=done" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 1" "admin finds it in Done"
+req POST "/api/tasks/$M6_Q1_TASK/done" "$ADMIN"
+expect_status 409 "ticking it again"
+req POST "/api/tasks/$M6_Q1_TASK/reopen" "$ADMIN"
+expect_status 200 "admin reopens it"
+expect_jq '.status == "open" and .doneBy == null' "reopened for everyone"
+req GET "/api/tasks?view=mine" "$DPM"
+expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 1" "dpm sees it open again"
+req GET "/api/audit?entityType=task&entityId=$M6_Q1_TASK&limit=20" "$ADMIN"
+expect_jq '([.rows[].action] | (index("task.create") != null and index("task.done") != null and index("task.reopen") != null)) and ([.rows[] | select(.action == "task.create")][0].actorLabel == "Joinr (automatic)")' "create, done and reopen are audited, the creation by Joinr (automatic)"
+
+echo "--- the same event again: still one record, one job, one alert, one task ---"
 m6_event "$M6_Q1" "$M6_Q1" won won "$M6_Q1_ITEM"
 m6_sync "$DPM" "sync"
 expect_jq '.ok == true' "sync of a repeated item"
 expect_eq "$(m6_intake_count "$M6_Q1")" "1" "still one record for the quote"
-expect_eq "$(m6_intake_field "$M6_Q1" state)" "new" "still new"
+expect_eq "$(m6_intake_field "$M6_Q1" state)" "accepted" "still accepted"
+expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM jobs WHERE external_ref = '$M6_Q1'" | jq -r '.[0].n')" "1" "still one job for the quote"
 req GET "/api/notifications?limit=100" "$DPM"
-expect_jq "[.rows[] | select(.kind == \"joinr.new\" and .link == \"/intake.html?item=$M6_Q1_ID\")] | length == 1" "still one joinr.new alert"
+expect_jq "[.rows[] | select(.kind == \"joinr.job\" and .link == \"/job.html?id=$M6_Q1_JOB\")] | length == 1" "still one joinr.job alert"
+req GET "/api/tasks?view=job&jobId=$M6_Q1_JOB" "$DPM"
+expect_jq '.rows | length == 1' "still one team task on the job"
 
-echo "--- a revision that wins: the same record, the latest quote id ---"
+echo "--- a revision that wins: flagged as changed, the job is not touched ---"
 m6_event "$M6_Q1" "$M6_Q1B" won won "$(printf '%s' "$M6_Q1_ITEM" | jq -c '. + {revision: 1, valueIncGstCents: 1300000}')"
 m6_sync "$DPM" "sync"
 expect_jq '.ok == true' "sync of a revision"
 expect_eq "$(m6_intake_count "$M6_Q1")" "1" "a revision does not make a second record"
 expect_eq "$(m6_intake_field "$M6_Q1" quote_id)" "$M6_Q1B" "the record holds the latest revision"
+expect_eq "$(m6_intake_field "$M6_Q1" changed)" "1" "the revision flags the accepted record"
+expect_eq "$(m6_alerts joinr.changed "$M6_Q1_ID")" "1" "one joinr.changed alert"
+req GET "/api/job-records/$M6_Q1_JOB" "$DPM"
+expect_jq '.valueCents == 1234567' "the job's value is untouched"
+req GET "/api/joinr/job/$M6_Q1_JOB" "$DPM"
+expect_jq '.changed == true' "the job page's Joinr callout would show the change"
 
-echo "--- un-won before a decision: withdrawn; won again: back to new; deleted: withdrawn ---"
+echo "--- a quote the automatic Accept could not handle waits for a person: un-won: withdrawn; won again: back to new (not automatic); deleted: withdrawn ---"
+m6_hold "$M6_Q2" "a job already holding quote 2's root id"
 m6_event "$M6_Q2" "$M6_Q2" won won '{"quoteNumber":"CI-M6-0002","siteAddress":"2 Far Future St","clientName":"M6 Client Two"}'
 m6_sync "$DPM" "sync"
-expect_eq "$(m6_intake_field "$M6_Q2" state)" "new" "quote 2 is new"
+expect_eq "$(m6_intake_field "$M6_Q2" state)" "new" "quote 2 is left new: the automatic Accept failed and changed nothing"
+expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM jobs WHERE external_ref = '$M6_Q2'" | jq -r '.[0].n')" "1" "no second job was made for quote 2"
+M6_Q2_ID=$(m6_intake_field "$M6_Q2" id)
+expect_eq "$(m6_alerts joinr.new "$M6_Q2_ID")" "1" "a record left for a person alerts the team as before (joinr.new)"
+expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM team_tasks WHERE title LIKE '%2 Far Future%'" | jq -r '.[0].n')" "0" "the failed automatic Accept left no team task behind"
+expect_jq '.ok == true' "the failed automatic Accept does not fail the sync"
 m6_event "$M6_Q2" "$M6_Q2" unwon lost '{"quoteNumber":"CI-M6-0002","siteAddress":"2 Far Future St","clientName":"M6 Client Two","wonAt":null}'
 m6_sync "$DPM" "sync"
 expect_jq '.ok == true' "sync of an unwon item"
@@ -243,21 +340,33 @@ m6_fake GET /_control/requests
 m6_expect_out '[.requests[] | select(.query.backfill == "won")] | length >= 3' "the import asked with backfill=won, page by page"
 m6_expect_out '[.requests[] | select(.query.backfill == "won") | .query.after // empty] | length >= 2 and all(test("^b\\.[0-9]+\\.[^ ]+$"))' "the import sent the opaque cursors back as-is"
 expect_eq "$(m6_intake_count "$M6_Q0")" "1" "the quote won before the first sync is imported"
-expect_eq "$(m6_intake_field "$M6_Q0" state)" "new" "the imported quote is new"
+# 2026-10-18: the import makes Won jobs for every past win (cutover.md warns about it).
+expect_eq "$(m6_intake_field "$M6_Q0" state)" "accepted" "the imported quote became a Won job, as a sync would"
+expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM jobs WHERE external_ref = '$M6_Q0' AND stage = 'won' AND source = 'joinr'" | jq -r '.[0].n')" "1" "one Won job from Joinr for the imported quote"
+expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM team_tasks WHERE source = 'joinr' AND title LIKE '%0 Before St%'" | jq -r '.[0].n')" "1" "the imported job has its team task"
 expect_eq "$(m6_intake_count "$M6_Q1")" "1" "the import does not duplicate quote 1"
 expect_eq "$(m6_intake_field "$M6_Q2" state)" "withdrawn" "the import leaves the withdrawn quote alone"
 expect_eq "$(m6_cursor)" "$M6_CURSOR_BEFORE" "the import keeps the stored cursor"
 
-echo "--- the Pipeline's Quoted column lists the won quotes (GET /api/pipeline/joinr-quotes) ---"
+echo "--- the Pipeline's Quoted column lists the won quotes still waiting (GET /api/pipeline/joinr-quotes) ---"
+# A quote the automatic Accept could not handle stays `new`; the ones that became jobs are not listed.
+m6_hold "$M6_Q6" "a job already holding quote 6's root id"
+M6_Q6_HOLD=$M6_HOLD
+M6_Q6_ITEM='{"quoteNumber":"CI-M6-0006","siteAddress":"6 Far Future St, Sydney","clientName":"M6 Client Six","wonAt":"2099-03-03T01:00:00Z","valueIncGstCents":1300000}'
+m6_event "$M6_Q6" "$M6_Q6" won won "$M6_Q6_ITEM"
+m6_sync "$DPM" "sync quote 6"
+expect_eq "$(m6_intake_field "$M6_Q6" state)" "new" "quote 6 waits for a person"
+M6_Q6_ID=$(m6_intake_field "$M6_Q6" id)
 req GET /api/pipeline/joinr-quotes "$SHOW"
 expect_status 403 "show GET /api/pipeline/joinr-quotes"
 req GET /api/pipeline/joinr-quotes "$DPM"
 expect_status 200 "dpm GET /api/pipeline/joinr-quotes"
 expect_jq '.source == "intake" and .fetchedAt == null and .truncated == false' "Joinr has not released the open-quotes list (the stand-in answers 404), so Quoted lists the intake rows"
-expect_jq '[.quotes[] | select(.quoteNumber == "CI-M6-0001")] | length == 1' "the won quote is listed"
-expect_jq ".quotes[] | select(.quoteNumber == \"CI-M6-0001\") | (.url | startswith(\"$M6_BASE_URL/org/\") and endswith(\"/quotes/$M6_Q1B\")) and .clientName == \"M6 Client One\" and .siteAddress == \"1 Far Future St, Sydney\" and .joinrStatus == \"won\" and .valueCents == 1300000" "the line links to the latest revision in Joinr, with client, site, status and value"
+expect_jq '[.quotes[] | select(.quoteNumber == "CI-M6-0001")] | length == 0' "a won quote that has become a job is no longer listed"
+expect_jq '[.quotes[] | select(.quoteNumber == "CI-M6-0006")] | length == 1' "the quote waiting for a person is listed"
+expect_jq ".quotes[] | select(.quoteNumber == \"CI-M6-0006\") | (.url | startswith(\"$M6_BASE_URL/org/\") and endswith(\"/quotes/$M6_Q6\")) and .clientName == \"M6 Client Six\" and .siteAddress == \"6 Far Future St, Sydney\" and .joinrStatus == \"won\" and .valueCents == 1300000" "the line links to the quote in Joinr, with client, site, status and value"
 expect_jq '[.quotes[] | select(.quoteNumber == "CI-M6-0002")] | length == 0' "the withdrawn quote is not listed"
-expect_jq '.quotes[0].quoteNumber == "CI-M6-0001"' "the newest won (2099) comes first"
+expect_jq '.quotes[0].quoteNumber == "CI-M6-0006"' "the newest won (2099) comes first"
 
 echo "--- Joinr misbehaving: the error shows in /status and the app carries on ---"
 m6_check_failure() { # MODE-JSON WHAT [ERROR-SUBSTRING]
@@ -315,22 +424,15 @@ M6_Q4=c6000000-0000-4000-8000-000000000004
 M6_Q5=c6000000-0000-4000-8000-000000000005
 M6_Q9=c6000000-0000-4000-8000-000000000009
 
-m6_alerts() { # KIND INTAKE_ID -> how many alerts of KIND for that record dpm has (read or not)
-  req GET "/api/notifications?limit=100" "$DPM"
-  expect_status 200 "dpm notifications"
-  jqr "[.rows[] | select(.kind == \"$1\" and .link == \"/intake.html?item=$2\")] | length"
-}
-
-echo "--- accept a pulled quote, then Joinr changes it: flagged, one alert, the job untouched ---"
+echo "--- a pulled quote is accepted by itself, then Joinr changes it: flagged, one alert, the job untouched ---"
 M6_Q4_ITEM='{"quoteNumber":"CI-M6-0004","siteAddress":"4 Far Future St","clientName":"M6 Client Four","wonAt":"2099-05-02T01:00:00Z","valueIncGstCents":500000}'
 m6_event "$M6_Q4" "$M6_Q4" won won "$M6_Q4_ITEM"
 m6_sync "$DPM" "sync quote 4"
-expect_eq "$(m6_intake_field "$M6_Q4" state)" "new" "quote 4 is new"
+expect_eq "$(m6_intake_field "$M6_Q4" state)" "accepted" "quote 4 was accepted by itself"
 M6_Q4_ID=$(m6_intake_field "$M6_Q4" id)
-req POST "/api/joinr/intake/$M6_Q4_ID/accept" "$DPM" '{}'
-expect_status 200 "dpm accepts quote 4"
-expect_jq '.item.state == "accepted" and .job.stage == "won" and .job.source == "joinr"' "quote 4 accepted as a job at won"
-M6_Q4_JOB=$(jqr '.job.id')
+M6_Q4_JOB=$(m6_intake_field "$M6_Q4" job_id)
+req GET "/api/job-records/$M6_Q4_JOB" "$DPM"
+expect_jq '.stage == "won" and .source == "joinr"' "quote 4 is a job at won"
 req GET "/api/job-records/$M6_Q4_JOB" "$DPM"
 expect_jq ".valueCents == 500000 and .externalRef == \"$M6_Q4\"" "the job has the quote's value and root id"
 M6_Q4_CHANGED=$(printf '%s' "$M6_Q4_ITEM" | jq -c '. + {valueIncGstCents: 650000}')
@@ -375,10 +477,23 @@ expect_eq "$(m6_alerts joinr.changed "$M6_Q4_ID")" "2" "no alert for a repeated 
 req GET "/api/job-records/$M6_Q4_JOB" "$DPM"
 expect_jq '.valueCents == 500000 and .stage == "won"' "the job is still untouched"
 
-echo "--- ignore a pulled quote, then Joinr changes it: flagged silently ---"
+echo "--- an un-won after the automatic Accept flags the job and leaves it in place ---"
+m6_event "$M6_Q4" "$M6_Q4" unwon lost "$(printf '%s' "$M6_Q4_CHANGED" | jq -c '. + {status: "lost", valueIncGstCents: 660000}')"
+m6_sync "$DPM" "sync an unwon with another change"
+expect_eq "$(m6_intake_field "$M6_Q4" changed)" "1" "flagged again"
+req GET "/api/joinr/job/$M6_Q4_JOB" "$DPM"
+expect_jq '.changed == true and .state == "accepted"' "the job page callout shows it"
+req GET "/api/job-records/$M6_Q4_JOB" "$DPM"
+expect_jq '.id != null and .valueCents == 500000' "the job is still there with its own value"
+req POST "/api/joinr/intake/$M6_Q4_ID/acknowledge" "$DPM" '{}'
+expect_status 200 "dpm acknowledges"
+
+echo "--- ignore a pulled quote (one that waits for a person), then Joinr changes it: flagged silently ---"
+m6_hold "$M6_Q5" "a job already holding quote 5's root id"
 M6_Q5_ITEM='{"quoteNumber":"CI-M6-0005","siteAddress":"5 Far Future St","clientName":"M6 Client Five","wonAt":"2099-05-03T01:00:00Z","valueIncGstCents":300000}'
 m6_event "$M6_Q5" "$M6_Q5" won won "$M6_Q5_ITEM"
 m6_sync "$DPM" "sync quote 5"
+expect_eq "$(m6_intake_field "$M6_Q5" state)" "new" "quote 5 waits for a person"
 M6_Q5_ID=$(m6_intake_field "$M6_Q5" id)
 req POST "/api/joinr/intake/$M6_Q5_ID/ignore" "$DPM" '{}'
 expect_status 200 "dpm ignores quote 5"
@@ -387,6 +502,66 @@ m6_sync "$DPM" "sync a change to an ignored quote"
 expect_eq "$(m6_intake_field "$M6_Q5" changed)" "1" "the ignored record is flagged changed"
 expect_eq "$(m6_intake_field "$M6_Q5" state)" "ignored" "it stays ignored"
 expect_eq "$(m6_alerts joinr.changed "$M6_Q5_ID")" "0" "no joinr.changed alert for an ignored quote"
+
+echo "--- a row left new can still be accepted by a person (the Accept button) ---"
+# Quote 6 was left new above (a job held its root id). Free the id, then Accept by hand.
+req PATCH "/api/job-records/$M6_Q6_HOLD" "$DPM" '{"externalRef":null}'
+expect_status 200 "the blocking job lets go of the root id"
+req POST "/api/joinr/intake/$M6_Q6_ID/accept" "$DPM" '{}'
+expect_status 200 "dpm accepts quote 6 by hand"
+expect_jq '.item.state == "accepted" and .job.stage == "won" and .job.source == "joinr"' "accepted as a Won job"
+M6_Q6_JOB=$(jqr '.job.id')
+req GET "/api/joinr/intake/$M6_Q6_ID" "$DPM"
+expect_jq ".decidedBy.name == \"CI Design PM\" and .decidedBy.id == $M6_DPM_ID" "a hand decision names the person"
+req GET "/api/tasks?view=job&jobId=$M6_Q6_JOB" "$DPM"
+expect_jq '.rows | length == 0' "a hand Accept makes no team task (the person doing it is already on it)"
+
+echo "--- exactly one live job with the quote number: linked, moved to Won, nothing overwritten ---"
+req POST /api/job-records "$DPM" '{"name":"M6 typed-in kitchen","quoteNumber":"CI-M6-0007","clientName":"Typed Client","stage":"quoted"}'
+expect_status 201 "a typed-in job at Quoted with the quote number"
+M6_Q7_JOB=$(jqr '.id')
+req POST /api/job-records "$DPM" '{"name":"M6 old lost one","quoteNumber":"CI-M6-0007","stage":"lost"}'
+expect_status 201 "a lost job with the same number does not count"
+M6_Q7_ITEM='{"quoteNumber":"CI-M6-0007","siteAddress":"7 Far Future St","clientName":"Joinr Client Seven","wonAt":"2099-06-02T01:00:00Z","valueIncGstCents":777700,"spec":{"sheetCount":9,"twoPac":false,"benchtop":"laminate","jobType":"Vanity"}}'
+m6_event "$M6_Q7" "$M6_Q7" won won "$M6_Q7_ITEM"
+m6_sync "$DPM" "sync quote 7"
+expect_eq "$(m6_intake_field "$M6_Q7" state)" "linked" "quote 7 was linked by itself"
+expect_eq "$(m6_intake_field "$M6_Q7" job_id)" "$M6_Q7_JOB" "to the one live job with its number"
+M6_Q7_ID=$(m6_intake_field "$M6_Q7" id)
+req GET "/api/job-records/$M6_Q7_JOB" "$DPM"
+expect_jq ".externalRef == \"$M6_Q7\" and .name == \"M6 typed-in kitchen\" and .source == \"manual\" and .clientName == \"Typed Client\" and .stage == \"won\" and .wonDate == \"2099-06-02\"" "tied to the quote, kept its own name and client, moved from Quoted to Won"
+expect_jq '.siteAddress == "7 Far Future St" and .valueCents == 777700 and .sheetCount == 9 and .benchtop == "laminate"' "its empty fields were filled"
+req GET "/api/audit?action=joinr.link&entityId=$M6_Q7_ID&limit=1" "$ADMIN"
+expect_jq '.rows[0].actorLabel == "Joinr (automatic)" and .rows[0].actorUserId == null' "joinr.link is audited as Joinr (automatic)"
+req GET "/api/tasks?view=job&jobId=$M6_Q7_JOB" "$DPM"
+expect_jq '(.rows | length) == 1 and .rows[0].title == "Joinr quote linked to M6 typed-in kitchen - check the job" and .rows[0].team == "design"' "a team task says the quote was linked"
+req GET "/api/notifications?limit=100" "$DPM"
+expect_jq "[.rows[] | select(.kind == \"joinr.job\" and .link == \"/job.html?id=$M6_Q7_JOB\" and .title == \"Joinr linked to M6 typed-in kitchen\")] | length == 1" "the team is told the quote was linked"
+
+echo "--- two live jobs with the quote number: a new job is made, neither is touched ---"
+req POST /api/job-records "$DPM" '{"name":"M6 twin A","quoteNumber":"CI-M6-0008","stage":"quoted"}'
+M6_Q8_A=$(jqr '.id')
+req POST /api/job-records "$DPM" '{"name":"M6 twin B","quoteNumber":"CI-M6-0008","stage":"quoted"}'
+M6_Q8_B=$(jqr '.id')
+m6_event "$M6_Q8" "$M6_Q8" won won '{"quoteNumber":"CI-M6-0008","siteAddress":"8 Far Future St","clientName":"M6 Client Eight","wonAt":"2099-06-03T01:00:00Z"}'
+m6_sync "$DPM" "sync quote 8"
+expect_eq "$(m6_intake_field "$M6_Q8" state)" "accepted" "quote 8 became a new job (the match was not unique)"
+M6_Q8_JOB=$(m6_intake_field "$M6_Q8" job_id)
+[ "$M6_Q8_JOB" != "$M6_Q8_A" ] && [ "$M6_Q8_JOB" != "$M6_Q8_B" ] || fail "quote 8 was tied to one of the twins"
+ok
+for j in "$M6_Q8_A" "$M6_Q8_B"; do
+  req GET "/api/job-records/$j" "$DPM"
+  expect_jq '.externalRef == null and .stage == "quoted"' "the twin $j is untouched"
+done
+
+echo "--- a unique match that is further along keeps its stage ---"
+req POST /api/job-records "$DPM" '{"name":"M6 already in design","quoteNumber":"CI-M6-0010","stage":"design_ordering"}'
+M6_Q10_JOB=$(jqr '.id')
+m6_event "$M6_Q10" "$M6_Q10" won won '{"quoteNumber":"CI-M6-0010","siteAddress":"10 Far Future St","clientName":"M6 Client Ten","wonAt":"2099-06-04T01:00:00Z"}'
+m6_sync "$DPM" "sync quote 10"
+expect_eq "$(m6_intake_field "$M6_Q10" state)" "linked" "quote 10 linked by itself"
+req GET "/api/job-records/$M6_Q10_JOB" "$DPM"
+expect_jq '.stage == "design_ordering" and .externalRef != null' "the job stays at design_ordering"
 # ---- end block B ----------------------------------------------------------------
 
 echo "--- paging faults: an older position, and paging that does not move ---"
