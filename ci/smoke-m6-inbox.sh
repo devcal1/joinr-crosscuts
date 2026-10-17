@@ -147,6 +147,25 @@ expect_status 409 "ignore after accept is refused"
 req GET /api/job-records "$DPM"
 expect_jq "[.[] | select(.externalRef == \"m6b-access\")] | length == 1" "still exactly one job for the root id"
 
+echo "--- the Pipeline's Quoted column: Joinr lines (GET /api/pipeline/joinr-quotes) ---"
+# Only quotes still waiting (state new) are listed: accepted and linked ones already have a
+# job card of their own, ignored ones were declined, withdrawn ones are gone from Joinr.
+m6b_seed "$(m6b_item m6b-pl-new JRQM6BPL '.wonAt = "2030-01-02T00:00:00.000Z"')"
+m6b_seed "$(m6b_item m6b-pl-ign JRQM6BPI)" ignored
+m6b_seed "$(m6b_item m6b-pl-wd JRQM6BPW)" withdrawn
+req GET /api/pipeline/joinr-quotes "$SHOW"
+expect_status 403 "show GET /api/pipeline/joinr-quotes"
+req GET /api/pipeline/joinr-quotes "$DPM"
+expect_status 200 "dpm GET /api/pipeline/joinr-quotes"
+expect_jq '[.[] | select(.quoteNumber == "JRQM6BPL")] | length == 1' "the waiting Joinr quote is listed"
+expect_jq '.[] | select(.quoteNumber == "JRQM6BPL") | .url == "https://app.joinr.com.au/org/o/quotes/q-m6b-pl-new" and .clientName == "M6B Client" and .siteAddress == "12 Wattle St, Bondi NSW" and .joinrStatus == "won" and .valueCents == 1234567' "the line carries the link, client, site, status and value"
+expect_jq '.[] | select(.quoteNumber == "JRQM6BPL") | (keys | sort) == ["clientName","id","joinrStatus","quoteNumber","siteAddress","url","valueCents","wonAt"]' "and nothing else (no raw payload)"
+expect_jq '[.[] | select(.quoteNumber == "JRQM6BPI" or .quoteNumber == "JRQM6BPW" or .quoteNumber == "JRQM6B00")] | length == 0' "ignored, withdrawn and accepted quotes are not listed"
+expect_jq '[.[] | select(.wonAt) | .wonAt] | . == (sort | reverse)' "newest won first"
+req GET /api/pipeline/joinr-quotes "$M6B_NV"
+expect_status 200 "a user without jobs.value GET /api/pipeline/joinr-quotes"
+expect_jq 'length > 0 and all(.[]; has("valueCents") | not)' "no value for a user who cannot see values"
+
 echo "--- accept: a sparse quote ---"
 m6b_seed "$(m6b_item m6b-sparse "" '.quoteNumber = null | .siteAddress = null | .label = null | .clientName = "M6B Sparse" | .clientPhone = null | .clientEmail = null | .wonAt = null | .quoteDate = null | .valueIncGstCents = null | .estimatedHours = null | .spec = {sheetCount: null, twoPac: null, benchtop: null, jobType: null} | .raw = {doorsPanels: [], benchtops: [], jobTypes: []} | .url = "javascript:alert(1)"')"
 M6B_SPARSE=$M6B_ID
@@ -197,7 +216,7 @@ req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" "{\"jobId\":$M6B_J1}"
 expect_status 200 "link the record to the typed-in job"
 expect_jq ".item.state == \"linked\" and .item.job.id == $M6B_J1" "record linked"
 req GET "/api/job-records/$M6B_J1" "$DPM"
-expect_jq '.externalRef == "m6b-link" and .name == "M6B typed in" and .source == "manual" and .stage == "lead"' "the job gained its external_ref and kept name, source and stage"
+expect_jq '.externalRef == "m6b-link" and .name == "M6B typed in" and .source == "manual" and .stage == "quoted"' "the job gained its external_ref and kept name, source and stage"
 expect_jq '.clientName == "Typed Client" and .clientPhone == "0299 999 999" and .benchtop == "laminate" and .valueCents == 500000' "its own non-empty fields are kept"
 expect_jq '.clientEmail == "lnk@example.com" and .sheetCount == 9 and .isTwoPac == false and .jobType == "Vanity" and .siteAddress == "12 Wattle St, Bondi NSW" and (.joinrQuoteUrl | endswith("q-m6b-link"))' "its empty fields were filled"
 expect_eq "$(m6b_audits job.update "$M6B_J1")" 1 "job.update audit row for the link"

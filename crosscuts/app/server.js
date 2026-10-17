@@ -70,6 +70,7 @@ const routers = [
   require("./routes/reports"),
   require("./routes/availability"),
   require("./routes/joinr"),
+  require("./routes/pipeline"),
   require("./routes/backup"),
   require("./routes/planner"),
   require("./routes/payruns"),

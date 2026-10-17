@@ -5,8 +5,9 @@
 (function () {
   "use strict";
 
+  // The Lead column was removed 2026-10-17: the pipeline starts at Quoted. A job still at
+  // the retired 'lead' stage (the DB still allows it) shows in Quoted; see colKey().
   const COLUMNS = [
-    ["lead", "Lead"],
     ["quoted", "Quoted"],
     ["won", "Won"],
     ["design_ordering", "Design / ordering"],
@@ -18,8 +19,11 @@
     ["archived", "Archived"],
   ];
   const LABEL = Object.fromEntries(COLUMNS);
-  const MANUAL = ["lead", "quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+  const MANUAL = ["quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+  // The column a stage is shown in: the retired 'lead' reads as Quoted.
+  const colKey = (stage) => (stage === "lead" ? "quoted" : stage);
   // Stages where a near promised install date needs attention (not yet on the board).
+  // ("lead" is the retired stage; old rows may still hold it.)
   const PRE_BOARD = new Set(["lead", "quoted", "won", "design_ordering", "ready_to_cut"]);
   // Complete and Invoiced show only the last 60 days until "Show all" is pressed.
   const CAPPED = new Set(["complete", "invoiced"]);
@@ -79,7 +83,8 @@
     return Array.isArray(j.onBoardWeeks) && j.onBoardWeeks.some((w) => w >= mon);
   }
   function targetsFor(j) {
-    return boardLocked(j) ? [] : allowedTargets(j.stage);
+    // Never offer the column the card is already in (a legacy lead job is in Quoted).
+    return boardLocked(j) ? [] : allowedTargets(j.stage).filter((s) => s !== colKey(j.stage));
   }
   function fmtShort(s, thisYear) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
@@ -96,6 +101,9 @@
   const liveEl = document.getElementById("plLive");
 
   const jobs = new Map(); // id -> job object from the API
+  // Joinr quotes listed in Quoted (GET /api/pipeline/joinr-quotes). Read-only lines, not jobs.
+  // TODO "J3": sent quotes will join these once Joinr supplies them (needs Todd's go, rule 12).
+  let joinrQuotes = [];
   const busy = new Set(); // ids with a move in flight
   const showAll = { complete: false, invoiced: false };
   const cols = {}; // stage -> { root, count, cards, foot, hint }
@@ -181,6 +189,12 @@
       statusEl.textContent = "Could not load jobs: " + e.message;
       return;
     }
+    // The Joinr lines are extra: if they fail to load the jobs still show.
+    try {
+      joinrQuotes = await api("/api/pipeline/joinr-quotes");
+    } catch (e) {
+      joinrQuotes = [];
+    }
     jobs.clear();
     for (const j of list) jobs.set(j.id, j);
     loaded = true;
@@ -191,7 +205,7 @@
   // ---- rendering ------------------------------------------------------------
   // On the board: not archived, except jobs in the archived stage (fetched on demand).
   function inColumn(j, stage) {
-    return j.stage === stage && (stage === "archived" || !j.archived);
+    return colKey(j.stage) === stage && (stage === "archived" || !j.archived);
   }
 
   function byInstallThenName(a, b) {
@@ -223,12 +237,14 @@
   }
 
   function renderColumn(stage) {
+    stage = colKey(stage); // the retired lead stage is shown in Quoted
     const c = cols[stage];
     const hiddenZone = !showLA && (stage === "lost" || stage === "archived");
     const all = [...jobs.values()].filter((j) => inColumn(j, stage)).sort(byInstallThenName);
 
     // The count is the full count; Archived is not fetched while its toggle is off.
-    c.count.textContent = stage === "archived" && !showLA ? "" : String(all.length);
+    const extra = stage === "quoted" ? joinrQuotes.length : 0; // Joinr lines count too
+    c.count.textContent = stage === "archived" && !showLA ? "" : String(all.length + extra);
 
     let list = all;
     let hidden = 0;
@@ -245,6 +261,14 @@
     c.root.classList.toggle("pl-editable", editable);
     if (hiddenZone) {
       c.cards.replaceChildren(el("p", { class: "pl-empty", text: "Hidden. Drop a card here, or use Show lost and archived." }));
+    } else if (stage === "quoted") {
+      // Quoted is a list of single lines: Crosscuts jobs first (draggable), then the Joinr quotes.
+      const kids = list.map((j) => buildLine(j, { today, soon, thisYear, editable }));
+      if (joinrQuotes.length) {
+        if (kids.length) kids.push(el("p", { class: "pl-sub", text: "From Joinr" }));
+        kids.push(...joinrQuotes.map(buildJoinrLine));
+      }
+      c.cards.replaceChildren(...(kids.length ? kids : [el("p", { class: "pl-empty", text: "No jobs." })]));
     } else if (!list.length) {
       c.cards.replaceChildren(
         el("p", { class: "pl-empty", text: all.length && hidden ? "Nothing in the last 60 days." : "No jobs." })
@@ -313,35 +337,76 @@
 
     const foot = el("div", { class: "pl-foot-row" });
     foot.append(el("a", { class: "hs-btn hs-btn-quiet", href: "/job.html?id=" + j.id, text: "Open" }));
-    if (ctx.editable) {
-      const targets = targetsFor(j);
-      const btn = el("button", {
-        type: "button",
-        class: "hs-btn hs-btn-quiet pl-moveto",
-        text: "Move to…",
-        "aria-haspopup": "menu",
-        "aria-expanded": "false",
-      });
-      if (boardLocked(j)) {
-        btn.disabled = true;
-        btn.title = "Moves from the board";
-      } else if (!targets.length || busy.has(j.id)) {
-        btn.disabled = true;
-      }
-      btn.addEventListener("click", () => {
-        if (menu && menu.btn === btn) closeMenu(true);
-        else openMenu(btn, j.id);
-      });
-      btn.addEventListener("keydown", (ev) => {
-        if (ev.key === "ArrowDown" && !btn.disabled) {
-          ev.preventDefault();
-          if (!menu || menu.btn !== btn) openMenu(btn, j.id);
-        }
-      });
-      foot.append(btn);
-    }
+    if (ctx.editable) foot.append(moveButton(j));
     card.append(foot);
     return card;
+  }
+
+  // The "Move to..." button (editors only). Shared by the cards and the Quoted lines.
+  function moveButton(j) {
+    const targets = targetsFor(j);
+    const btn = el("button", {
+      type: "button",
+      class: "hs-btn hs-btn-quiet pl-moveto",
+      text: "Move to…",
+      "aria-haspopup": "menu",
+      "aria-expanded": "false",
+    });
+    if (boardLocked(j)) {
+      btn.disabled = true;
+      btn.title = "Moves from the board";
+    } else if (!targets.length || busy.has(j.id)) {
+      btn.disabled = true;
+    }
+    btn.addEventListener("click", () => {
+      if (menu && menu.btn === btn) closeMenu(true);
+      else openMenu(btn, j.id);
+    });
+    btn.addEventListener("keydown", (ev) => {
+      if (ev.key === "ArrowDown" && !btn.disabled) {
+        ev.preventDefault();
+        if (!menu || menu.btn !== btn) openMenu(btn, j.id);
+      }
+    });
+    return btn;
+  }
+
+  // Quoted lines: one compact line per job, the whole line a link to the job. Still
+  // draggable (the .pl-handle) and movable (Move to...); a press without a drag opens it.
+  function buildLine(j, ctx) {
+    const attend =
+      PRE_BOARD.has(j.stage) && j.promisedInstallDate && j.promisedInstallDate <= ctx.soon;
+    const card = el("article", {
+      class: "pl-card pl-line hs-card" + (attend ? " pl-card-attend" : ""),
+      "data-id": String(j.id),
+      "data-stage": j.stage,
+    });
+    if (busy.has(j.id)) card.setAttribute("aria-busy", "true");
+    const text = j.clientName ? `${j.name} · ${j.clientName}` : j.name;
+    const link = el(
+      "a",
+      { class: "pl-handle pl-line-link", href: "/job.html?id=" + j.id, draggable: "false", title: text },
+      el("span", { class: "pl-line-text" }, j.name, j.clientName ? el("span", { class: "pl-line-client", text: " · " + j.clientName }) : null)
+    );
+    card.append(link);
+    if (j.valueCents != null) card.append(el("span", { class: "pl-line-val", text: money.format(j.valueCents / 100) }));
+    if (ctx.editable) card.append(moveButton(j));
+    return card;
+  }
+
+  // A Joinr quote as one line: number, client, site, value, all one link to the quote in
+  // Joinr (new tab). The Joinr status word sits small at the end ("Won" today).
+  function buildJoinrLine(q) {
+    const text = [q.quoteNumber, q.clientName, q.siteAddress].filter(Boolean).join(" · ") || "Joinr quote";
+    const value = q.valueCents != null ? money.format(q.valueCents / 100) : "";
+    const status = q.joinrStatus ? q.joinrStatus.charAt(0).toUpperCase() + q.joinrStatus.slice(1) : "";
+    const kids = [el("span", { class: "pl-line-text", text })];
+    if (value) kids.push(el("span", { class: "pl-line-val", text: value }));
+    if (status) kids.push(el("span", { class: "pl-line-status", text: status }));
+    const title = [text, value, status && "(" + status + " in Joinr)"].filter(Boolean).join(" · ");
+    const props = { class: "pl-card pl-line pl-joinr hs-card", title };
+    if (q.url) return el("a", { ...props, href: q.url, target: "_blank", rel: "noopener" }, ...kids);
+    return el("div", props, ...kids);
   }
 
   // ---- moving ---------------------------------------------------------------
@@ -510,9 +575,15 @@
   }
 
   // Read-only users (and anyone whose pointerdown did not start a drag) open the job by click.
+  let suppressClick = false;
   boardEl.addEventListener("click", (ev) => {
+    if (suppressClick) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      return;
+    }
     const handle = ev.target.closest && ev.target.closest(".pl-handle");
-    if (!handle || canEdit()) return;
+    if (!handle || handle.tagName === "A" || canEdit()) return;
     const card = handle.closest(".pl-card");
     if (card) location.href = "/job.html?id=" + card.dataset.id;
   });
@@ -598,11 +669,17 @@
     const to = d.over;
     const ok = to && d.ok.has(to);
     const id = d.id;
+    const isLink = d.handle.tagName === "A";
     endDrag();
     if (!wasActive) {
-      // A press without moving opens the job.
-      location.href = "/job.html?id=" + id;
-    } else if (ok) {
+      // A press without moving opens the job (a link line does it by its own click).
+      if (!isLink) location.href = "/job.html?id=" + id;
+    } else if (isLink) {
+      // The click that follows a drag must not follow the link.
+      suppressClick = true;
+      setTimeout(() => { suppressClick = false; }, 0);
+    }
+    if (wasActive && ok) {
       moveJob(id, to);
     }
     // Dropped on the same column, a column that is not allowed, or nothing: nothing is sent.

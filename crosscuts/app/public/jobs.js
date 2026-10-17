@@ -1,7 +1,6 @@
 // Jobs list page. Talks to /api/job-records (see routes/jobs.js).
 (function () {
   const STAGES = [
-    ["lead", "Lead"],
     ["quoted", "Quoted"],
     ["won", "Won"],
     ["design_ordering", "Design / ordering"],
@@ -12,12 +11,12 @@
     ["lost", "Lost"],
     ["archived", "Archived"],
   ];
-  const STAGE_LABEL = Object.fromEntries(STAGES);
+  const STAGE_LABEL = { ...Object.fromEntries(STAGES), lead: "Quoted" }; // lead is retired: old rows read as Quoted
 
   // Stage badge classes. Teal for work in hand, orange for "attend to this" (ready to cut),
   // green for finished, neutral for the rest (dimmed once lost or archived).
   const STAGE_BADGE = {
-    lead: "hs-badge-na",
+    lead: "hs-badge-na", // retired stage; old rows read as Quoted
     quoted: "hs-badge-na",
     won: "hs-badge-teal",
     design_ordering: "hs-badge-teal",

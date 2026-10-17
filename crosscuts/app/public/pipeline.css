@@ -215,6 +215,60 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
 }
 .pl-toast-err { border-left-color: var(--orange); }
 
+/* Quoted: one compact line per job or Joinr quote (Todd, 2026-10-17). The column is a little
+   wider than the others so the number, client, site and value fit on a line. */
+.pl-col[data-stage="quoted"] { flex-basis: 420px; min-width: 380px; }
+.pl-line {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  min-height: 38px;
+}
+.pl-line .pl-handle { padding: 8px 0 8px 12px; flex: 1 1 auto; min-width: 0; font-size: 13px; }
+.pl-line-client { font-weight: 400; color: var(--label); }
+.pl-line-link { display: block; color: var(--white); text-decoration: none; }
+.pl-line-link:hover { color: var(--teal-tint); text-decoration: none; }
+.pl-line-text {
+  display: block;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-line-val {
+  flex: none;
+  font-size: 13px;
+  color: var(--body);
+  font-variant-numeric: tabular-nums;
+}
+.pl-line .hs-btn { flex: none; padding: 4px 8px; }
+/* A Joinr quote: the whole line is the link (new tab). */
+.pl-joinr {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--body);
+  text-decoration: none;
+}
+a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decoration: none; }
+.pl-joinr .pl-line-text { flex: 1 1 auto; }
+.pl-line-status {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pl-sub {
+  margin: 6px 0 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 @media (max-width: 640px) {
   .pl-head h1 { font-size: 22px; }
   .pl-cards { max-height: calc(100vh - 260px); }

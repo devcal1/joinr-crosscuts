@@ -248,6 +248,16 @@ expect_eq "$(m6_intake_count "$M6_Q1")" "1" "the import does not duplicate quote
 expect_eq "$(m6_intake_field "$M6_Q2" state)" "withdrawn" "the import leaves the withdrawn quote alone"
 expect_eq "$(m6_cursor)" "$M6_CURSOR_BEFORE" "the import keeps the stored cursor"
 
+echo "--- the Pipeline's Quoted column lists the won quotes (GET /api/pipeline/joinr-quotes) ---"
+req GET /api/pipeline/joinr-quotes "$SHOW"
+expect_status 403 "show GET /api/pipeline/joinr-quotes"
+req GET /api/pipeline/joinr-quotes "$DPM"
+expect_status 200 "dpm GET /api/pipeline/joinr-quotes"
+expect_jq '[.[] | select(.quoteNumber == "CI-M6-0001")] | length == 1' "the won quote is listed"
+expect_jq ".[] | select(.quoteNumber == \"CI-M6-0001\") | (.url | startswith(\"$M6_BASE_URL/org/\") and endswith(\"/quotes/$M6_Q1B\")) and .clientName == \"M6 Client One\" and .siteAddress == \"1 Far Future St, Sydney\" and .joinrStatus == \"won\" and .valueCents == 1300000" "the line links to the latest revision in Joinr, with client, site, status and value"
+expect_jq '[.[] | select(.quoteNumber == "CI-M6-0002")] | length == 0' "the withdrawn quote is not listed"
+expect_jq '.[0].quoteNumber == "CI-M6-0001"' "the newest won (2099) comes first"
+
 echo "--- Joinr misbehaving: the error shows in /status and the app carries on ---"
 m6_check_failure() { # MODE-JSON WHAT [ERROR-SUBSTRING]
   m6_set_fail "$1"

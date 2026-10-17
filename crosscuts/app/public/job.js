@@ -1,7 +1,6 @@
 // Job create/edit page (job.html or job.html?id=N). Talks to /api/job-records.
 (function () {
   const STAGES = [
-    ["lead", "Lead"],
     ["quoted", "Quoted"],
     ["won", "Won"],
     ["design_ordering", "Design / ordering"],
@@ -14,7 +13,7 @@
   ];
   // Set automatically by the board (and later accounts); only users.admin may set them by hand.
   const DERIVED = new Set(["on_board", "complete", "invoiced"]);
-  const MANUAL = ["lead", "quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+  const MANUAL = ["quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
   // Mirror of jobstage.allowedTargets (docs/plans/m3-contracts.md section 2); the server stays authoritative.
   function allowedTargets(from) {
     if (from === "on_board") return [];
@@ -316,7 +315,9 @@
       for (const f of g.fields) {
         const node = inputs[f.key];
         if (!node) continue;
-        const v = job ? job[f.key] : f.key === "stage" ? "lead" : null;
+        // A job still at the retired lead stage reads as Quoted (saving moves it there).
+        let v = job ? job[f.key] : f.key === "stage" ? "quoted" : null;
+        if (f.key === "stage" && v === "lead") v = "quoted";
         if (f.type === "materials") fillMaterials(node, v);
         else if (f.type === "archived") node.checked = !!v;
         else node.value = toInput(f, v);
@@ -450,7 +451,7 @@
             if (v == null) throw new Error("Job name is required");
             body.name = v;
           } else if (f.key === "stage") {
-            if (v && v !== "lead") body.stage = v;
+            if (v && v !== "quoted") body.stage = v; // quoted is the server default
           } else if (f.key === "archived") {
             if (v) body.archived = true;
           } else if (v != null && v !== "") {

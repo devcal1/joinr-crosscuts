@@ -44,17 +44,17 @@ m3a_in_picker() { # JOB_ID
   jqr "[.[] | select(.id == $1)] | length > 0"
 }
 
-# POST the stage move as JAR: m3a_move JAR JOB_ID STAGE FROM (FROM as JSON: "lead" or null)
+# POST the stage move as JAR: m3a_move JAR JOB_ID STAGE FROM (FROM as JSON: "quoted" or null)
 m3a_move() {
   req POST "/api/job-records/$2/stage" "$1" "{\"stage\":\"$3\",\"from\":$4}"
 }
 
 echo "--- access ---"
-req POST /api/job-records/1/stage "$SCHED" '{"stage":"won","from":"lead"}'
+req POST /api/job-records/1/stage "$SCHED" '{"stage":"won","from":"quoted"}'
 expect_status 403 "sched POST /api/job-records/1/stage"
-req POST /api/job-records/1/stage "$ACCT" '{"stage":"won","from":"lead"}'
+req POST /api/job-records/1/stage "$ACCT" '{"stage":"won","from":"quoted"}'
 expect_status 403 "acct POST /api/job-records/1/stage"
-req POST /api/job-records/1/stage "$SHOW" '{"stage":"won","from":"lead"}'
+req POST /api/job-records/1/stage "$SHOW" '{"stage":"won","from":"quoted"}'
 expect_status 403 "show POST /api/job-records/1/stage"
 
 req GET /pipeline.html "$DPM"
@@ -76,23 +76,44 @@ fi
 echo "--- moves and key dates ---"
 req POST /api/job-records "$DPM" '{"name":"M3A Move Job"}'
 expect_status 201 "dpm creates the move job"
-expect_jq '.stage == "lead"' "a new job is a lead"
+expect_jq ".stage == \"quoted\" and .quotedDate == \"$M3A_TODAY\" and .wonDate == null" "a new job is quoted, with quotedDate today and wonDate null"
 M3A_JOB=$(jqr '.id')
-
-m3a_move "$DPM" "$M3A_JOB" quoted '"lead"'
-expect_status 200 "lead -> quoted"
-expect_jq ".stage == \"quoted\" and .quotedDate == \"$M3A_TODAY\" and .wonDate == null" "quotedDate is today and wonDate is still null"
 
 req POST /api/job-records "$DPM" '{"name":"M3A Dated Job","quotedDate":"2030-01-01"}'
 expect_status 201 "dpm creates a job with a quotedDate"
+expect_jq '.stage == "quoted" and .quotedDate == "2030-01-01"' "an existing quotedDate is never overwritten by the quoted default"
 M3A_DATED=$(jqr '.id')
-m3a_move "$DPM" "$M3A_DATED" quoted '"lead"'
-expect_status 200 "dated job lead -> quoted"
-expect_jq '.quotedDate == "2030-01-01"' "an existing quotedDate is never overwritten"
 
 m3a_move "$DPM" "$M3A_JOB" won '"lead"'
 expect_status 409 "stale move (the job is quoted, not lead)"
 expect_jq '.stage == "quoted" and (.error | length > 0)' "the stale 409 carries the real stage"
+
+echo "--- the Lead stage is retired (2026-10-17) ---"
+m3a_move "$DPM" "$M3A_JOB" lead '"quoted"'
+expect_status 400 "a move to lead is refused"
+expect_jq '.error | test("Lead")' "and the message says Lead is no longer used"
+m3a_move "$ADMIN" "$M3A_JOB" lead '"quoted"'
+expect_status 400 "a move to lead is refused for the admin too"
+req POST /api/job-records "$DPM" '{"name":"M3A Lead Create","stage":"lead"}'
+expect_status 400 "creating a job at lead is refused"
+req PATCH "/api/job-records/$M3A_JOB" "$ADMIN" '{"stage":"lead"}'
+expect_status 400 "the admin PATCH to lead is refused"
+req GET "/api/job-records/$M3A_JOB" "$ADMIN"
+expect_jq '.stage == "quoted"' "the job is still quoted"
+# A row that still holds 'lead' (migration 003's CHECK allows it) is treated as quoted:
+# it is listed under stage=quoted and moves on as normal.
+req POST /api/job-records "$DPM" '{"name":"M3A Legacy Lead"}'
+expect_status 201 "dpm creates the legacy lead job"
+M3A_LEAD=$(jqr '.id')
+m3a_db_exec "UPDATE jobs SET stage = 'lead' WHERE id = $M3A_LEAD"
+req GET "/api/job-records?stage=quoted" "$DPM"
+expect_status 200 "list stage=quoted"
+expect_jq "[.[] | select(.id == $M3A_LEAD)] | length == 1" "a legacy lead job is listed with the quoted jobs"
+m3a_move "$DPM" "$M3A_LEAD" lead '"lead"'
+expect_status 400 "a legacy lead job cannot be moved to lead"
+m3a_move "$DPM" "$M3A_LEAD" won '"lead"'
+expect_status 200 "a legacy lead job moves on to won"
+expect_jq '.stage == "won"' "and is won"
 
 M3A_AUDITS=$(m3a_stage_audits "$M3A_JOB")
 m3a_move "$DPM" "$M3A_JOB" quoted '"quoted"'
@@ -164,13 +185,13 @@ req POST /api/job-records "$DPM" '{"name":"M3A Archive Job"}'
 expect_status 201 "dpm creates the archive job"
 M3A_ARCH=$(jqr '.id')
 expect_eq "$(m3a_in_picker "$M3A_ARCH")" true "a new job is in the board picker"
-m3a_move "$DPM" "$M3A_ARCH" archived '"lead"'
-expect_status 200 "lead -> archived"
+m3a_move "$DPM" "$M3A_ARCH" archived '"quoted"'
+expect_status 200 "quoted -> archived"
 expect_jq '.archived == true and .stage == "archived"' "the archived stage ticks archived"
 expect_eq "$(m3a_in_picker "$M3A_ARCH")" false "the board picker omits the archived job"
-m3a_move "$DPM" "$M3A_ARCH" lead '"archived"'
-expect_status 200 "archived -> lead"
-expect_jq '.archived == false and .stage == "lead"' "leaving the archived stage unticks archived"
+m3a_move "$DPM" "$M3A_ARCH" quoted '"archived"'
+expect_status 200 "archived -> quoted"
+expect_jq '.archived == false and .stage == "quoted"' "leaving the archived stage unticks archived"
 expect_eq "$(m3a_in_picker "$M3A_ARCH")" true "the board picker lists the job again"
 
 echo "--- complete ---"
@@ -180,8 +201,8 @@ M3A_DONE=$(jqr '.id')
 req PATCH "/api/job-records/$M3A_DONE" "$ADMIN" '{"stage":"complete"}'
 expect_status 200 "admin PATCH stage complete"
 expect_jq '.stage == "complete"' "the job is complete"
-m3a_move "$DPM" "$M3A_DONE" lead '"complete"'
-expect_status 409 "a complete job moves to lead"
+m3a_move "$DPM" "$M3A_DONE" quoted '"complete"'
+expect_status 409 "a complete job moves to quoted"
 m3a_move "$DPM" "$M3A_DONE" archived '"complete"'
 expect_status 200 "a complete job moves to archived"
 expect_jq '.stage == "archived" and .archived == true' "complete -> archived ticks archived"

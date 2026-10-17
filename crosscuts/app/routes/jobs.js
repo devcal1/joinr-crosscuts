@@ -109,6 +109,7 @@ function parseBody(req, body) {
 
 function parseStage(req, v) {
   if (typeof v !== "string" || !STAGES.includes(v)) throw bad(`stage must be one of ${STAGES.join(", ")}`);
+  if (v === "lead") throw bad(jobstage.RETIRED_STAGE_MSG); // retired 2026-10-17; old rows may still hold it
   if (!MANUAL_STAGES.has(v) && !can(req, "users.admin")) {
     throw bad(`stage '${v}' is set automatically and cannot be changed by hand`);
   }
@@ -188,8 +189,12 @@ r.get("/", "jobs.view", handle((req, res) => {
   const args = [];
   if (req.query.stage !== undefined && req.query.stage !== "") {
     if (!STAGES.includes(req.query.stage)) throw bad(`stage must be one of ${STAGES.join(", ")}`);
-    where.push("stage = ?");
-    args.push(req.query.stage);
+    // A job still at the retired 'lead' stage counts as quoted.
+    if (req.query.stage === "quoted") where.push("stage IN ('quoted','lead')");
+    else {
+      where.push("stage = ?");
+      args.push(req.query.stage);
+    }
   }
   if (req.query.archived !== undefined && req.query.archived !== "") {
     if (req.query.archived !== "0" && req.query.archived !== "1") throw bad("archived must be 0 or 1");
@@ -224,7 +229,7 @@ r.post("/", "jobs.edit", handle((req, res) => {
   const body = req.body;
   const values = parseBody(req, body);
   if (!values.name) throw bad("name is required");
-  const stage = body.stage === undefined || body.stage === null ? "lead" : parseStage(req, body.stage);
+  const stage = body.stage === undefined || body.stage === null ? "quoted" : parseStage(req, body.stage);
 
   // Entry effects of a manual stage (the same as a hand move into it): the
   // stage's key date if the body didn't send one, and archived for the
