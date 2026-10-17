@@ -226,6 +226,10 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
   min-height: 38px;
 }
 .pl-line .pl-handle { padding: 8px 0 8px 12px; flex: 1 1 auto; min-width: 0; font-size: 13px; }
+/* The line is almost all handle, so on a touch screen it must still scroll the list: a finger
+   pans up and down as usual, and a drag starts only after a long press (pipeline.js). A mouse
+   drags as before. */
+.pl-editable .pl-line .pl-handle { touch-action: pan-y; }
 .pl-line-client { font-weight: 400; color: var(--label); }
 .pl-line-link { display: block; color: var(--white); text-decoration: none; }
 .pl-line-link:hover { color: var(--teal-tint); text-decoration: none; }
@@ -270,6 +274,7 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
 }
 
 @media (max-width: 640px) {
+  .pl-col[data-stage="quoted"] { flex-basis: min(420px, 100%); min-width: 0; }
   .pl-head h1 { font-size: 22px; }
   .pl-cards { max-height: calc(100vh - 260px); }
 }

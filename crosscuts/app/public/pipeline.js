@@ -34,6 +34,8 @@
     invoiced: "Archive only",
   };
   const DRAG_PX = 6;
+  const HOLD_MS = 400;     // a touch on a Quoted line drags only after this long a press
+  const HOLD_SLOP_PX = 8;  // moving more than this before then is a scroll, not a drag
   const EDGE_PX = 48;
   const STORE_KEY = "pl.showLostArchived";
 
@@ -565,7 +567,15 @@
       raf: 0,
       offX: 0,
       offY: 0,
+      hold: 0,
+      armed: true,
     };
+    // A Quoted line is nearly all handle, so a finger on it must be able to scroll the list: it
+    // drags only after a long press, and moving first cancels (the browser then pans).
+    if (ev.pointerType !== "mouse" && handle.closest(".pl-line")) {
+      drag.armed = false;
+      drag.hold = setTimeout(armHold, HOLD_MS);
+    }
     try { handle.setPointerCapture(ev.pointerId); } catch (e) { /* not capturable: events still arrive */ }
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onUp);
@@ -573,6 +583,13 @@
     handle.addEventListener("lostpointercapture", onLostCapture);
     document.addEventListener("keydown", onDragKey, true);
   }
+
+  // Once a lifted line is being dragged, the finger must not also pan the page or the list. The
+  // listener is registered up front (not when the press starts), so the browser knows before the
+  // touch begins that a handler may cancel the scroll.
+  boardEl.addEventListener("touchmove", (ev) => {
+    if (drag && drag.active && ev.cancelable) ev.preventDefault();
+  }, { passive: false });
 
   // Read-only users (and anyone whose pointerdown did not start a drag) open the job by click.
   let suppressClick = false;
@@ -618,11 +635,28 @@
     d.raf = requestAnimationFrame(autoScroll);
   }
 
+  // The long press is complete: lift the line where the finger is.
+  function armHold() {
+    const d = drag;
+    if (!d || d.armed) return;
+    d.hold = 0;
+    d.armed = true;
+    startDrag();
+    d.ghost.style.left = d.x - d.offX + "px";
+    d.ghost.style.top = d.y - d.offY + "px";
+    updateOver();
+  }
+
   function onMove(ev) {
     const d = drag;
     if (!d || ev.pointerId !== d.pid) return;
     d.x = ev.clientX;
     d.y = ev.clientY;
+    if (!d.armed) {
+      // Before the long press is up, any real movement is the person scrolling.
+      if (Math.hypot(d.x - d.sx, d.y - d.sy) > HOLD_SLOP_PX) endDrag();
+      return;
+    }
     if (!d.active) {
       if (Math.hypot(d.x - d.sx, d.y - d.sy) < DRAG_PX) return;
       startDrag();
@@ -706,6 +740,7 @@
     const d = drag;
     if (!d) return;
     drag = null;
+    clearTimeout(d.hold);
     cancelAnimationFrame(d.raf);
     d.handle.removeEventListener("pointermove", onMove);
     d.handle.removeEventListener("pointerup", onUp);
