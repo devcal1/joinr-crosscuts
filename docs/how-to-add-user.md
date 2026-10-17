@@ -24,7 +24,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
   - the **Drawer order** (adds up the checked drawer grids, places the order, keeps the drawer name list),
   - the monthly **Stock order** (types what to order and marks each supplier ordered),
   - **Paint orders**, and
-  - the **Board stocktake** (keeps the board list and its prices, and confirms each month's stock value).
+  - the **Board stocktake** (keeps the board list and its prices, and can reopen a finished count).
 
   Ordering can count too, so it can fill in for the Workshop Manager. It sees board prices. From M12 it also sees the **Stone orders** page and the **Batten calculator**, and reads and prints stone orders, but can't change them.
 - **Workshop Manager:** runs the workshop floor: the board to view, order lines to view and receive (the **Deliveries** page), the Planner (adds to Workshop), tasks and messages. No job pages, so no client details. **From M11 it also does the monthly counts:** it types **Have** on the **Stock order** and the sheet quantities on the **Board stocktake**, and finishes each count. It never sees board prices, and it has no Drawer order page and no Paint orders menu entry. It receives the stock, paint and drawer deliveries on **Deliveries**, and can open a paint order from there to receive it.
@@ -76,7 +76,7 @@ An override gives one person one extra permission, or takes one away, without ch
 
 Example: to stop Michael moving rows on the board while keeping his other scheduling rights, add a **Revoke** override for `board.edit`.
 
-**From M11, two keys cover the Ordering pages:** `stock.count` (type Have and board quantities; Workshop Manager, Ordering and admin) and `stock.order` (the lists, board prices, the stock order's Order column, the Drawer order, paint orders, and confirming the board value; Ordering and admin). To let one person count stock without the Workshop Manager role, grant them `stock.count`. No role was added, but the Ordering and Workshop Manager presets gained the stock keys (Ordering both, Workshop Manager `stock.count`), so nobody needs a new override because of M11. The pages and what gates them are in [auth.md](auth.md).
+**From M11, two keys cover the Ordering pages:** `stock.count` (type Have and board quantities; Workshop Manager, Ordering and admin) and `stock.order` (the lists, board prices, the stock order's Order column, the Drawer order, paint orders, and reopening a board count; Ordering and admin). To let one person count stock without the Workshop Manager role, grant them `stock.count`. No role was added, but the Ordering and Workshop Manager presets gained the stock keys (Ordering both, Workshop Manager `stock.count`), so nobody needs a new override because of M11. The pages and what gates them are in [auth.md](auth.md).
 
 **From M10, orders have their own keys.** Seeing the Orders page is `orders.view` (not `jobs.view`), and receiving deliveries is `orders.receive` (not `orders.edit`). If you had set an override on `jobs.view` or `orders.edit` to control someone's access to orders, set it again on the new key.
 

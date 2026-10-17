@@ -111,9 +111,6 @@
         (s.stockToOrder || []).forEach(function (m) {
           lines.push(stockLine(periodHref("stock.html", m.period), "Stock order " + m.label, "counted, to order", "Open stock order", false));
         });
-        (s.boardValue || []).forEach(function (m) {
-          lines.push(stockLine(periodHref("boards.html", m.period), "Board count " + m.label, "value to confirm", "Open board stocktake", false));
-        });
         lines.forEach(function (a) { host.appendChild(a); });
       })
       .catch(function () { /* optional; leave it hidden */ });

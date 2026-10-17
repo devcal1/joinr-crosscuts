@@ -694,7 +694,7 @@ function countMonth(today) {
 // (or an empty list) when the dashboard has nothing to say.
 //   stock.count: stockCount, boardCount: {period, label} | null (a count due and not finished).
 //   stock.order: drawers {toOrder, waiting}; stockToOrder [{period, label, state}] (counted or
-//   ordering), boardValue [{period, label}] (counted, the value to confirm); newest first.
+//   ordering); newest first. (boardValue, the board value to confirm, was removed 2026-10-17.)
 function summary(db, user, today = sydneyToday()) {
   const out = { date: today };
   if (holds(user, "stock.count")) {
@@ -712,10 +712,6 @@ function summary(db, user, today = sydneyToday()) {
       .map((row) => ({ period: row.period, state: view(db, row.period, row).state }))
       .filter((m) => m.state === "counted" || m.state === "ordering")
       .map((m) => ({ period: m.period, label: Periods.longLabel(m.period), state: m.state }));
-    out.boardValue = db
-      .prepare("SELECT period FROM board_counts WHERE status = 'counted' ORDER BY period DESC")
-      .all()
-      .map((r) => ({ period: r.period, label: Periods.longLabel(r.period) }));
   }
   return out;
 }

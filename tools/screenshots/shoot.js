@@ -54,9 +54,9 @@ const PAGES = [
   ["stock-order", c => "/stock.html?period=" + c.lastMonth + "#order", 1440, true, "ordering"], ["stock-list", "/stock.html#list", 1440, true, "ordering"],
   ["phone-stock-count", "/stock.html#count", 375, true, "workshop_manager"],
   ["boards-count-wsmgr", c => "/boards.html?period=" + c.thisMonth + "#count", 1440, true, "workshop_manager"],
-  ["boards-value", c => "/boards.html?period=" + c.thisMonth + "#value", 1440, true, "ordering"],
-  ["boards-value-valued", c => "/boards.html?period=" + c.lastMonth + "#value", 1440, true, "ordering"], ["boards-list", "/boards.html#list", 1440, true, "ordering"],
-  ["phone-boards-value", c => "/boards.html?period=" + c.thisMonth + "#value", 375, true, "ordering"],
+  ["boards-count-ordering", c => "/boards.html?period=" + c.thisMonth + "#count", 1440, true, "ordering"],
+  ["boards-list", "/boards.html#list", 1440, true, "ordering"],
+  ["phone-boards-count", c => "/boards.html?period=" + c.thisMonth + "#count", 375, true, "ordering"],
  
   ["paint", "/paint.html", 1440, true, "ordering"], ["paint-order", c => "/paint.html?id=" + c.paintOrdered, 1440, true, "ordering"],
   ["paint-draft", c => "/paint.html?id=" + c.paintDraft, 1440, true, "ordering"], ["paint-list", "/paint.html#list", 1440, true, "ordering"],

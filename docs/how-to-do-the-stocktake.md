@@ -3,13 +3,13 @@
 For Todd, Ordering and the Workshop Manager. Four jobs live under the **Ordering** menu:
 
 - **Stock order:** the monthly hardware order. The Workshop Manager counts what's on the shelf; Ordering decides what to order.
-- **Board stocktake:** the monthly count of sheets. Ordering turns it into a stock value.
+- **Board stocktake:** the monthly count of sheets. It is finished once it is counted.
 - **Paint order:** paint, hardener, thinners, primer and sanding discs.
 - **Drawer order:** see [how-to-order-drawers.md](how-to-order-drawers.md).
 
 Who does what:
 - **The Workshop Manager** (and Ordering and admin) counts: types **Have** on the stock order and quantities on the board stocktake. Counting needs the `stock.count` key.
-- **Ordering** (and admin) keeps the lists, types what to order, marks it ordered, sets board prices and confirms the stock value. That needs the `stock.order` key.
+- **Ordering** (and admin) keeps the lists, types what to order, marks it ordered, sets board prices and can reopen a finished board count. That needs the `stock.order` key.
 - **The Workshop Manager** (and Ordering, Design/PM and admin) marks deliveries received on **Deliveries**.
 
 The stock order and board stocktake are not order lines on jobs: they have no job and no effect on any invoice. Paint can be (see below).
@@ -22,7 +22,7 @@ Each page has a **List** tab (the paint page has **Paint list**). Type the lists
 - **Boards:** supplier, thickness, board, finish and the **price per sheet (ex GST)**. The list's order is the order of the count sheet. Prices are seen by Ordering only.
 - **Paint items:** name, finish, manufacturer, kind (Colour, Hardener, Thinners, Primer, Abrasive or Other) and unit (kg or each).
 
-A new item or board appears on the month that's still being counted, not on months already finished. Editing a list doesn't change a month that's already counted, except for prices: a board's price applies to a month until that month's value is confirmed, and is frozen once it is.
+A new item or board appears on the month that's still being counted, not on months already finished. Editing a list doesn't change a month that's already counted.
 
 ## The monthly stock order
 
@@ -61,20 +61,13 @@ Open **Ordering**, then **Board stocktake**. It works by month, like the stock o
 
 1. On the **Count** tab, type the **Qty** for each board, in whole or half sheets (0.5). Each saves when you leave the box. No prices are shown to the counter.
 2. To count on paper first, press **Print blank count sheet** (two columns per A4 page, in the list's order).
-3. Press **Finish count**. Ordering is told ("Board count done: <Month>") with "Confirm the stock value".
+3. Press **Finish count**. The month shows **Counted** and the count is done. There is nothing more to confirm.
 
-### 2. Value (Ordering)
+The board stocktake no longer works out or confirms a stock value (removed 2026-10-17, after the Stock value page went on 2026-10-16). Values saved on earlier months stay in the database but are not shown anywhere.
 
-The **Value** tab appears once the count is finished. It shows each counted board's price and amount, and the subtotal.
+### Changing a count
 
-1. **Boards with no price.** Any counted board with a quantity above zero and no price is marked **No price** in orange. Type its price per sheet (ex GST) beside it and press **Set price**. The value can't be confirmed while any such board has no price.
-2. **Adjustment.** If the worked-out figure needs a correction (damaged sheets, offcuts), type it in **Adjustment (ex GST)**, as dollars and cents. A negative takes off (`-125.50`). A note is needed whenever the adjustment isn't zero. **The adjustment and its note save as you type them**, before you confirm, so reloading the page keeps them.
-3. Press **Confirm value** and check the figure in the dialog. **The value is the sheets counted times each board's price, plus the adjustment.** Confirming freezes each board's price as it is now.
-
-### Changing a count or a value
-
-- **Reopen count** (Ordering, on the **Value** tab) takes a counted month back to counting, so the Workshop Manager can change a quantity. It works only before the value is confirmed.
-- **Reopen** (admin only) takes a confirmed month's value back: the frozen prices and value are cleared, the count stays finished, and the month shows as waiting for the value until Ordering confirms it again.
+**Reopen count** (Ordering, on the **Count** tab) takes a counted month back to counting, so the Workshop Manager can change a quantity and finish the count again. Anyone who can't reopen it asks Ordering.
 
 ## Paint orders
 
@@ -109,10 +102,9 @@ Once ordered, an order can't be edited. Undo ordered first.
 - **The Workshop Manager and Ordering (counting):** from the **25th of a month to the 7th of the next**, the dashboard shows "Stock count: <Month> not done" and "Board count: <Month> not done" for the month just ending, until each count is finished. The link opens that month.
 - **Ordering (placing and confirming):** the dashboard also shows
   - "Drawers: N to order · N waiting for check" when there are any,
-  - "Stock order <Month>: counted, to order" once a count is finished and until Ordering acts: a supplier group is marked ordered (then it shows "ordering" until every group with something to order is), or the month is marked **Nothing to order this month**, and
-  - "Board count <Month>: value to confirm" once a board count is finished.
+  - "Stock order <Month>: counted, to order" once a count is finished and until Ordering acts: a supplier group is marked ordered (then it shows "ordering" until every group with something to order is), or the month is marked **Nothing to order this month**.
 
-  These stay until the work is done.
+  These stay until the work is done. A finished board count leaves no line: it is done once it is counted.
 - **Deliveries:** ordered stock groups, paint orders and drawer stock rows add to the Deliveries line and the **Stock and paint** group.
 
 ## On Deliveries

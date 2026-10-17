@@ -88,10 +88,8 @@ What the keys and the keys already there decide on these pages:
 | Action | Key |
 |---|---|
 | Type Have on the stock order; type board quantities; finish either count | `stock.count` |
-| Edit the stock, paint and board lists, board prices and the drawer name list; type the stock order's Order column; mark a stock supplier group ordered; reopen a stock count or a board count before it is valued | `stock.order` |
-| See board prices, and a board count's worked-out value | `stock.order` (the Workshop Manager and everyone else get no price in the answer) |
-| Confirm a board stock value | `stock.order` |
-| Reopen a confirmed board stock value | `users.admin` |
+| Edit the stock, paint and board lists, board prices and the drawer name list; type the stock order's Order column; mark a stock supplier group ordered; reopen a stock count or a board count | `stock.order` |
+| See board prices (on the board list) | `stock.order` (the Workshop Manager and everyone else get no price in the answer) |
 | Add or edit a job's drawer grid; fill or refill it from Joinr | `orders.edit` |
 | Check or uncheck a drawer grid | `jobs.edit` |
 | Use the Drawer order page; set the drawer supplier names; set the litres factor | `stock.order` |

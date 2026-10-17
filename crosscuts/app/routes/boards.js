@@ -1,8 +1,8 @@
 // The board stocktake (docs/plans/m11-contracts.md section 8). Declared by the scaffold (M11 · 2.2), built in Wave 1 B; the rules live in
 // lib/boards.js. Literal paths are registered before /:id and /:period ones.
 //
-// Prices and values go only to stock.order holders (withPrices); stock.count holders count without
-// them; reopening a valued month needs users.admin.
+// Prices go only to stock.order holders (withPrices), on the board list; the monthly count carries
+// none. A count is finished once it is counted (the value step was removed 2026-10-17).
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const { bad, notFound, sendError, can } = require("../lib/httperror");
@@ -57,41 +57,23 @@ r.post("/boards", "stock.order", handle((req, res) => {
 }));
 
 r.get("/boards/counts", SEE, handle((req, res) => {
-  res.json({ months: boards.counts(db, { withValues: withPrices(req) }) });
+  res.json({ months: boards.counts(db) });
 }));
 
 r.get("/boards/counts/:period", SEE, handle((req, res) => {
-  res.json(boards.count(db, periodOr400(req.params.period), { withPrices: withPrices(req) }));
+  res.json(boards.count(db, periodOr400(req.params.period)));
 }));
 
-// The counter's writes answer the month without prices; a stock.order holder gets them back.
 r.put("/boards/counts/:period/lines", "stock.count", handle((req, res) => {
-  const period = periodOr400(req.params.period);
-  const view = boards.saveLines(db, req, period, body(req).lines);
-  res.json(withPrices(req) ? boards.count(db, period, { withPrices: true }) : view);
+  res.json(boards.saveLines(db, req, periodOr400(req.params.period), body(req).lines));
 }));
 
 r.post("/boards/counts/:period/counted", "stock.count", handle((req, res) => {
-  const period = periodOr400(req.params.period);
-  const view = boards.counted(db, req, period);
-  res.json(withPrices(req) ? boards.count(db, period, { withPrices: true }) : view);
+  res.json(boards.counted(db, req, periodOr400(req.params.period)));
 }));
 
 r.post("/boards/counts/:period/reopen-count", "stock.order", handle((req, res) => {
   res.json(boards.reopenCount(db, req, periodOr400(req.params.period)));
-}));
-
-// Saves the adjustment and its note as they're typed, on a counted month (contracts section 15.13).
-r.put("/boards/counts/:period/adjustment", "stock.order", handle((req, res) => {
-  res.json(boards.saveAdjustment(db, req, periodOr400(req.params.period), body(req)));
-}));
-
-r.post("/boards/counts/:period/value", "stock.order", handle((req, res) => {
-  res.json(boards.value(db, req, periodOr400(req.params.period), body(req)));
-}));
-
-r.post("/boards/counts/:period/reopen", "users.admin", handle((req, res) => {
-  res.json(boards.reopen(db, req, periodOr400(req.params.period)));
 }));
 
 r.patch("/boards/:id", "stock.order", handle((req, res) => {
