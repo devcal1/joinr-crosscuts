@@ -436,6 +436,10 @@ Requirements regardless of method:
 - **Intake behaviour — you recommend:** create the job automatically at `won`,
   or land it in a "New from Joinr" inbox for Design/PM to accept/ignore.
   State the trade-off and pick one in the plan.
+  **Decided (Todd 2026-10-18): automatic.** A won quote becomes a Won job at once
+  (linked to the one live job with the same quote number, if there is exactly one),
+  with a task and an alert for the Design/PM team. The "New from Joinr" page stays
+  for exceptions and history. See `docs/plans/m6-plan.md` section 11.
 - Never let a Joinr outage or a bad payload affect the rest of the app.
 - **M11 (approved by Todd 2026-10-13):** the intake item also carries the won
   quote's drawer lines, as an optional `drawers` field (contract document version

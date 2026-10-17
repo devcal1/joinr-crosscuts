@@ -18,7 +18,7 @@ A job has at most one grid per brand while it is waiting to be ordered.
 
 ### From Joinr
 
-When a quote won in Joinr is accepted or linked to a job (Design/PM, **Intake**), Crosscuts reads the quote's **Drawers** and **Inner Drawers** lines and fills in a grid for each brand it finds. It works out the brand, height and length of each line from the **name list** (below). The new grid is **From Joinr** and **Not checked**, and Design/PM is told: "Drawers to check: <job>".
+When a quote won in Joinr becomes a job (it does so by itself; a quote that needed a person is accepted or linked by Design/PM on the **New from Joinr** page), Crosscuts reads the quote's **Drawers** and **Inner Drawers** lines and fills in a grid for each brand it finds. It works out the brand, height and length of each line from the **name list** (below). The new grid is **From Joinr** and **Not checked**, and Design/PM is told: "Drawers to check: <job>".
 
 - **A name that isn't on the list** isn't counted. Ordering is told ("Drawer names to add: <job>"), and the Joinr box on the job page lists the name in orange as "not on the drawer name list". Once Ordering adds it, press **Fill from Joinr** on the job (when it has no grid for that brand yet) or **Refill from Joinr** (when it already has one; see below).
 - **A job with no grid yet** can still be filled later: if the quote has mapped drawer lines for a brand and the job has no live grid for that brand (a cancelled one doesn't count), the Joinr box shows **Fill from Joinr**. It makes a grid for each such brand, **Not checked**, for Ordering, Design/PM and admin (anyone who can edit order lines). If there is nothing to fill it says "Nothing to fill from Joinr".

@@ -58,6 +58,15 @@ After the load, invoicing starts clean:
    - who runs the Umbrel terminal;
    - Sam told the day before.
 
+### Joinr: the Import button now makes jobs (changed 2026-10-18)
+
+Since 0.1.21 a quote won in Joinr becomes a **Won job by itself** (or links to the one live job with the same quote number), with a task and an alert for the Design/PM team. That includes the **Import** button on the Users page (Joinr section), which brings in **every quote that is currently won in Joinr**.
+
+- **Do not press Import before or on cutover day unless you want a Won job, and a team task, for every past win.** On a live Joinr that can be dozens of jobs, each alerting the Design/PM team. The jobs then sit on the Pipeline and the job lists; nothing Joinr does later deletes them.
+- The jobs you already loaded from the old app are not touched, except that a won quote whose **quote number matches exactly one** of them is linked to it (a Quoted job moves to Won; a job further along keeps its stage). Two or more jobs with the same number: a new job is made and neither is touched.
+- Normal running needs no import: with a key set, new wins arrive every five minutes and are made into jobs as they come. The first sync with a key starts from now and brings in no history.
+- Before pressing Import on the live system, take a backup (Users page, **Back up now**), and tell the Design/PM team to expect a burst of alerts. There is no undo: remove unwanted jobs by hand (archive or mark lost).
+
 ## Rehearsal (a throwaway copy; touches nothing live)
 
 Brief §7 requires every migration to be proven on a fresh copy of the live `photos.db` before cutover.
