@@ -2,7 +2,7 @@
 # its people stick signed notes on a weekday for each other and give them a thumbs-up.
 # Sourced by ci/smoke.sh after the M14 suites, so it shares that script's helpers (step, req, hdr,
 # expect_status, expect_jq, expect_eq, jqr, fail, ok, sydney_monday), the cookie jars ($ADMIN
-# $SCHED $ACCT $ACCT2 $DPM $SHOW $WSHOP $WSMGR), $BASE, $REQ_ORIGIN, $BODY_FILE, $HDR_FILE, $WORK
+# $SCHED $ACCT $ACCT2 $DPM $SHOW $WSHOP $ORDR $WSMGR), $BASE, $REQ_ORIGIN, $BODY_FILE, $HDR_FILE, $WORK
 # and $CONTAINER. No shebang and no `set`: the caller owns both.
 # It does not assume a pristine database, and it works on any day of the week (the dates it uses
 # are worked out from Sydney's today): its notes carry a run tag in their text, it reads counts as
@@ -14,12 +14,18 @@ step "m15-notes. department notes: a week wall per department, with thumbs-up"
 # ============================================================================
 
 M15N_TAG="m15n$(date +%s)"
-M15N_TODAY=$(TZ=Australia/Sydney date +%F)
-M15N_DOW=$(TZ=Australia/Sydney date +%u)   # 1 = Monday .. 7 = Sunday
-M15N_THIS=$(sydney_monday)
+# Every date below comes from Sydney's today, so don't start in the last minutes before its
+# midnight: wait until it has passed. The end of the suite checks the day didn't change.
+while [ "$(TZ=Australia/Sydney date +%H%M)" -ge 2355 ]; do
+  echo "    (waiting for Sydney midnight to pass before the notes suite starts)"
+  sleep 15
+done
+# One reading of the clock gives both the date and the weekday (1 = Monday .. 7 = Sunday).
+read -r M15N_TODAY M15N_DOW < <(TZ=Australia/Sydney date '+%F %u')
 # m15n_plus DATE +N|-N: the date N days from DATE. m15n_monday_of DATE: that week's Monday.
 m15n_plus() { date -u -d "$1 $2 days" +%F; }
 m15n_monday_of() { local d; d=$(date -u -d "$1" +%u); date -u -d "$1 -$((d - 1)) days" +%F; }
+M15N_THIS=$(m15n_monday_of "$M15N_TODAY")
 M15N_LAST=$(m15n_plus "$M15N_THIS" -7)
 M15N_NEXT=$(m15n_plus "$M15N_THIS" +7)
 # The next weekday after today (Fri -> Monday, Sat -> Monday, Sun -> Monday), and the day a note
@@ -235,8 +241,8 @@ expect_jq "$(m15n_note "$M15N_N1").canAck == false and $(m15n_note "$M15N_N2").c
 m15n_week "$ACCT2" accounts "$M15N_W0"
 expect_jq "$(m15n_note "$M15N_N2").canEdit == true and $(m15n_note "$M15N_N1").canEdit == false" "acct2 may edit only the note acct2 wrote"
 m15n_week "$ADMIN" accounts "$M15N_W0"
-expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\")) | .canEdit] | all(. == false)" "admin may edit neither"
-expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\")) | .canAck] | all(. == true)" "admin may thumbs-up both"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\")) | .canEdit] | length >= 2 and all(. == false)" "admin may edit neither"
+expect_jq "[.days[].notes[] | select(.body | contains(\"$M15N_TAG\")) | .canAck] | length >= 2 and all(. == true)" "admin may thumbs-up both"
 m15n_week "$ACCT" accounts "$M15N_WNEXTWD"
 expect_jq "[.days[].notes[] | select(.id == $M15N_NF)] | length == 1" "the later-day note is on its own week's wall"
 m15n_week "$ACCT" accounts "$M15N_NEXT"
@@ -565,12 +571,61 @@ expect_jq "[.rows[] | select(.action == \"note.unack\" and .entityId == \"$M15N_
 expect_jq "[.rows[] | select(.action == \"note.ack\" and .entityId == \"$M15N_NK\" and .actorUserId == $M15N_ACCT_ID)] | length == 0" "nothing for the refused own-note thumbs-up"
 expect_jq "[.rows[] | select(.action == \"note.ack\" and .entityId == \"$M15N_NROLL\")] | length == 1" "a thumbs-up on a past week is recorded"
 expect_jq "[.rows[] | select(.entityId == \"$M15N_N1\")] | all(.entityType == \"dept_note\")" "the entity type is dept_note"
+M15N_AUD_TOTAL=$(jqr '.total')
+M15N_AUD_ADMINROWS=$(printf '%s' "$BODY" | jq '[.rows[] | select((.after.dept // .before.dept) == "admin")] | length')
+[ "$M15N_AUD_ADMINROWS" -ge 1 ] || fail "expected the owner to see Admin-notes audit rows (saw $M15N_AUD_ADMINROWS)"
+
+echo "--- the audit trail: a note's rows show only to readers of its department (Todd, 2026-10-17) ---"
+M15N_AU_USER="m15adm$M15N_TAG"
+M15N_AU_PW="M15-Adm-Passw0rd-$M15N_TAG"
+create_user "$M15N_AU_USER" "M15 Second Admin $M15N_TAG" "Tmp-$M15N_AU_PW" admin
+M15N_AU_ID=$CREATED_ID
+M15N_AU="$WORK/jar-m15-adm"
+new_jar "$M15N_AU"
+login "$M15N_AU" "$M15N_AU_USER" "Tmp-$M15N_AU_PW"
+expect_status 200 "login the second admin"
+own_password "$M15N_AU" "Tmp-$M15N_AU_PW" "$M15N_AU_PW"
+req GET "/api/audit?action=note.&entityType=dept_note&limit=500" "$M15N_AU"
+expect_status 200 "the second admin reads the note audit rows"
+expect_jq "$M15N_AUD_TOTAL == .total" "with every notes key the second admin sees as many note rows as the owner"
+req PUT "/api/users/$M15N_AU_ID/overrides/notes.admin" "$ADMIN" '{"effect":"revoke"}'
+expect_status 200 "revoke notes.admin from the second admin"
+req GET /api/auth/me "$M15N_AU"
+expect_jq '(.user.perms | index("audit.view")) != null and (.user.perms | index("notes.admin")) == null and (.user.perms | index("notes.accounts")) != null' "the second admin still has audit.view and the other notes keys, but not notes.admin"
+req GET "/api/audit?action=note.&entityType=dept_note&limit=500" "$M15N_AU"
+expect_status 200 "the second admin (no notes.admin) reads the note audit rows"
+expect_jq "[.rows[] | select((.after.dept // .before.dept) == \"admin\")] | length == 0" "no Admin-notes audit row reaches a reader without notes.admin"
+expect_jq "[.rows[] | select(.entityId == \"$M15N_NA\")] | length == 0" "the admin sheet's note.create row is hidden from them"
+expect_jq "[.rows[] | select(.action == \"note.create\" and .entityId == \"$M15N_N1\")] | length == 1" "an Accounts-notes row is still shown"
+expect_jq "[.rows[] | select(.action == \"note.create\" and .entityId == \"$M15N_NS\")] | length == 1" "a Scheduling-notes row is still shown"
+expect_jq ".total == $M15N_AUD_TOTAL - $M15N_AUD_ADMINROWS" "the total leaves the hidden rows out too"
+req GET "/api/audit?entityType=dept_note&entityId=$M15N_NA" "$M15N_AU"
+expect_status 200 "asking for the hidden note by id"
+expect_jq '.rows == [] and .total == 0' "gives nothing, not even a count"
+req GET "/api/audit?limit=500&offset=0" "$M15N_AU"
+expect_status 200 "the unfiltered log for the second admin"
+expect_jq "[.rows[] | select(.entityType == \"dept_note\" and (.after.dept // .before.dept) == \"admin\")] | length == 0" "the unfiltered log hides them as well"
+req GET "/api/audit?action=note.create&limit=1" "$ADMIN"
+expect_jq '.total >= 1' "the owner's count still includes every department"
+req GET "/api/audit/actions" "$M15N_AU"
+expect_status 200 "the action list for the second admin"
+expect_jq 'index("note.create") != null' "the note actions are still listed (they hold other departments)"
+req DELETE "/api/users/$M15N_AU_ID/overrides/notes.admin" "$ADMIN"
+expect_status 200 "give notes.admin back"
+req GET "/api/audit?action=note.&entityType=dept_note&limit=500" "$M15N_AU"
+expect_jq ".total == $M15N_AUD_TOTAL and ([.rows[] | select(.entityId == \"$M15N_NA\")] | length) == 1" "with notes.admin back the Admin-notes rows show again"
 
 echo "--- the tables' own checks ---"
 M15N_DB=$(docker exec "$CONTAINER" node -e '
 const D = require("better-sqlite3");
 const d = new D("/data/db/photos.db");
+d.pragma("busy_timeout = 5000");
 d.pragma("foreign_keys = ON");
+// "refused" only for a constraint error (CHECK, UNIQUE/PRIMARY KEY, FOREIGN KEY): a locked
+// database or a typo must not pass as a refusal by the table.
+// better-sqlite3 names it in code; node:sqlite (the local shim) gives the result code in errcode (19 = constraint).
+const isConstraint = (e) => !!e && (/^SQLITE_CONSTRAINT/.test(String(e.code)) || (Number.isInteger(e.errcode) && (e.errcode & 255) === 19));
+const refusal = (e) => (isConstraint(e) ? "refused" : "ERROR(" + (e && (e.code || e.message)) + ")");
 const ins = d.prepare("INSERT INTO dept_notes (dept, note_date, week_start, body, author_id) VALUES (?, ?, ?, ?, 1)");
 const tries = [
   ["bogus dept", ["bogus", "2024-01-03", "2024-01-01", "x"]],
@@ -594,14 +649,14 @@ for (const [name, args, shouldPass] of tries) {
     if (shouldPass) { out.push(name + ":accepted"); d.prepare("DELETE FROM dept_notes WHERE id = ?").run(id); }
     else out.push(name + ":ACCEPTED");
   } catch (e) {
-    out.push(name + ":refused");
+    out.push(name + ":" + refusal(e));
   }
 }
 const note = Number(ins.run("accounts", "2024-01-03", "2024-01-01", "ack target").lastInsertRowid);
 const ack = d.prepare("INSERT INTO dept_note_acks (note_id, user_id, created_at) VALUES (?, ?, ?)");
 ack.run(note, 1, "2024-01-03T00:00:00.000Z");
 for (const [name, args] of [["duplicate ack", [note, 1, "x"]], ["ack of no note", [999999999, 1, "x"]], ["ack by no user", [note, 999999999, "x"]]]) {
-  try { ack.run(...args); out.push(name + ":ACCEPTED"); } catch (e) { out.push(name + ":refused"); }
+  try { ack.run(...args); out.push(name + ":ACCEPTED"); } catch (e) { out.push(name + ":" + refusal(e)); }
 }
 d.prepare("DELETE FROM dept_note_acks WHERE note_id = ?").run(note);
 d.prepare("DELETE FROM dept_notes WHERE id = ?").run(note);
@@ -610,3 +665,7 @@ out.push("index:" + idx);
 console.log(out.join(" "));
 d.close();' | tr -d '\r') || fail "the table checks failed to run"
 expect_eq "$M15N_DB" "bogus dept:refused empty body:refused blank body:refused 2001 chars:refused bad date:refused not a date:refused saturday:refused sunday:refused wrong week:refused bad week:refused monday:accepted friday:accepted duplicate ack:refused ack of no note:refused ack by no user:refused index:1" "dept_notes refuses a bad department, body, weekend or mismatched week; dept_note_acks refuses a duplicate or a stranger; the index exists"
+
+# Nothing above may have crossed Sydney midnight: every date in this suite came from the first one.
+[ "$(TZ=Australia/Sydney date +%F)" = "$M15N_TODAY" ] || fail "m15-notes: date rolled mid-run (started on $M15N_TODAY, now $(TZ=Australia/Sydney date +%F)); rerun"
+ok

@@ -171,6 +171,9 @@ m6b_seed "$(m6b_item m6b-sparse "" '.quoteNumber = null | .siteAddress = null | 
 M6B_SPARSE=$M6B_ID
 req GET "/api/joinr/intake/$M6B_SPARSE" "$DPM"
 expect_jq '.quote.url == null' "a non-http link is dropped"
+req GET /api/pipeline/joinr-quotes "$DPM"
+expect_status 200 "dpm GET /api/pipeline/joinr-quotes with the sparse quote waiting"
+expect_jq '[.[] | select(.clientName == "M6B Sparse")] | length == 1 and .[0].url == null' "the Pipeline line of a non-http link has no link"
 req POST "/api/joinr/intake/$M6B_SPARSE/accept" "$DPM" '{}'
 expect_status 200 "accept a sparse quote"
 expect_jq '.job.name == "M6B Sparse" and .job.stage == "won" and .job.sheetCount == null and .job.isTwoPac == null and .job.benchtop == null and .job.joinrQuoteUrl == null and .job.notes == "From Joinr."' "sparse job: name from the client, nulls stay null"

@@ -377,7 +377,6 @@ expect_status 200 "wsmgr clears board 3"
 expect_jq "[.lines[] | select(.boardId == $M11_ST_B3) | .qty] == [null]" "board 3 has no count"
 req GET "/api/boards/counts/$M11_ST_NEXT" "$WSMGR"
 expect_status 400 "a future board month"
-expect_status 400 "a future board month"
 
 for b in "$M11_ST_B1" "$M11_ST_B2" "$M11_ST_B3"; do
   req PATCH "/api/boards/$b" "$ORDR" '{"active":false}'

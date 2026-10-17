@@ -400,7 +400,7 @@ expect_jq '.time == null' "time is now not set"
 m3b_notifs "$SCHED" inspection.moved "$M3B_J"
 expect_eq "$M3B_N" "2" "a time change is a move too"
 
-# A second inspection, marked done: no notification, and it is not notified.
+# A second inspection, marked done: moving or changing it sends no notification.
 req POST "/api/job-records/$M3B_J/inspections" "$DPM" "{\"date\":\"$M3B_PLUS5\",\"host\":\"Someone Else\"}"
 expect_status 201 "dpm books a second inspection with no time"
 expect_jq '.time == null and .host == "Someone Else"' "no time; the host is kept"

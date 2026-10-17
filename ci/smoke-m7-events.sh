@@ -802,3 +802,47 @@ ok
 # Logs carry ids and counts only: never a title.
 if grep -qF "M7E Secret" <<<"$M7E_LOGS"; then fail "a personal title appears in docker logs"; fi
 ok
+
+echo "--- migration 030: the table's own checks on custom repeats ---"
+# Straight into planner_events, past the code that never sends a bad combination. A row is
+# "refused" only for a constraint error (SQLITE_CONSTRAINT*): a locked database or a typo must
+# not pass as a refusal by the CHECKs. Accepted rows are deleted again.
+M7E_DB=$(docker exec "$CONTAINER" node -e '
+const D = require("better-sqlite3");
+const d = new D("/data/db/photos.db");
+d.pragma("busy_timeout = 5000");
+d.pragma("foreign_keys = ON");
+// better-sqlite3 names it in code; node:sqlite (the local shim) gives the result code in errcode (19 = constraint).
+const isConstraint = (e) => !!e && (/^SQLITE_CONSTRAINT/.test(String(e.code)) || (Number.isInteger(e.errcode) && (e.errcode & 255) === 19));
+const refusal = (e) => (isConstraint(e) ? "refused" : "ERROR(" + (e && (e.code || e.message)) + ")");
+const ins = d.prepare("INSERT INTO planner_events (layer, owner_id, title, all_day, start_date, end_date, repeat, repeat_day, repeat_unit, repeat_every) VALUES (?, 1, ?, 1, ?, ?, ?, ?, ?, ?)");
+// [name, repeat, repeat_day, repeat_unit, repeat_every, shouldPass]
+const tries = [
+  ["unit without every", "weekly", null, "week", null],
+  ["every without unit", "weekly", null, null, 3],
+  ["every 0", "weekly", null, "week", 0],
+  ["every 100", "weekly", null, "week", 100],
+  ["every 1 week", "weekly", null, "week", 1],
+  ["every 1 month", "monthly", 1, "month", 1],
+  ["every 1 year", "monthly", 1, "year", 1],
+  ["bad unit", "weekly", null, "fortnight", 2],
+  ["every day", "weekly", null, "day", 1, true],
+  ["every 2 weeks", "weekly", null, "week", 2, true],
+  ["every 99 days", "weekly", null, "day", 99, true],
+  ["every 2 months", "monthly", 15, "month", 2, true],
+  ["every 3 years", "monthly", 15, "year", 3, true],
+  ["plain weekly", "weekly", null, null, null, true],
+];
+const out = [];
+for (const [name, repeat, day, unit, every, shouldPass] of tries) {
+  try {
+    const id = Number(ins.run("company", "M7E 030 check", "2035-12-01", "2035-12-01", repeat, day, unit, every).lastInsertRowid);
+    if (shouldPass) { out.push(name + ":accepted"); d.prepare("DELETE FROM planner_events WHERE id = ?").run(id); }
+    else out.push(name + ":ACCEPTED");
+  } catch (e) {
+    out.push(name + ":" + refusal(e));
+  }
+}
+console.log(out.join(" "));
+d.close();' | tr -d '\r') || fail "the 030 table checks failed to run"
+expect_eq "$M7E_DB" "unit without every:refused every without unit:refused every 0:refused every 100:refused every 1 week:refused every 1 month:refused every 1 year:refused bad unit:refused every day:accepted every 2 weeks:accepted every 99 days:accepted every 2 months:accepted every 3 years:accepted plain weekly:accepted" "planner_events refuses a unit without a count, a count without a unit, a count outside 1 to 99, every 1 week/month/year and an unknown unit; it takes every day, every N weeks/days/months/years and a plain repeat"
