@@ -50,9 +50,9 @@
   const num = (n) => String(Math.round(n * 100) / 100);
 
   const VIEWS = [
-    ["new", "New"],
+    ["new", "Waiting for a person"],
     ["changed", "Changed"],
-    ["decided", "Accepted and linked"],
+    ["decided", "Made into jobs"],
     ["ignored", "Ignored"],
     ["withdrawn", "Withdrawn"],
   ];
@@ -64,9 +64,9 @@
     withdrawn: ["Withdrawn", "hs-badge-violet"],
   };
   const EMPTY = {
-    new: "Nothing new from Joinr.",
+    new: "Nothing is waiting. Won quotes become jobs by themselves; only a quote the system could not handle waits here.",
     changed: "Nothing has changed in Joinr since you decided.",
-    decided: "No quotes accepted or linked yet.",
+    decided: "No quotes have become jobs yet.",
     ignored: "No ignored quotes.",
     withdrawn: "No withdrawn quotes.",
   };
@@ -227,7 +227,7 @@
       facts.append(fact("Quote", a));
     }
     if (it.job) {
-      const who = it.decidedBy && it.decidedBy.name ? " by " + it.decidedBy.name : "";
+      const who = it.decidedBy && it.decidedBy.id == null && it.decidedBy.name ? " automatically" : it.decidedBy && it.decidedBy.name ? " by " + it.decidedBy.name : "";
       const on = it.decidedAt ? " on " + fmtInstant(it.decidedAt) : "";
       facts.append(
         wide(fact(

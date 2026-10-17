@@ -113,6 +113,22 @@ m11dw_root() {
   printf 'c11d%04d-0000-4000-8000-%012d' "$1" "$M11_DW_TAG"
 }
 
+# A won quote becomes a job by itself on a sync or import (2026-10-18). To test the hand buttons
+# (Accept, Link) a quote must be left waiting for a person, so the suite first makes a job that
+# already holds the quote's root id: the automatic step then fails and the row stays `new`.
+# m11dw_hold N makes that job; m11dw_release N lets go of the root id before the hand decision.
+m11dw_hold() { # N
+  req POST /api/job-records "$ADMIN" "$(jq -nc --arg n "M11 hold $1 $M11_DW_TAG" --arg r "$(m11dw_root "$1")" '{name: $n, externalRef: $r}')"
+  expect_status 201 "a job holding quote $1's root id (keeps it for a person)"
+  eval "M11_DW_HOLD_$1=$(jqr '.id')"
+}
+m11dw_release() { # N
+  local h
+  eval "h=\$M11_DW_HOLD_$1"
+  req PATCH "/api/job-records/$h" "$ADMIN" '{"externalRef":null}'
+  expect_status 200 "the holding job lets go of quote $1's root id"
+}
+
 # m11dw_unname NAME: removes NAME from the drawer name list if an earlier run left it there.
 m11dw_unname() {
   req GET /api/drawers/names "$ORDR"
@@ -437,6 +453,8 @@ docker exec "$CONTAINER" sh -c "printf '%s\n' 'http://127.0.0.1:$M11_DW_PORT' > 
 docker exec "$CONTAINER" sh -c "printf '%s\n' '$M11_DW_KEY' > /data/config/joinr-api-key"
 
 echo "--- Joinr: accept fills the grid ---"
+m11dw_hold 1
+m11dw_hold 2
 M11_DW_Q1=$(m11dw_root 1)
 M11_DW_Q1_SITE="M11 Drawer Site One $M11_DW_TAG"
 m11dw_quote "$M11_DW_Q1" "CI-M11-$M11_DW_TAG-1" "$M11_DW_Q1_SITE" \
@@ -452,6 +470,7 @@ expect_eq "$(m11dw_sql "SELECT payload FROM joinr_intake WHERE root_quote_id = '
 expect_eq "$(m11dw_sql "SELECT payload FROM joinr_intake WHERE root_quote_id = '$M11_DW_Q2'" | jq -c '.[0].payload | fromjson | .drawers')" \
   "null" "a quote without drawer lines is stored as not reported"
 M11_DW_I1=$(m11dw_intake "$M11_DW_Q1" id)
+m11dw_release 1
 req POST "/api/joinr/intake/$M11_DW_I1/accept" "$ADMIN" '{}'
 expect_status 200 "admin accepts quote 1"
 M11_DW_J1=$(jqr '.job.id')
@@ -481,6 +500,7 @@ req GET /api/drawers/unmapped "$DPM"
 expect_status 403 "dpm GET /api/drawers/unmapped"
 
 M11_DW_I2=$(m11dw_intake "$M11_DW_Q2" id)
+m11dw_release 2
 req POST "/api/joinr/intake/$M11_DW_I2/accept" "$ADMIN" '{}'
 expect_status 200 "admin accepts quote 2 (no drawer lines)"
 M11_DW_J2=$(jqr '.job.id')
@@ -550,11 +570,13 @@ m11dw_job "M11 Drawer Job Link $M11_DW_TAG" "\"quoteNumber\":\"CI-M11-$M11_DW_TA
 M11_DW_J3=$M11_DW_JOB
 req POST "/api/job-records/$M11_DW_J3/drawers" "$DPM" '{"brand":"dtc","counts":[{"height":95,"length":300,"qty":1}]}'
 expect_status 201 "dpm types a DTC grid on the job first"
+m11dw_hold 3
 M11_DW_Q3=$(m11dw_root 3)
 m11dw_quote "$M11_DW_Q3" "CI-M11-$M11_DW_TAG-3" "M11 Drawer Site Three $M11_DW_TAG" \
   ". + {drawers: [{section: \"drawers\", name: \"$M11_DW_MID\", qty: 2.5}, {section: \"innerDrawers\", name: \"$M11_DW_UNKNOWN\", qty: 1}]}"
 m11dw_import "quote 3"
 M11_DW_I3=$(m11dw_intake "$M11_DW_Q3" id)
+m11dw_release 3
 req POST "/api/joinr/intake/$M11_DW_I3/link" "$ADMIN" "{\"jobId\":$M11_DW_J3}"
 expect_status 200 "admin links quote 3 to the job"
 m11dw_lines "$M11_DW_J3"
@@ -588,6 +610,7 @@ req POST "/api/job-records/99999999/drawers/fill" "$DPM" '{}'
 expect_status 404 "Fill on a job that doesn't exist"
 
 echo "--- linking skips a brand with an ordered line (review A-m4) ---"
+m11dw_hold 7
 M11_DW_Q7=$(m11dw_root 7)
 m11dw_quote "$M11_DW_Q7" "CI-M11-$M11_DW_TAG-7" "M11 Drawer Site Seven $M11_DW_TAG" \
   ". + {drawers: [{section: \"drawers\", name: \"$M11_DW_MID\", qty: 1}]}"
@@ -595,6 +618,7 @@ m11dw_import "quote 7"
 M11_DW_I7=$(m11dw_intake "$M11_DW_Q7" id)
 req PATCH "/api/job-records/$M11_DW_JA" "$ADMIN" "{\"quoteNumber\":\"CI-M11-$M11_DW_TAG-7\"}"
 expect_status 200 "admin gives job A the quote number"
+m11dw_release 7
 req POST "/api/joinr/intake/$M11_DW_I7/link" "$ADMIN" "{\"jobId\":$M11_DW_JA}"
 expect_status 200 "admin links quote 7 to job A, whose EDGE line is already ordered"
 m11dw_lines "$M11_DW_JA"
@@ -608,6 +632,7 @@ m11dw_bad() { # N DRAWERS-JSON
   m11dw_quote "$root" "CI-M11-$M11_DW_TAG-$1" "M11 Drawer Site Bad $1 $M11_DW_TAG" ". + {drawers: $2}"
   M11_DW_LOG_CURSORS="$M11_DW_LOG_CURSORS $1:$(printf '%s' "$M11_DW_OUT" | jq -r '.cursor')"
 }
+for n in 4 5 6 8; do m11dw_hold "$n"; done
 m11dw_bad 4 '[{"section":"drawers","name":"M11 Drawer Bad","qty":-1}]'
 m11dw_bad 5 "[{\"section\":\"drawers\",\"name\":\"$(printf 'x%.0s' $(seq 1 201))\",\"qty\":1}]"
 m11dw_bad 6 '[{"section":"doors","name":"M11 Drawer Bad","qty":1}]'
@@ -632,6 +657,7 @@ expect_eq "$M11_DW_N" "1" "a repeat of the same item sends no second notice"
 req GET "/api/notifications?limit=100" "$DPM"
 expect_jq "[.rows[] | select(.kind == \"joinr.drawers\")] | length == 0" "dpm (no users.admin) isn't told"
 M11_DW_I4=$(m11dw_intake "$(m11dw_root 4)" id)
+m11dw_release 4
 req POST "/api/joinr/intake/$M11_DW_I4/accept" "$ADMIN" '{}'
 expect_status 200 "admin accepts a quote whose drawers were malformed"
 M11_DW_J4=$(jqr '.job.id')

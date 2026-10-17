@@ -6,6 +6,7 @@
 // new comment alerts every other follower once (while their earlier alert is unread).
 const audit = require("./audit");
 const notify = require("./notify");
+const teamTasks = require("./team-tasks");
 const { bad, notFound, forbidden, conflict } = require("./httperror");
 
 const BODY_MAX = 4000;
@@ -39,7 +40,9 @@ function parseEntityId(v) {
 function entityLabel(db, type, id) {
   const row =
     type === "task"
-      ? db.prepare("SELECT title AS label FROM tasks WHERE id = ?").get(id)
+      ? teamTasks.isTeamId(id)
+        ? (() => { const t = teamTasks.labelOf(db, id); return t == null ? null : { label: t }; })()
+        : db.prepare("SELECT title AS label FROM tasks WHERE id = ?").get(id)
       : db.prepare("SELECT name AS label FROM jobs WHERE id = ?").get(id);
   if (!row) throw notFound();
   return row.label;
@@ -50,6 +53,8 @@ function entityLabel(db, type, id) {
 function assertAccess(db, user, type, id, { write = false } = {}) {
   if (type === "task") {
     if (!has(user, "tasks.use")) throw forbidden();
+    // A team task (2026-10-18) is the team's: anyone else is told there is no such task.
+    if (teamTasks.isTeamId(id) && !teamTasks.isMember(user)) throw notFound();
   } else {
     if (!has(user, "jobs.view")) throw forbidden();
     if (write && !has(user, "messages.use")) throw forbidden();
@@ -125,12 +130,17 @@ function add(db, req, entityType, entityId, body) {
       .run(type, id, user.id, text, nowIso());
     follow(db, user.id, type, id);
     // Followers who can no longer see the entity are skipped.
-    const canSee = new Set(notify.usersWithKey(db, type === "task" ? "tasks.use" : "jobs.view").map(Number));
+    const team = type === "task" && teamTasks.isTeamId(id);
+    const canSee = new Set(
+      (team ? teamTasks.memberIds(db) : notify.usersWithKey(db, type === "task" ? "tasks.use" : "jobs.view")).map(Number)
+    );
     const followers = db
       .prepare("SELECT user_id FROM follows WHERE entity_type = ? AND entity_id = ?")
       .all(type, id)
       .map((f) => Number(f.user_id))
       .filter((uid) => canSee.has(uid));
+    // Everyone on the team hears a comment on a team task, followers or not.
+    if (team) for (const m of canSee) if (!followers.includes(m)) followers.push(m);
     notify.toUsers(
       db,
       followers,

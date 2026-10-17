@@ -4,6 +4,7 @@ const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const roundup = require("../lib/roundup");
 const tasks = require("../lib/tasks");
+const teamTasks = require("../lib/team-tasks");
 const messages = require("../lib/messages");
 const { can } = require("../lib/httperror");
 const { sydneyToday } = require("../lib/time");
@@ -64,7 +65,7 @@ r.get("/", "login", (req, res) => {
 // The menu bar counts (one poll for all three buttons). M4 adds tasks, tasksOverdue
 // and messages; unread is unchanged.
 r.get("/unread-count", "login", (req, res) => {
-  const t = can(req, "tasks.use") ? tasks.countsFor(db, req.user.id, sydneyToday()) : { open: 0, overdue: 0 };
+  const t = can(req, "tasks.use") ? tasks.countsFor(db, req.user.id, sydneyToday(), { team: teamTasks.isMember(req.user) }) : { open: 0, overdue: 0 };
   res.json({
     unread: unreadCount(req.user.id),
     tasks: t.open,

@@ -219,13 +219,25 @@ req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" "{\"jobId\":$M6B_J1}"
 expect_status 200 "link the record to the typed-in job"
 expect_jq ".item.state == \"linked\" and .item.job.id == $M6B_J1" "record linked"
 req GET "/api/job-records/$M6B_J1" "$DPM"
-expect_jq '.externalRef == "m6b-link" and .name == "M6B typed in" and .source == "manual" and .stage == "quoted"' "the job gained its external_ref and kept name, source and stage"
+# 2026-10-18: a won quote moves a job still at Quoted to Won (won date = the Sydney date the quote was won).
+expect_jq '.externalRef == "m6b-link" and .name == "M6B typed in" and .source == "manual" and .stage == "won" and .wonDate == "2026-07-02"' "the job gained its external_ref, kept name and source, and moved from Quoted to Won"
+expect_eq "$(m6b_audits job.stage "$M6B_J1")" 1 "job.stage audit row for the move to Won"
 expect_jq '.clientName == "Typed Client" and .clientPhone == "0299 999 999" and .benchtop == "laminate" and .valueCents == 500000' "its own non-empty fields are kept"
 expect_jq '.clientEmail == "lnk@example.com" and .sheetCount == 9 and .isTwoPac == false and .jobType == "Vanity" and .siteAddress == "12 Wattle St, Bondi NSW" and (.joinrQuoteUrl | endswith("q-m6b-link"))' "its empty fields were filled"
 expect_eq "$(m6b_audits job.update "$M6B_J1")" 1 "job.update audit row for the link"
 expect_eq "$(m6b_audits joinr.link "$M6B_LINK")" 1 "joinr.link audit row"
 req POST "/api/joinr/intake/$M6B_LINK/link" "$DPM" "{\"jobId\":$M6B_J1}"
 expect_status 409 "a second link is refused"
+# A job already further along keeps its stage when a quote is linked to it.
+req POST /api/job-records "$DPM" '{"name":"M6B further along","quoteNumber":"JRQM6B21","stage":"design_ordering"}'
+expect_status 201 "a job at design_ordering with a quote number"
+M6B_J6=$(jqr '.id')
+m6b_seed "$(m6b_item m6b-far JRQM6B21)"
+M6B_FAR=$M6B_ID
+req POST "/api/joinr/intake/$M6B_FAR/link" "$DPM" "{\"jobId\":$M6B_J6}"
+expect_status 200 "link to the job at design_ordering"
+req GET "/api/job-records/$M6B_J6" "$DPM"
+expect_jq '.externalRef == "m6b-far" and .stage == "design_ordering"' "a job further along keeps its stage"
 
 echo "--- for a job ---"
 req GET "/api/joinr/job/$M6B_JOB" "$DPM"

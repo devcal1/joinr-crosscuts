@@ -58,7 +58,9 @@ function log(req, entry) {
         ? String(e.actorLabel)
         : user && user.username
           ? String(user.username)
-          : "system";
+          : req && req.actorLabel
+            ? String(req.actorLabel) // a system actor, e.g. lib/intake's SYSTEM_REQ
+            : "system";
     const params = [
       actorId,
       actorLabel,

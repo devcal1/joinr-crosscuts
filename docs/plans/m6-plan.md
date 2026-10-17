@@ -104,3 +104,17 @@ In `tenon-quotr`, on its own branch, following its CLAUDE.md and PROJECT_PLAN ru
    - **Decision: (a)**, total inc GST, options left out.
 5. **First sync:** (a) *Recommended:* start from now; an admin can import the currently won quotes once with a button. (b) Import every won quote automatically on the first sync.
    - **Decision: (a)**, from now, plus the one-off import button.
+
+## 11. Reversal of the "inbox first" decision (Todd, 2026-10-18)
+
+Decision 1 above (an inbox where a person accepts, links or ignores each won quote) is **reversed**. Todd's call: a won quote becomes a job by itself.
+
+- **Automatic.** When a won event would create a new intake record (a live sync, the first sync, **and the admin Import**), Crosscuts decides it at once, as the system (audit actor "Joinr (automatic)", `decided_by` NULL):
+  - exactly one live job with the same quote number and no `external_ref`: **Link** it (fills only empty fields, ties it to the quote, moves a job still at Quoted or the retired Lead to Won with the Joinr won date; a job further along keeps its stage);
+  - otherwise (none, or two or more): **Accept**, making a Won job exactly as Accept always did.
+- **The Design/PM team** (holders of `notes.design`) gets one shared team task per job ("New job from Joinr: <job> - set up the job", or "Joinr quote linked to <job> - check the job") and one alert, "Job created from Joinr: <job>" or "Joinr linked to <job>", linking the job. Team tasks: `docs/plans/m4-contracts.md` section 13.
+- **Failure is safe.** The automatic step runs in a savepoint with the intake row. If it fails (for example a job already holds the quote's `external_ref`), the row stays `new` with the old "New from Joinr" alert, for a person to Accept, Link or Ignore. The Accept, Link and Ignore buttons stay for those rows, and for a **withdrawn** row that is won again (it goes back to `new` and is not made into a job automatically).
+- **Unchanged.** After a decision a real difference flags the record `changed` with one `joinr.changed` alert and the "Changed in Joinr" callout on the job. An un-won or deleted quote only flags the job as changed; the job is **never** deleted or edited by Joinr. The Pipeline's Quoted list still hides quotes whose record is accepted or linked.
+- **The intake page** stays for exceptions and history: its first tab is now "Waiting for a person" (normally empty), "Accepted and linked" is "Made into jobs" and says "automatically" where no person decided.
+- **A hand Accept or Link makes no team task.** The person doing it is the Design/PM team. (Link now also moves a Quoted job to Won, for hand and automatic alike.)
+- **Cutover warning:** Import now creates a Won job (and a team task) for **every** past win; see `docs/cutover.md`.

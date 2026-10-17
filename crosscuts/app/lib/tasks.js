@@ -9,6 +9,7 @@ const files = require("./files");
 const notify = require("./notify");
 const people = require("./people");
 const settings = require("./settings");
+const teamTasks = require("./team-tasks");
 const { bad, notFound, forbidden, conflict } = require("./httperror");
 const { DATE_RE, parseDateUTC, formatDateUTC, sydneyParts, sydneyToday } = require("./time");
 
@@ -21,7 +22,8 @@ const REMINDER_HOUR = 7; // Sydney, weekdays (Todd, M4 decision 4)
 const REMINDER_TITLES = 5;
 
 // {open, overdue}: the user's assigned open tasks, and those due before `today`.
-function countsFor(db, userId, today) {
+// opts.team (2026-10-18): the user is on the design team, so the open team tasks count too.
+function countsFor(db, userId, today, opts) {
   const row = db
     .prepare(
       `SELECT COUNT(*) AS open,
@@ -29,7 +31,13 @@ function countsFor(db, userId, today) {
          FROM tasks WHERE assignee_id = ? AND status = 'open'`
     )
     .get(today, userId);
-  return { open: Number(row.open) || 0, overdue: Number(row.overdue) || 0 };
+  const out = { open: Number(row.open) || 0, overdue: Number(row.overdue) || 0 };
+  if (opts && opts.team) {
+    const t = teamTasks.countsFor(db, today);
+    out.open += t.open;
+    out.overdue += t.overdue;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- helpers ---
@@ -211,13 +219,35 @@ function list(db, user, opts) {
     sql = `${SELECT} WHERE t.job_id = ? ORDER BY (t.status = 'open') DESC, t.updated_at DESC, t.id DESC LIMIT ?`;
     args = [jobId, limit];
   }
-  return db
+  const rows = db
     .prepare(sql)
     .all(...args)
     .map((row) => present(db, user, row, today));
+  // Team tasks (2026-10-18): a member of the design team also sees the team's tasks, merged in
+  // with the same ordering.
+  const team = teamTasks.listFor(db, user, view, { jobId: view === "job" ? parseId(o.jobId) : null, limit, today });
+  if (!team.length) return rows;
+  const merged = rows.concat(team);
+  if (view === "done") {
+    merged.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : b.id - a.id));
+  } else if (view === "job") {
+    merged.sort((a, b) => (a.status === "open") !== (b.status === "open")
+      ? (a.status === "open" ? -1 : 1)
+      : a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : b.id - a.id);
+  } else {
+    // overdue first, then by due date (none last), then id: as queueOrder above
+    merged.sort((a, b) => {
+      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+      if (!!a.dueDate !== !!b.dueDate) return a.dueDate ? -1 : 1;
+      if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
+      return a.id - b.id;
+    });
+  }
+  return merged.slice(0, limit);
 }
 
 function get(db, user, id) {
+  if (teamTasks.isTeamId(Number(id))) return teamTasks.get(db, user, Number(id), sydneyToday());
   return present(db, user, loadRow(db, id), sydneyToday());
 }
 
@@ -228,6 +258,17 @@ function create(db, req, body) {
   const user = req.user;
   const title = textField("title", body.title, { max: TITLE_MAX, required: true });
   const notes = textField("notes", body.notes, { max: NOTES_MAX });
+  if (body.team !== undefined && body.team !== null && body.team !== "") {
+    // A task for the whole design team (2026-10-18): no assignee; only a team member may raise one.
+    if (body.team !== "design") throw bad("team must be design");
+    if (body.assigneeId !== undefined && body.assigneeId !== null && body.assigneeId !== "") {
+      throw bad("Give the task to a person or to the team, not both");
+    }
+    const dueDate = parseDue(body.dueDate);
+    const jobId = parseJob(db, body.jobId);
+    const teamId = teamTasks.create(db, req, "design", { title, notes, dueDate, jobId });
+    return get(db, user, teamId);
+  }
   const assigneeId = parseAssignee(db, body.assigneeId);
   const dueDate = parseDue(body.dueDate);
   const jobId = parseJob(db, body.jobId);
@@ -266,6 +307,9 @@ function create(db, req, body) {
 function update(db, req, id, body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw bad("JSON body required");
   const user = req.user;
+  if (teamTasks.isTeamId(Number(id))) {
+    return teamTasks.update(db, req, Number(id), body, { parseDue, parseJob, textField, TITLE_MAX, NOTES_MAX });
+  }
   if (typeof body.updatedAt !== "string" || !body.updatedAt) throw bad("updatedAt is required");
   const row = loadRow(db, id);
   if (!canEditRow(user, row)) throw forbidden();
@@ -351,6 +395,7 @@ function update(db, req, id, body) {
 function setStatus(db, req, id, action) {
   const user = req.user;
   if (!["done", "reopen", "cancel"].includes(action)) throw bad("Unknown action");
+  if (teamTasks.isTeamId(Number(id))) return teamTasks.setStatus(db, req, Number(id), action);
   db.transaction(() => {
     const row = loadRow(db, id);
     const ts = nextStamp(row.updated_at);
@@ -400,6 +445,10 @@ function setStatus(db, req, id, action) {
 // Throws 404, 403 or 409 unless the user may attach a file to the task now. The route calls it
 // before the upload is checked; attach() repeats it inside the transaction.
 function assertCanAttach(db, user, id) {
+  if (teamTasks.isTeamId(Number(id))) {
+    teamTasks.get(db, user, Number(id), sydneyToday()); // 404 for a non-member
+    throw bad("Team tasks can't have files");
+  }
   const row = loadRow(db, id);
   if (!canEditRow(user, row)) throw forbidden();
   if (row.status !== "open") throw conflict("This task is closed");
@@ -472,8 +521,13 @@ function runReminder(db, { now = new Date(), force = false } = {}) {
         ORDER BY due_date, id`
     );
     let sent = 0;
+    // Team tasks due today or earlier count for every member of the team (2026-10-18).
+    const teamDue = teamTasks.dueRows(db, today);
+    const members = new Set(teamDue.length ? teamTasks.memberIds(db) : []);
     for (const p of people.withKey(db, "tasks.use")) {
       const rows = due.all(p.id, today);
+      if (members.has(Number(p.id))) rows.push(...teamDue);
+      rows.sort((a, b) => (a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0));
       if (!rows.length) continue;
       const shown = rows.slice(0, REMINDER_TITLES).map((t) => `${t.title} (due ${dMon(t.due_date)})`);
       const more = rows.length - shown.length;

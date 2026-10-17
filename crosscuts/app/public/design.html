@@ -20,7 +20,7 @@
       <div class="tiles">
         <article class="tile hs-card" id="joinrTile">
           <h3 class="tile-title">New from Joinr</h3>
-          <p class="tile-text">Quotes won in Joinr, waiting to become jobs.</p>
+          <p class="tile-text">Quotes won in Joinr become jobs by themselves. This page shows the history and any quote waiting for a person.</p>
           <p class="tile-stat" id="joinrStat" hidden></p>
           <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/intake.html">Open New from Joinr</a></div>
         </article>
@@ -50,7 +50,7 @@
           if (!c || typeof c.new !== "number") return;
           var n = document.createElement("strong");
           n.textContent = String(c.new);
-          stat.replaceChildren(n, document.createTextNode(" new"));
+          stat.replaceChildren(n, document.createTextNode(" waiting for a person"));
           if (typeof c.changed === "number" && c.changed > 0) {
             var b = document.createElement("span");
             b.className = "hs-badge hs-badge-check";

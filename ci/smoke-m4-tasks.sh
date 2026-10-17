@@ -292,3 +292,146 @@ expect_eq "$(m4a_due 2026-10-11T20:00:00Z null)" "2026-10-12" "Monday 07:00 Sydn
 expect_eq "$(m4a_due 2026-10-11T20:00:00Z 2026-10-12)" "null" "it has already run today"
 expect_eq "$(m4a_due 2026-10-16T23:00:00Z null)" "null" "Saturday does not run"
 expect_eq "$(m4a_due 2026-10-17T23:00:00Z null)" "null" "Sunday does not run"
+
+# ============================================================================
+step "m4-team. team tasks: a task for the whole Design/PM team (2026-10-18)"
+# ============================================================================
+# The team is whoever holds notes.design and tasks.use: admin and dpm here. acct and sched are not on
+# it. A team task lives in team_tasks (migration 032) with an id of 1000000000 or more; every
+# member sees it, whoever finishes it closes it for all, and non-members get a 404.
+
+echo "--- raising one ---"
+req POST /api/tasks "$ACCT" '{"title":"CI team task by a non-member","team":"design"}'
+expect_status 403 "acct (not on the team) cannot raise a team task"
+req POST /api/tasks "$DPM" "{\"title\":\"both\",\"team\":\"design\",\"assigneeId\":$M4A_ADMIN_ID}"
+expect_status 400 "a person and the team together"
+req POST /api/tasks "$DPM" '{"title":"x","team":"scheduling"}'
+expect_status 400 "an unknown team"
+req POST /api/tasks "$DPM" '{"title":"","team":"design"}'
+expect_status 400 "an empty title"
+req POST /api/tasks "$DPM" "{\"title\":\"CI team: check the drawings\",\"team\":\"design\",\"jobId\":$M4A_JOB,\"dueDate\":\"$M4A_YESTERDAY\",\"notes\":\"CI team notes\"}"
+expect_status 201 "dpm raises a team task"
+expect_jq ".team == \"design\" and .assignee.id == null and .assignee.name == \"Design/PM team\" and .createdBy.id == $M4A_DPM_ID and .status == \"open\" and .overdue == true and .job.id == $M4A_JOB and .canEdit == true and .files == []" "the new team task"
+M4T=$(jqr '.id')
+[ "$M4T" -ge 1000000000 ] || fail "a team task id is 1000000000 or more, got $M4T"
+ok
+M4T_UPDATED=$(jqr '.updatedAt')
+
+echo "--- who sees it ---"
+req GET "/api/tasks?view=mine" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 1" "it is in admin's Mine (a member who did not raise it)"
+req GET "/api/tasks?view=mine" "$DPM"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 1" "it is in the creator's Mine too"
+req GET "/api/tasks?view=raised" "$DPM"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 1" "it is in dpm's Raised by me"
+req GET "/api/tasks?view=raised" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 0" "it is not in admin's Raised by me"
+req GET "/api/tasks?view=open" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 1" "it is in All open for a member"
+req GET "/api/tasks?view=job&jobId=$M4A_JOB" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 1" "it is on the job's task list for a member"
+for pair in "ACCT:$ACCT" "SCHED:$SCHED"; do
+  who=${pair%%:*}; jar=${pair#*:}
+  for v in mine open raised; do
+    req GET "/api/tasks?view=$v" "$jar"
+    expect_status 200 "$who GET /api/tasks?view=$v"
+    expect_jq "[.rows[] | select(.id == $M4T)] | length == 0" "$who does not see it in $v"
+  done
+  req GET "/api/tasks?view=job&jobId=$M4A_JOB" "$jar"
+  expect_jq "[.rows[] | select(.id == $M4T)] | length == 0" "$who does not see it on the job's task list"
+  req GET "/api/tasks/$M4T" "$jar"
+  expect_status 404 "$who GET it by id"
+  req PATCH "/api/tasks/$M4T" "$jar" "{\"updatedAt\":\"$M4T_UPDATED\",\"title\":\"hijacked\"}"
+  expect_status 404 "$who PATCH it"
+  req POST "/api/tasks/$M4T/done" "$jar"
+  expect_status 404 "$who cannot finish it"
+  req GET "/api/comments?entityType=task&entityId=$M4T" "$jar"
+  expect_status 404 "$who cannot read its comments"
+  req POST /api/comments "$jar" "{\"entityType\":\"task\",\"entityId\":$M4T,\"body\":\"nope\"}"
+  expect_status 404 "$who cannot comment on it"
+done
+req GET "/api/tasks/$M4T" "$SHOW"
+expect_status 403 "show GET it by id (no tasks.use)"
+
+echo "--- alerts and counts ---"
+m4a_notifs "$ADMIN" task.assigned "/tasks.html?task=$M4T" 1
+expect_eq "$M4A_N" 1 "admin (a member) has one unread task.assigned linking the task"
+m4a_notifs "$DPM" task.assigned "/tasks.html?task=$M4T"
+expect_eq "$M4A_N" 0 "the creator is not alerted about their own task"
+m4a_notifs "$ACCT" task.assigned "/tasks.html?task=$M4T"
+expect_eq "$M4A_N" 0 "acct (not a member) is not alerted"
+req GET /api/notifications/unread-count "$ADMIN"
+expect_jq '.tasks >= 1 and .tasksOverdue >= 1' "admin's menu bar counts include the overdue team task"
+M4T_ADMIN_OPEN=$(jqr '.tasks')
+req GET /api/notifications/unread-count "$ACCT"
+M4T_ACCT_OPEN=$(jqr '.tasks')
+m4a_task "$DPM" "CI personal task for counts" "$M4A_ADMIN_ID"
+req GET /api/notifications/unread-count "$ADMIN"
+expect_eq "$(jqr '.tasks')" "$((M4T_ADMIN_OPEN + 1))" "a personal task adds one to admin's count"
+req GET /api/notifications/unread-count "$ACCT"
+expect_eq "$(jqr '.tasks')" "$M4T_ACCT_OPEN" "and none to acct's"
+
+echo "--- edit rules (any member), the stale check, no assignee, no files ---"
+req PATCH "/api/tasks/$M4T" "$ADMIN" "{\"updatedAt\":\"$M4T_UPDATED\",\"title\":\"CI team: check the drawings (edited)\"}"
+expect_status 200 "admin (a member, not the creator) edits it"
+expect_jq '.title == "CI team: check the drawings (edited)"' "the edit is saved"
+req PATCH "/api/tasks/$M4T" "$DPM" "{\"updatedAt\":\"$M4T_UPDATED\",\"notes\":\"stale\"}"
+expect_status 409 "an edit with the old updatedAt"
+expect_jq ".task.id == $M4T and .task.team == \"design\"" "the stale 409 carries the current task"
+M4T_UPDATED=$(jqr '.task.updatedAt')
+req PATCH "/api/tasks/$M4T" "$DPM" "{\"updatedAt\":\"$M4T_UPDATED\",\"assigneeId\":$M4A_ADMIN_ID}"
+expect_status 400 "a team task cannot be given to one person"
+req PATCH "/api/tasks/$M4T" "$DPM" "{\"updatedAt\":\"$M4T_UPDATED\",\"dueDate\":null}"
+expect_status 200 "the due date can be cleared"
+expect_jq '.dueDate == null and .overdue == false' "no due date now"
+M4T_UPDATED=$(jqr '.updatedAt')
+m4a_upload "$DPM" "$M4T" "$WORK/m4a-test.pdf" "team.pdf" application/pdf
+expect_status 400 "a team task takes no files"
+req POST /api/comments "$DPM" "{\"entityType\":\"task\",\"entityId\":$M4T,\"body\":\"CI team comment\"}"
+expect_status 201 "a member comments on it"
+m4a_notifs "$ADMIN" comment.new "/tasks.html?task=$M4T" 1
+expect_eq "$M4A_N" 1 "every other member is alerted to a comment (admin never followed it)"
+req GET "/api/comments?entityType=task&entityId=$M4T" "$ADMIN"
+expect_jq '(.rows | length) == 1' "admin reads the thread"
+
+echo "--- whoever finishes it closes it for everyone ---"
+req POST "/api/tasks/$M4T/done" "$ADMIN"
+expect_status 200 "admin ticks it done"
+expect_jq ".status == \"done\" and .doneBy.id == $M4A_ADMIN_ID and .doneAt != null" "done records who and when"
+req GET "/api/tasks?view=mine" "$DPM"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 0" "it is gone from dpm's Mine"
+req GET "/api/tasks?view=done" "$DPM"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 1" "dpm finds it in Done"
+req POST "/api/tasks/$M4T/done" "$DPM"
+expect_status 409 "ticking it a second time"
+m4a_notifs "$DPM" task.done "/tasks.html?task=$M4T"
+expect_eq "$M4A_N" 1 "the creator is told it was finished"
+req POST "/api/tasks/$M4T/reopen" "$DPM"
+expect_status 200 "dpm reopens it"
+expect_jq '.status == "open" and .doneBy == null and .doneAt == null' "reopened for everyone"
+m4a_notifs "$ADMIN" task.reopened "/tasks.html?task=$M4T"
+expect_eq "$M4A_N" 1 "the other members are told it was reopened"
+req GET "/api/tasks?view=mine" "$ADMIN"
+expect_jq "[.rows[] | select(.id == $M4T)] | length == 1" "it is back in admin's Mine"
+
+echo "--- the morning reminder counts team tasks due ---"
+req GET "/api/tasks/$M4T" "$DPM"
+M4T_UPDATED=$(jqr '.updatedAt')
+req PATCH "/api/tasks/$M4T" "$DPM" "{\"updatedAt\":\"$M4T_UPDATED\",\"dueDate\":\"$M4A_TODAY\"}"
+expect_status 200 "the team task is due today"
+req POST /api/tasks/reminder/run "$ADMIN"
+expect_status 200 "admin forces the reminder"
+req GET "/api/notifications?limit=100" "$DPM"
+expect_jq '[.rows[] | select(.kind == "task.reminder" and (.body | contains("CI team: check the drawings (edited)")))] | length >= 1' "dpm's reminder lists the team task"
+req GET "/api/notifications?limit=100" "$ACCT"
+expect_jq '[.rows[] | select(.kind == "task.reminder" and (.body | contains("CI team: check the drawings (edited)")))] | length == 0' "acct's reminder does not"
+
+echo "--- cancel: an admin or the one who raised it; audit ---"
+req POST "/api/tasks/$M4T/cancel" "$SCHED"
+expect_status 404 "sched cannot cancel it"
+req POST "/api/tasks/$M4T/cancel" "$ADMIN"
+expect_status 200 "admin cancels it"
+expect_jq '.status == "cancelled"' "cancelled"
+req GET "/api/audit?entityType=task&entityId=$M4T&limit=50" "$ADMIN"
+expect_status 200 "GET /api/audit for the team task"
+expect_jq '[.rows[].action] | (index("task.create") != null and index("task.update") != null and index("task.done") != null and index("task.reopen") != null and index("task.cancel") != null)' "every team task change is audited"
