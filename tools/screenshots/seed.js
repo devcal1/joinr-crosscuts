@@ -263,8 +263,7 @@ async function api(method, path, body) {
     await api("POST", `/api/stock/orders/${lastMonth}/groups`, { supplier: "Sample Adhesives", orderedDate: day(-7), expectedDate: day(-1) });
     await api("PUT", `/api/stock/orders/${thisMonth}/have`, { lines: itemIds.slice(0, 7).map((itemId, k) => ({ itemId, have: have(k + 2) })) });
 
-    // Boards, with a price per sheet (ex GST); the last has none yet. Two months ago and last month
-    // are valued (last month with an adjustment and its note); this month is counted, waiting for the value.
+    // Boards, with a price per sheet (ex GST); the last has none yet. Two months ago, last month and this month are all counted (2026-10-17: no value step).
     const boardIds = [];
     for (const [supplier, thickness, name, finish, priceCents] of [
       ["Example Board Co", 16, "White melamine", "Matt", 5400], ["Example Board Co", 16, "Oak veneer", "Natural", 11800], ["Example Board Co", 18, "Black melamine", "Fine texture", 7900],
@@ -273,10 +272,9 @@ async function api(method, path, body) {
       boardIds.push((await api("POST", "/api/boards", { supplier, thickness, name, finish, priceCents })).id);
     }
     const qty = (k, s) => ((k * 3 + s) % 7) + (k % 2 ? 0.5 : 0);
-    for (const [period, s, adj] of [[P.addMonths(thisMonth, -2), 1, {}], [lastMonth, 4, { adjustmentCents: -45000, adjustmentNote: "Write-off: water-damaged sheets" }]]) {
+    for (const [period, s] of [[P.addMonths(thisMonth, -2), 1], [lastMonth, 4]]) {
       await api("PUT", `/api/boards/counts/${period}/lines`, { lines: boardIds.map((boardId, k) => ({ boardId, qty: k === boardIds.length - 1 ? 0 : qty(k, s) })) });
       await api("POST", `/api/boards/counts/${period}/counted`, {});
-      await api("POST", `/api/boards/counts/${period}/value`, adj);
     }
     await api("PUT", `/api/boards/counts/${thisMonth}/lines`, { lines: boardIds.map((boardId, k) => ({ boardId, qty: qty(k, 2) })) });
     await api("POST", `/api/boards/counts/${thisMonth}/counted`, {});

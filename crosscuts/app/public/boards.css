@@ -71,8 +71,6 @@ a:hover { text-decoration: underline; }
   color: var(--body);
   font-size: 13px;
 }
-.bd-callout { margin-bottom: 14px; }
-.bd-callout p { margin: 0; font-size: 13px; }
 .bd-empty {
   margin: 0 0 22px;
   padding: 18px 16px;
@@ -92,8 +90,6 @@ a:hover { text-decoration: underline; }
 }
 .bd-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .bd-table-count { min-width: 300px; }
-.bd-table-value { min-width: 980px; }
-.bd-table-value .bd-c-price { width: 300px; }
 .bd-table-list { min-width: 920px; }
 .bd-table th {
   padding: 8px 10px;
@@ -118,7 +114,6 @@ a:hover { text-decoration: underline; }
 .bd-table tbody tr:last-child td { border-bottom: 0; }
 .bd-table tbody tr:hover { background: var(--raised); }
 .bd-row-off td, .bd-row-off .bd-name { color: var(--muted); }
-.bd-row-flag td { background: var(--orange-8); }
 
 .bd-c-sup { width: 90px; }
 .bd-c-thick { width: 100px; }
@@ -126,15 +121,13 @@ a:hover { text-decoration: underline; }
 .bd-c-finish { width: 150px; }
 .bd-c-qty { width: 110px; text-align: right; }
 .bd-c-price { width: 230px; text-align: right; }
-.bd-c-amt { width: 130px; text-align: right; }
 .bd-c-acts { width: 300px; }
-.bd-table th.bd-c-qty, .bd-table th.bd-c-price, .bd-table th.bd-c-amt { text-align: right; }
+.bd-table th.bd-c-qty, .bd-table th.bd-c-price { text-align: right; }
 .bd-table-list .bd-c-price { width: 200px; }
 .bd-name { color: var(--white); }
 .bd-meta { display: none; color: var(--label); font-size: 12px; }
 .bd-off { margin-left: 8px; vertical-align: 1px; }
 .bd-num { font-variant-numeric: tabular-nums; color: var(--white); }
-.bd-none { color: var(--muted); }
 .bd-flag { color: var(--orange-tint); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
 .bd-qty {
   width: 90px;
@@ -145,32 +138,11 @@ a:hover { text-decoration: underline; }
 }
 .bd-qty::-webkit-outer-spin-button,
 .bd-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.bd-qty[aria-invalid="true"], .bd-money[aria-invalid="true"] { border-color: var(--orange); }
+.bd-qty[aria-invalid="true"] { border-color: var(--orange); }
 .bd-saving { border-color: var(--teal); }
-.bd-money { text-align: right; font-variant-numeric: tabular-nums; }
-.bd-setprice { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
-.bd-price-in { width: 84px; padding: 5px 7px; }
 .bd-mini { padding: 6px 9px; }
 .bd-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 
-.bd-table tfoot th, .bd-table tfoot td {
-  padding: 8px 10px;
-  background: var(--raised);
-  border-top: 1px solid var(--hairline);
-  font-size: 12px;
-}
-.bd-table .bd-f-label { text-align: right; color: var(--label); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: normal; }
-.bd-f-note { display: block; margin-top: 2px; color: var(--body); font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 12px; }
-.bd-table tfoot td { font-size: 14px; }
-.bd-f-total th, .bd-f-total td { color: var(--white); font-size: 14px; }
-.bd-f-total .bd-num { font-weight: 700; }
-
-/* ---------- confirming the value ---------- */
-.bd-confirm { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-.bd-adj { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; }
-.bd-help { margin: 0; color: var(--muted); font-size: 12px; }
-.bd-err:empty { min-height: 0; }
-.bd-confirm-acts { display: flex; justify-content: flex-end; }
 
 /* ---------- dialogs ---------- */
 .cc-dialog.bd-dialog { width: min(94vw, 460px); max-height: 92vh; overflow-y: auto; }
@@ -195,8 +167,6 @@ a:hover { text-decoration: underline; }
   .bd-table td, .bd-table th { padding-left: 8px; padding-right: 8px; }
   .bd-table-count .bd-c-qty { width: 92px; }
   .bd-qty { width: 76px; }
-  .bd-adj { grid-template-columns: minmax(0, 1fr); }
-  .bd-confirm-acts .hs-btn { flex: 1 1 auto; }
 }
 
 /* the sheet is built before printing and only shown on paper */

@@ -1,9 +1,9 @@
-// Board stocktake (/boards.html[?period=YYYY-MM][#count|#value|#list]): the monthly board count and
-// its value (docs/plans/m11-contracts.md sections 8 and 11.4). The Workshop Manager types each
-// board's quantity in whole or half sheets and finishes the count (stock.count), without prices.
-// Ordering prices the boards, confirms the month's value and keeps the list (stock.order); an
-// admin can reopen a confirmed month (users.admin). The server decides who may do what
-// (lib/boards.js) and sends prices only to stock.order holders; cc.can() only hides controls.
+// Board stocktake (/boards.html[?period=YYYY-MM][#count|#list]): the monthly board count
+// (docs/plans/m11-contracts.md sections 8 and 11.4). The Workshop Manager types each board's
+// quantity in whole or half sheets and finishes the count (stock.count); a finished count is done
+// (the value step was removed 2026-10-17). Ordering keeps the board list and its prices and can
+// reopen a finished count (stock.order). The server decides who may do what (lib/boards.js) and
+// sends prices only to stock.order holders; cc.can() only hides controls.
 // Money is integer cents on the wire, shown and typed through Periods (public/periods.js).
 (function () {
   "use strict";
@@ -15,8 +15,7 @@
   const ROWS_PER_COLUMN = 48; // the blank sheet: two columns of this many boards per A4 page
   const STATE = {
     open: ["Counting", "hs-badge-na"],
-    counted: ["Counted, value to confirm", "hs-badge-check"],
-    valued: ["Value confirmed", "hs-badge-go"],
+    counted: ["Counted", "hs-badge-go"],
   };
 
   // ------------------------------------------------------------------ helpers ---
@@ -38,7 +37,6 @@
   }
   const canCount = () => can("stock.count");
   const canOrder = () => can("stock.order");
-  const canAdmin = () => can("users.admin");
 
   function sydneyDate(iso) {
     const d = iso ? new Date(iso) : new Date();
@@ -202,7 +200,6 @@
 
   function tabsAllowed() {
     const out = ["count"];
-    if (canOrder() && view && view.status !== "open") out.push("value");
     if (canOrder()) out.push("list");
     return out;
   }
@@ -212,7 +209,7 @@
     const p = q.get("period");
     period = P.validPeriod(p) && p <= currentPeriod() ? p : currentPeriod();
     const h = location.hash.replace(/^#/, "");
-    tab = ["count", "value", "list"].includes(h) ? h : null;
+    tab = ["count", "list"].includes(h) ? h : null;
   }
 
   function writeUrl() {
@@ -229,7 +226,7 @@
     const sel = $("bdMonth");
     sel.replaceChildren(...[...set].sort().reverse().map((p) => {
       const st = stateOf.get(p);
-      const word = st === "open" ? "counting" : st === "counted" ? "counted" : st === "valued" ? "valued" : "not started";
+      const word = st === "open" ? "counting" : st === "counted" ? "counted" : "not started";
       return el("option", { value: p, text: `${P.longLabel(p)} (${word})` });
     }));
     sel.value = period;
@@ -267,7 +264,7 @@
       b.tabIndex = on ? 0 : -1;
       if (on && focus) b.focus();
     }
-    for (const t of ["count", "value", "list"]) {
+    for (const t of ["count", "list"]) {
       const panel = $(panelId(t));
       panel.hidden = t !== tab;
       if (multi) {
@@ -294,9 +291,7 @@
     if (view.status === "open") {
       text = view.lines.length ? `${n} of ${plural(view.lines.length, "board", "boards")} counted so far.` : "Nothing to count yet.";
     } else {
-      text = `Counted by ${personName(view.counted.by)} on ${fmtStamp(view.counted.at)}.`;
-      if (view.status === "valued") text += ` Value confirmed by ${personName(view.valued.by)} on ${fmtStamp(view.valued.at)}.`;
-      else text += canOrder() ? " Ordering confirms the value." : " Ordering confirms the value next.";
+      text = view.counted ? `Counted by ${personName(view.counted.by)} on ${fmtStamp(view.counted.at)}.` : "The count is finished.";
     }
     $("bdStateText").textContent = text;
     $("bdMonthLabel").textContent = P.longLabel(period);
@@ -328,10 +323,11 @@
     const edit = canCount() && isOpen();
     $("bdProgress").textContent = isOpen() ? "" : `${plural(view.lines.filter((l) => l.qty > 0).length, "board", "boards")} with sheets counted`;
     $("bdFinish").hidden = !edit || !view.lines.length;
+    $("bdReopenCount").hidden = isOpen() || !canOrder();
     const note = $("bdCountNote");
     if (!isOpen()) {
       note.hidden = false;
-      note.textContent = "The count is finished." + (view.status === "counted" && canOrder() ? " Reopen it on the Value tab to change a quantity." : view.status === "counted" ? " Ask Ordering to reopen it if a quantity needs to change." : "");
+      note.textContent = "The count is finished." + (canOrder() ? " Reopen it to change a quantity." : " Ask Ordering to reopen it if a quantity needs to change.");
     } else if (!canCount()) {
       note.hidden = false;
       note.textContent = "The Workshop Manager types the quantities here.";
@@ -355,83 +351,11 @@
         el("tbody", null, ...rows))));
   }
 
-  // The adjustment typed on screen (cents), or NaN when it doesn't read as dollars.
-  function typedAdjustment() {
-    const v = P.parseDollars($("bdAdj").value);
-    return v === null ? 0 : v;
-  }
-
-  function renderValue() {
-    if (!canOrder() || isOpen()) return;
-    const valued = view.status === "valued";
-    $("bdReopenCount").hidden = view.status !== "counted";
-    $("bdReopen").hidden = !(valued && canAdmin());
-    $("bdValueNote").textContent = valued
-      ? "The value is confirmed: these prices are frozen as they were then."
-      : "Worked out from today's prices. Confirming freezes them and sends the value to Accounts.";
-    const unpriced = view.lines.filter((l) => l.qty > 0 && l.priceCents == null);
-    $("bdUnpriced").hidden = valued || !unpriced.length;
-    $("bdUnpricedText").textContent = `${plural(unpriced.length, "counted board has", "counted boards have")} no price. Set each one below (per sheet, ex GST) before confirming the value.`;
-
-    const rows = view.lines.map((l) => {
-      const missing = l.priceCents == null;
-      let price;
-      if (!missing) price = el("span", { class: "bd-num", text: money(l.priceCents) });
-      else if (valued) price = el("span", { class: "bd-none", text: "–" });
-      else {
-        const input = el("input", { class: "hs-input bd-money bd-price-in", type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "0.00", "aria-label": `Price per sheet of ${boardName(l)}` });
-        price = el("div", { class: "bd-setprice" },
-          l.qty > 0 ? el("span", { class: "bd-flag", text: "No price" }) : null,
-          input,
-          el("button", { type: "button", class: "hs-btn bd-mini", "data-act": "price", "data-board": String(l.boardId), text: "Set price", "aria-label": `Set the price of ${boardName(l)}` }));
-      }
-      return el("tr", { class: missing && l.qty > 0 && !valued ? "bd-row-flag" : null },
-        el("td", { class: "bd-c-sup", text: l.supplier }),
-        el("td", { class: "bd-c-thick", text: thick(l.thickness) }),
-        nameCell(l),
-        el("td", { class: "bd-c-finish", text: l.finish }),
-        el("td", { class: "bd-c-qty" }, el("span", { class: "bd-num", text: qtyText(l.qty) })),
-        el("td", { class: "bd-c-price" }, price),
-        el("td", { class: "bd-c-amt" }, el("span", { class: "bd-num", text: l.lineCents == null ? "" : money(l.lineCents) })));
-    });
-    const adj = valued ? view.adjustmentCents : typedAdjustment();
-    const total = Number.isNaN(adj) ? null : view.subtotalCents + adj;
-    const foot = el("tfoot", null,
-      el("tr", null, el("th", { scope: "row", colspan: "6", class: "bd-f-label", text: "Subtotal" }), el("td", { class: "bd-c-amt" }, el("span", { class: "bd-num", text: money(view.subtotalCents) }))),
-      el("tr", null,
-        el("th", { scope: "row", colspan: "6", class: "bd-f-label" }, "Adjustment",
-          valued && view.adjustmentNote ? el("span", { class: "bd-f-note", text: view.adjustmentNote }) : null),
-        el("td", { class: "bd-c-amt" }, el("span", { class: "bd-num", id: "bdAdjOut", text: Number.isNaN(adj) ? "?" : money(adj) }))),
-      el("tr", { class: "bd-f-total" },
-        el("th", { scope: "row", colspan: "6", class: "bd-f-label", text: valued ? "Board stock value (ex GST)" : "Value if confirmed now (ex GST)" }),
-        el("td", { class: "bd-c-amt" }, el("span", { class: "bd-num", id: "bdTotalOut", text: total == null ? "?" : money(total) }))));
-    $("bdValueBody").replaceChildren(el("div", { class: "bd-wrap" },
-      el("table", { class: "bd-table bd-table-value" },
-        head([["Supplier", "bd-c-sup"], ["Thickness", "bd-c-thick"], ["Board", "bd-c-name"], ["Finish", "bd-c-finish"], ["Sheets", "bd-c-qty"], ["Price per sheet", "bd-c-price"], ["Amount", "bd-c-amt"]]),
-        el("tbody", null, ...rows),
-        foot)));
-    const form = $("bdConfirm");
-    form.hidden = valued;
-    if (!valued) {
-      $("bdConfirmBtn").disabled = unpriced.length > 0;
-      $("bdConfirmBtn").title = unpriced.length ? "Set the missing prices first" : "";
-    }
-  }
-
-  function updateTotal() {
-    const adj = typedAdjustment();
-    const a = $("bdAdjOut");
-    const t = $("bdTotalOut");
-    if (a) a.textContent = Number.isNaN(adj) ? "?" : money(adj);
-    if (t) t.textContent = Number.isNaN(adj) ? "?" : money(view.subtotalCents + adj);
-  }
-
   function render() {
     if (!view) return;
     renderPicker();
     renderState();
     renderCount();
-    renderValue();
   }
 
   // quiet: keep the status line (a list change reloads the month behind its own sentence).
@@ -446,41 +370,24 @@
       return false;
     }
     if (mine !== seq) return false;
-    const fresh = !view || view.period !== v.period || view.status !== v.status;
     view = v;
     months = m.months || [];
     if (!quiet) setStatus("", "");
-    if (fresh && view.status === "counted") {
-      // A counted month's adjustment, ready to confirm (kept after an admin reopens it).
-      $("bdAdj").value = view.adjustmentCents ? P.dollars(view.adjustmentCents).replace("$", "") : "";
-      $("bdAdjNote").value = view.adjustmentNote || "";
-      adjSaved = { cents: view.adjustmentCents || 0, note: view.adjustmentNote || "" };
-      $("bdAdjSaved").textContent = "";
-      $("bdConfirmErr").textContent = "";
-    }
     render();
-    if (tab) setTab(tab); // the Value tab comes and goes with the count
+    if (tab) setTab(tab);
     return true;
   }
 
-  // A reload redraws every box. What was typed in them and isn't saved (prices not yet set, counts
-  // waiting in the save queue or refused on another row) is put back afterwards.
+  // A reload redraws every box. What was typed in them and isn't saved (counts waiting in the save
+  // queue or refused on another row) is put back afterwards.
   function snapshotTyping() {
-    const prices = [...document.querySelectorAll("#bdValueBody .bd-setprice")]
-      .map((w) => ({ board: w.querySelector("button[data-act='price']").getAttribute("data-board"), value: w.querySelector("input").value }))
-      .filter((p) => p.value !== "");
     const counts = [...document.querySelectorAll("input.bd-qty")]
       .filter((i) => i.value.trim() !== (i.dataset.saved || ""))
       .map((i) => ({ board: i.getAttribute("data-board"), value: i.value, focus: i === document.activeElement }));
-    return { prices, counts };
+    return { counts };
   }
 
   function restoreTyping(t) {
-    for (const p of t.prices) {
-      const b = document.querySelector(`#bdValueBody button[data-act='price'][data-board="${p.board}"]`);
-      const i = b && b.parentElement.querySelector("input");
-      if (i && i.value === "") i.value = p.value;
-    }
     for (const c of t.counts) {
       const i = document.querySelector(`input.bd-qty[data-board="${c.board}"]`);
       if (!i || i.disabled || i.value === c.value) continue;
@@ -568,10 +475,6 @@
       const i = all.indexOf(t);
       const next = all[e.shiftKey ? i - 1 : i + 1];
       if (next) { next.focus(); next.select(); } else t.blur();
-    } else if (t.classList.contains("bd-price-in")) {
-      e.preventDefault();
-      const b = t.parentElement.querySelector("button[data-act='price']");
-      if (b) b.click();
     }
   });
 
@@ -583,7 +486,7 @@
     const ok = await dialog({
       title: `Finish the board count for ${P.longLabel(period)}?`,
       note: (missing ? `${plural(missing, "board has", "boards have")} no quantity yet and won't be on this month's count. ` : "") +
-        "Ordering is told the count is done, to confirm the value. Quantities can't change afterwards unless Ordering reopens the count.",
+        "Quantities can't change afterwards unless Ordering reopens the count.",
       submit: "Finish count",
       focus: missing ? "cancel" : null,
       run: async () => { await send("POST", `/api/boards/counts/${period}/counted`); },
@@ -608,119 +511,6 @@
     await reload();
     $("bdTitle").focus({ preventScroll: true });
   }
-
-  async function reopenValued() {
-    const ok = await dialog({
-      title: `Reopen the value for ${P.longLabel(period)}?`,
-      note: "The frozen prices and value are cleared until it's confirmed again. The count stays finished.",
-      submit: "Reopen",
-      submitClass: "hs-btn-stop",
-      focus: "cancel",
-      run: async () => { await send("POST", `/api/boards/counts/${period}/reopen`); },
-    });
-    if (!ok) return;
-    setStatus(`The value for ${P.longLabel(period)} is open again.`, "ok");
-    await reload();
-    $("bdTitle").focus({ preventScroll: true });
-  }
-
-  // The adjustment and its note save when either changes (contracts section 15.13), so a reload
-  // keeps them. A note may be missing while drafting; Confirm value still asks for it.
-  let adjSaved = { cents: 0, note: "" };
-  // It saves as it is typed (a short pause after the last key), on leaving the box, and when the
-  // page is hidden or closed (a keepalive request), so a reload keeps what was typed.
-  // quiet: typing (don't complain about half a number); keepalive: the page is going away.
-  let adjTimer = null;
-  function saveAdjustment(quiet, keepalive) {
-    clearTimeout(adjTimer);
-    adjTimer = null;
-    const err = $("bdConfirmErr");
-    const out = $("bdAdjSaved");
-    if (!view || view.status !== "counted") return;
-    const adj = typedAdjustment();
-    const note = $("bdAdjNote").value.trim();
-    if (Number.isNaN(adj)) {
-      if (quiet === true || keepalive) return;
-      out.textContent = "";
-      err.textContent = "The adjustment must be dollars and cents, such as -125.50.";
-      return;
-    }
-    err.textContent = "";
-    if (adj === adjSaved.cents && note === adjSaved.note) return;
-    const forPeriod = period;
-    queue = queue.then(async () => {
-      if (forPeriod !== period || !view || view.status !== "counted") return;
-      out.textContent = "Saving...";
-      try {
-        const v = await api(`/api/boards/counts/${period}/adjustment`, { method: "PUT", body: JSON.stringify({ adjustmentCents: adj, adjustmentNote: note }), keepalive: keepalive === true });
-        if (forPeriod !== period) return;
-        adjSaved = { cents: adj, note };
-        view.adjustmentCents = v.adjustmentCents;
-        view.adjustmentNote = v.adjustmentNote;
-        out.textContent = "Saved";
-      } catch (e) {
-        out.textContent = "";
-        err.textContent = `The adjustment wasn't saved: ${errText(e)}`;
-      }
-    });
-  }
-
-  async function confirmValue(e) {
-    e.preventDefault();
-    const err = $("bdConfirmErr");
-    err.textContent = "";
-    const adj = typedAdjustment();
-    const note = $("bdAdjNote").value.trim();
-    if (Number.isNaN(adj)) {
-      err.textContent = "The adjustment must be dollars and cents, such as -125.50.";
-      $("bdAdj").focus();
-      return;
-    }
-    if (adj !== 0 && !note) {
-      err.textContent = "Give a note for the adjustment.";
-      $("bdAdjNote").focus();
-      return;
-    }
-    const total = view.subtotalCents + adj;
-    const ok = await dialog({
-      title: `Confirm the board stock value for ${P.longLabel(period)}?`,
-      note: `${money(total)} ex GST${adj ? ` (including an adjustment of ${money(adj)})` : ""}. Each board's price is frozen as it is now, and the month is marked valued.`,
-      submit: "Confirm value",
-      run: async () => { await send("POST", `/api/boards/counts/${period}/value`, { adjustmentCents: adj, adjustmentNote: note }); },
-    });
-    if (!ok) return;
-    setStatus(`The board stock value for ${P.longLabel(period)} is confirmed: ${money(total)}.`, "ok");
-    await reload();
-    $("bdTitle").focus({ preventScroll: true });
-  }
-
-  async function setPrice(btn) {
-    const boardId = Number(btn.getAttribute("data-board"));
-    const line = view.lines.find((l) => l.boardId === boardId);
-    const input = btn.parentElement.querySelector("input");
-    const cents = P.parseDollars(input.value);
-    if (cents === null || Number.isNaN(cents) || cents < 0) {
-      input.setAttribute("aria-invalid", "true");
-      setStatus(`The price of ${boardName(line)} must be dollars and cents per sheet, such as 84.50.`, "err");
-      input.focus();
-      return;
-    }
-    input.removeAttribute("aria-invalid");
-    await send("PATCH", `/api/boards/${boardId}`, { priceCents: cents });
-    if (boards) boards = null; // the List tab reloads its prices
-    setStatus(`Price set: ${boardName(line)}, ${money(cents)} a sheet.`, "ok");
-    await reload();
-    // Focus: the next missing price, or the Confirm button.
-    const next = document.querySelector("#bdValueBody .bd-price-in");
-    if (next) next.focus();
-    else if (!$("bdConfirmBtn").disabled) $("bdConfirmBtn").focus();
-    else $("bdTitle").focus({ preventScroll: true });
-  }
-
-  document.addEventListener("click", (e) => {
-    const b = e.target.closest && e.target.closest("button[data-act='price']");
-    if (b) guardedRun(b, () => setPrice(b));
-  });
 
   // --------------------------------------------------------------- the list ---
 
@@ -917,17 +707,7 @@
   $("bdMonth").addEventListener("change", (e) => goPeriod(e.target.value));
   $("bdFinish").addEventListener("click", once(finishCount));
   $("bdReopenCount").addEventListener("click", once(reopenCount));
-  $("bdReopen").addEventListener("click", once(reopenValued));
   $("bdPrintBlank").addEventListener("click", once(printBlank));
-  $("bdConfirm").addEventListener("submit", once(confirmValue));
-  const adjSoon = () => { clearTimeout(adjTimer); adjTimer = setTimeout(() => saveAdjustment(true), 600); };
-  $("bdAdj").addEventListener("input", () => { updateTotal(); adjSoon(); });
-  $("bdAdjNote").addEventListener("input", adjSoon);
-  $("bdAdj").addEventListener("change", () => saveAdjustment());
-  $("bdAdjNote").addEventListener("change", () => saveAdjustment());
-  const flushAdj = () => { if (adjTimer) saveAdjustment(true, true); };
-  window.addEventListener("pagehide", flushAdj);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushAdj(); });
   $("bdAdd").addEventListener("click", once(async () => {
     if (!boards) await loadList();
     if (await boardDialog(null)) {
@@ -956,7 +736,6 @@
     const wanted = tab;
     tab = null;
     await loadMonth();
-    // Ordering lands on Value once the count is finished, everyone else on Count.
-    setTab(wanted || (canOrder() && view && view.status !== "open" ? "value" : "count"));
+    setTab(wanted || "count");
   })();
 })();
