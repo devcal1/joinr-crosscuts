@@ -866,6 +866,9 @@ function reset(db) {
   importResume = null;
   ensureRow(db);
   record(db, { cursor: null, last_error: null, last_error_at: null });
+  // The open-quotes list belongs to the old address too (lib/joinr-open-quotes.js). Required here,
+  // not at the top: that module requires this one.
+  require("./joinr-open-quotes").reset(db);
 }
 
 module.exports = {
@@ -879,6 +882,11 @@ module.exports = {
   stop,
   reset,
   JoinrError,
+  // Shared with lib/joinr-open-quotes.js (same fetch rules: capped body, plain-words errors).
+  readCapped,
+  networkMessage,
+  scrub,
+  TIMEOUT_MS,
   NOT_SET_UP,
   TRUNCATED,
 };

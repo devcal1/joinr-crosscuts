@@ -197,6 +197,7 @@ r.put("/settings", "users.admin", (req, res) => {
 r.delete("/settings/key", "users.admin", (req, res) => {
   try {
     configLib.clearKey();
+    require("../lib/joinr-open-quotes").reset(configDb); // its cached list came through that key
     configAudit.log(req, { action: "joinr.settings", entityType: "joinr", entityId: "settings", after: { key: "cleared" } });
     res.json(settingsPayload());
   } catch (e) {

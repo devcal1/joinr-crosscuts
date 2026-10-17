@@ -31,6 +31,18 @@
 //   as the real Joinr does; the last page's cursor is a plain number. `after` accepts both.
 //   GET  /_control/requests  {requests: [{method, path, query, auth, at}]}: what was asked,
 //                            with the Authorization header reduced to "…" + its last 4.
+//   GET /api/integrations/crosscuts/open-quotes  (J3, contract version 3; wire "contract": 3)
+//     Bearer <key> required (401 otherwise); any query parameter -> 400; 404 until a test turns
+//     the list on (a Joinr that has not released J3); then {contract:3, generatedAt, truncated,
+//     quotes:[...]} from the list below.
+//   POST /_control/openquotes  {"enabled": true|false, "quotes": [line...], "truncated": bool,
+//                            "_verbatim": true}: turns the open-quotes list on or off and sets its
+//                            lines. Missing line fields are filled with defaults (a sent quote with
+//                            fresh uuids); with "_verbatim" the lines are stored as sent (for
+//                            invalid-line tests). Returns the stored lines.
+//   POST /_control/oqfail    {"fail": 400 | 401 | 404 | 429 | 500 | 503 | "garbage" | "badcontract" |
+//                             null, "count": N (default 1), "retryAfter": seconds (429; default 60)}:
+//                            the next N open-quotes calls fail that way. null or count 0 clears.
 //   POST /_control/clear     forgets the request log.
 //   POST /_control/stop      exits.
 "use strict";
@@ -45,6 +57,7 @@ if (!Number.isInteger(port) || port < 1 || KEY.length < 8) {
 }
 
 const ENDPOINT = "/api/integrations/crosscuts/won-quotes";
+const OQ_ENDPOINT = "/api/integrations/crosscuts/open-quotes";
 const ORG = "00000000-0000-4000-8000-000000000001";
 
 const events = []; // stored items, cursor ascending
@@ -53,6 +66,8 @@ const requests = [];
 let fail = { mode: null, count: 0 };
 let pageMax = null;
 const hung = new Set();
+let oq = { enabled: false, quotes: [], truncated: false };
+let oqFail = { mode: null, count: 0, retryAfter: 60 };
 
 function defaults(body) {
   const quoteId = body.quoteId || crypto.randomUUID();
@@ -228,6 +243,54 @@ function wonQuotes(req, res, url) {
   return send(res, 200, { contract: 1, cursor, more, items: page });
 }
 
+function oqLine(body) {
+  const quoteId = body.quoteId || crypto.randomUUID();
+  const now = new Date().toISOString();
+  const line = {
+    quoteId,
+    rootQuoteId: body.rootQuoteId || quoteId,
+    quoteNumber: null,
+    status: "sent",
+    clientName: "Test Client",
+    siteAddress: null,
+    label: null,
+    valueIncGstCents: null,
+    sentAt: now,
+    wonAt: null,
+    updatedAt: now,
+    ...body,
+  };
+  if (line.url === undefined) line.url = `http://127.0.0.1:${port}/org/${ORG}/quotes/${quoteId}`;
+  return line;
+}
+
+function openQuotes(req, res, url) {
+  if (!sameKey(req.headers.authorization)) return send(res, 401, { error: "unauthorised" });
+  if (oqFail.mode && oqFail.count > 0) {
+    oqFail.count--;
+    const mode = oqFail.mode;
+    const retryAfter = oqFail.retryAfter;
+    if (oqFail.count <= 0) oqFail = { mode: null, count: 0, retryAfter };
+    if (mode === "garbage") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end("this is not json {{{");
+    }
+    if (mode === "badcontract") {
+      return send(res, 200, { contract: 1, generatedAt: new Date().toISOString(), truncated: false, quotes: [] });
+    }
+    const status = Number(mode) || 500;
+    return send(
+      res,
+      status,
+      { error: status === 429 ? "rate_limited" : "forced failure" },
+      status === 429 ? { "Retry-After": String(retryAfter) } : {}
+    );
+  }
+  if (!oq.enabled) return send(res, 404, { error: "not found" });
+  if ([...url.searchParams.keys()].length) return send(res, 400, { error: "open-quotes takes no query parameters" });
+  return send(res, 200, { contract: 3, generatedAt: new Date().toISOString(), truncated: oq.truncated, quotes: oq.quotes });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   try {
@@ -260,6 +323,21 @@ const server = http.createServer(async (req, res) => {
         }
         return send(res, 200, { fail });
       }
+      if (url.pathname === "/_control/openquotes") {
+        if (body.enabled !== undefined) oq.enabled = !!body.enabled;
+        if (Array.isArray(body.quotes)) oq.quotes = body.quotes.map((q) => (body._verbatim ? q : oqLine(q)));
+        if (body.truncated !== undefined) oq.truncated = !!body.truncated;
+        return send(res, 200, { enabled: oq.enabled, truncated: oq.truncated, quotes: oq.quotes });
+      }
+      if (url.pathname === "/_control/oqfail") {
+        const count = body.count === undefined ? 1 : Number(body.count);
+        if (body.fail === null || body.fail === undefined || !count) {
+          oqFail = { mode: null, count: 0, retryAfter: oqFail.retryAfter };
+        } else {
+          oqFail = { mode: body.fail, count, retryAfter: body.retryAfter === undefined ? 60 : Number(body.retryAfter) };
+        }
+        return send(res, 200, { oqFail });
+      }
       if (url.pathname === "/_control/pagesize") {
         const max = Number(body.max);
         pageMax = Number.isInteger(max) && max > 0 ? max : null;
@@ -286,6 +364,7 @@ const server = http.createServer(async (req, res) => {
       at: new Date().toISOString(),
     });
     if (req.method === "GET" && url.pathname === ENDPOINT) return wonQuotes(req, res, url);
+    if (req.method === "GET" && url.pathname === OQ_ENDPOINT) return openQuotes(req, res, url);
     return send(res, 404, { error: "not found" });
   } catch (e) {
     return send(res, 500, { error: String((e && e.message) || e) });

@@ -183,8 +183,10 @@ start_container() { # name image host-dir mount-root
   local name=$1 image=$2 dir=$3 root=$4
   docker rm -f "$name" >/dev/null 2>&1 || true
   # BACKUP_SCHEDULE_DISABLED=1 is CI only (docs/plans/backup-contracts.md section 7.8): no
-  # backup timer in any container; the old image ignores it.
-  docker run -d --name "$name" -p "$PORT:3000" -e BACKUP_SCHEDULE_DISABLED=1 \
+  # backup timer in any container; the old image ignores it. JOINR_OPEN_QUOTES_TIMER_DISABLED=1 is
+  # CI only too (ci/smoke-m16-openquotes.sh): no 5-minute open-quotes fetch to race the suite's
+  # counted requests; the old image ignores it.
+  docker run -d --name "$name" -p "$PORT:3000" -e BACKUP_SCHEDULE_DISABLED=1 -e JOINR_OPEN_QUOTES_TIMER_DISABLED=1 \
     -v "$dir/db:$root/db" -v "$dir/uploads:$root/uploads" -v "$dir/config:$root/config" \
     "$image" >/dev/null
 }
@@ -1247,6 +1249,8 @@ for f in "$(dirname "$0")"/smoke-m13-*.sh; do [ -f "$f" ] && source "$f"; done
 for f in "$(dirname "$0")"/smoke-m14-*.sh; do [ -f "$f" ] && source "$f"; done
 # M15 suites (ci/smoke-m15-*.sh, docs/plans/notes-contracts.md): same rules.
 for f in "$(dirname "$0")"/smoke-m15-*.sh; do [ -f "$f" ] && source "$f"; done
+# M16 suites (ci/smoke-m16-*.sh, docs/plans/m3-contracts.md section 13, J3): same rules.
+for f in "$(dirname "$0")"/smoke-m16-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 
