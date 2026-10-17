@@ -411,6 +411,23 @@
     }
   }
 
+  // The names on a tile (jobpeople.js). A change comes back as the whole job; only its people are
+  // taken, so a move in flight keeps its optimistic stage.
+  function peopleChanged(id) {
+    return (fresh) => {
+      const j = jobs.get(id);
+      if (!j || !fresh) return;
+      j.people = fresh.people || [];
+      renderColumn(colKey(j.stage));
+    };
+  }
+  const peopleChips = (j, max) =>
+    window.JobPeople ? JobPeople.chips(j, { max, onChange: peopleChanged(j.id), onError: (m) => toast(m, true) }) : null;
+  const peopleButton = (j) =>
+    window.JobPeople && canEdit()
+      ? JobPeople.meButton(j, { compact: true, onChange: peopleChanged(j.id), onError: (m) => toast(m, true) })
+      : null;
+
   function buildCard(j, ctx) {
     const attend =
       PRE_BOARD.has(j.stage) && j.promisedInstallDate && j.promisedInstallDate <= ctx.soon;
@@ -438,9 +455,13 @@
     if (j.sheetCount != null) meta.append(el("span", { text: `${j.sheetCount} ${j.sheetCount === 1 ? "sheet" : "sheets"}` }));
     if (j.valueCents != null) meta.append(el("span", { text: money.format(j.valueCents / 100) }));
     if (meta.childNodes.length) card.append(meta);
+    const chips = peopleChips(j, 4);
+    if (chips) card.append(el("div", { class: "pl-people" }, chips));
 
     const foot = el("div", { class: "pl-foot-row" });
-    foot.append(el("a", { class: "hs-btn hs-btn-quiet", href: "/job.html?id=" + j.id, text: "Open" }));
+    foot.append(
+      el("div", { class: "pl-foot-left" }, el("a", { class: "hs-btn hs-btn-quiet", href: "/job.html?id=" + j.id, text: "Open" }), peopleButton(j))
+    );
     if (ctx.editable) foot.append(moveButton(j));
     card.append(foot);
     return card;
@@ -494,6 +515,10 @@
     );
     card.append(link);
     if (j.valueCents != null) card.append(el("span", { class: "pl-line-val", text: money.format(j.valueCents / 100) }));
+    const chips = peopleChips(j, 2);
+    if (chips) card.append(chips);
+    const me = peopleButton(j);
+    if (me) card.append(me);
     if (ctx.editable) card.append(moveButton(j));
     return card;
   }

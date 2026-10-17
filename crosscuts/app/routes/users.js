@@ -77,6 +77,7 @@ function shapeUser(row, roles, overrideRows, activeSessions) {
     overrides,
     disabled: !!row.disabled,
     mustChangePassword: !!row.must_change_password,
+    workerId: row.worker_id == null ? null : row.worker_id,
     lastLoginAt: row.last_login_at || null,
     activeSessions,
     perms,
@@ -134,6 +135,7 @@ function snapshot(u) {
     overrides: u.overrides,
     disabled: u.disabled,
     mustChangePassword: u.mustChangePassword,
+    workerId: u.workerId,
   };
 }
 
@@ -240,6 +242,11 @@ r.get("/meta", ACCESS, (req, res) => {
     presets: permissions.PRESETS,
     ownerOnlyKeys: permissions.OWNER_ONLY_KEYS,
     ownerId: ownerId(),
+    // The board workers a login can be linked to (033): name and hue for the picker.
+    workers: db
+      .prepare("SELECT id, name, hue, archived FROM workers ORDER BY archived ASC, sort_order ASC, id ASC")
+      .all()
+      .map((w) => ({ id: w.id, name: w.name, hue: w.hue, archived: !!w.archived })),
   });
 });
 
@@ -459,6 +466,48 @@ r.delete(
         entityId: String(id),
         before: { key, effect: prev.effect },
         after: { key, effect: null },
+      });
+    }
+    res.json(requireUser(id));
+  })
+);
+
+// 033: links a login to a board worker (or none). Body {workerId: <worker id> | null}. A worker has
+// at most one login (409 naming the other login). The worker's colour then shows on this login's
+// names on Pipeline job tiles.
+r.put(
+  "/:id/worker",
+  ACCESS,
+  handler(async (req, res) => {
+    const id = parseId(req);
+    const before = requireUser(id);
+    guardOwnerTarget(req, before, "Only the owner can change the owner's login");
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body) || body.workerId === undefined) {
+      throw new HttpError(400, "workerId is required (a worker id, or null for none)");
+    }
+    const workerId = body.workerId;
+    if (workerId !== null) {
+      if (!Number.isInteger(workerId) || workerId <= 0) throw new HttpError(400, "workerId must be a worker id or null");
+      const w = db.prepare("SELECT id, archived FROM workers WHERE id = ?").get(workerId);
+      if (!w) throw new HttpError(400, "No such worker");
+      if (w.archived && before.workerId !== workerId) throw new HttpError(400, "That worker is archived");
+      const other = db.prepare("SELECT id, display_name FROM users WHERE worker_id = ? AND id != ?").get(workerId, id);
+      if (other) throw new HttpError(409, `That worker is already linked to ${other.display_name}`);
+    }
+    if (workerId !== before.workerId) {
+      try {
+        db.prepare("UPDATE users SET worker_id = ?, updated_at = ? WHERE id = ?").run(workerId, nowIso(), id);
+      } catch (e) {
+        if (isUniqueError(e)) throw new HttpError(409, "That worker is already linked to another login");
+        throw e;
+      }
+      audit.log(req, {
+        action: "user.worker",
+        entityType: "user",
+        entityId: String(id),
+        before: { workerId: before.workerId },
+        after: { workerId },
       });
     }
     res.json(requireUser(id));

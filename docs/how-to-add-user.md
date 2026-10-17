@@ -80,6 +80,16 @@ Example: to stop Michael moving rows on the board while keeping his other schedu
 
 **From M10, orders have their own keys.** Seeing the Orders page is `orders.view` (not `jobs.view`), and receiving deliveries is `orders.receive` (not `orders.edit`). If you had set an override on `jobs.view` or `orders.edit` to control someone's access to orders, set it again on the new key.
 
+## Link a login to a board worker
+
+Logins and the board's workers (Workers page) are separate lists. Linking a login to a worker is what gives that person's name its colour on the Pipeline.
+
+1. Open the person's entry on the Users page.
+2. Under **Profile and roles**, pick their name in **Board worker** (or **None**). It saves straight away, and a small swatch shows the worker's colour.
+3. A worker can be linked to one login only; a worker already linked to someone else is greyed out in the list.
+
+Why it matters: anyone who can edit jobs can put their own name on a Pipeline job tile (the small **+ ME** button on the tile, or **Add me** on the job page) and take it off again. Their name appears as a small chip in their worker colour; a login with no worker gets a grey chip. Everyone who can see the Pipeline sees the names. An admin can remove anyone's name (click the chip, or the name on the job page). Changing a worker's colour on the Workers page changes the chip too.
+
 ## Reset a password
 
 1. Open the person's entry and choose **Reset password**.

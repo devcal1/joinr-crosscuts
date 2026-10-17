@@ -122,7 +122,7 @@ function camel(col) {
   return col.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-function toJob(req, row, boardWeeks, inBacklog) {
+function toJob(req, row, boardWeeks, inBacklog, people) {
   const showValue = can(req, "jobs.value");
   const out = {};
   for (const [col, v] of Object.entries(row)) {
@@ -133,6 +133,7 @@ function toJob(req, row, boardWeeks, inBacklog) {
   out.isTwoPac = row.is_two_pac == null ? null : !!row.is_two_pac;
   out.onBoardWeeks = boardWeeks;
   out.inBacklog = inBacklog;
+  out.people = people || [];
   return out;
 }
 
@@ -156,10 +157,27 @@ function backlogSet(jobId) {
   return new Set(rows.map((b) => b.job_id));
 }
 
+// The names on job tiles (033): job id -> [{userId, name, hue|null}], oldest first. One query for the
+// whole list, or for one job. hue is the linked board worker's colour, or null for a login with no worker.
+function peopleMap(jobId) {
+  const sql =
+    "SELECT jp.job_id, jp.user_id, u.display_name, w.hue FROM job_people jp " +
+    "JOIN users u ON u.id = jp.user_id LEFT JOIN workers w ON w.id = u.worker_id" +
+    (jobId == null ? "" : " WHERE jp.job_id = ?") +
+    " ORDER BY jp.added_at ASC, jp.user_id ASC";
+  const rows = jobId == null ? db.prepare(sql).all() : db.prepare(sql).all(jobId);
+  const m = new Map();
+  for (const x of rows) {
+    if (!m.has(x.job_id)) m.set(x.job_id, []);
+    m.get(x.job_id).push({ userId: x.user_id, name: x.display_name, hue: x.hue == null ? null : x.hue });
+  }
+  return m;
+}
+
 function loadOne(req, id) {
   const row = db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
   if (!row) return null;
-  return toJob(req, row, weeksMap(id).get(id) || [], backlogSet(id).has(id));
+  return toJob(req, row, weeksMap(id).get(id) || [], backlogSet(id).has(id), peopleMap(id).get(id) || []);
 }
 
 function parseId(req) {
@@ -215,7 +233,8 @@ r.get("/", "jobs.view", handle((req, res) => {
   const rows = db.prepare(sql).all(...args);
   const weeks = weeksMap(null);
   const backlog = backlogSet(null);
-  res.json(rows.map((row) => toJob(req, row, weeks.get(row.id) || [], backlog.has(row.id))));
+  const people = peopleMap(null);
+  res.json(rows.map((row) => toJob(req, row, weeks.get(row.id) || [], backlog.has(row.id), people.get(row.id) || [])));
 }));
 
 r.get("/:id", "jobs.view", handle((req, res) => {
@@ -354,6 +373,56 @@ r.post("/:id/materials-ordered", "orders.mark_ordered", handle((req, res) => {
   // The update, audit and invoice hook live in lib/orders.js (M3), shared with
   // the orders path. It returns false when the date was already set.
   if (!orders.markMaterialsOrdered(db, id, req, date)) throw new HttpError(409, "Materials already marked ordered");
+  res.json(loadOne(req, id));
+}));
+
+// Names on job tiles (033). Anyone with jobs.edit adds or removes their own name; users.admin removes
+// anyone's. Everyone with jobs.view sees them (the list and the job carry "people").
+r.post("/:id/people", "jobs.edit", handle((req, res) => {
+  const id = parseId(req);
+  const job = id && db.prepare("SELECT id, name FROM jobs WHERE id = ?").get(id);
+  if (!job) return res.status(404).json({ error: "Not found" });
+  const me = req.user && Number.isInteger(req.user.id) ? req.user.id : null;
+  if (me == null) throw bad("Sign in to add your name");
+  const info = db
+    .prepare("INSERT OR IGNORE INTO job_people (job_id, user_id, added_by, added_at) VALUES (?, ?, ?, ?)")
+    .run(id, me, me, new Date().toISOString());
+  if (info.changes) {
+    audit.log(req, {
+      action: "job.person_add",
+      entityType: "job",
+      entityId: id,
+      before: null,
+      after: { userId: me, name: req.user.displayName },
+    });
+  }
+  res.status(info.changes ? 201 : 200).json(loadOne(req, id));
+}));
+
+r.delete("/:id/people/:userId", ["jobs.edit", "users.admin"], handle((req, res) => {
+  const id = parseId(req);
+  const job = id && db.prepare("SELECT id FROM jobs WHERE id = ?").get(id);
+  if (!job) return res.status(404).json({ error: "Not found" });
+  const target = Number(req.params.userId);
+  if (!Number.isInteger(target) || target <= 0) return res.status(404).json({ error: "Not found" });
+  const me = req.user && Number.isInteger(req.user.id) ? req.user.id : null;
+  // Your own name needs jobs.edit (or users.admin); someone else's needs users.admin.
+  if (target === me ? !(can(req, "jobs.edit") || can(req, "users.admin")) : !can(req, "users.admin")) {
+    throw new HttpError(403, "Forbidden");
+  }
+  const row = db
+    .prepare("SELECT u.display_name FROM job_people jp JOIN users u ON u.id = jp.user_id WHERE jp.job_id = ? AND jp.user_id = ?")
+    .get(id, target);
+  if (row) {
+    db.prepare("DELETE FROM job_people WHERE job_id = ? AND user_id = ?").run(id, target);
+    audit.log(req, {
+      action: "job.person_remove",
+      entityType: "job",
+      entityId: id,
+      before: { userId: target, name: row.display_name },
+      after: null,
+    });
+  }
   res.json(loadOne(req, id));
 }));
 

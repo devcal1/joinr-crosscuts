@@ -146,6 +146,8 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
   color: var(--body);
 }
 .pl-install-attend { color: var(--orange-tint); font-weight: 700; }
+.pl-people { padding: 0 12px; }
+.pl-foot-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .pl-foot-row {
   display: flex;
   align-items: center;
@@ -217,7 +219,7 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
 
 /* Quoted: one compact line per job or Joinr quote (Todd, 2026-10-17). The column is a little
    wider than the others so the number, client, site and value fit on a line. */
-.pl-col[data-stage="quoted"] { flex-basis: 420px; min-width: 380px; }
+.pl-col[data-stage="quoted"] { flex-basis: 520px; min-width: 460px; }
 .pl-line {
   flex-direction: row;
   align-items: center;
@@ -287,6 +289,9 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
 
 @media (max-width: 640px) {
   .pl-col[data-stage="quoted"] { flex-basis: min(420px, 100%); min-width: 0; }
+  /* On a phone the names and buttons wrap under the job's name. */
+  .pl-line { flex-wrap: wrap; }
+  .pl-line .pl-handle { flex-basis: 100%; }
   .pl-head h1 { font-size: 22px; }
   .pl-cards { max-height: calc(100vh - 260px); }
 }
