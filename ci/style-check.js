@@ -20,7 +20,9 @@
 //     --layer-accounts, only in
 //     shell/shell.css (approved by Todd on 2026-10-12)
 //   - Notes paper and thumbs-up (approved by Todd on 2026-10-16), only in notes.html, notes.css and
-//     notes.js: the --paper token (cream sticky notes) and the Phosphor thumbs-up icon
+//     notes.js: the --paper token (cream sticky notes) and the Phosphor thumbs-up icon (ph-thumbs-up
+//     and the Phosphor stylesheet link, no other icon); files are matched by their path under
+//     crosscuts/app/public
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"
 // If this check fails, fix the page, not the check.
@@ -30,7 +32,11 @@ const path = require("path");
 
 const ROOT = path.join(__dirname, "..", "crosscuts", "app", "public");
 const TOKENS = "tokens.css";
-const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js", "notes.html", "notes.js"]);
+// Paths are relative to crosscuts/app/public. The board may use any Phosphor icon; the Notes page
+// only the thumbs-up (and the stylesheet link that loads the icon font).
+const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js"]);
+const PHOSPHOR_NOTES = new Set(["notes.html", "notes.js"]);
+const NOTES_ICON_OK = /ph ph-thumbs-up(?![-\w])|vendor\/phosphor\/style\.css/g;
 const PAPER_OK = new Set(["tokens.css", "notes.html", "notes.css", "notes.js"]);
 const OKLCH_OK = new Set(["shared.js"]);
 const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.js"]);
@@ -51,7 +57,7 @@ const RULES = [
   ["font weight other than 400/700", /font-weight\s*:(?!\s*(?:400|700|normal|bold|inherit)\b)/, () => true],
   ["font weight other than 400/700 (canvas or shorthand)", /["'`](?:italic\s+)?(?:100|200|300|500|600|800|900)\s+\d+(?:\.\d+)?px/, f => /\.js$/.test(f)],
   ["Inter font", /\bInter\b|vendor\/inter/, () => true],
-  ["icon (Phosphor) outside the board", /phosphor|["'\s]ph ph-|["'\s]ph-[a-z]/, f => !PHOSPHOR_OK.has(path.basename(f))],
+  ["icon (Phosphor) outside the board", /phosphor|["'\s]ph ph-|["'\s]ph-[a-z]/, f => !PHOSPHOR_OK.has(f)],
 ];
 
 function walk(dir) {
@@ -88,7 +94,9 @@ for (const file of walk(ROOT)) {
     for (const [label, re, applies] of RULES) {
       if (!applies(rel)) continue;
       if (inPrint && /colour|named/.test(label)) continue;
-      if (re.test(line)) problems.push(`${rel}:${i + 1}: ${label}: ${raw.trim().slice(0, 140)}`);
+      // The Notes page may name the thumbs-up and load the icon font, and nothing else from it.
+      const text = PHOSPHOR_NOTES.has(rel) && /Phosphor/.test(label) ? line.replace(NOTES_ICON_OK, "") : line;
+      if (re.test(text)) problems.push(`${rel}:${i + 1}: ${label}: ${raw.trim().slice(0, 140)}`);
     }
   });
 }
