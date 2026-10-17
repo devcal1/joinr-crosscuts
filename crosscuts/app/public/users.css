@@ -85,6 +85,16 @@ textarea.hs-input { min-height: 72px; resize: vertical; line-height: 1.4; }
 /* Detail panel */
 .detail-head { align-items: center; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-8); }
+/* The Board worker picker: a small swatch in the chosen worker's colour (set by users.js). */
+.us-swatch {
+  display: inline-block;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-control);
+  border: 1px solid var(--na);
+}
+
 @media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr; } }
 
 .override-list { border: 1px solid var(--hairline); border-radius: var(--r-card); max-height: 460px; overflow-y: auto; }

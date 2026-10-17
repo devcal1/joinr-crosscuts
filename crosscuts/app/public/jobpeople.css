@@ -1,0 +1,61 @@
+/* Names on Pipeline job tiles and the job page (jobpeople.js). Tokens from tokens.css. A person's
+   chip takes the linked board worker's colour from hueColors() (set inline by the script: the
+   worker colours named exception); a login with no worker is the neutral grey below. No icons,
+   no shadows. */
+.jp-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.jp-chip {
+  display: inline-block;
+  box-sizing: border-box;
+  max-width: 10em;
+  margin: 0;
+  padding: 1px 7px;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.jp-grey {
+  background: var(--raised);
+  border-color: var(--na);
+  color: var(--label);
+}
+button.jp-chip { cursor: pointer; }
+button.jp-chip:hover,
+button.jp-chip:focus-visible { outline: 1px solid var(--stop); outline-offset: 1px; }
+button.jp-chip:disabled { opacity: 0.5; cursor: default; }
+.jp-more {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--label);
+}
+.hs-btn.jp-me { flex: none; padding: 4px 8px; font-size: 11px; }
+
+/* The job page's block, under the title. */
+.jp-job {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 14px;
+}
+.jp-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.jp-job .jp-chip { font-size: 13px; padding: 2px 10px; max-width: 16em; }
+.jp-none, .jp-hint { font-size: 13px; color: var(--muted); }

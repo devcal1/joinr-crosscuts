@@ -172,6 +172,10 @@ The Planner (M7) has seven layers. `planner.view` is needed to see any of them a
 
 An **Ordering** user's new events default to Install & hardware, a **Workshop Manager**'s to Workshop (M10). A **workshop** login (workshop staff) sees Company-wide, Install & hardware and Workshop, read-only, and has no Personal layer. **Showroom** has no planner. Someone given `planner.view` by an override with no planner role sees Company-wide and Install & hardware only; with `planner.edit` as well, they can also add to Company-wide and have a Personal layer. On a department layer, edit rights follow the role a person holds now: someone who leaves the department can no longer change its events. Because layers follow roles, revoking `accounts.view` from someone with the Accounts role still leaves the automatic invoice items on their Accounts layer, without links to the invoices.
 
+### Names on job tiles
+
+A login can be linked to a board worker (Users page, **Board worker**; `users.admin`; one login per worker). Anyone with `jobs.edit` adds or removes their **own** name on a Pipeline job (`POST` and `DELETE /api/job-records/:id/people`); `users.admin` can remove anyone's. Everyone with `jobs.view` sees the names, so Scheduling and Accounts see them read-only. No new feature key. See `docs/plans/m3-contracts.md` section 14.
+
 Known M1 limit: the board does not hide edit controls from view-only users. The server refuses their edits with a 403.
 
 ## Enforcement

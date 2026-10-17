@@ -138,6 +138,7 @@
   const formEl = document.getElementById("form");
   const titleEl = document.getElementById("title");
   const metaEl = document.getElementById("meta");
+  const peopleEl = document.getElementById("people");
   const bannerEl = document.getElementById("banner");
   const invoicesEl = document.getElementById("invoices");
   const invoicesBody = document.getElementById("invoicesBody");
@@ -330,6 +331,7 @@
   // Read-only for users without jobs.edit; derived stages locked for non-admins.
   function applyAccess() {
     const editable = can("jobs.edit");
+    renderPeople();
     for (const node of Object.values(inputs)) if (!node.__when) node.disabled = !editable;
     if (inputs.materialsOrderedDate) fillMaterials(inputs.materialsOrderedDate, job ? job.materialsOrderedDate : null);
     if (inputs.stage && editable) {
@@ -419,7 +421,20 @@
     invoicesBody.replaceChildren(el("div", { class: "jobinv-wrap" }, table));
   }
 
+  // The names on this job (jobpeople.js): shown to everyone who can see the job, with add/remove me for jobs.edit.
+  function renderPeople() {
+    if (!window.JobPeople || !peopleEl) return;
+    JobPeople.renderBlock(peopleEl, isNew ? null : job, {
+      onChange: (j) => {
+        if (job && j) job.people = j.people;
+        renderPeople();
+      },
+      onError: (m) => setStatus(m, "err"),
+    });
+  }
+
   function renderMeta() {
+    renderPeople();
     metaEl.replaceChildren();
     if (!job) return;
     const bits = [];

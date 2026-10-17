@@ -13,7 +13,7 @@
     workshop_manager: "Workshop Manager",
   };
 
-  let meta = { roles: [], keys: [], presets: {}, ownerOnlyKeys: [], ownerId: null };
+  let meta = { roles: [], keys: [], presets: {}, ownerOnlyKeys: [], ownerId: null, workers: [] };
   let users = [];
   let selectedId = null;
   let myId = null; // best effort, from cc.me; stays null if unavailable
@@ -194,8 +194,29 @@
 
     $("signOutAll").textContent = `Sign out everywhere (${u.activeSessions})`;
 
+    renderWorker(u);
     renderOverrides(u);
     renderEffective(u);
+  }
+
+  // The "Board worker" picker (migration 033): none, or a worker not already linked to another login.
+  // The swatch shows the chosen worker's colour (hueColors() in shared.js).
+  function renderWorker(u) {
+    const sel = $("editWorker");
+    const taken = new Map();
+    for (const x of users) if (x.workerId != null && x.id !== u.id) taken.set(x.workerId, x.displayName);
+    sel.replaceChildren(h("option", { value: "", text: "None" }));
+    for (const w of meta.workers || []) {
+      if (w.archived && w.id !== u.workerId) continue;
+      const other = taken.get(w.id);
+      const label = w.name + (w.archived ? " (archived)" : "") + (other ? " - linked to " + other : "");
+      sel.append(h("option", { value: String(w.id), text: label, disabled: !!other }));
+    }
+    sel.value = u.workerId == null ? "" : String(u.workerId);
+    const w = (meta.workers || []).find((x) => x.id === u.workerId);
+    const sw = $("usWorkerSwatch");
+    sw.hidden = !w;
+    if (w && typeof hueColors === "function") sw.style.background = hueColors(w.hue).fg;
   }
 
   function renderOverrides(u) {
@@ -312,6 +333,22 @@
       if (!Object.keys(body).length) return toast("Nothing to save");
       applyUser(await api(`/api/users/${u.id}`, { method: "PATCH", body: JSON.stringify(body) }), true);
       toast("Saved");
+    })
+  );
+
+  $("editWorker").addEventListener(
+    "change",
+    guarded(async () => {
+      const u = selected();
+      if (!u) return;
+      const v = $("editWorker").value;
+      try {
+        applyUser(await api(`/api/users/${u.id}/worker`, { method: "PUT", body: JSON.stringify({ workerId: v === "" ? null : Number(v) }) }));
+        toast(v === "" ? "Board worker cleared" : "Board worker saved");
+      } catch (e) {
+        renderWorker(u); // put the picker back to what is stored
+        throw e;
+      }
     })
   );
 
