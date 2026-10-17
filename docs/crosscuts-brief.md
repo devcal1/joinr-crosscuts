@@ -130,7 +130,7 @@ Chromebooks (Chrome). No touch input is required.
   stock "have" and the board quantities; Workshop Manager, Ordering, admin) and
   `stock.order` (the stock, paint and board lists, board prices, the drawer
   order, paint orders, confirming the board stock value; Ordering, admin).
-  (Accounts had a read-only Stock value page on `accounts.view`; it was removed at Todd's request, 2026-10-16.) 27 keys in all.
+  (Accounts had a read-only Stock value page on `accounts.view`; it was removed at Todd's request, 2026-10-16. The board stocktake's own confirm-value step went the same way on 2026-10-17, see 5.4.) 27 keys in all.
 - **M13 owner and owner-only keys (approved by Todd 2026-10-16):** one login is
   **the owner** (Todd's; a mark on the login, not a role), and three
   **owner-only keys**: `bonuses.manage` (the Bonuses page), `alarms.manage`
@@ -140,10 +140,18 @@ Chromebooks (Chrome). No touch input is required.
   key, and is the only one who can grant or revoke an owner-only key (for
   example Loans to an Accounts login), change, reset, disable or sign out the
   owner's login, reset the password of someone holding an owner-only key by a
-  grant, or hand ownership to another enabled admin. 30 keys in all. This
+  grant, or hand ownership to another enabled admin. 30 keys at that point. This
   protects the figures inside Crosscuts; anyone with the Umbrel or the backup
   passphrase can still read the database (`docs/plans/m13-plan.md`,
   `docs/auth.md`).
+- **Department Notes keys (approved by Todd 2026-10-16):** five keys,
+  `notes.scheduling`, `notes.design`, `notes.ordering`, `notes.accounts` and
+  `notes.admin`, each opening that one department's Notes page. Scheduling,
+  Design/PM and Accounts hold their own; Ordering and the Workshop Manager share
+  `notes.ordering`; admin holds all five; Showroom and Workshop none. **35 keys
+  in all; the admin preset is 32** (every key but the three owner-only ones).
+  **Audit (Todd, 2026-10-17):** a note's audit rows show only to readers who hold
+  that note's department key (`docs/plans/notes-contracts.md` section 7).
 - Enforce on the **server** on every route; the UI merely hides what the user
   can't do. Logged-out requests to any API route must be refused, not
   redirected to a page.
@@ -224,9 +232,10 @@ to build it.
    ready to cut, promised install, completed), links (OneDrive design folder,
    Joinr quote URL), `source`, `external_ref`, notes. Existing `jobs.name` and
    `jobs.notes` carry over.
-2. **Lifecycle stages:** `lead` → `quoted` → `won` → `design_ordering` →
+2. **Lifecycle stages:** `quoted` → `won` → `design_ordering` →
    `ready_to_cut` → `on_board` → `complete` → `invoiced` (plus `lost` /
-   `archived`). `on_board` is derived from the schedule (job has week rows);
+   `archived`). (The `lead` stage was retired, approved by Todd 2026-10-17: the
+   pipeline starts at Quoted, see 5.4.) `on_board` is derived from the schedule (job has week rows);
    `complete` is set by Finish week; `invoiced` is derived from accounts (final
    invoice marked). The others are moved by Design/PM.
 3. **Pipeline board.** Cards in columns by stage; drag to move (pointer
@@ -262,8 +271,10 @@ to build it.
    - **Board stocktake.** The Workshop Manager counts the boards monthly.
      Ordering keeps a price per sheet (ex GST) and confirms the value: counts ×
      prices, plus an optional adjustment and note. The confirmed value stays on the
-     Boards page for Ordering (Accounts' Stock value page was removed at Todd's request, 2026-10-16). There is
-     no history before the first count in Crosscuts.
+     Boards page for Ordering (Accounts' Stock value page was removed at Todd's request, 2026-10-16).
+     **The confirm-value step was removed too (Todd, 2026-10-17):** a count is
+     finished once it is counted, and Ordering can reopen it; prices stay on the
+     board list. There is no history before the first count in Crosscuts.
 
    The lists (stock items, paints, boards) are typed in by hand. Orders and counts
    start fresh. Detail: `docs/plans/m11-plan.md` §5 and
@@ -313,13 +324,56 @@ on it and around it.
 3. **Finish week extended**: for each job, capture production stage (cut &
    edge, kit, assemble, inspect, paint, install, return visit) alongside the
    existing outcome. Stage history is stored per job per week.
-4. **Staff availability / leave.** Record leave, sick days and part-time
+4. **Staff availability / leave.** (Moved to the Admin menu and made admin-only,
+   `users.admin`, approved by Todd 2026-10-16; the board still reads leave from
+   `/api/schedule`.) Record leave, sick days and part-time
    patterns per worker; the board greys those people out on those days and
    warns if they are assigned.
-5. **Lookahead.** A read-only 2–4 week view and the backlog ordered by promised
+5. **Lookahead.** (Removed with the Scheduling page, approved by Todd
+   2026-10-16; the Scheduling menu is now Board and Workers.) A read-only 2–4 week view and the backlog ordered by promised
    install date.
 6. **Materials in** — from Orders (5.2.4).
 7. Worker roster management stays, under Scheduling.
+
+### 5.4 Changes after M13 (approved by Todd 2026-10-16 and 2026-10-17)
+
+Small changes Todd asked for once M1 to M13 were built. They override the older
+text above where they differ.
+
+- **Department Notes walls (2026-10-16).** Each of five departments (Scheduling,
+  Design/PM, Ordering, Accounts, Admin) has a Notes page in its menu: a week wall,
+  one column per weekday, of sticky notes. People sign nothing by hand (the note
+  carries the author and time), post on today or a later weekday, and the author
+  can edit or remove it until its week is over. Anyone else in the department can
+  give a note a thumbs-up (names shown, not on your own note); past weeks are
+  paged back to and read-only. Five keys `notes.*`, 35 keys in all, admin preset
+  32 (3.2). House-style exceptions, named in `CLAUDE.md`: the **cream paper
+  notes** and the **thumbs-up mark** (the page's only icon). Migration 029.
+  Detail: `docs/plans/notes-contracts.md`.
+- **Scheduling and Lookahead pages removed; Availability moved to Admin
+  (2026-10-16),** admin-only (`users.admin`). The board's away chips and warnings
+  are unchanged.
+- **Planner repeats (2026-10-16/17).** "Every year" (migration 027), and a
+  **Custom** repeat: every N days, weeks, months or years, N from 1 to 99
+  (migration 030, additive).
+- **Lead stage retired (2026-10-17).** The pipeline starts at Quoted; new jobs
+  default to Quoted and Lead is refused as a target. Quoted shows the quoted jobs
+  as single lines plus a **From Joinr** group: Joinr won quotes still waiting in
+  the inbox, each a link to the quote in Joinr (read-only
+  `GET /api/pipeline/joinr-quotes`). Joinr *sent* quotes joining Quoted is a later
+  step (J3), which touches Joinr and waits for Todd's two yeses (`CLAUDE.md` rule 12).
+- **Stock value and the board value step removed (2026-10-16/17).** Accounts'
+  Stock value page went on the 16th; on the 17th the board stocktake lost its
+  confirm-value step (counts × prices, adjustment, note), its routes and the
+  dashboard reminder. A count is done once counted. No data was deleted; old
+  "valued" months read as counted.
+- **BAS sales by hand (2026-10-16).** The BAS month's sales are typed in; invoices
+  no longer count towards them.
+- **Admin accounts (2026-10-16).** A page after Supplier accounts for bills that
+  are not from suppliers (BAS, Workcover, insurance); migration 028.
+- **Dashboard button (2026-10-17).** The menu bar's Dashboard link is a small
+  outlined teal button beside the wordmark.
+- **Landscape time sheets (2026-10-16).** Printed time sheets are landscape.
 
 ## 6. Cross-cutting systems
 

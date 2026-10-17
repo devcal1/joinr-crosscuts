@@ -6,7 +6,7 @@ Where this file and the code disagree, report it. Code: `lib/notes.js`, `routes/
 
 ## 1. Schema (migration 029, additive)
 
-Migration 029 had not been released when the wall layout was chosen, so it was edited in place (no 030). A local dev database that applied the first version fails the checksum and must be deleted.
+Migration 029 had not been released when the wall layout was chosen, so it was edited in place. (Migration 030 is a different change: the Planner custom repeat.) A local dev database that applied the first version fails the checksum and must be deleted.
 
 Table `dept_notes`:
 
@@ -95,7 +95,7 @@ All under `/api/notes`, all declared through `defineRoutes` with the five keys. 
 A note is `{id, dept, date, weekStart, body, author: {id, name}, createdAt, updatedAt, edited, canEdit, canAck, acks: {count, names, mine}}`. `canEdit` is true only for the author, while the note's week is the current one or later. `canAck` is true for everyone but the author. Note text is stored and returned exactly as typed (trimmed, line breaks kept as `\n`); the page shows it with `textContent` only.
 
 Errors:
-- 400: unknown or missing department; a body that is missing, not text, empty or blank, or over 2000 characters ("Notes are 2,000 characters at most"); a date that is not a real date ("Choose a day for the note"), is a Saturday or Sunday ("Notes go on a weekday, Monday to Friday") or is before today ("Notes can only go on today or a later day"); a PATCH that names neither body nor date ("Nothing to change"); a `week` that is not a date or not a Monday ("week must be a Monday").
+- 400: unknown or missing department; a body that is missing, not text, empty or blank, or over 2000 characters ("Notes are 2,000 characters at most"); a date that is not a real date ("Choose a day for the note"), is a Saturday or Sunday ("Notes go on a weekday, Monday to Friday") or is before today ("Notes can only go on today or a later day"); a PATCH that names neither body nor date ("Nothing to change"); a `week` that is not a date ("week must be a date (YYYY-MM-DD)") or not a Monday ("week must be a Monday").
 - 401: not logged in.
 - 403: no key for that department; or not the note's author (edit, move, remove); or the author's own note (thumbs-up).
 - 404: no such note, or it was removed.
@@ -110,6 +110,8 @@ Entity `dept_note`, entity id the note's id.
 - `note.ack` (after: dept) and `note.unack` (before: dept), written only when the state really changed; the actor is the person who pressed.
 
 Refused requests and no-ops write nothing.
+
+**Who sees these rows (Todd, 2026-10-17):** in the audit log (`/api/audit`) a note's rows are shown only to a reader who holds that note's department key, `notes.<dept>`; everyone else with `audit.view` does not see them at all. They are left out of the rows, the total (so paging gives nothing away) and a search by entity type or id. The department is read from the row's `dept` (in `before` or `after`, as listed above). Code: `noteDeptClause` in `lib/audit.js`, used by `routes/audit.js`. The owner and admins holding all five notes keys see every department.
 
 ## 8. The page
 
