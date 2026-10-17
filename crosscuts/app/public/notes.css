@@ -28,6 +28,15 @@ body {
   border-radius: var(--r-card); color: var(--body);
 }
 
+/* A plain sentence (or a keep/discard question) when one open thing would be lost by another. */
+.nt-guard {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 16px; padding: 10px 16px;
+  background: var(--surface); border: 1px solid var(--hairline); border-left: var(--accent-border) solid var(--orange);
+  border-radius: var(--r-card); color: var(--body); font-size: 13px; font-weight: 700;
+}
+.nt-guard[hidden] { display: none; }
+.nt-guard-btns { display: flex; gap: 8px; }
+
 /* ---------- the week bar ---------- */
 .nt-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 16px; }
 .nt-week-head { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--label); }
@@ -110,7 +119,7 @@ body {
 /* style-check: print-start (paper: black on white, the wall only) */
 @media print {
   html, body.nt-body { background: #fff; color: #000; }
-  #cc-shell, .nt-nav, .nt-composer, .nt-actions, .nt-new, .nt-error, .nt-hint { display: none !important; }
+  #cc-shell, .nt-nav, .nt-composer, .nt-guard, .nt-actions, .nt-new, .nt-error, .nt-hint { display: none !important; }
   .nt-wall { gap: 8px; }
   .nt-day { min-height: 0; }
   .nt-day-head, .nt-week-head, .nt-head h1, .nt-none { color: #000; border-color: #000; }

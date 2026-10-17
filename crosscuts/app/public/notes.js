@@ -35,9 +35,74 @@
   var countEl = $("count");
   var errorEl = $("error");
   var addBtn = $("addBtn");
+  var guardEl = $("guard");
+  var guardText = $("guardText");
+  var guardBtns = $("guardBtns");
 
   var data = null;     // the week on screen, as the server sent it
-  var editing = 0;     // id of the note being edited or removed (the wall is not redrawn while one is)
+  // The note being edited or removed, if any: { id, li, dirty(), close() }. Only one at a time, and
+  // never while the add form holds text, so a redraw can't swallow work that isn't saved.
+  var current = null;
+
+  // ---------- plain sentences and keep/discard questions ----------
+
+  function clearGuard() {
+    guardEl.hidden = true;
+    guardText.textContent = "";
+    guardBtns.replaceChildren();
+  }
+  // A question with two buttons; the safe one (keep) has focus.
+  function askGuard(text, yesLabel, keepLabel, onYes) {
+    clearGuard();
+    guardText.textContent = text;
+    var yes = el("button", { type: "button", class: "hs-btn", text: yesLabel });
+    var keep = el("button", { type: "button", class: "hs-btn", text: keepLabel });
+    yes.addEventListener("click", function () { clearGuard(); onYes(); });
+    keep.addEventListener("click", function () { clearGuard(); });
+    guardBtns.append(yes, keep);
+    guardEl.hidden = false;
+    guardEl.scrollIntoView({ block: "nearest" });
+    keep.focus();
+  }
+  function sayGuard(text) {
+    clearGuard();
+    guardText.textContent = text;
+    guardEl.hidden = false;
+    guardEl.scrollIntoView({ block: "nearest" });
+  }
+  // What is open with unsaved words in it: "composer", "edit", or "" for nothing.
+  function unsaved() {
+    if (!composer.hidden && bodyEl.value.trim()) return "composer";
+    if (current && current.li.isConnected && current.dirty()) return "edit";
+    return "";
+  }
+  // Runs the callback now, or after the person agrees to throw away what is unsaved.
+  function leave(proceed) {
+    var what = unsaved();
+    if (!what) { proceed(); return; }
+    askGuard(what === "composer" ? "Throw away the note you are writing?" : "Throw away your changes to the note you are editing?",
+      "Throw away", what === "composer" ? "Keep writing" : "Keep editing", proceed);
+  }
+  // Makes room for an edit or a remove on note li: refuses (with a sentence on that note) while
+  // another edit has changes or the add form has text; otherwise closes whatever is open.
+  function freeUp(li) {
+    clearGuard();
+    if (current && !current.li.isConnected) current = null;
+    if (!composer.hidden && bodyEl.value.trim()) { flash(li, "Post or throw away the note you are writing first."); return false; }
+    if (current) {
+      if (current.dirty()) { flash(li, "Save or cancel the note you are editing first."); return false; }
+      current.close();
+      current = null;
+    }
+    if (!composer.hidden) closeComposer();
+    clearGuard();
+    return true;
+  }
+  function focusIn(root, sel, fallback) {
+    var t = (root && root.querySelector(sel)) || fallback;
+    if (t && !t.disabled && !t.hidden) t.focus();
+  }
+  function noteEl(id) { return wallEl.querySelector('[data-id="' + id + '"]'); }
 
   // ---------- times ----------
 
@@ -118,9 +183,13 @@
         btn.disabled = true;
         try {
           var saved = await api("/api/notes/" + n.id + "/ack", { method: mine ? "DELETE" : "PUT" });
-          li.replaceWith(noteItem(saved));
+          if (current && current.id === n.id) current = null;
+          var fresh = noteItem(saved);
+          li.replaceWith(fresh);
+          focusIn(fresh, ".nt-ack");
         } catch (e) {
           btn.disabled = false;
+          btn.focus();
           flash(li, e.message);
         }
       });
@@ -135,8 +204,8 @@
   }
 
   function startEdit(li, n) {
-    if (editing) return;
-    editing = n.id;
+    if (current && current.id === n.id && current.li.isConnected) return;
+    if (!freeUp(li)) return;
     var text = el("textarea", { class: "hs-input nt-body-input", rows: "4", maxlength: String(BODY_MAX), "aria-label": "Edit note" });
     text.value = n.body;
     // The days a note may move to: its own day, today and later this week, and the week after
@@ -157,8 +226,19 @@
     var cancel = el("button", { type: "button", class: "hs-btn", text: "Cancel" });
     var row = el("div", { class: "nt-edit-row" }, day, save, cancel, msg);
     li.replaceChildren(el("div", { class: "nt-edit" }, text, row));
+    current = {
+      id: n.id,
+      li: li,
+      dirty: function () { return text.value !== n.body || day.value !== n.date; },
+      close: function () { li.replaceWith(noteItem(n)); },
+    };
     text.focus();
-    cancel.addEventListener("click", function () { editing = 0; li.replaceWith(noteItem(n)); });
+    cancel.addEventListener("click", function () {
+      current = null;
+      var fresh = noteItem(n);
+      li.replaceWith(fresh);
+      focusIn(fresh, ".nt-actions .hs-btn");
+    });
     save.addEventListener("click", async function () {
       msg.textContent = "";
       save.disabled = true;
@@ -167,9 +247,10 @@
           method: "PATCH",
           body: JSON.stringify({ body: text.value, date: day.value, updatedAt: n.updatedAt }),
         });
-        editing = 0;
+        current = null;
         // A note moved to a day of another week takes you to that week.
         await load(saved.weekStart, saved.weekStart !== data.weekStart ? "push" : null);
+        focusIn(noteEl(saved.id), ".nt-actions .hs-btn", addBtn);
       } catch (e) {
         msg.textContent = e.message;
         save.disabled = false;
@@ -178,21 +259,34 @@
   }
 
   function askRemove(li, n) {
-    if (editing) return;
-    editing = n.id;
+    if (current && current.id === n.id && current.li.isConnected) return;
+    if (!freeUp(li)) return;
     var sure = el("span", { class: "nt-sure", text: "Remove this note?" });
     var yes = el("button", { type: "button", class: "hs-btn", text: "Remove" });
     var keep = el("button", { type: "button", class: "hs-btn", text: "Keep" });
     var msg = el("span", { class: "nt-edit-msg", role: "alert" });
     var actions = li.querySelector(".nt-actions");
     actions.replaceChildren(sure, yes, keep, msg);
-    keep.addEventListener("click", function () { editing = 0; li.replaceWith(noteItem(n)); });
+    current = {
+      id: n.id,
+      li: li,
+      dirty: function () { return false; },
+      close: function () { li.replaceWith(noteItem(n)); },
+    };
+    keep.focus();
+    keep.addEventListener("click", function () {
+      current = null;
+      var fresh = noteItem(n);
+      li.replaceWith(fresh);
+      focusIn(fresh, ".nt-actions .hs-btn");
+    });
     yes.addEventListener("click", async function () {
       yes.disabled = true;
       try {
         await api("/api/notes/" + n.id, { method: "DELETE" });
-        editing = 0;
+        current = null;
         await load(data.weekStart);
+        focusIn(wallEl, ".nt-new", addBtn);
       } catch (e) {
         msg.textContent = e.message;
         yes.disabled = false;
@@ -206,6 +300,7 @@
     $("weekHead").textContent = data.heading;
     $("thisBtn").disabled = data.current;
     addBtn.hidden = !data.canAdd;
+    current = null;   // the wall is redrawn, so nothing is open on it any more
     wallEl.replaceChildren();
     data.days.forEach(function (d) {
       var head = el("h2", { class: "nt-day-head" }, d.label);
@@ -239,13 +334,13 @@
     messageEl.hidden = true;
     boardEl.hidden = false;
     if (changed) closeComposer();
+    clearGuard();
     render();
     if (push === "push") history.pushState(null, "", urlFor(d.weekStart));
     else if (push === "replace") history.replaceState(null, "", urlFor(d.weekStart));
   }
 
   async function go(week, push) {
-    editing = 0;
     try {
       await load(week, push);
     } catch (e) {
@@ -254,11 +349,17 @@
     }
   }
 
-  $("lastBtn").addEventListener("click", function () { if (data) go(data.prev, "push"); });
-  $("nextBtn").addEventListener("click", function () { if (data) go(data.next, "push"); });
-  $("thisBtn").addEventListener("click", function () { if (data) go(data.thisWeek, "push"); });
+  $("lastBtn").addEventListener("click", function () { if (data) leave(function () { go(data.prev, "push"); }); });
+  $("nextBtn").addEventListener("click", function () { if (data) leave(function () { go(data.next, "push"); }); });
+  $("thisBtn").addEventListener("click", function () { if (data) leave(function () { go(data.thisWeek, "push"); }); });
   window.addEventListener("popstate", function () {
     var w = new URLSearchParams(location.search).get("week");
+    if (data && unsaved()) {
+      // Put the address back and ask first; agreeing moves on as a fresh step.
+      history.pushState(null, "", urlFor(data.weekStart));
+      leave(function () { go(w || null, "push"); });
+      return;
+    }
     go(w || null);
   });
 
@@ -273,6 +374,13 @@
 
   function openComposer(date) {
     if (!data || !data.formDays.length) return;
+    if (current && !current.li.isConnected) current = null;
+    if (current) {
+      if (current.dirty()) { sayGuard("Save or cancel the note you are editing before you add a new one."); return; }
+      current.close();
+      current = null;
+    }
+    clearGuard();
     var pick = date && data.formDays.some(function (d) { return d.date === date; }) ? date : data.defaultDate;
     dayOptions(dayEl, data.formDays, pick);
     errorEl.textContent = "";
@@ -280,20 +388,25 @@
     composer.scrollIntoView({ block: "nearest" });
     bodyEl.focus();
   }
-  function closeComposer() {
+  function closeComposer(refocus) {
     composer.hidden = true;
     bodyEl.value = "";
     errorEl.textContent = "";
     updateCount();
+    if (refocus === true && !addBtn.hidden) addBtn.focus();
   }
 
   addBtn.addEventListener("click", function () { if (composer.hidden) openComposer(); else bodyEl.focus(); });
-  $("cancel").addEventListener("click", closeComposer);
-  composer.addEventListener("keydown", function (e) { if (e.key === "Escape") closeComposer(); });
+  $("cancel").addEventListener("click", function () { closeComposer(true); });
+  composer.addEventListener("keydown", function (e) { if (e.key === "Escape") closeComposer(true); });
 
   composer.addEventListener("submit", async function (e) {
     e.preventDefault();
     errorEl.textContent = "";
+    if (current && current.li.isConnected) {
+      errorEl.textContent = "Save or cancel the note you are editing first";
+      return;
+    }
     if (!bodyEl.value.trim()) {
       errorEl.textContent = "Write something to leave a note";
       bodyEl.focus();
@@ -309,6 +422,7 @@
       // A note for a day in another week (a weekend post goes to Monday) takes you to that week.
       var other = saved.weekStart !== data.weekStart;
       await load(saved.weekStart, other ? "push" : null);
+      focusIn(noteEl(saved.id), ".nt-ack:not(:disabled)", addBtn);
     } catch (err) {
       errorEl.textContent = err.message;
     } finally {
@@ -318,7 +432,7 @@
 
   // A tab left open shows fresh notes (and the right "today") when it is next looked at.
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState !== "visible" || boardEl.hidden || editing || !composer.hidden) return;
+    if (document.visibilityState !== "visible" || boardEl.hidden || (current && current.li.isConnected) || !composer.hidden) return;
     load(data.weekStart).catch(function () {});
   });
 
