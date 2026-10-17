@@ -24,6 +24,8 @@
       items: [
         { label: "Notes", href: "/notes.html?dept=scheduling", key: "notes.scheduling" },
         { label: "Board", href: "/schedule.html", key: "board.view" },
+        // 2026-10-18 (Todd): read-only without jobs.edit; it stays in Design/PM too.
+        { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
         { label: "Workers", href: "/workers.html", key: "workers.edit" },
       ],
     },
@@ -39,7 +41,8 @@
         { label: "Intake", href: "/intake.html", key: "design.view" },
         // M12 (docs/plans/m12-contracts.md section 8).
         { label: "Stone orders", href: "/stone.html", key: "design.view" },
-        { label: "Batten calculator", href: "/battens.html", key: "design.view" },
+        // 2026-10-18 (Todd): the tools page holds the batten calculator (and later tools).
+        { label: "Tools", href: "/tools.html", key: "design.view" },
       ],
     },
     {
@@ -107,6 +110,8 @@
     // M13 (docs/plans/m13-contracts.md section 9).
     "/bonusprint.html": "/bonuses.html",
     "/loanprint.html": "/loans.html",
+    // 2026-10-18: the batten calculator is a tool, so the menu lights up Tools.
+    "/battens.html": "/tools.html",
     "/index.html": "/",
   };
 

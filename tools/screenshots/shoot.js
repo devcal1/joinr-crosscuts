@@ -91,6 +91,9 @@ const PAGES = [
   ["stoneprint-sheet", c => "/stoneprint.html?sheet=" + c.jobJoinr, 1440, true, "design_pm"],
   ["stoneprint-sheet-blank", "/stoneprint.html?sheet=blank", 1440, true, "design_pm"],
   ["design-stone-tile", "/design.html", 1440, true, "design_pm"],
+  // 2026-10-18: the Tools page, and the Scheduling menu open as a scheduling login (Pipeline after Board).
+  ["tools-page", "/tools.html", 1440, true, "design_pm"], ["phone-tools", "/tools.html", 375, true, "design_pm"],
+  ["scheduling-menu-pipeline", "/", 1440, true, "scheduling", undefined, { js: DEPT_MENU("Scheduling"), viewport: true }],
   ["battens", "/battens.html", 1440, true, "design_pm"],
   ["battens-count", "/battens.html", 1440, true, "design_pm", undefined, { js: BATTENS("count") }],
   ["battens-gap-ends", "/battens.html", 1440, true, "design_pm", undefined, { js: BATTENS("gap") }],

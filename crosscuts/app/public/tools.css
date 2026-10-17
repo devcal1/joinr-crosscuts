@@ -1,0 +1,53 @@
+@import url('tokens.css');
+@import url('components.css');
+
+/* The Design/PM Tools page (tools.html). Same tile grid as the Design/PM page (index.css);
+   house-style hs-card, hs-btn and hs-sectionbar come from components.css. This file holds
+   only the layout. */
+
+html, body { margin: 0; background: var(--ink); }
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.dash {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px 24px 56px;
+}
+
+.dash-head { margin-bottom: 20px; }
+.dash-head h1 { margin: 0; color: var(--white); font-size: 28px; font-weight: 700; }
+.dash-head h1:focus { outline: none; }
+
+.dash-section { margin-bottom: 32px; }
+.dash-section > .hs-sectionbar { margin-bottom: 12px; }
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 18px 16px;
+}
+.tile-title { margin: 0; color: var(--white); font-size: 17px; font-weight: 700; }
+.tile-text { margin: 0; color: var(--label); font-size: 14px; }
+.tile-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+@media (max-width: 520px) {
+  .dash { padding: 22px 16px 40px; }
+  .dash-head h1 { font-size: 24px; }
+}

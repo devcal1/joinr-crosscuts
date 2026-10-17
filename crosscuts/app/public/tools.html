@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tools - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="tools.css">
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <!-- The Design/PM tools page (Todd, 2026-10-18): a grid of tool tiles. One tile for now; a new
+       tool is one more <article class="tile hs-card"> in the grid. Nothing here calls the server. -->
+  <main class="dash">
+    <header class="dash-head">
+      <h1 id="toolsTitle" tabindex="-1">Tools</h1>
+    </header>
+
+    <section class="dash-section" aria-labelledby="toolsH">
+      <div class="hs-sectionbar"><h2 class="dash-h2" id="toolsH">Available now</h2></div>
+      <div class="tiles">
+        <article class="tile hs-card" id="battenTile">
+          <h3 class="tile-title">Batten calculator</h3>
+          <p class="tile-text">Works out the gap or the number of battens to fill a space, with a set-out you can print.</p>
+          <div class="tile-links"><a class="hs-btn hs-btn-primary" href="/battens.html">Open</a></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="shell/shell.js"></script>
+</body>
+</html>

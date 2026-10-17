@@ -144,3 +144,12 @@ M13 (0.1.17) adds three items inside existing dropdowns, so the bar's width does
 - **Availability moved to Admin**, after Audit, key `users.admin`. `/availability.html` and every `/api/availability` route need `users.admin`; the page's buttons follow `users.admin`. The board's away chips, over-days outline and "+" picker warning read from `/api/schedule`, so the board is unaffected. The Planner's "who's away" items link to Availability only for `users.admin` holders.
 - **The Scheduling menu now reads:** Board, Workers. Admin: Users, Audit, Availability, Bonuses, Alarms. The `scheduling.view` and `leave.edit` keys stay (see `docs/auth.md`).
 - Sections 1 to 4 above are the history of the original menu and are not rewritten.
+
+## 6. Pipeline under Scheduling, Tools under Design/PM (Todd, 2026-10-18)
+
+- **Scheduling** gains **Pipeline** (`/pipeline.html`, `jobs.view`), after Board. Its order is now Notes, Board, Pipeline, Workers. **Pipeline stays in Design/PM** too. A Scheduling login holds `jobs.view` but not `jobs.edit` or `jobs.value`, so the page is read-only for them: no New job button, no Move to, no drag, no values; `POST /api/job-records/:id/stage` answers 403 (`ci/smoke-m3-pipeline.sh`).
+- **Highlight with two Pipeline links:** the current-page check works per link, so on `/pipeline.html` the Pipeline item lights up in every menu that holds it, and both department buttons are marked current for someone who sees both (admin). It does not try to remember which menu the person came from: no state, no code change.
+- **Design/PM**: the **Batten calculator** item is replaced by **Tools** (`/tools.html`, `design.view`), after Stone orders. The new Tools page is a heading and a grid of tool tiles (the Design/PM page's tile style); the only tile for now is Batten calculator, with an outlined OPEN button to `/battens.html`. Design/PM now reads: Notes, Design/PM, Jobs, Pipeline, Intake, Stone orders, Tools.
+- **Batten calculator page** is unchanged (maths, print) apart from a small outlined "Back to Tools" button beside Print (hidden in print), and its menu highlight shows **Tools** (`PAGE_ALIASES`: `/battens.html` to `/tools.html`).
+- **Who sees Tools:** the same as before for the calculator: admin, Design/PM and Ordering (`design.view`). Accounts and Scheduling get 403 on `/tools.html`.
+- No new colour; both items sit under their department's existing rule.
