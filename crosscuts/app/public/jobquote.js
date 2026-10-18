@@ -1,7 +1,7 @@
 // The job page's "From Joinr quote" section (task J4; contract version 4): the whole quote as Joinr
 // priced it, from GET /api/job-records/:id/joinr-quote. Rooms (each folds away) with their lines,
-// additional items, hours and, for jobs.value holders only, the money; then the labour, options,
-// notes and (money holders) the warnings and totals. The server leaves money out of the answer for
+// additional items, hours and, for jobs.value holders only, the money; then the labour and (money holders) the options,
+// notes, warnings and totals. The server leaves money out of the answer for
 // everyone else, so this page only draws what it is given: `data.money` says whether it has any.
 // Loaded by job.html after job.js; job.js calls JobQuote.start() with jobs.view. All text goes in
 // through textContent. Page classes here are fq-.

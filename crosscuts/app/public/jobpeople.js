@@ -29,6 +29,13 @@
   // The compact label: the first word of the display name; the full name is the tooltip.
   const shortName = (name) => String(name || "").trim().split(/\s+/)[0] || "?";
 
+  // After a change the tile or block is drawn again, so the button that had focus is gone: put focus
+  // on the new Add/Remove me button of the same job (the one place focus can sensibly land).
+  function refocusMe(jobId) {
+    const btn = document.querySelector('.jp-me[data-jp-job="' + jobId + '"]');
+    if (btn) btn.focus();
+  }
+
   async function call(method, path) {
     return api(path, { method, body: method === "POST" ? "{}" : undefined });
   }
@@ -42,6 +49,7 @@
       text: opts.full ? p.name : shortName(p.name),
       title: removable ? `Remove ${p.name} from this job` : p.name,
       type: removable ? "button" : null,
+      "aria-label": removable ? `Remove ${p.name}` : null,
     });
     if (p.hue != null && typeof hueColors === "function") {
       const c = hueColors(p.hue);
@@ -55,6 +63,7 @@
         try {
           const j = await call("DELETE", `/api/job-records/${opts.jobId}/people/${p.userId}`);
           if (opts.onChange) opts.onChange(j);
+          refocusMe(opts.jobId);
         } catch (e) {
           node.disabled = false;
           if (opts.onError) opts.onError(e.message);
@@ -72,7 +81,7 @@
     if (!list.length) return null;
     const max = opts.max > 0 ? opts.max : list.length;
     const admin = can("users.admin");
-    const box = el("span", { class: "jp-chips", "aria-label": "People on this job" });
+    const box = el("span", { class: "jp-chips" });
     for (const p of list.slice(0, max)) {
       box.append(
         chip(p, {
@@ -88,8 +97,11 @@
       box.append(
         el("span", {
           class: "jp-more",
+          role: "img",
+          tabindex: "0",
           text: "+" + (list.length - max),
           title: list.slice(max).map((p) => p.name).join(", "),
+          "aria-label": "Also on this job: " + list.slice(max).map((p) => p.name).join(", "),
         })
       );
     }
@@ -106,6 +118,7 @@
     const btn = el("button", {
       type: "button",
       class: "hs-btn hs-btn-quiet jp-me",
+      "data-jp-job": String(job.id),
       text: opts.compact ? (mine ? "− Me" : "+ Me") : mine ? "Remove me" : "Add me",
       title: label,
       "aria-label": label,
@@ -117,6 +130,7 @@
           ? await call("DELETE", `/api/job-records/${job.id}/people/${myId()}`)
           : await call("POST", `/api/job-records/${job.id}/people`);
         if (opts.onChange) opts.onChange(j);
+        refocusMe(job.id);
       } catch (e) {
         btn.disabled = false;
         if (opts.onError) opts.onError(e.message);

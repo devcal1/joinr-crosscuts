@@ -666,7 +666,7 @@
   const ORDER_ACT = Object.fromEntries(ORDER_ACTS.map((a) => [a.id, a]));
 
   function orderLineName(o) {
-    return o.supplier + (o.description ? ", " + o.description : "");
+    return (o.supplier || "No supplier yet") + (o.description ? ", " + o.description : "");
   }
 
   // The Actions column shows for anyone who may change a line in some way.

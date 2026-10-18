@@ -454,10 +454,20 @@ function linkTx(db, req, id, jid) {
         after[col] = v;
       }
     }
-    // A job still at Quoted (or the retired Lead) is about to move to Won below: its won date is the
-    // Joinr one (set here, so moveStage leaves it alone and the fill is one job.update).
-    const goesToWon = (job.stage === "quoted" || job.stage === "lead") && isEmpty(job.won_date);
-    if (goesToWon) {
+    // 2026-10-18: a won quote makes a job still at Quoted (or the retired Lead) a Won job. A job
+    // already further along stays where it is. A move the pipeline rules refuse (the job has week
+    // rows) is skipped: the link still stands, and the job gets no won date (it did not become Won).
+    // The move comes first, so the won date is written only when the stage really moves; the Joinr
+    // won date then replaces the one moveStage stamped (today).
+    let moved = false;
+    if (job.stage === "quoted" || job.stage === "lead") {
+      try {
+        moved = jobstage.moveStage(db, jid, { stage: "won", from: job.stage }, req).changed;
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+      }
+    }
+    if (moved && isEmpty(job.won_date)) {
       before.won_date = job.won_date;
       after.won_date = wonDateOf(q);
     }
@@ -484,17 +494,6 @@ function linkTx(db, req, id, jid) {
     if (upd.changes !== 1) throw conflict("This quote has already been dealt with");
 
     audit.log(req, { action: "job.update", entityType: "job", entityId: jid, before, after });
-    // 2026-10-18: a won quote makes a job still at Quoted (or the retired Lead) a Won job. A job
-    // already further along stays where it is. A move the pipeline rules refuse (the job has week
-    // rows) is skipped: the link still stands.
-    let moved = false;
-    if (job.stage === "quoted" || job.stage === "lead") {
-      try {
-        moved = jobstage.moveStage(db, jid, { stage: "won", from: job.stage }, req).changed;
-      } catch (e) {
-        if (!(e instanceof HttpError)) throw e;
-      }
-    }
     audit.log(req, {
       action: "joinr.link",
       entityType: "joinr_intake",
@@ -521,17 +520,19 @@ function link(db, req, id, jobId) {
 }
 
 // A won quote that has just arrived (2026-10-18, Todd): no person decides. Exactly one live job
-// with the same quote number and no Joinr link is linked (as Link does); otherwise a Won job is
-// made (as Accept does). Then one task for the design team and an alert to its members.
+// with the same quote number and no Joinr link is linked (as Link does); none: a Won job is
+// made (as Accept does). Two or more: nothing is made, the record stays `new` for a person to
+// choose which job to link. Then one task for the design team and an alert to its members.
 // Runs as one unit: if anything fails, nothing is kept and the record stays `new` for a person
-// (the caller catches). Returns {state: 'accepted' | 'linked', jobId}, or null if the record
-// is not waiting.
+// (the caller catches). Returns {state: 'accepted' | 'linked', jobId}, {state: 'inbox', matches}
+// for the 2+ case, or null if the record is not waiting.
 function autoDecide(db, id) {
   const req = SYSTEM_REQ;
   return db.transaction(() => {
     const row = loadRow(db, id);
     if (row.state !== "new") return null;
     const found = matches(db, row.id);
+    if (found.length >= 2) return { state: "inbox", matches: found.length };
     let state;
     let jobId;
     if (found.length === 1) {
