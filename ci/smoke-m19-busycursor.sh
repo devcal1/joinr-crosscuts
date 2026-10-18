@@ -2,7 +2,7 @@
 # while a page loads or a link is followed. Sourced by ci/smoke.sh with the M19 suites, so it shares
 # that script's helpers (step, req, expect_status, fail, ok), the cookie jar $ADMIN and $HDR_FILE.
 # No shebang and no `set`: the caller owns both. It reads static files only and changes nothing.
-# The behaviour itself (click, load phase, bfcache, background fetches, reduced motion) is checked
+# The behaviour itself (click, load phase, actions in progress, bfcache, background fetches, reduced motion) is checked
 # in a real browser by hand; this suite proves the pieces are served.
 
 # ============================================================================
@@ -23,6 +23,13 @@ done
 req GET /shell/busy.js
 expect_status 200 "logged out GET /shell/busy.js"
 printf '%s' "$BODY" | grep -q 'window.ccBusy' || fail "busy.js does not define window.ccBusy"
+ok
+# The "action in progress" reason (2026-10-18): fetches and XHR uploads that follow a user gesture.
+printf '%s' "$BODY" | grep -q 'ACT_DELAY_MS' || fail "busy.js has no delay before an action shows the dot"
+ok
+printf '%s' "$BODY" | grep -q 'XMLHttpRequest.prototype.send' || fail "busy.js does not count XMLHttpRequest uploads"
+ok
+printf '%s' "$BODY" | grep -q 'ccBackground' || fail "busy.js has no ccBackground opt-out"
 ok
 
 req GET /shell/shell.css "$ADMIN"

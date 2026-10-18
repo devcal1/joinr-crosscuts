@@ -388,7 +388,7 @@ text above where they differ.
 - **Won quotes become jobs by themselves:** a won Joinr quote is auto-Won. Exactly one live job with the same quote number is linked automatically; none makes a new Won job; two or more go to the inbox for a person to choose which to link. Import creates Won jobs too.
 - **Materials list:** each job has a Materials list filled from the Joinr quote, with overrides (a line a person changes or removes is left alone by later syncs), and a button turns chosen lines into order lines.
 - **Full Joinr quote on the job:** the whole quote is shown on the job page. The money, Joinr's warnings, the quote notes and the option names are shown only to holders of jobs.value.
-- **Loading cursor: the Joinr dot (Todd 2026-10-18):** while a page loads, or after a link or form is used and the next page is awaited, the mouse pointer is the Joinr dot (the spectrum circle on the ink tile), gently pulsing. It is set only by the shared shell, on every page including login, setup and photo search. It is not set for background reloads or polls, and with reduced motion the dot is still.
+- **Loading cursor: the Joinr dot (Todd 2026-10-18):** while a page loads, or after a link or form is used and the next page is awaited, or while an action you started is in progress (a save, a move, an upload, a list you asked to load; shown only if it takes more than a third of a second), the mouse pointer is the Joinr dot (the spectrum circle on the ink tile), gently pulsing. It is set only by the shared shell, on every page including login, setup and photo search. It is not set for background reloads or polls, and with reduced motion the dot is still.
 
 ## 6. Cross-cutting systems
 
