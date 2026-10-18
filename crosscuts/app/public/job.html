@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="jobstone.css">
 <link rel="stylesheet" href="jobpeople.css">
 <link rel="stylesheet" href="jobmaterials.css">
+<link rel="stylesheet" href="jobquote.css">
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -32,6 +33,14 @@
       </div>
       <p id="joinrStatus" class="jo-status muted" role="status"></p>
       <div id="joinrBody"></div>
+    </section>
+
+    <!-- The whole Joinr quote (jobquote.js; task J4). Money in it only for jobs.value holders (the server leaves it out). -->
+    <section id="fullquote" class="jo-sec" aria-labelledby="fullquote-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="fullquote-h">From Joinr quote</h2>
+      </div>
+      <div id="fqBody"></div>
     </section>
 
     <!-- The job's materials list (jobmaterials.js; docs/plans/materials-contracts.md) -->
@@ -221,6 +230,7 @@
   <script src="orderui.js"></script>
   <script src="drawers.js"></script>
   <script src="jobmaterials.js"></script>
+  <script src="jobquote.js"></script>
   <script src="job.js"></script>
   <script src="jobstone.js"></script>
   <script src="/shell/shell.js"></script>

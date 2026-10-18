@@ -92,6 +92,8 @@ const routers = [
   require("./routes/notes"),
   // The job's Materials list (docs/plans/materials-contracts.md).
   require("./routes/materials"),
+  // The job's "From Joinr quote" (task J4; money only for jobs.value).
+  require("./routes/joinr-quote"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

@@ -2035,6 +2035,8 @@
     sectionsReady = true;
     const tasks = [];
     if (can("jobs.view")) tasks.push(loadJoinr());
+    // The whole Joinr quote (jobquote.js; task J4): money in it only for jobs.value holders, by the server.
+    if (can("jobs.view") && window.JobQuote) tasks.push(window.JobQuote.start({ jobId }));
     if (can("jobs.view")) {
       // The Materials list (jobmaterials.js) sits above Orders; Create order lines refreshes Orders.
       if (window.JobMaterials) tasks.push(window.JobMaterials.start({ jobId, can, onOrdersChanged: () => { loadOrders(); loadSuppliers(); } }));

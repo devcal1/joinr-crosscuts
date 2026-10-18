@@ -17,6 +17,11 @@
 //                            `drawers` (M11, contract version 2: [{section, name, qty}]) is
 //                            sent only when the body gives it, so an item without it is what an
 //                            older Joinr sends; "drawers": null is sent as null.
+//                            `quote` (J4, contract version 4) likewise: it is sent only when the body
+//                            gives it (an object as given; null = "too large / can't price"). Or give
+//                            "_quote": true (or {pricedAt, gstRate, boards, markup, extraLine,
+//                            omitDrawers}) for a realistic two-room quote with money; its total
+//                            becomes valueIncGstCents unless the body sets one.
 //   POST /_control/fail      {"fail": 500 | 401 | 429 | "hang" | "garbage" | "html" | "big" | null,
 //                             "count": N (default 1)}: the next N won-quotes calls fail that
 //                            way. "garbage" is a 200 application/json body that is not JSON;
@@ -69,7 +74,149 @@ const hung = new Set();
 let oq = { enabled: false, quotes: [], truncated: false };
 let oqFail = { mode: null, count: 0, retryAfter: 60 };
 
+// J4 (contract version 4, "The quote object"): a realistic whole quote. `opts` (all optional):
+//   pricedAt   'snapshot' (default) or 'live'
+//   gstRate    0.1 (default); changing it re-prices the totals only, like a GST change in Joinr
+//   boards     sheets of board in the Kitchen (default 12)
+//   markup     the tier's material markup (default 1.3)
+//   extraLine  true: one more Kitchen handle line ("Bar handle 160mm")
+//   omitDrawers true: no drawer lines
+//   padRooms   N extra rooms of 600 long-named lines (a quote over 1.5 MB but under the 2 MB response cap)
+// Money is integer cents; room totals are computed from the lines so the figures add up.
+function fullQuote(opts = {}) {
+  const markup = opts.markup === undefined ? 1.3 : opts.markup;
+  const gstRate = opts.gstRate === undefined ? 0.1 : opts.gstRate;
+  const line = (section, sectionTitle, kind, costBucket, hoursBucket, unit, name, qty, rate, extra = {}) => ({
+    section, sectionTitle, kind, costBucket, hoursBucket, unit, name, qty,
+    unitRateCents: rate, lineTotalCents: Math.round(qty * rate), ...extra,
+  });
+  const kitchen = [
+    line("officeLabour", "Office Labour", "labour", "labourOffice", "office", "hrs", "Design and drafting", 8, 9500),
+    line("boardEdge", "Board & Edge", "board", "materials", null, "sheets", "White Melamine 18mm", opts.boards === undefined ? 12 : opts.boards, 8200, { boardCostCents: 7000, edgingCents: 600, cncCents: 600 }),
+    line("boardEdge", "Board & Edge", "board", "materials", null, "sheets", "Oak Veneer 16mm", 4, 14500, { boardCostCents: 13200, edgingCents: 650, cncCents: 650 }),
+    line("benchtops", "Benchtops", "simple", "materials", null, "m", "Laminate benchtop 33mm", 4.2, 21000),
+    ...(opts.omitDrawers ? [] : [
+      line("drawers", "Drawers", "simple", "materials", null, "ea", "Tandembox 450 Grey", 6, 4800),
+      line("innerDrawers", "Inner Drawers", "simple", "materials", null, "ea", "Inner drawer 450", 3, 3600),
+    ]),
+    line("handles", "Handles", "simple", "materials", null, "ea", "Finger pull profile", 14, 1250),
+    ...(opts.extraLine ? [line("handles", "Handles", "simple", "materials", null, "ea", "Bar handle 160mm", 6, 980)] : []),
+    line("hardware", "Hardware", "simple", "materials", null, "ea", "Soft-close hinge", 28, 410),
+    line("roomExtras", "Room Extras", "simple", "materials", null, "ea", "Bin pull-out 450", 1, 22000),
+    line("factoryLabour", "Factory Labour", "labour", "labourWorkshop", "factory", "hrs", "Assembly", 24, 7800),
+    line("siteLabour", "Site Labour", "labour", "labourWorkshop", "site", "hrs", "Install", 16, 8200),
+    line("travel", "Travel", "travel", "overheads", "travel", "trips", "Site trips", 2, 3800, { perKmCents: 190 }),
+  ];
+  const laundry = [
+    line("boardEdge", "Board & Edge", "board", "materials", null, "sheets", "White Melamine 18mm", 5, 8200, { boardCostCents: 7000, edgingCents: 600, cncCents: 600 }),
+    line("hardware", "Hardware", "simple", "materials", null, "ea", "Soft-close hinge", 8, 410),
+    line("factoryLabour", "Factory Labour", "labour", "labourWorkshop", "factory", "hrs", "Assembly", 8, 7800),
+    line("siteLabour", "Site Labour", "labour", "labourWorkshop", "site", "hrs", "Install", 4, 8200),
+  ];
+  const custom = (description, qty, price) => {
+    const total = Math.round(qty * price);
+    return { description, qty, unitPriceCents: price, lineTotalCents: total, markup, markupFromTier: true, lineTotalWithMarkupCents: Math.round(total * markup) };
+  };
+  const rooms = [
+    { id: "room-kitchen", name: "Kitchen", spec: { doorsPanels: "2-pac shaker doors", benchtop: "Laminate", jobType: "Kitchen" }, lines: kitchen, customItems: [custom("Pantry pull-out", 1, 45000)] },
+    { id: "room-laundry", name: "Laundry", spec: { doorsPanels: "Melamine", benchtop: "", jobType: "Laundry" }, lines: laundry, customItems: [custom("Trade discount", 1, -5000)] },
+  ].map((r) => {
+    const sum = (f) => r.lines.filter(f).reduce((a, l) => a + l.lineTotalCents, 0);
+    const labourOffice = sum((l) => l.costBucket === "labourOffice");
+    const labourWorkshop = sum((l) => l.costBucket === "labourWorkshop");
+    const matLines = sum((l) => l.costBucket === "materials");
+    const customTotal = r.customItems.reduce((a, c) => a + c.lineTotalCents, 0);
+    const materials = matLines + customTotal;
+    const travel = sum((l) => l.hoursBucket === "travel");
+    const overheadRecovery = Math.round((labourOffice + labourWorkshop) * 0.15);
+    const overheads = overheadRecovery + travel;
+    const markupCents = Math.round(materials * (markup - 1));
+    const subtotal = labourOffice + labourWorkshop + materials + markupCents + overheads;
+    const exGst = subtotal;
+    const gst = Math.round(exGst * gstRate);
+    const inc = exGst + gst;
+    const cogs = Math.round((labourOffice + labourWorkshop) * 0.9 + materials + overheads);
+    const ids = [];
+    for (const l of r.lines) if (!ids.includes(l.section)) ids.push(l.section);
+    return {
+      id: r.id, name: r.name, adjust: 0, spec: r.spec, lines: r.lines, customItems: r.customItems,
+      sections: ids.map((id) => {
+        const ls = r.lines.filter((l) => l.section === id);
+        return { id, title: ls[0].sectionTitle, totalCents: ls.reduce((a, l) => a + l.lineTotalCents, 0) };
+      }),
+      hours: {
+        office: sum((l) => l.hoursBucket === "office") / 9500,
+        factory: sum((l) => l.hoursBucket === "factory") / 7800 / 2,
+        site: sum((l) => l.hoursBucket === "site") / 8200 / 2,
+        travel: (sum((l) => l.hoursBucket === "travel") / 3800) * 38 / 60 * 2,
+      },
+      totals: {
+        labourOfficeCents: labourOffice, labourWorkshopCents: labourWorkshop, materialsCents: materials,
+        customItemsCents: customTotal, travelCents: travel, overheadRecoveryCents: overheadRecovery,
+        overheadsCents: overheads, markupFactor: markup, markupCents, subtotalCents: subtotal, adjustCents: 0,
+        roomAdjustCents: 0, exGstCents: exGst, gstCents: gst, incGstCents: inc, costOfGoodsCents: cogs,
+        cogsRatio: inc ? cogs / inc : 0, marginCents: inc - cogs, cogsWarning: false,
+      },
+    };
+  });
+  const tot = (k) => rooms.reduce((a, r) => a + r.totals[k], 0);
+  // padRooms: N extra rooms of 600 lines with 300-character names (to make a quote over Crosscuts'
+  // 1.5 MB storage cap yet under its 2 MB response cap). Totals are left as they were.
+  for (let i = 0; i < (opts.padRooms || 0); i++) {
+    const lines = [];
+    for (let j = 0; j < 600; j++) {
+      lines.push(line("hardware", "Hardware", "simple", "materials", null, "ea", `Pad ${i}-${j} ` + "x".repeat(285), 1, 100));
+    }
+    rooms.push({
+      id: `room-pad-${i}`, name: `Pad room ${i}`, adjust: 0, spec: { doorsPanels: "", benchtop: "", jobType: "" }, lines, customItems: [],
+      sections: [{ id: "hardware", title: "Hardware", totalCents: 60000 }], hours: { office: 0, factory: 0, site: 0, travel: 0 },
+      totals: { ...rooms[0].totals },
+    });
+  }
+  const labourKind = (bucket, typed, rate) => ({ typed, hours: bucket === "office" ? typed : typed / 2, costCents: Math.round(typed * rate) });
+  const incGst = tot("incGstCents");
+  const cogs = tot("costOfGoodsCents");
+  return {
+    pricedAt: opts.pricedAt || "snapshot",
+    gst: { registered: true, rate: gstRate },
+    tier: { requested: "retail", code: "retail", label: "Retail", materialMarkup: markup, fallback: false },
+    globalMarkup: 0,
+    kmFromFactory: 38,
+    cogsFactors: { labour: 0.9, materials: 1 },
+    overheadRatePerHourCents: 1500,
+    notes: "Client wants the pantry pull-out fitted before install week.",
+    rooms,
+    labour: {
+      office: labourKind("office", 8, 9500),
+      factory: labourKind("factory", 32, 7800),
+      site: labourKind("site", 20, 8200),
+      travel: { typed: 2, hours: 2 * 38 / 60 * 2, costCents: 7600 },
+      overheadRecoveryCents: tot("overheadRecoveryCents"),
+    },
+    options: [
+      { id: "opt-1", roomId: "room-kitchen", roomName: "Kitchen", label: "Stone benchtop instead of laminate", kind: "benchtop", priceIncGstCents: 480000, priceExGstCents: Math.round(480000 / (1 + gstRate)), computed: false },
+    ],
+    totals: {
+      labourOfficeCents: tot("labourOfficeCents"), labourWorkshopCents: tot("labourWorkshopCents"),
+      materialsCents: tot("materialsCents"), markupCents: tot("markupCents"), overheadsCents: tot("overheadsCents"),
+      adjustCents: 0, exGstCents: tot("exGstCents"), gstCents: tot("gstCents"), incGstCents: incGst,
+      costOfGoodsCents: cogs, cogsRatio: incGst ? cogs / incGst : 0, cogsWarning: false, marginCents: incGst - cogs,
+      costs: { officeCents: tot("labourOfficeCents"), labourCents: tot("labourWorkshopCents"), labourFactoryCents: 187200, labourSiteCents: 164000, materialsCents: tot("materialsCents"), overheadsCents: tot("overheadsCents") },
+    },
+    warnings: [{ severity: "amber", message: "Materials are a high share of the Laundry price", roomName: "Laundry" }],
+  };
+}
+
 function defaults(body) {
+  body = { ...body };
+  // J4: "_quote": true | {opts} builds a realistic quote (above); valueIncGstCents follows its total
+  // unless the body gives one. An explicit "quote" (an object, or null) is sent as given.
+  if (body._quote !== undefined) {
+    const q = fullQuote(body._quote === true ? {} : body._quote);
+    delete body._quote;
+    body.quote = q;
+    if (body.valueIncGstCents === undefined) body.valueIncGstCents = q.totals.incGstCents;
+  }
   const quoteId = body.quoteId || crypto.randomUUID();
   const base = {
     event: "won",

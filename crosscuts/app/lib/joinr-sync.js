@@ -12,6 +12,7 @@
 const crypto = require("crypto");
 const config = require("./joinr-config");
 const notify = require("./notify");
+const joinrQuote = require("./joinr-quote");
 const intake = require("./intake");
 
 const PATH = "/api/integrations/crosscuts/won-quotes";
@@ -423,6 +424,10 @@ function validateItem(item) {
     url: item.url,
   };
   if (drawersProblem) drawerProblems.set(out, drawersProblem);
+  // J4 (contract version 4): the whole quote. It is checked here but kept out of `out`, which is the
+  // payload that "Changed in Joinr" compares: Joinr prices the quote when it builds the item, so it can
+  // differ with no edit. A malformed or oversized quote is dropped and the item kept (never refused).
+  joinrQuote.attach(out, joinrQuote.readItemQuote(item));
   return out;
 }
 
@@ -444,6 +449,7 @@ function comparable(p) {
   return rest;
 }
 
+// `quote` (J4) is deliberately not here, and is not in the payload at all (lib/joinr-quote.js).
 const LABELS = {
   quoteId: "revision",
   revision: "revision",
@@ -523,6 +529,10 @@ function applyItem(db, item) {
     const result = applyItemInner(db, item);
     const problem = drawerProblems.get(item);
     if (problem) reportDrawerProblem(db, item, problem);
+    const q = joinrQuote.stateOf(item);
+    if (q.problem) {
+      console.warn(`[joinr] item ${logCursor(item.cursor)}: quote not read (${scrub(q.problem)}); item kept without it`);
+    }
     return result;
   })();
 }
@@ -564,6 +574,8 @@ function applyItemInner(db, item) {
         )
         .run(item.rootQuoteId, item.quoteId, item.quoteNumber, item.status, item.event, payload, now, now);
       const id = Number(info.lastInsertRowid);
+      // J4: the quote snapshot goes in first, so the automatic job's Materials list is built from it.
+      joinrQuote.store(db, id, item.quoteId, joinrQuote.stateOf(item));
       // 2026-10-18 (Todd): a won quote becomes a Won job (or links to the one job with its quote
       // number) with no person clicking; the design team gets a task and an alert. It runs in a
       // savepoint: if it fails, the record stays `new` for a person, with the old alert, and the
@@ -594,8 +606,16 @@ function applyItemInner(db, item) {
       stored = null;
     }
     const fields = changedFields(stored, item);
+    // J4: the latest quote snapshot. It moves with a real item change (and for a record nobody has
+    // decided on yet), or when none is stored yet; a re-priced quote on an identical item is no change
+    // and never replaces it. An item without a readable quote leaves the snapshot as it is.
+    const keepQuote = (always) => {
+      const q = joinrQuote.stateOf(item);
+      if (always || !joinrQuote.hasSnapshot(db, row.id)) joinrQuote.store(db, row.id, item.quoteId, q);
+    };
 
     if (row.state === "new") {
+      keepQuote(true);
       // A won quote that is gone (un-won, deleted, or no longer won) leaves the inbox.
       if (item.event === "unwon" || item.event === "deleted" || !isLive(item)) {
         update(", state = 'withdrawn'");
@@ -606,6 +626,7 @@ function applyItemInner(db, item) {
     }
 
     if (row.state === "withdrawn") {
+      keepQuote(true);
       if (item.event === "won" && isLive(item)) {
         update(", state = 'new'");
         alert(db, "joinr.new", row.id, titleFor("New from Joinr", item), item.clientName || "");
@@ -620,6 +641,7 @@ function applyItemInner(db, item) {
     // unwon/deleted/won event for something Crosscuts already holds is not a change by itself.
     // A repeat of an identical item only records that it was seen.
     const differs = fields.length > 0;
+    keepQuote(differs);
     if (!differs) {
       // M11 section 4.4: drawer lines first reported now (null -> a list) are no change, but they
       // are kept, so the job page and Refill see them and a later change to them is flagged.

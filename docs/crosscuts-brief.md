@@ -445,6 +445,15 @@ Requirements regardless of method:
   quote's drawer lines, as an optional `drawers` field (contract document version
   2; the wire `contract` stays 1). An older Joinr that doesn't send it is
   treated as "no drawer data".
+- **J4 (Todd 2026-10-18):** the intake item may also carry the **whole quote**, as
+  an optional `quote` object (contract document version 4; the wire `contract`
+  stays 1): every room and priced line, the additional items, labour hours,
+  options, notes and the totals, with the money figures. Crosscuts keeps the latest
+  copy beside the intake record (never in the compared payload, so a quote
+  re-priced in Joinr with no edit never raises "Changed in Joinr"), prefills the
+  job's Materials list from its materials lines (never labour), and shows it on
+  the job page as "From Joinr quote". Money in it is shown only to `jobs.value`
+  holders and is left out of the API's answer for everyone else.
 
 ### 6.5 Remote access and devices
 
