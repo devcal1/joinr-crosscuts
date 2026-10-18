@@ -1,12 +1,15 @@
 // Local dev only. Seeds a local Crosscuts (dev shim) with sample workers, board rows, a flag and
-// a note, for screenshots: node tools/screenshots/seed.js [base, default http://localhost:3997]
+// a note, and, since 0.1.21, job people, a Materials list, a full Joinr quote and an intake row left for a person,
+// for screenshots: SEED_CONFIG_DIR=<the server CONFIG_DIR> node tools/screenshots/seed.js [base, default http://localhost:3997]
+// (SEED_CONFIG_DIR starts the stand-in Joinr, ci/fake-joinr.js, on SEED_JOINR_PORT, default 4891; without it the Joinr parts are skipped.)
 // The admin below is a test-only account for a throwaway local database (.dev or a temp dir).
 const B = process.argv[2] || "http://localhost:3997";
 const USER = "admin", PW = "Shots-Local-Test-1";
 let cookie = "";
-async function api(method, path, body) {
-  const r = await fetch(B + path, { method, headers: { Origin: B, "Content-Type": "application/json", Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
-  const sid = (r.headers.getSetCookie() || []).find(c => c.startsWith("crosscuts_sid=")); if (sid) cookie = sid.split(";")[0];
+// `as`: another login's cookie ("crosscuts_sid=..."); the admin's own cookie is left alone then.
+async function api(method, path, body, as) {
+  const r = await fetch(B + path, { method, headers: { Origin: B, "Content-Type": "application/json", Cookie: as || cookie }, body: body ? JSON.stringify(body) : undefined });
+  const sid = (r.headers.getSetCookie() || []).find(c => c.startsWith("crosscuts_sid=")); if (sid && !as) cookie = sid.split(";")[0];
   const t = await r.text(); let j; try { j = JSON.parse(t); } catch { j = t; }
   if (!r.ok) throw new Error(`${method} ${path} ${r.status} ${t.slice(0, 200)}`);
   return j;
@@ -181,6 +184,11 @@ async function api(method, path, body) {
       return true;
     } finally { fake.kill(); fs.rmSync(keyFile, { force: true }); fs.rmSync(baseFile, { force: true }); }
   };
+  // A job by its exact name (the job list is an array or {rows|jobs}, depending on the route's age).
+  const findJob = async name => {
+    const jr = await api("GET", "/api/job-records");
+    return (Array.isArray(jr) ? jr : jr.rows || jr.jobs || []).find(j => j.name === name) || null;
+  };
   if (!(await api("GET", "/api/drawers/names")).names.length) {
     const jobsAll = await api("GET", "/api/job-records");
     const jobByName = n => (Array.isArray(jobsAll) ? jobsAll : jobsAll.rows || jobsAll.jobs || []).find(j => j.name === n);
@@ -203,16 +211,20 @@ async function api(method, path, body) {
         const root = "5eed0000-0000-4000-8000-000000000011";
         // M12: a stone benchtop and its room text as typed in Joinr (made up), for the job page's
         // "Benchtop (as typed)" line and the printed benchtop sheet.
+        // 0.1.21: `_quote: true` makes the stand-in send a full Joinr quote (rooms, lines, money): kept
+        // as the job's quote snapshot and used to fill its Materials list.
         const quote = drawers => fetch(jb + "/_control/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
           rootQuoteId: root, quoteId: root, quoteNumber: "Q-DEMO-0042", siteAddress: "Demo Cooper pantry", clientName: "Cooper (made up)",
-          wonAt: "2026-10-01T01:00:00Z", updatedAt: "2026-10-01T01:00:00Z", drawers,
+          wonAt: "2026-10-01T01:00:00Z", updatedAt: "2026-10-01T01:00:00Z", drawers, _quote: true,
           spec: { benchtop: "stone" }, raw: { benchtops: ["Pantry: M12 Stone Brand 20 mm, Example White", "Island: M12 Stone Brand 40 mm mitred, Example White", "Pantry: M12 Stone Brand 20 mm, Example White"] } }) });
         const list = high => [{ section: "drawers", name: "Demo Drawer Box Mid 500", qty: 6 }, { section: "drawers", name: "Demo Drawer Box High 500", qty: high },
           { section: "drawers", name: "Demo Runner Set (not a drawer)", qty: 10 }, { section: "innerDrawers", name: "Demo Pot Drawer 600", qty: 2 }];
         await quote(list(4));
+        // Since 0.1.21 the import makes the Won job itself (and a Design/PM team task), so there is no
+        // inbox row to accept: the job is found by its name (the quote's site address).
         await api("POST", "/api/joinr/import", {});
-        const item = (await api("GET", "/api/joinr/intake")).rows.find(i => i.quoteNumber === "Q-DEMO-0042");
-        joinrJob = (await api("POST", `/api/joinr/intake/${item.id}/accept`, {})).job;
+        joinrJob = await findJob("Demo Cooper pantry");
+        if (!joinrJob) throw new Error("the import did not make the Demo Cooper pantry job");
         const jl = (await api("GET", `/api/job-records/${joinrJob.id}/drawers`)).lines;
         await api("POST", `/api/orders/${jl[0].id}/drawers/check`, { checked: true });
         await quote(list(5)); // Joinr now says 5 High 500, not 4
@@ -372,8 +384,9 @@ async function api(method, path, body) {
           wonAt: "2026-09-20T01:00:00Z", updatedAt: "2026-09-20T01:00:00Z", valueIncGstCents: 3000000,
           estimatedHours: { office: 1, factory: 10.5, site: 4, travel: 0.5 } }) });
         await api("POST", "/api/joinr/import", {});
-        const item = (await api("GET", "/api/joinr/intake")).rows.find(i => i.quoteNumber === "Q-M13-0001");
-        draftJobId = item.job ? item.job.id : (await api("POST", `/api/joinr/intake/${item.id}/accept`, {})).job.id;
+        // 0.1.21: the import makes the job itself.
+        const made = await findJob("M13 Draft Bonus Job");
+        draftJobId = made ? made.id : null;
       });
       const handJob = (name, valueCents, extra) => api("POST", "/api/job-records", { name, valueCents, clientName: "M13 Client (made up)", ...extra });
       if (!draftJobId) draftJobId = (await handJob("M13 Draft Bonus Job", 3000000, { quoteNumber: "Q-M13-0001" })).id;
@@ -454,6 +467,86 @@ async function api(method, path, body) {
     m13.leavers = (await api("GET", "/api/alarms/summary")).leavers.length;
     m13.loans = (await api("GET", "/api/loans")).loans.length + "+" + (await api("GET", "/api/loans?archived=1")).loans.length + " archived";
   }
+  // 0.1.21 (docs/plans/materials-contracts.md, migrations 032-035): job people, a Materials list,
+  // a full Joinr quote and an intake row left for a person. Made-up names only ("M21 ...").
+  const m21 = {};
+  {
+    const PW1 = "Menu-Local-Test-1", PW2 = "Menu-Local-Test-2"; // test-only, as shoot.js
+    const loginCookie = async (username, password) => {
+      const r = await fetch(B + "/api/auth/login", { method: "POST", headers: { Origin: B, "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+      const c = (r.headers.getSetCookie() || []).find(x => x.startsWith("crosscuts_sid="));
+      return r.ok && c ? c.split(";")[0] : null;
+    };
+    // A login linked to a board worker (migration 033), able to put its name on a job. A new login
+    // must choose its own password first, so this does the same change shoot.js does.
+    const personCookie = async (username, displayName, worker) => {
+      let ck = await loginCookie(username, PW2);
+      if (ck) return ck;
+      const have = await api("GET", "/api/users");
+      let u = (Array.isArray(have) ? have : have.rows || have.users || []).find(x => x.username === username);
+      if (!u) u = await api("POST", "/api/users", { username, displayName, password: PW1, roles: ["design_pm"] });
+      if (worker) await api("PUT", `/api/users/${u.id}/worker`, { workerId: worker.id });
+      ck = await loginCookie(username, PW1);
+      if (!ck) throw new Error("login failed for " + username);
+      await api("POST", "/api/auth/password", { currentPassword: PW1, newPassword: PW2 }, ck);
+      return await loginCookie(username, PW2);
+    };
+    const jobNames = ["Smith kitchen", "Nguyen laundry", "Harbour St vanity", "Patel robes", "Demo Cooper pantry", "Lee bathroom"];
+    const jobsNow = Object.fromEntries(await Promise.all(jobNames.map(async n => [n, await findJob(n)])));
+    const people = [["m21alex", "Avery (M21)", workers[3]], ["m21bree", "Blake (M21)", workers[4]], ["m21cam", "Casey (M21)", workers[5]], ["m21dee", "Drew (M21, no worker)", null]];
+    const cookies = [];
+    for (const [u, dn, w] of people) cookies.push(await personCookie(u, dn, w));
+    // Who is on which tile: some jobs carry two or three names, one has a login with no worker (grey).
+    const onJobs = [["Smith kitchen", [0, 1]], ["Nguyen laundry", [1]], ["Harbour St vanity", [0, 2, 3]], ["Demo Cooper pantry", [0, 1, 2]], ["Patel robes", [3]]];
+    for (const [name, who] of onJobs) {
+      if (!jobsNow[name]) continue;
+      for (const k of who) await api("POST", `/api/job-records/${jobsNow[name].id}/people`, {}, cookies[k]);
+    }
+    m21.names = onJobs.map(([n, w]) => n + ":" + w.length).join(" ");
+
+    // The Joinr job (made by the import, with a full quote): its Materials list is filled from the
+    // quote by the import; fill it now if it is not, make one hand edit (a Joinr line the sync then
+    // leaves alone), type two lines, and turn one section into order lines.
+    const cooper = jobsNow["Demo Cooper pantry"];
+    if (cooper) {
+      let list = await api("GET", `/api/job-records/${cooper.id}/materials`);
+      if (!(list.lines || list.rows || []).length) {
+        await api("POST", `/api/job-records/${cooper.id}/materials/fill-from-joinr`, {});
+        list = await api("GET", `/api/job-records/${cooper.id}/materials`);
+      }
+      const lines = list.lines || list.rows || [];
+      const hinge = lines.find(l => /hinge/i.test(l.name));
+      if (hinge) await api("PATCH", `/api/job-records/${cooper.id}/materials/${hinge.id}`, { qty: hinge.qty + 4, notes: "Four spare, for the pantry doors" });
+      await api("POST", `/api/job-records/${cooper.id}/materials`, { section: "hardware", name: "Cabinet feet 100 mm (made up)", qty: 24, unit: "ea", notes: "Typed in by hand" });
+      await api("POST", `/api/job-records/${cooper.id}/materials`, { section: "other", name: "Silicone, white", qty: 2, unit: "tube" });
+      m21.cooperMaterials = (await api("GET", `/api/job-records/${cooper.id}/materials`)).lines.length;
+    }
+    // A hand job with a typed list only (nothing from Joinr), so the page shows no Fill button.
+    const smithJob = jobsNow["Smith kitchen"];
+    if (smithJob && !((await api("GET", `/api/job-records/${smithJob.id}/materials`)).lines || []).length) {
+      for (const [section, name, qty, unit] of [["boards", "White melamine 16 mm", 14, "sheets"], ["edging", "White edging 22 mm", 60, "m"], ["handles", "Bar handle 160 mm", 18, "ea"], ["hardware", "Soft-close hinges", 36, "ea"]]) {
+        await api("POST", `/api/job-records/${smithJob.id}/materials`, { section, name, qty, unit });
+      }
+    }
+
+    // An inbox row left for a person: two hand jobs share a quote number, so when Joinr sends that won
+    // quote the import cannot pick one and leaves the row in the inbox ("new").
+    if (!(await api("GET", "/api/joinr/intake")).rows.some(i => i.quoteNumber === "Q-M21-0099")) {
+      for (const n of ["M21 Dup Kitchen A", "M21 Dup Kitchen B"]) await api("POST", "/api/job-records", { name: n, quoteNumber: "Q-M21-0099", clientName: "M21 Client (made up)" });
+      await withStandInJoinr(async jb => {
+        const root = "5eed0000-0000-4000-8000-000000000021";
+        await fetch(jb + "/_control/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          rootQuoteId: root, quoteId: root, quoteNumber: "Q-M21-0099", siteAddress: "M21 Duplicate Quote Site", clientName: "M21 Client (made up)",
+          wonAt: "2026-10-17T01:00:00Z", updatedAt: "2026-10-17T01:00:00Z", _quote: true }) });
+        await api("POST", "/api/joinr/import", {});
+      });
+    }
+    const inbox = (await api("GET", "/api/joinr/intake")).rows || [];
+    m21.inboxNew = inbox.length;
+    // The Design/PM team tasks the import made for each automatic job (ids start at 1000000000).
+    m21.teamTasks = ((await api("GET", "/api/tasks?view=open")).rows || []).filter(t => t.id >= 1e9).length;
+  }
+  console.log("0.1.21 seeded:", JSON.stringify(m21));
   console.log("M13 seeded:", JSON.stringify(m13));
   const sum = await api("GET", "/api/stone/summary");
   console.log("stone orders seeded", stoneSeed.orders, "summary", JSON.stringify(sum));

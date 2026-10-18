@@ -147,6 +147,17 @@ const PAGES = [
   ["design-notes-375-wall", "/notes.html?dept=design", 375, true],
   // This week's wall for the other four departments (seed-notes.js), as a 1440x900 window.
   ...["scheduling", "ordering", "accounts", "admin"].map(d => [d + "-notes-wall", "/notes.html?dept=" + d, 1440, true, undefined, undefined, { js: "", viewport: true }]),
+  // 0.1.21 (seed.js): names on Pipeline tiles, the job page's Materials list and Joinr quote, the
+  // intake inbox row left for a person, and the Design/PM Tasks page with the automatic team tasks.
+  ["pipeline-names", "/pipeline.html", 1920, true], ["phone-pipeline-names", "/pipeline.html", 375, true],
+  ["job-people", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, "#people"],
+  ["job-materials", c => "/job.html?id=" + c.jobJoinr + "#materials", 1440, true, undefined, "#materials"],
+  ["job-materials-typed", c => "/job.html?id=" + c.jobSmith + "#materials", 1440, true, undefined, "#materials"],
+  ["phone-job-materials", c => "/job.html?id=" + c.jobJoinr + "#materials", 375, true, undefined, "#materials"],
+  ["job-fullquote-money", c => "/job.html?id=" + c.jobJoinr + "#fullquote", 1440, true, undefined, "#fullquote"],
+  ["job-fullquote-nomoney", c => "/job.html?id=" + c.jobJoinr + "#fullquote", 1440, true, "scheduling", "#fullquote"],
+  ["phone-job-fullquote", c => "/job.html?id=" + c.jobJoinr + "#fullquote", 375, true, undefined, "#fullquote"],
+  ["intake-inbox", "/intake.html", 1440, true], ["tasks-team", "/tasks.html", 1440, true, "design_pm"],
   ["dashboard-leavers", "/", 1440, true, undefined, ".dash-lines"], ["phone-dashboard-leavers", "/", 375, true, undefined, ".dash-lines"],
 ];
 // seed.js's own M13 logins, by the role name an entry gives (made with the throwaway password
