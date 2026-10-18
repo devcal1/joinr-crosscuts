@@ -229,7 +229,9 @@
         text:
           "Priced in Joinr" +
           (when ? " (received " + when + ")" : "") +
-          ". Totals may differ by a cent from rounding. The figures are Joinr's: they do not change this job.",
+          (data.money
+            ? ". Totals may differ by a cent from rounding. The figures are Joinr's: they do not change this job."
+            : ". This is Joinr's quote: it does not change this job."),
       })
     );
     $("fqBody").replaceChildren(...nodes);
