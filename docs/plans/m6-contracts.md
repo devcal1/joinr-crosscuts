@@ -194,3 +194,11 @@ Reverses the "inbox first" decision (`m6-plan.md` section 11). These override se
 5. **The intake object (§3).** `decidedBy` is `{id: null, name: "Joinr (automatic)"}` for an accepted or linked record decided by the system. The buttons (§3 `accept`, `link`, `ignore`) work as before for `new` rows. `link` also moves a Quoted job to Won (hand and automatic).
 6. **Page (§6).** `/intake.html`: intro paragraph on automatic creation; tabs "Waiting for a person" (`new`), Changed, "Made into jobs" (`decided`), Ignored, Withdrawn; "automatically" in place of "by <name>". The Design page tile reads "waiting for a person". The Users page Import confirm text should warn that every past win becomes a Won job (to be done with the Users page work; the text is in `docs/cutover.md`).
 7. **Tests.** `ci/smoke-m6-intake.sh` and `ci/smoke-m6-inbox.sh` are rewritten for this: a quote left `new` needs a job already holding its root id (`m6_hold`); see the suite headers.
+
+## 13. The Materials list is prefilled from the quote (Todd, 2026-10-18)
+
+Full contract: `docs/plans/materials-contracts.md` (migration `034_job_materials.sql`, `lib/materials.js`).
+
+1. **When.** `acceptTx` and `linkTx` (so the automatic decision of section 12 and the hand buttons alike) call `materials.fillFromJoinr(db, jobId, payload, req)` after the drawers fill. It maps what the stored payload carries today (sheets, doors/panels and benchtop text, the benchtop kind, a two-pac finish, the drawer lines) to the job's materials lines. A failure there is logged (`[joinr] could not fill the materials list ...`) and rolled back to its own savepoint; the job is still made.
+2. **A 'changed' item does not rewrite the list.** The job page's "Changed in Joinr" callout gains **Update materials from Joinr** (`POST /api/job-records/:id/materials/update-from-joinr`, `jobs.edit`): it refreshes only Joinr lines that were not edited or removed, adds new ones, and marks the ones the quote dropped "No longer in Joinr" (never deleted). It does not acknowledge the change. A job tied to Joinr before the list existed gets **Fill from Joinr** (`.../fill-from-joinr`).
+3. **Contract version 4** (task J4, the whole quote) will feed the same function with one more mapping (`TODO(J4)` in `linesFromPayload`). `docs/integrations/joinr-crosscuts-intake.md` is unchanged.

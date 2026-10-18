@@ -6,6 +6,7 @@ const audit = require("./audit");
 const drawers = require("./drawers");
 const invoices = require("./invoices");
 const jobstage = require("./jobstage");
+const materials = require("./materials");
 const teamTasks = require("./team-tasks");
 const { HttpError, bad, notFound, conflict } = require("./httperror");
 const { DATE_RE, sydneyToday } = require("./time");
@@ -319,6 +320,16 @@ function payloadDrawers(payload) {
   }
 }
 
+// The job's Materials list is prefilled from the quote (lib/materials.js; 2026-10-18). A failure here
+// is logged and rolled back to its own savepoint: it must never stop the job being made.
+function fillMaterials(db, req, jobId, payload) {
+  try {
+    materials.fillFromJoinr(db, jobId, payload, req);
+  } catch (e) {
+    console.error("[joinr] could not fill the materials list for job " + jobId + ": " + String(e && e.message).slice(0, 200));
+  }
+}
+
 // Accept's work, in the caller's transaction (a savepoint when nested): creates the Won job from
 // the record and marks it accepted. `req` is a request or SYSTEM_REQ (no user: decided_by NULL).
 // Returns the new job's id.
@@ -388,6 +399,7 @@ function acceptTx(db, req, id) {
     // M11: the quote's drawer lines become the job's drawer grid(s), unchecked.
     const lines = payloadDrawers(row.payload);
     if (lines) drawers.fillFromJoinr(db, newId, lines, req, { quoteNumber: str(row.quote_number, 100) });
+    fillMaterials(db, req, newId, row.payload);
     return newId;
   })();
 }
@@ -492,6 +504,7 @@ function linkTx(db, req, id, jid) {
     // M11: as Accept; a brand the job already has a to_order drawer line for is skipped.
     const lines = payloadDrawers(row.payload);
     if (lines) drawers.fillFromJoinr(db, jid, lines, req, { quoteNumber: str(row.quote_number, 100) });
+    fillMaterials(db, req, jid, row.payload);
     return jid;
   })();
 }

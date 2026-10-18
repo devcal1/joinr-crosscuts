@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="drawerspage.css">
 <link rel="stylesheet" href="jobstone.css">
 <link rel="stylesheet" href="jobpeople.css">
+<link rel="stylesheet" href="jobmaterials.css">
 </head>
 <body>
   <div id="cc-shell"></div>
@@ -31,6 +32,48 @@
       </div>
       <p id="joinrStatus" class="jo-status muted" role="status"></p>
       <div id="joinrBody"></div>
+    </section>
+
+    <!-- The job's materials list (jobmaterials.js; docs/plans/materials-contracts.md) -->
+    <section id="materials" class="jo-sec" aria-labelledby="materials-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="materials-h" tabindex="-1">Materials</h2>
+        <button id="jmFill" class="hs-btn hs-btn-primary" type="button" hidden>Fill from Joinr</button>
+      </div>
+      <p id="jmStatus" class="jo-status muted" role="status"></p>
+      <div id="jmBody"></div>
+      <div id="jmOrderBar" class="jm-orderbar" hidden>
+        <label for="jmSupplier" class="jm-orderlabel">Supplier (optional)</label>
+        <input id="jmSupplier" class="hs-input" type="text" list="jmSuppliers" maxlength="200" autocomplete="off">
+        <datalist id="jmSuppliers"></datalist>
+        <button id="jmToOrders" class="hs-btn hs-btn-primary" type="button" disabled>Create order lines</button>
+      </div>
+      <form id="jmForm" class="jo-form" novalidate hidden>
+        <h3 class="jo-formh">Add a line</h3>
+        <div class="jm-addgrid">
+          <div class="jo-field">
+            <label for="jmSection">Section</label>
+            <select id="jmSection" class="hs-input"></select>
+          </div>
+          <div class="jo-field jm-addname">
+            <label for="jmName">Item *</label>
+            <input id="jmName" class="hs-input" type="text" maxlength="300" autocomplete="off">
+          </div>
+          <div class="jo-field">
+            <label for="jmQty">Qty</label>
+            <input id="jmQty" class="hs-input" type="number" min="0" step="any">
+          </div>
+          <div class="jo-field">
+            <label for="jmUnit">Unit</label>
+            <input id="jmUnit" class="hs-input" type="text" maxlength="30" autocomplete="off">
+          </div>
+          <div class="jo-field jm-addnotes">
+            <label for="jmNotes">Notes</label>
+            <input id="jmNotes" class="hs-input" type="text" maxlength="1000" autocomplete="off">
+          </div>
+        </div>
+        <div class="jo-actions"><button id="jmAdd" class="hs-btn hs-btn-primary" type="submit">Add line</button></div>
+      </form>
     </section>
 
     <section id="orders" class="jo-sec" aria-labelledby="orders-h" hidden>
@@ -177,6 +220,7 @@
   <script src="taskui.js"></script>
   <script src="orderui.js"></script>
   <script src="drawers.js"></script>
+  <script src="jobmaterials.js"></script>
   <script src="job.js"></script>
   <script src="jobstone.js"></script>
   <script src="/shell/shell.js"></script>

@@ -753,7 +753,7 @@
       const tr = el(
         "tr",
         { class: o.status === "cancelled" ? "jo-cancelled" : "", "data-id": String(o.id), tabindex: "-1" },
-        el("td", { class: "jo-strong", text: o.supplier }),
+        el("td", { class: "jo-strong", text: o.supplier || "No supplier yet" }),
         desc,
         el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
         expected,
@@ -827,6 +827,7 @@
       return false;
     }
     renderOrders();
+    if (window.JobMaterials) window.JobMaterials.refresh(); // a line's ORDERED mark follows its order line
     return true;
   }
 
@@ -1943,7 +1944,16 @@
       if (can("jobs.edit")) {
         const btn = el("button", { type: "button", class: "hs-btn hs-btn-check", text: "Acknowledge" });
         btn.addEventListener("click", () => ackJoinr(it, btn));
-        note.append(el("div", { class: "jo-joinr-acts" }, btn));
+        const acts = el("div", { class: "jo-joinr-acts" });
+        // The Materials list is never rewritten by itself: this refreshes the lines Joinr made (not the
+        // ones a person edited or removed) and flags the ones the quote no longer has.
+        if (window.JobMaterials) {
+          const mbtn = el("button", { type: "button", class: "hs-btn", text: "Update materials from Joinr" });
+          mbtn.addEventListener("click", () => updateMaterialsFromJoinr(mbtn));
+          acts.append(mbtn);
+        }
+        acts.append(btn);
+        note.append(acts);
       }
       nodes.push(note);
     }
@@ -1979,6 +1989,15 @@
     }
     if (!keepMsg) setLine($("joinrStatus"), "", "muted");
     renderJoinr(it);
+  }
+
+  async function updateMaterialsFromJoinr(btn) {
+    const status = $("joinrStatus");
+    btn.disabled = true;
+    setLine(status, "Updating materials from Joinr...", "muted");
+    const r = await window.JobMaterials.updateFromJoinr();
+    setLine(status, r.text, r.ok ? "ok" : "err");
+    btn.disabled = false;
   }
 
   async function ackJoinr(it, btn) {
@@ -2017,6 +2036,8 @@
     const tasks = [];
     if (can("jobs.view")) tasks.push(loadJoinr());
     if (can("jobs.view")) {
+      // The Materials list (jobmaterials.js) sits above Orders; Create order lines refreshes Orders.
+      if (window.JobMaterials) tasks.push(window.JobMaterials.start({ jobId, can, onOrdersChanged: () => { loadOrders(); loadSuppliers(); } }));
       ordersEl.hidden = false;
       renderOrdersSummary();
       $("orderForm").hidden = !can("orders.edit");

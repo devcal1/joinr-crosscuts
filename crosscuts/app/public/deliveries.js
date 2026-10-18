@@ -128,7 +128,7 @@
     return el("tr", { "data-id": String(l.id) },
       exp,
       td("Job", "dl-c-job", jobNode(l)),
-      td("Supplier", "dl-c-sup", el("span", { text: l.supplier })),
+      td("Supplier", "dl-c-sup", el("span", { text: l.supplier || "No supplier yet" })),
       desc,
       td("Notes", "dl-c-notes" + (l.notes ? "" : " dl-blank"), el("span", { text: l.notes || "" })),
       td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
@@ -312,7 +312,7 @@
         td("Received", "dl-c-date", el("span", { text: fmtDate(l.receivedDate) })),
         td("By", "dl-c-by" + (l.receivedBy ? "" : " dl-blank"), el("span", { text: l.receivedBy ? l.receivedBy.name : "" })),
         td("Job", "dl-c-job", jobNode(l)),
-        td("Supplier", "dl-c-sup", el("span", { text: l.supplier })),
+        td("Supplier", "dl-c-sup", el("span", { text: l.supplier || "No supplier yet" })),
         td("Description", "dl-c-desc" + (l.description ? "" : " dl-blank"), el("span", { text: l.description || "" })),
         td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
         cell);

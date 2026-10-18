@@ -320,9 +320,11 @@ function refreshMaterialsIn(db, jobId, req) {
 
 // opts is accepted for symmetry with updateLine/cancelLine (M11 section 5.2); a plain call and a
 // call from lib/drawers.js or lib/paint.js behave the same (they write their link row afterwards).
-function createLine(db, jobId, { supplier, description, expectedDate, notes } = {}, req, opts = {}) { // eslint-disable-line no-unused-vars
+// opts.blankSupplier (the job's Materials list, docs/plans/materials-contracts.md): the supplier may
+// be left blank, to be chosen later; the routes never pass it.
+function createLine(db, jobId, { supplier, description, expectedDate, notes } = {}, req, opts = {}) {
   requireJob(db, jobId);
-  const sup = textField("supplier", supplier, SUPPLIER_MAX, { required: true });
+  const sup = textField("supplier", supplier, SUPPLIER_MAX, { required: !opts.blankSupplier });
   const desc = textField("description", description, DESCRIPTION_MAX);
   const note = textField("notes", notes, NOTES_MAX);
   const expected = dateOrNull("expectedDate", expectedDate);
@@ -423,6 +425,10 @@ function updateLine(db, orderId, patch, req, opts = {}) {
     if (!needs) throw conflict(`A line can't go from ${line.status} to ${statusChange}`);
     if (!can(req, needs)) throw forbidden();
     transition = key;
+    // A line made from the job's Materials list may have no supplier yet; it can't be ordered until it has one.
+    if (key === "to_order>ordered" && !String("supplier" in changes ? changes.supplier : line.supplier).trim()) {
+      throw conflict("Choose a supplier first");
+    }
     if (key === "to_order>ordered") changes.ordered_date = orderedDateIn || todayStr;
     else if (key === "ordered>received") {
       changes.received_date = receivedDateIn || todayStr;

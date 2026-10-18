@@ -90,6 +90,8 @@ const routers = [
   require("./routes/loans"),
   // Department notes (docs/plans/notes-contracts.md).
   require("./routes/notes"),
+  // The job's Materials list (docs/plans/materials-contracts.md).
+  require("./routes/materials"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
