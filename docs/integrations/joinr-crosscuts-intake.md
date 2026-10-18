@@ -1,4 +1,4 @@
-# Joinr → Crosscuts intake: shared contract (version 3, 2026-10-17)
+# Joinr → Crosscuts intake: shared contract (version 4, 2026-10-18)
 
 This document is committed, identical, in both repos: `devcal1/joinr-crosscuts` (`docs/integrations/joinr-crosscuts-intake.md`) and `devcal1/tenon-quotr` (`docs/integrations/joinr-crosscuts-intake.md`). Change it only in both at once, with a version bump here, and with Todd's OK. Approved by Todd 2026-10-11 (Crosscuts `docs/plans/m6-plan.md` §10).
 
@@ -7,6 +7,8 @@ This document is committed, identical, in both repos: `devcal1/joinr-crosscuts` 
 **M13 note (Crosscuts copy only, 2026-10-16):** this copy gains one explanatory line about `estimatedHours` (under "What Crosscuts does with an item"). It changes nothing on the wire, so there is no version bump. The `tenon-quotr` copy follows only with Todd's OK for a Joinr change (Crosscuts CLAUDE.md rule 12). Until then the copies differ by that line, and also by M11's version 2 (`drawers`), which the `tenon-quotr` copy gets with task J2; don't "fix" either difference by editing `tenon-quotr`.
 
 **Version 3 (task J3, Todd's two yeses 2026-10-17)** adds a second, separate endpoint: the **open-quotes list** (`GET {base}/api/integrations/crosscuts/open-quotes`), the current state of every quote that is sent or won, so Crosscuts can list sent quotes beside won ones in its pipeline's Quoted column. It is the section "Open-quotes list (version 3)" below. **Nothing above that section changes**: the won-quotes endpoint, its items and its wire `contract` number (**1**) are as in versions 1 and 2, and an older Crosscuts that never calls the new endpoint works as before. The new endpoint's own wire `contract` number is **3**. Version 3 was written in `tenon-quotr` first, from the Crosscuts copy of version 2, so the two copies will be identical once the Crosscuts copy is updated to version 3: this text already carries the M13 `estimatedHours` line and the version 2 `drawers` text. Joinr does not yet send `drawers` (task J2 is not built); by version 2's own rule that reads as "not reported".
+
+**Version 4 (task J4, Todd's two yeses 2026-10-18)** adds one optional won-quotes item field, `quote`: the **whole quote** — every room, every priced line of every section, the additional items, the labour, the options and the totals, money figures included (Todd, 2026-10-18: "Send all materials and labour, preferably everything, from Joinr's quote; we can work with it (or disregard it) in Crosscuts"; he chose to include rates, costs, markups, the tier and the margin, and Crosscuts shows them only to its job-value holders). It is the section "The quote object (version 4)" below, with one paging note under "Response". **Every other field and rule is unchanged**, the won-quotes wire `contract` number stays **1** (the field is optional, as version 2's `drawers` was: an older Crosscuts ignores it, and a Joinr that does not send it is read as "not reported"), and the open-quotes list (version 3) is untouched. Version 4 was written in `tenon-quotr` first, from version 3; the two copies are identical once the Crosscuts copy is updated to it.
 
 ## Purpose
 
@@ -43,6 +45,7 @@ Accept: application/json
 - `cursor` is an opaque string (it is a `quote_events.id` in Joinr today). Crosscuts stores it and sends it back as `after`. It only grows.
 - `more: true` means call again with `after = cursor` straight away.
 - The same item may be sent more than once (Crosscuts is idempotent on `rootQuoteId`).
+- **(Version 4.)** A page can carry **fewer than `limit` items with `more: true`**: since each item carries its whole quote, Joinr ends a page before the item that would take the page past about 1 MB of item JSON (always carrying at least one item), so a response stays well under Crosscuts' 2 MB cap. And an item that would weigh over about 1.5 MB with its quote (a quote with enormous notes or options) is sent with `quote: null` and every other field as usual, so no page can pass 2 MB. The `cursor` is then the last carried item's (an event id, or a backfill cursor naming that quote) and the next call starts with the item left off. Call again with `after = cursor` straight away, as for any `more: true`.
 
 ## Item
 
@@ -77,6 +80,7 @@ Accept: application/json
 | `raw.jobTypes` | string[] | every room's job type, as typed |
 | `drawers` | `{section, name, qty}[]` \| absent (version 2, optional) | the revision's lines in the catalogue sections with id `drawers` and `innerDrawers`; see Normalisation. `section` is that id (`"drawers"` or `"innerDrawers"`). `name` is the catalogue item name as stored on the line. `qty` is the sum for that name in that section across every room, a positive number. Absent means "not reported"; `[]` means the quote has no such lines |
 | `url` | string | `{base}/org/{orgId}/quotes/{quoteId}` (members-only link) |
+| `quote` | object \| `null` \| absent (version 4, optional) | the whole quote, priced as Joinr's quote page prices it; see "The quote object (version 4)". Absent means "not reported" (an older Joinr); `null` means Joinr can't price the quote at all, or the quote is too large to send (over about 1.5 MB) |
 
 ## Which events produce an item
 
@@ -115,6 +119,149 @@ One intake record per `rootQuoteId`. `won` → shown as new (or updated if not y
 **Drawers (version 2).** Crosscuts maps each `drawers` name to a drawer brand, height and length through a list its Ordering team keeps, and fills in a drawer grid on the job when the record is accepted or linked. It never changes a grid by itself afterwards: the job page says "Changed in Joinr" and offers a refill.
 - **Absent or `null`** is "not reported". An older Joinr gets no grid, and a job accepted before this field existed has none.
 - **Changed detection:** `drawers` counts as a change only when both the stored and the new item have an array and the two differ. The first item to report `drawers` where the stored one had none is stored, but not flagged "Changed in Joinr", so the first sync after Joinr starts sending the field doesn't mark every accepted record changed.
+
+## The quote object (version 4)
+
+Each won-quotes item may carry `quote`: the whole quote as Joinr prices it, so Crosscuts can work from every material, every hour of labour and every figure Joinr has (or disregard them). It includes **money figures** (rates, costs, markups, the tier, the cost of goods and the margin): Todd chose to send them (2026-10-18), and Crosscuts shows them only to its job-value holders.
+
+- **Optional.** Absent: "not reported" (a Joinr before version 4). `null`: Joinr can't price the quote at all (no rate card, or its engine fails on the quote), and then `valueIncGstCents` is null too; **or** the quote is too large to send — an item that would be over about 1.5 MB with it (see "Response") — and then every other field, `valueIncGstCents` included, is as usual. A quote Joinr prices to a figure that isn't a finite number (see "Money") gets an object whose affected figures are `null`, as its `valueIncGstCents` is. Otherwise an object, every field below always present (board-line and travel-line extras only on those lines).
+- **On every item event** (`won`, `unwon`, `changed`, `deleted`): the quote as it is now. A re-save of a won quote is a `changed` item (above), and it carries the new figures.
+- **As priced when the item is read, not a change signal.** `quote` is priced when Joinr builds the item. Some of its inputs change with no `changed` item: GST registration and rate (always today's), and for a quote with no frozen rate card the organisation's current card (rates, tiers, overheads, section titles). So the same quote can come back with different figures on a later item or a backfill. **Don't compare `quote` objects to detect edits in Joinr**; the item events are the edit signal.
+- **How it is priced.** On Joinr's server, with Joinr's pricing engine and the same card Joinr's quote page, quote list and customer document use: the quote's **frozen rate card** when it has one (Joinr freezes a quote's rates when it is first saved, and they stay frozen until someone re-prices it in Joinr), else the organisation's current card; GST registration and rate are always today's (Joinr's rule for every quote). Never the current card for a frozen quote, so the figures are the quote document's.
+- **Money is integer cents**, ex GST unless the name says `IncGst`. Each figure is rounded to the cent on its own (half up, as `valueIncGstCents`), so a sum of rounded parts can differ from the rounded total by a cent or two: **the totals are Joinr's, never re-add the parts**. A figure Joinr can't compute as a finite number is `null` (for example, a CNC profile with zero sheets per cutter makes every board line on it, and every total over them, infinite).
+- **Quantities**, **hours**, **multipliers** and **fractions** follow the same rule: a plain number, `null` when it is not a finite number. **Quantities** are as typed, not rounded. **Multipliers** (`materialMarkup`, `markup`, `markupFactor`) are plain numbers: 1.3 = +30%, 1 = at cost. **Fractions** (`adjust`, `globalMarkup`, `gst.rate`, `cogsRatio`) are plain numbers: 0.05 = 5%.
+- **Size.** Measured on Joinr's dev database (2026-10-18) with 101 won quotes copied from its demo organisation: an item with its quote is about 5 kB (4.6 to 14 kB), and a page of 100 items about 0.6 MB, served in under a second. The page limit under "Response" (about 1 MB of items) keeps every response well under Crosscuts' 2 MB cap.
+- **Text** is as stored in Joinr (catalogue item names, section titles, room names, labels). An additional item's `description`, the `notes`, `tier.requested` and an option's `id` are trimmed, blank → `null`; any other `string | null` text is `null` only when Joinr has none.
+
+### Top level
+
+| Field | Type | Meaning |
+|---|---|---|
+| `pricedAt` | `"snapshot"` \| `"live"` | priced at the quote's frozen rate card, or at the organisation's current card |
+| `gst.registered` | boolean | whether the business charges GST (today's setting) |
+| `gst.rate` | number \| null | the GST rate applied: 0.1, or 0 when not registered |
+| `tier.requested` | string \| null | the client tier code stored on the quote |
+| `tier.code`, `tier.label` | string \| null | the tier the quote is priced at |
+| `tier.materialMarkup` | number \| null | that tier's material markup multiplier (1 when the card has no tiers) |
+| `tier.fallback` | boolean | true when the quote's tier is no longer on the card, so Joinr prices at the card's first tier (Joinr also warns, see `warnings`) |
+| `globalMarkup` | number \| null | the quote's Global markup, a fraction (−0.15 to 0.15) |
+| `kmFromFactory` | number \| null | the quote's distance from the factory, km |
+| `cogsFactors.labour`, `cogsFactors.materials` | number \| null | the card's cost-of-goods factors (labour and materials multipliers) |
+| `overheadRatePerHourCents` | integer \| null | the overhead recovered per hour of labour and travel |
+| `notes` | string \| null | the quote's notes |
+| `rooms` | room[] | in the quote's order |
+| `labour` | object | see "Labour" |
+| `options` | option[] | the quote's options, priced beside the total, never in it |
+| `totals` | object | see "Totals" |
+| `warnings` | `{severity: "red" \| "amber", message, roomName}`[] | the warnings Joinr shows on the quote (tier no longer exists, room profit too low, materials too high a share), worded as Joinr words them |
+
+### Room
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string \| null | Joinr's room id (options name their room by it) |
+| `name` | string \| null | the room's name |
+| `adjust` | number \| null | the room's Adjust, a fraction (0.05 = +5%) |
+| `spec.doorsPanels`, `spec.benchtop`, `spec.jobType` | string | the room's three spec values as typed (`""` when blank); the same values as `raw` |
+| `lines` | line[] | every priced catalogue line, in the card's section order and, within a section, the card's item order |
+| `customItems` | custom item[] | the room's additional items, in order |
+| `sections` | `{id, title, totalCents}`[] | each section that has a line, with Joinr's section total (the figure at the head of the section on the quote page) |
+| `hours` | `{office, factory, site, travel}`, each number \| null | the room's hours, Joinr's engine figures (see "Labour") |
+| `totals` | object | see below |
+
+Room `totals` (the room's footer on Joinr's quote page):
+
+| Field | Meaning |
+|---|---|
+| `labourOfficeCents`, `labourWorkshopCents` | office and workshop labour at cost (the footer's "Labour" is their sum) |
+| `materialsCents` | materials and hardware at cost, the additional items included ("Materials") |
+| `customItemsCents` | the additional items' part of that, at cost |
+| `travelCents` | travel at cost |
+| `overheadRecoveryCents` | overhead recovered on the room's hours |
+| `overheadsCents` | overhead recovery plus travel ("Overheads") |
+| `markupFactor` | the tier's material markup multiplier (a number, or null) |
+| `markupCents` | the material markup ("Markup"); an additional item with its own markup is priced at its own, not the tier's |
+| `subtotalCents` | labour + materials + markup + overheads: what the adjust applies to |
+| `adjustCents` | the room's Adjust and the quote's Global markup together ("Adjust + markup") |
+| `roomAdjustCents` | the room's own Adjust alone |
+| `exGstCents`, `gstCents`, `incGstCents` | the room's price ex GST ("Ex GST"), its GST, and inc GST (the room's total) |
+| `costOfGoodsCents`, `cogsRatio` | the room's cost of goods and its share of `incGstCents` ("COGS"); see "Totals" for how Joinr counts cost of goods |
+| `marginCents` | `incGstCents` − `costOfGoodsCents` (the footer's "profit"; GST is not taken out) |
+| `cogsWarning` | Joinr's "Room profit too low" flag |
+
+### Line
+
+One line per catalogue item per section per room, **as Joinr's engine prices it**: when a room holds the same item on more than one row of a section (two Whiteboard rows of 2 and 4 sheets), the line is their sum (6), because that is the quantity Joinr prices. Items with no quantity are not lines, and nor is a quantity left under an item the card no longer has (Joinr prices it at nothing and doesn't show it).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `section` | string | the catalogue section's id (`officeLabour`, `boardEdge`, `benchtops`, `drawers`, `innerDrawers`, `handles`, `hardware`, `roomExtras`, `factoryLabour`, `siteLabour`, `travel` on Joinr's standard card; an organisation can have others) |
+| `sectionTitle` | string \| null | the section's title as the card names it (`"Board & Edge"`) |
+| `kind` | string \| null | how the section prices: `board` (per sheet: board + edging + CNC), `travel` (per trip: km × rate per km), `labour` or `simple` (the item's rate) |
+| `costBucket` | string \| null | `labourOffice`, `labourWorkshop`, `materials` or `overheads`: where the line's cost goes in the room totals |
+| `hoursBucket` | string \| null | `office`, `factory`, `site` or `travel` for labour and travel lines, else null |
+| `unit` | string \| null | the section's unit as the card names it (`sheets`, `hrs`, `m`, `ea`, `trips`) |
+| `name` | string | the catalogue item's name |
+| `qty` | number \| null | the quantity (hours, sheets, metres, each or trips) |
+| `unitRateCents` | integer \| null | the rate per unit, ex GST, at cost (the quote page's rate column) |
+| `lineTotalCents` | integer \| null | `qty` × the unit rate, ex GST, at cost (the line total column): before the room's markup, overheads, adjust and GST |
+| `boardCostCents`, `edgingCents`, `cncCents` | integer \| null | **board lines only**: the unit rate's three parts — the sheet, edging (the card's cost per 100 m ÷ 4), and CNC cutting per sheet |
+| `perKmCents` | integer \| null | **travel lines only**: the rate per km (the unit rate is `kmFromFactory` × this) |
+
+### Custom item (Joinr's "additional items")
+
+| Field | Type | Meaning |
+|---|---|---|
+| `description` | string \| null | as typed |
+| `qty` | number \| null | |
+| `unitPriceCents` | integer \| null | the price per unit, ex GST, at cost; may be negative (a credit) |
+| `lineTotalCents` | integer \| null | `qty` × price, at cost (the line's figure on the quote page) |
+| `markup` | number \| null | the material markup multiplier this line is priced at: its own when it has one, else the tier's |
+| `markupFromTier` | boolean | true when `markup` is the tier's |
+| `lineTotalWithMarkupCents` | integer \| null | `lineTotalCents` × `markup` (Joinr's "after markup" figure for the line) |
+
+### Labour
+
+`labour.office`, `labour.factory`, `labour.site` and `labour.travel`, each `{typed, hours, costCents}` (`typed` and `hours` a number or null), plus `labour.overheadRecoveryCents` (the quote's overhead recovery, all rooms):
+
+| Field | Meaning |
+|---|---|
+| `typed` | what was entered on the quote, summed over every room: **hours** for office, factory and site; **trips** for travel |
+| `hours` | Joinr's engine hours, **the same numbers as the item's `estimatedHours`** |
+| `costCents` | the cost of the lines in that hours bucket, at cost (their unit rates × quantities; a labour line's unit rate is its hourly rate) |
+
+How `hours` follows from `typed` — the precise statement behind the M13 note (under "What Crosscuts does with an item"):
+
+- **office:** `hours` = `typed`.
+- **factory** and **site:** `hours` = `typed` ÷ 2. Joinr's engine halves them because it recovers overhead on factory and site hours at half rate; so `typed` is the hours on the quote, and `estimatedHours.factory` × 2 = `labour.factory.typed`.
+- **travel:** `typed` is trips; `hours` = trips × `kmFromFactory` ÷ 60 × 2 (a return trip at 60 km/h).
+
+A kind has no single hourly rate in Joinr: each labour line carries its own (`unitRateCents`).
+
+### Option
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string \| null | Joinr's option id |
+| `roomId`, `roomName` | string \| null | the room it belongs to; null for the whole job |
+| `label` | string | as typed |
+| `kind` | `"doorsPanels"` \| `"benchtop"` \| `"other"` | |
+| `priceIncGstCents` | integer \| null | the option's price inc GST, as stored on the quote |
+| `priceExGstCents` | integer \| null | ex GST, as Joinr's customer document prints it (inc GST ÷ (1 + `gst.rate`)) |
+| `computed` | boolean | Joinr worked the price out from an item swap when the option was made |
+
+### Totals
+
+| Field | Meaning, and the figure it is on Joinr's quote page |
+|---|---|
+| `incGstCents` | **the customer total: equal to the item's `valueIncGstCents`**; the quote's "Total" and the customer document's total |
+| `exGstCents`, `gstCents` | the document's subtotal ex GST and its GST (the "GST included" note) |
+| `labourOfficeCents`, `labourWorkshopCents`, `materialsCents`, `markupCents`, `overheadsCents`, `adjustCents` | the rooms' figures of those names, summed: the price's pricing parts (together `exGstCents`, give or take rounding) |
+| `costOfGoodsCents` | the quote's cost of goods: (office + workshop labour) × `cogsFactors.labour` + materials × `cogsFactors.materials` + overheads, summed over the rooms |
+| `cogsRatio`, `cogsWarning` | `costOfGoodsCents` ÷ `incGstCents` (0 for an empty quote): the "COGS" percentage beside the quote's Total, and whether Joinr shows it red (over the card's threshold) |
+| `marginCents` | `incGstCents` − `costOfGoodsCents`: the job summary's "Markup/Profit" (GST is not taken out) |
+| `costs.officeCents`, `costs.labourCents`, `costs.materialsCents`, `costs.overheadsCents` | the job summary's "Where the price goes" in cost terms (labour and materials with the cost-of-goods factors applied) |
+| `costs.labourFactoryCents`, `costs.labourSiteCents` | the job summary's "Labour split": factory and site labour in cost terms |
 
 ## Open-quotes list (version 3)
 
@@ -214,3 +361,4 @@ The key is the one created on Joinr's Settings › Integrations tab. Revoking it
 - **Version 1 (2026-10-11):** the first contract.
 - **Version 2 (2026-10-14):** the optional `drawers` field. The wire `contract` stays 1.
 - **Version 3 (2026-10-17):** the open-quotes list, `GET /api/integrations/crosscuts/open-quotes` (wire `contract` 3), for sent and won quotes that are not archived, one line per job with the revision rule, at most 200 lines. The won-quotes endpoint and its items are unchanged (wire `contract` still 1). The two copies of this document are identical once the Crosscuts copy is updated to this version.
+- **Version 4 (2026-10-18):** the optional won-quotes item field `quote` (the whole quote: rooms, every priced line, additional items, labour, options and totals, money figures included, priced as Joinr's quote page prices it), and a page that may end early (`more: true`) to stay under about 1 MB of items, an item over about 1.5 MB going with `quote: null`, so no page passes 2 MB. `quote` is as priced when the item is read, not an edit signal. The wire `contract` stays 1; the open-quotes list is unchanged. The two copies of this document are identical once the Crosscuts copy is updated to this version.

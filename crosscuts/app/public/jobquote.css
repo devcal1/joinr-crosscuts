@@ -1,0 +1,52 @@
+/* The job page's "From Joinr quote" section (jobquote.js; task J4). Loaded by job.html after
+   jobs.css. Prefix fq-. House style: outlined text buttons, labels uppercase and letterspaced, no icons. */
+.fq-rooms { margin-bottom: 14px; }
+.fq-room { margin-bottom: 8px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
+.fq-roomhead {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 14px; background: transparent; border: 0; color: var(--white);
+  font: inherit; font-weight: 700; text-align: left; cursor: pointer;
+}
+.fq-roomhead:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.fq-roomname { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.fq-roomtotal { color: var(--teal-tint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fq-toggle { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); min-width: 34px; text-align: right; }
+.fq-roombody { padding: 2px 14px 14px; border-top: 1px solid var(--hairline); }
+.fq-spec { margin: 10px 0 0; }
+.fq-sectitle {
+  display: flex; align-items: baseline; gap: 10px; margin: 14px 0 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+.fq-sectitle .fq-sectotal { margin-left: auto; color: var(--body); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.fq-tag { font-size: 10px; color: var(--muted); }
+.fq-h { margin: 18px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.fq-wrap { margin-bottom: 4px; }
+.fq-table { min-width: 0; width: 100%; table-layout: fixed; }
+.fq-table th:first-child { width: 38%; }
+.fq-table td.fq-name { color: var(--white); overflow-wrap: anywhere; }
+.fq-table th.fq-num, .fq-table td.fq-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fq-table tr:last-child td { border-bottom: 0; }
+.fq-hours { margin: 8px 0 0; font-size: 13px; }
+.fq-notes { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--body); }
+.fq-warnings { margin: 0; padding-left: 18px; }
+.fq-warn-red { color: var(--stop-tint); }
+.fq-warn-amber { color: var(--orange-tint); }
+.fq-foot { margin: 14px 0 0; font-size: 13px; }
+
+@media (max-width: 720px) {
+  .fq-roomhead { padding: 10px; }
+  .fq-roombody { padding: 2px 10px 12px; }
+  .fq-table { min-width: 460px; }
+}
+
+/* Print: black on white, every room open, no screen buttons. */
+/* style-check: print-start */
+@media print {
+  #fullquote, #fullquote * { color: #000 !important; background: transparent !important; border-color: #888 !important; }
+  .fq-roombody[hidden] { display: block !important; }
+  .fq-toggle { display: none !important; }
+  .fq-room { break-inside: avoid-page; border-radius: 0; }
+  .fq-wrap { overflow: visible; border-radius: 0; }
+  .fq-table { min-width: 0; }
+}
+/* style-check: print-end */

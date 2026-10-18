@@ -14,6 +14,7 @@
 //     deleted, unless a person has overridden it.
 // Manual lines are never touched by a sync.
 const audit = require("./audit");
+const joinrQuote = require("./joinr-quote");
 const { bad, notFound, conflict } = require("./httperror");
 
 // The sections a typed line may use, in the order the page lists them.
@@ -296,13 +297,14 @@ const textList = (v) => {
 // [{key, section, name, qty, unit, notes}]. The key is stable for the same content, so a re-sync
 // matches the line it made before.
 //
-// TODO(J4): contract version 4 (task J4 in Joinr) sends the WHOLE quote: `quote`, every room's
-// lines with section / name / qty / unit and the money figures. Map those lines here, one
-// `add(key, section, name, qty, unit, notes)` per line with a key built from the room and line
-// ids, and drop the text-line stand-ins below for the sections the quote now covers. Nothing else
-// in this file, the routes or the page needs to change; money figures go to a separate section
-// shown only to jobs.value holders, never into this table.
-function linesFromPayload(payload) {
+// J4 (contract version 4, 2026-10-18): when the job's Joinr record has a quote snapshot
+// (lib/joinr-quote.js), its materials lines (boards and edging, benchtops, handles, hardware, room
+// extras, drawers and the additional items; never labour) replace the thin "Board sheets" and
+// `drawers` stand-ins below, one line per room, section and item. The text lines for doors,
+// benchtops and two-pac stay: the quote's lines do not carry them. Money figures never go into this
+// table; they have their own job-page section, shown only to jobs.value holders. With no quote
+// (quote null, an older Joinr) the thin mapping is used as before.
+function linesFromPayload(payload, quote) {
   const p = parsePayload(payload);
   const spec = p.spec && typeof p.spec === "object" ? p.spec : {};
   const raw = p.raw && typeof p.raw === "object" ? p.raw : {};
@@ -323,7 +325,7 @@ function linesFromPayload(payload) {
 
   // Sheets: spec.sheetCount, a whole number (the sum of the quote's board sheets, rounded up).
   const sheets = typeof spec.sheetCount === "number" && Number.isFinite(spec.sheetCount) && spec.sheetCount > 0 ? Math.ceil(spec.sheetCount) : null;
-  if (sheets !== null) add("sheets", "boards", "Board sheets", sheets, "sheets", "");
+  if (sheets !== null && !quote) add("sheets", "boards", "Board sheets", sheets, "sheets", "");
 
   // Doors/panels, as typed in each room.
   for (const t of textList(raw.doorsPanels)) add("doors:" + t.toLowerCase(), "doors", t, null, null, "");
@@ -338,7 +340,7 @@ function linesFromPayload(payload) {
   if (spec.twoPac === true) add("twopac", "paint", "Two-pac finish", null, null, "");
 
   // Drawer lines (contract version 2): the quote's drawers and inner drawers, with their counts.
-  if (Array.isArray(p.drawers)) {
+  if (Array.isArray(p.drawers) && !quote) {
     for (const d of p.drawers) {
       if (!d || typeof d !== "object") continue;
       const sec = d.section === "innerDrawers" ? "innerDrawers" : d.section === "drawers" ? "drawers" : null;
@@ -348,6 +350,11 @@ function linesFromPayload(payload) {
       add(`drawers:${sec}:${name.toLowerCase()}`, "drawers", name, qty, "each", sec === "innerDrawers" ? "Inner drawers" : "");
     }
   }
+
+  // The whole quote: one line per room, section and item (joinr-quote.materialLines).
+  if (quote) {
+    for (const l of joinrQuote.materialLines(quote)) add(l.key, l.section, l.name, l.qty, l.unit, l.notes);
+  }
   return out;
 }
 
@@ -355,7 +362,7 @@ function linesFromPayload(payload) {
 // stored joinr_intake.payload (a JSON string) or its parsed object. `req` may be a request or
 // intake.SYSTEM_REQ. Returns {added, updated, gone, kept, removedKept} counts.
 function fillFromJoinr(db, jobId, payload, req, opts = {}) {
-  const desired = linesFromPayload(payload);
+  const desired = linesFromPayload(payload, opts.quote || null);
   const action = opts.action || "material.fill";
   return db.transaction(() => {
     requireJob(db, jobId);
@@ -419,10 +426,12 @@ function fillFromJoinr(db, jobId, payload, req, opts = {}) {
 function syncFromJoinr(db, req, jobId, { action = "material.fill" } = {}) {
   requireJob(db, jobId);
   const rec = db
-    .prepare("SELECT payload FROM joinr_intake WHERE job_id = ? AND state IN ('accepted','linked') ORDER BY id DESC LIMIT 1")
+    .prepare("SELECT id, payload FROM joinr_intake WHERE job_id = ? AND state IN ('accepted','linked') ORDER BY id DESC LIMIT 1")
     .get(jobId);
   if (!rec) throw conflict("This job is not tied to a Joinr quote");
-  const summary = fillFromJoinr(db, jobId, rec.payload, req, { action });
+  // J4: the latest quote snapshot (null when Joinr sent none or too large a one: the thin mapping).
+  const snap = joinrQuote.latest(db, rec.id);
+  const summary = fillFromJoinr(db, jobId, rec.payload, req, { action, quote: snap ? snap.quote : null });
   return { summary, ...list(db, jobId) };
 }
 

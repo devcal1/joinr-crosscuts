@@ -40,7 +40,7 @@ Index on `(job_id, position)`, a unique partial index on `(job_id, joinr_key)`, 
 | `spec.twoPac === true` | paint, "Two-pac finish" | `twopac` |
 | each `drawers[]` entry | drawers, the name, qty, unit `each` (notes "Inner drawers" for `innerDrawers`) | `drawers:<section>:<lowercase name>` |
 
-**TODO(J4).** Contract version 4 (task J4 in Joinr) will send the whole quote: every room's lines with section, name, qty, unit and the money figures. That feeds this function by adding one mapping in `linesFromPayload` (a `quote` block, one `add(key, section, name, qty, unit, notes)` per line, the key built from room and line ids). Nothing else here, in the routes or on the page changes. **Money figures never go into `job_materials`**: they get their own job-page section, shown only to `jobs.value` holders, with J4.
+**TODO(J4) (resolved 2026-10-18: section 7).** Contract version 4 (task J4 in Joinr) will send the whole quote: every room's lines with section, name, qty, unit and the money figures. That feeds this function by adding one mapping in `linesFromPayload` (a `quote` block, one `add(key, section, name, qty, unit, notes)` per line, the key built from room and line ids). Nothing else here, in the routes or on the page changes. **Money figures never go into `job_materials`**: they get their own job-page section, shown only to `jobs.value` holders, with J4.
 
 Merge rules (what a sync may touch):
 
@@ -93,3 +93,19 @@ A "Materials" section after "From Joinr" and before "Orders" (`#materials`), for
 ## 6. Tests: `ci/smoke-m18-materials.sh`
 
 Migration 034 columns and CHECKs (negative qty, blank name, bad source, a Joinr line without a key and a manual line with one, overridden/gone out of range, over-long notes, unit and section, the foreign keys, the unique key); an auto-accepted quote from the stand-in Joinr fills 8 lines; access (Scheduling, Accounts and Ordering read; Scheduling, Accounts, Ordering, Showroom 403 on writes; Showroom 403 on read; logged out 401); typed add and its validation; an edit sets `overridden`, a no-change edit does not; a remove is soft and audited; a Joinr 'changed' does not rewrite the list; Update adds, refreshes, flags the lines Joinr dropped, and leaves edited, removed and typed lines alone, twice with the same result; a returning line is unflagged; Fill from Joinr for a job tied before the list existed (idempotent; 409 for a job not tied); Link to an existing job keeps its typed lines; `to-orders` creates `to_order` lines once, sets `order_id`, leaves the job's materials dates alone, refuses removing an ordered line, re-orders after a cancel, and a blank-supplier line cannot be marked ordered until it has one; a job already marked ordered keeps its date.
+
+## 7. Contract version 4: the whole quote feeds the list (task J4, J4 consumer, 2026-10-18)
+
+The `TODO(J4)` in section 2 is resolved. When the job's Joinr record has a quote snapshot (`joinr_quote_snapshots`, migration 035; `m6-contracts.md` section 14), `linesFromPayload(payload, quote)` takes the quote's **materials lines** instead of the thin "Board sheets" and `drawers:` stand-ins: one line per room, section and item (`lib/joinr-quote.js` `materialLines`), key `q:<room id or index>:<section id>:<item lower case>`, so a re-sync matches the line it made before.
+
+| From the quote | Line |
+|---|---|
+| a room line in boardEdge | boards, the item, qty, unit (sheets); the room in the notes |
+| benchtops | benchtop |
+| drawers, innerDrawers | drawers (inner drawers noted) |
+| handles, hardware | handles, hardware |
+| roomExtras | room_extras |
+| any other section priced as materials | other (the section title in the notes) |
+| each additional item with a qty above 0 and no negative price | other |
+
+Not lines: labour (office, factory, site), travel and overheads, a line with no quantity, a credit. **Labour shows in the job page's "From Joinr quote" section, not here.** The doors/panels and benchtop text lines, the benchtop kind and the two-pac line stay (the quote does not carry them). With no quote (`null`, absent, dropped as malformed) the section 2 mapping is used unchanged. The merge rules (add, refresh, flag gone, leave edited, removed and typed lines) and **Update materials from Joinr** are as before; Update reads the latest snapshot. Money never goes into `job_materials`. A job filled from the thin mapping before its quote arrives has those lines flagged "No longer in Joinr" by its first Update. Tested in `ci/smoke-m19-fullquote.sh`.

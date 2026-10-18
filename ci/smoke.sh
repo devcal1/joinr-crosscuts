@@ -1255,6 +1255,8 @@ for f in "$(dirname "$0")"/smoke-m16-*.sh; do [ -f "$f" ] && source "$f"; done
 for f in "$(dirname "$0")"/smoke-m17-*.sh; do [ -f "$f" ] && source "$f"; done
 # M18 suites (ci/smoke-m18-*.sh, docs/plans/materials-contracts.md, a job's Materials list): same rules.
 for f in "$(dirname "$0")"/smoke-m18-*.sh; do [ -f "$f" ] && source "$f"; done
+# M19 suites (ci/smoke-m19-*.sh, task J4, the whole Joinr quote: snapshot, money for jobs.value only): same rules.
+for f in "$(dirname "$0")"/smoke-m19-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 
