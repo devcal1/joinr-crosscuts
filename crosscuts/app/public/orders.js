@@ -142,7 +142,7 @@
         "tr",
         { class: o.status === "cancelled" ? "or-cancelled" : "", "data-id": String(o.id), tabindex: "-1" },
         jobCell(o),
-        el("td", { class: "or-supplier", text: o.supplier }),
+        el("td", { class: "or-supplier", text: o.supplier || "No supplier yet" }),
         desc,
         el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
         expected,

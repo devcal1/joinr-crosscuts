@@ -1,0 +1,33 @@
+/* The job page's Materials section (jobmaterials.js; docs/plans/materials-contracts.md).
+   Loaded by job.html after jobs.css. Prefix jm-. */
+.jm-table { min-width: 0; width: 100%; }
+.jm-table td.jm-sec { color: var(--white); font-weight: 700; min-width: 70px; max-width: 110px; vertical-align: top; }
+.jm-table td.jm-name { color: var(--white); min-width: 150px; vertical-align: top; }
+.jm-table td.jm-notes { min-width: 90px; color: var(--label); }
+.jm-table th.jm-num, .jm-table td.jm-num { text-align: right; white-space: nowrap; }
+.jm-table td.jm-acts { white-space: nowrap; text-align: right; }
+.jm-table td.jm-acts .hs-btn { padding: 6px 10px; margin-left: 6px; }
+.jm-table th.jm-tick, .jm-table td.jm-tick { width: 1%; padding-right: 0; }
+.jm-table tr.jm-gone td.jm-name > span, .jm-table tr.jm-gone td.jm-notes { opacity: 0.7; }
+.jm-table tr.jm-editing td { vertical-align: top; }
+.jm-table .hs-input { width: 100%; min-width: 0; color-scheme: dark; }
+.jm-table .jm-qty { min-width: 64px; }
+.jm-table .jm-unit { min-width: 64px; }
+.jm-table .jm-section { min-width: 110px; }
+
+/* The marker words sit under the item, one small badge each. */
+.jm-marks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+
+.jm-orderbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; margin-top: 12px; }
+.jm-orderlabel { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.jm-orderbar .hs-input { width: 220px; max-width: 100%; }
+
+.jm-addgrid { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr) 90px 100px; gap: 12px 16px; }
+.jm-addgrid .jm-addnotes { grid-column: 1 / -1; }
+.jm-addgrid .hs-input { width: 100%; color-scheme: dark; }
+
+@media (max-width: 720px) {
+  .jm-table { min-width: 640px; }
+  .jm-addgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jm-addgrid .jm-addname { grid-column: 1 / -1; }
+}
