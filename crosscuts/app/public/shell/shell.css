@@ -516,6 +516,29 @@
 }
 body:has(> .cc-foot-rule) { padding-bottom: var(--rule-h); }
 
+/* Loading cursor (seventh named exception in CLAUDE.md, Todd 2026-10-18): while a page loads, or
+   after a link or form is used and the next page is awaited, the pointer is the Joinr dot, gently
+   pulsing. busy.js puts cc-busy on <html> and steps cc-f1..cc-f4 (the dot at 24, 26, 28 and 30 px in
+   a 32 px canvas, hotspot at the centre); with no frame class, or with reduced motion, it is the
+   still 28 px dot. The rule reaches every element so links and buttons show it too. progress is the
+   fallback if the image does not load. Cursors are never drawn in print, exportJpg() or screenshots. */
+html.cc-busy,
+html.cc-busy *,
+html.cc-busy *::before,
+html.cc-busy *::after { cursor: url(cursor-dot-3.svg) 16 16, progress !important; }
+html.cc-busy.cc-f1,
+html.cc-busy.cc-f1 *,
+html.cc-busy.cc-f1 *::before,
+html.cc-busy.cc-f1 *::after { cursor: url(cursor-dot-1.svg) 16 16, progress !important; }
+html.cc-busy.cc-f2,
+html.cc-busy.cc-f2 *,
+html.cc-busy.cc-f2 *::before,
+html.cc-busy.cc-f2 *::after { cursor: url(cursor-dot-2.svg) 16 16, progress !important; }
+html.cc-busy.cc-f4,
+html.cc-busy.cc-f4 *,
+html.cc-busy.cc-f4 *::before,
+html.cc-busy.cc-f4 *::after { cursor: url(cursor-dot-4.svg) 16 16, progress !important; }
+
 /* Every print leaves out the menu bar, the foot rule and any dialog (M12 contracts section 12.22).
    The board, Planner, BAS and the print pages already did this in their own print rules. */
 @media print {

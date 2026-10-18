@@ -1,0 +1,10 @@
+<!-- Loading cursor frame 2 of 4: the Joinr mark (docs/brand/logos/joinr-mark.svg in tenon-quotr, design unaltered), drawn 26px inside a 32x32 canvas, hotspot 16 16 (set in busy.css). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="joinr-dot-spectrum-2" x1="10" x2="54" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#17C8A0"/><stop offset="0.3" stop-color="#8B5CF6"/><stop offset="0.55" stop-color="#D946EF"/><stop offset="1" stop-color="#F97316"/></linearGradient>
+  </defs>
+  <g transform="translate(3 3) scale(0.40625)">
+    <rect width="64" height="64" rx="12" fill="#101019"/>
+    <circle cx="32" cy="32" r="22" fill="url(#joinr-dot-spectrum-2)"/>
+  </g>
+</svg>

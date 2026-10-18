@@ -11,6 +11,14 @@
   "use strict";
   if (window.cc && window.cc.__shell) return;
 
+  // The loading cursor (shell/busy.js, the seventh named exception in CLAUDE.md). Every page loads it
+  // from its <head>; a page that does not still gets it from here (later, so it misses early requests).
+  if (!window.ccBusy) {
+    var busyScript = document.createElement("script");
+    busyScript.src = "/shell/busy.js";
+    document.head.appendChild(busyScript);
+  }
+
   // Menu 3.1 (docs/plans/menu-plan.md): the bar is the wordmark, a Dashboard link, one button per
   // department (each opens a short list of its pages), then a fixed right-hand cluster for
   // everyone: Planner, Tasks, Messages, Alerts and the user's name. A department shows only the
@@ -472,8 +480,9 @@
   // On phones the bar buttons hide and the same counts show in the Menu panel (tasksNav, messagesNav).
   var counts = { tasks: null, messages: null, tasksNav: null, messagesNav: null };
 
-  function getJson(url) {
-    return fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(function (res) {
+  // background = true: a poll the page did not wait for; the loading cursor ignores it (busy.js).
+  function getJson(url, background) {
+    return fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" }, ccBackground: !!background }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (body) {
         return { ok: res.ok, status: res.status, body: body || {} };
       });
@@ -514,7 +523,7 @@
   }
   function pollCount() {
     if (alerts.stopped || !alerts.btn) return Promise.resolve();
-    return getJson("/api/notifications/unread-count")
+    return getJson("/api/notifications/unread-count", true)
       .then(function (r) {
         if (r.status === 401) return stopAlerts();
         if (!r.ok) return;

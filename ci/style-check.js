@@ -10,7 +10,7 @@
 //   - a font weight other than 400 or 700
 //   - the Inter font, or Phosphor icons outside the board
 //
-// Exceptions, all named in CLAUDE.md and approved by Todd on 2026-10-10 to 2026-10-16:
+// Exceptions, all named in CLAUDE.md and approved by Todd on 2026-10-10 to 2026-10-18:
 //   - tokens.css defines the colours
 //   - worker colours: oklch() in shared.js (each worker's own hue)
 //   - board icons: Phosphor in schedule.html and schedule.js
@@ -23,6 +23,9 @@
 //     notes.js: the --paper token (cream sticky notes) and the Phosphor thumbs-up icon (ph-thumbs-up
 //     and the Phosphor stylesheet link, no other icon); files are matched by their path under
 //     crosscuts/app/public
+//   - loading cursor: the Joinr dot (approved by Todd on 2026-10-18), only in shell/shell.css (the
+//     cursor rule), shell/busy.js and shell/cursor-dot-N.svg; a cursor image (url(...)) or a
+//     cursor-dot reference anywhere else is refused
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"
 // If this check fails, fix the page, not the check.
@@ -40,6 +43,9 @@ const NOTES_ICON_OK = /ph ph-thumbs-up(?![-\w])|vendor\/phosphor\/style\.css/g;
 const PAPER_OK = new Set(["tokens.css", "notes.html", "notes.css", "notes.js"]);
 const OKLCH_OK = new Set(["shared.js"]);
 const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.js"]);
+// The loading cursor: the one custom cursor image in the app (see the header).
+const CURSOR_FILE = "shell/shell.css";
+const CURSOR_DOT_OK = new Set(["shell/shell.css", "shell/busy.js"]);
 const DEPT_FILE = "shell/shell.css";
 const DEPT_LAYERS = new Set(["--layer-scheduling", "--layer-design", "--layer-install", "--layer-accounts"]);
 
@@ -57,6 +63,8 @@ const RULES = [
   ["font weight other than 400/700", /font-weight\s*:(?!\s*(?:400|700|normal|bold|inherit)\b)/, () => true],
   ["font weight other than 400/700 (canvas or shorthand)", /["'`](?:italic\s+)?(?:100|200|300|500|600|800|900)\s+\d+(?:\.\d+)?px/, f => /\.js$/.test(f)],
   ["Inter font", /\bInter\b|vendor\/inter/, () => true],
+  ["cursor image outside the loading cursor rule", /\bcursor\s*:[^;{}]*\burl\(/, f => f !== CURSOR_FILE],
+  ["loading cursor image outside the shell", /cursor-dot/, f => !CURSOR_DOT_OK.has(f)],
   ["icon (Phosphor) outside the board", /phosphor|["'\s]ph ph-|["'\s]ph-[a-z]/, f => !PHOSPHOR_OK.has(f)],
 ];
 
