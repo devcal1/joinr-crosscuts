@@ -413,7 +413,7 @@
       var sel = el("select", { class: "hs-input tk-select", id: "tk-assignee" });
       if (create) sel.append(el("option", { value: "", text: "Choose a person" }));
       // Members of the design team can also give a task to the whole team.
-      if (create && can("notes.design")) {
+      if (create && can("notes.design") && can("tasks.use")) {
         var teamOpt = el("option", { value: "team:design", text: "Design/PM team" });
         if (want === "team:design") teamOpt.selected = true;
         sel.append(teamOpt);

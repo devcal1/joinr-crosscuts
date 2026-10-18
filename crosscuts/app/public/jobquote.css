@@ -29,7 +29,7 @@
 .fq-hours { margin: 8px 0 0; font-size: 13px; }
 .fq-notes { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--body); }
 .fq-warnings { margin: 0; padding-left: 18px; }
-.fq-warn-red { color: var(--stop-tint); }
+.fq-warn-red { color: var(--orange-tint); font-weight: 700; }
 .fq-warn-amber { color: var(--orange-tint); }
 .fq-foot { margin: 14px 0 0; font-size: 13px; }
 
@@ -48,5 +48,17 @@
   .fq-room { break-inside: avoid-page; border-radius: 0; }
   .fq-wrap { overflow: visible; border-radius: 0; }
   .fq-table { min-width: 0; }
+}
+/* style-check: print-end */
+
+/* The whole job page prints black on white: every section, the People row (the chips as plain black
+   text), the Materials table and the quote. Edit controls and buttons are left out. */
+/* style-check: print-start */
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  .jobs-page, .jobs-page * { color: #000 !important; background: transparent !important; border-color: #888 !important; box-shadow: none !important; }
+  .jobs-page .jp-chip { border: 1px solid #888 !important; max-width: none; overflow: visible; }
+  .jobs-page .hs-btn, .jobs-page .jobform-actions, #jmForm, #jmOrderBar, #jmFill, .jm-acts, .jm-tick, .jp-me, .jp-hint, .jm-hint { display: none !important; }
+  .jobs-page .jm-table { min-width: 0; }
 }
 /* style-check: print-end */

@@ -397,27 +397,33 @@ function viewRoom(room, money) {
 
 // The object GET /api/job-records/:id/joinr-quote sends for a snapshot that holds a quote. With
 // money false it has no money field at all: no rates, line or room totals, cost of goods, margin,
-// markups, tier, GST, totals, option prices or warnings (those words are about profit and tier).
+// markups, tier, GST, totals, warnings (those words are about profit and tier), and, like the money,
+// no quote notes and no options (labels or prices): those are for jobs.value holders only.
 function view(snapshot, { money }) {
   const q = snapshot.quote;
   const out = {
     pricedAt: snapshot.rateCard,
     receivedAt: snapshot.receivedAt,
     kmFromFactory: q.kmFromFactory,
-    notes: q.notes,
     rooms: q.rooms.map((r) => viewRoom(r, money)),
     labour: {},
-    options: q.options.map((o) => {
-      const v = { label: o.label, kind: o.kind, roomName: o.roomName, computed: o.computed };
-      if (money) Object.assign(v, { priceIncGstCents: o.priceIncGstCents, priceExGstCents: o.priceExGstCents });
-      return v;
-    }),
   };
   for (const k of HOURS_BUCKETS) {
     out.labour[k] = { typed: q.labour[k].typed, hours: q.labour[k].hours };
     if (money) out.labour[k].costCents = q.labour[k].costCents;
   }
   if (money) {
+    // The quote's notes and its options (labels, rooms and prices) are value-holders only, like the
+    // money (2026-10-18, Todd): they can carry prices, margins and what the client was told.
+    out.notes = q.notes;
+    out.options = q.options.map((o) => ({
+      label: o.label,
+      kind: o.kind,
+      roomName: o.roomName,
+      computed: o.computed,
+      priceIncGstCents: o.priceIncGstCents,
+      priceExGstCents: o.priceExGstCents,
+    }));
     out.labour.overheadRecoveryCents = q.labour.overheadRecoveryCents;
     out.gst = q.gst;
     out.tier = q.tier;

@@ -89,6 +89,7 @@ done
 req GET /intake.html "$DPM"
 expect_status 200 "dpm GET /intake.html"
 case $BODY in *"New from Joinr"*) ok ;; *) fail "/intake.html has no 'New from Joinr' title" ;; esac
+case $BODY in *"two or more jobs have it"*) ok ;; *) fail "/intake.html does not explain the two-or-more-jobs case" ;; esac
 req GET /api/joinr/job/1 "$SHOW"
 expect_status 403 "show GET /api/joinr/job/:id"
 req GET /api/joinr/intake
@@ -272,6 +273,7 @@ expect_status 200 "ignore a withdrawn record"
 req GET "/api/joinr/intake?state=ignored" "$DPM"
 expect_jq "[.rows[] | select(.id == $M6B_IGN or .id == $M6B_WD)] | length == 2" "both are in the Ignored view"
 req GET "/api/joinr/intake?state=new" "$DPM"
+expect_status 200 "the list answers"
 expect_jq "[.rows[] | select(.id == $M6B_IGN or .id == $M6B_ACCESS or .id == $M6B_LINK)] | length == 0" "decided records leave the New view"
 req GET "/api/joinr/intake?state=decided" "$DPM"
 expect_jq "[.rows[] | select(.id == $M6B_ACCESS or .id == $M6B_LINK)] | length == 2" "accepted and linked records are in the Accepted and linked view"
@@ -299,4 +301,5 @@ req POST "/api/joinr/intake/$M6B_ACCESS/acknowledge" "$DPM" '{}'
 expect_status 200 "acknowledging again is harmless"
 expect_eq "$(m6b_audits joinr.acknowledge "$M6B_ACCESS")" 1 "no second acknowledge audit row"
 req GET "/api/joinr/intake?state=changed" "$DPM"
+expect_status 200 "the list answers"
 expect_jq "([.rows[] | select(.id == $M6B_ACCESS)] | length == 0) and ([.rows[] | select(.id == $M6B_IGN)] | length == 1)" "only the unacknowledged record stays in Changed"

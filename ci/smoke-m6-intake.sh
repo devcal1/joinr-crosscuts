@@ -92,6 +92,7 @@ M6_Q6=c6000000-0000-4000-8000-000000000006
 M6_Q7=c6000000-0000-4000-8000-000000000007
 M6_Q8=c6000000-0000-4000-8000-000000000008
 M6_Q10=c6000000-0000-4000-8000-000000000010
+M6_Q11=c6000000-0000-4000-8000-000000000011
 
 # Joinr is wired to make a job by itself (2026-10-18, Todd): a won quote that arrives from the puller
 # or the import becomes a Won job at once (or links to the one live job with its quote number), with
@@ -235,7 +236,8 @@ for pair in "SCHED:$SCHED" "ACCT:$ACCT"; do
   expect_status 200 "$who GET /api/tasks?view=open"
   expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 0" "$who (not on the team) does not see it in All open"
   req GET "/api/tasks?view=job&jobId=$M6_Q1_JOB" "$jar"
-  expect_jq '.rows | length == 0' "$who does not see it on the job's task list"
+  expect_status 200 "$who GET the job's task list"
+  expect_jq '(.rows | type == "array") and (.rows | length == 0)' "$who does not see it on the job's task list"
   req GET "/api/tasks/$M6_Q1_TASK" "$jar"
   expect_status 404 "$who GET the team task by id"
   req POST "/api/tasks/$M6_Q1_TASK/done" "$jar"
@@ -251,6 +253,7 @@ req POST "/api/tasks/$M6_Q1_TASK/done" "$DPM"
 expect_status 200 "dpm ticks the team task done"
 expect_jq ".status == \"done\" and .doneBy.id == $M6_DPM_ID and .doneAt != null" "done records who and when"
 req GET "/api/tasks?view=mine" "$ADMIN"
+expect_status 200 "the list answers"
 expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 0" "it is closed for admin too"
 req GET "/api/tasks?view=done" "$ADMIN"
 expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 1" "admin finds it in Done"
@@ -514,7 +517,8 @@ M6_Q6_JOB=$(jqr '.job.id')
 req GET "/api/joinr/intake/$M6_Q6_ID" "$DPM"
 expect_jq ".decidedBy.name == \"CI Design PM\" and .decidedBy.id == $M6_DPM_ID" "a hand decision names the person"
 req GET "/api/tasks?view=job&jobId=$M6_Q6_JOB" "$DPM"
-expect_jq '.rows | length == 0' "a hand Accept makes no team task (the person doing it is already on it)"
+expect_status 200 "dpm GET the job's task list"
+expect_jq '(.rows | type == "array") and (.rows | length == 0)' "a hand Accept makes no team task (the person doing it is already on it)"
 
 echo "--- exactly one live job with the quote number: linked, moved to Won, nothing overwritten ---"
 req POST /api/job-records "$DPM" '{"name":"M6 typed-in kitchen","quoteNumber":"CI-M6-0007","clientName":"Typed Client","stage":"quoted"}'
@@ -538,21 +542,59 @@ expect_jq '(.rows | length) == 1 and .rows[0].title == "Joinr quote linked to M6
 req GET "/api/notifications?limit=100" "$DPM"
 expect_jq "[.rows[] | select(.kind == \"joinr.job\" and .link == \"/job.html?id=$M6_Q7_JOB\" and .title == \"Joinr linked to M6 typed-in kitchen\")] | length == 1" "the team is told the quote was linked"
 
-echo "--- two live jobs with the quote number: a new job is made, neither is touched ---"
+echo "--- two or more live jobs with the quote number: nothing is made, a person chooses (Todd, 2026-10-18) ---"
 req POST /api/job-records "$DPM" '{"name":"M6 twin A","quoteNumber":"CI-M6-0008","stage":"quoted"}'
 M6_Q8_A=$(jqr '.id')
 req POST /api/job-records "$DPM" '{"name":"M6 twin B","quoteNumber":"CI-M6-0008","stage":"quoted"}'
 M6_Q8_B=$(jqr '.id')
 m6_event "$M6_Q8" "$M6_Q8" won won '{"quoteNumber":"CI-M6-0008","siteAddress":"8 Far Future St","clientName":"M6 Client Eight","wonAt":"2099-06-03T01:00:00Z"}'
 m6_sync "$DPM" "sync quote 8"
-expect_eq "$(m6_intake_field "$M6_Q8" state)" "accepted" "quote 8 became a new job (the match was not unique)"
-M6_Q8_JOB=$(m6_intake_field "$M6_Q8" job_id)
-[ "$M6_Q8_JOB" != "$M6_Q8_A" ] && [ "$M6_Q8_JOB" != "$M6_Q8_B" ] || fail "quote 8 was tied to one of the twins"
-ok
+expect_eq "$(m6_intake_field "$M6_Q8" state)" "new" "quote 8 is left for a person (the match was not unique)"
+M6_Q8_ID=$(m6_intake_field "$M6_Q8" id)
+expect_eq "$(m6_intake_field "$M6_Q8" job_id)" "null" "no job was made or linked for quote 8"
+expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM jobs WHERE quote_number = 'CI-M6-0008'" | jq -r '.[0].n')" "2" "still just the two twins carry the number"
+expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM team_tasks WHERE source = 'joinr' AND job_id IN (SELECT id FROM jobs WHERE quote_number = 'CI-M6-0008')" | jq -r '.[0].n')" "0" "no team task for it"
+expect_eq "$(m6_alerts joinr.new "$M6_Q8_ID")" "1" "the Design/PM team gets the joinr.new alert"
+req GET "/api/notifications?limit=100" "$DPM"
+expect_status 200 "dpm notifications"
+expect_jq "[.rows[] | select(.kind == \"joinr.new\" and .link == \"/intake.html?item=$M6_Q8_ID\" and (.body | contains(\"more than one job has quote number CI-M6-0008\") and contains(\"Choose which to link\")))] | length == 1" "the alert says more than one job has the number and to choose which to link"
 for j in "$M6_Q8_A" "$M6_Q8_B"; do
   req GET "/api/job-records/$j" "$DPM"
+  expect_status 200 "twin $j"
   expect_jq '.externalRef == null and .stage == "quoted"' "the twin $j is untouched"
 done
+req GET "/api/joinr/intake/$M6_Q8_ID" "$DPM"
+expect_status 200 "the record for quote 8"
+expect_jq "([.matchJobs[].id] | sort) == ([$M6_Q8_A, $M6_Q8_B] | sort)" "both twins are offered to link"
+req POST "/api/joinr/intake/$M6_Q8_ID/link" "$DPM" "{\"jobId\":$M6_Q8_B}"
+expect_status 200 "a person links quote 8 to twin B"
+expect_jq '.item.state == "linked" and .job.stage == "won"' "linked, and moved to Won"
+req GET "/api/job-records/$M6_Q8_A" "$DPM"
+expect_jq '.externalRef == null and .stage == "quoted"' "twin A is still untouched"
+
+echo "--- a unique match with week rows: tied to the quote, but it cannot move to Won, so no won date ---"
+req POST /api/job-records "$DPM" '{"name":"M6 quoted with rows","quoteNumber":"CI-M6-0011","stage":"quoted"}'
+expect_status 201 "a typed-in job at Quoted"
+M6_Q11_JOB=$(jqr '.id')
+docker exec "$CONTAINER" node -e '
+const D = require("better-sqlite3");
+const d = new D("/data/db/photos.db");
+d.pragma("busy_timeout = 5000");
+d.prepare("INSERT INTO week_rows (job_id, week_start, panel, sort_order) VALUES (?, ?, ?, 0)").run(Number(process.argv[1]), "2099-07-06", "manufacturing");
+d.close();' "$M6_Q11_JOB" || fail "inserting the week row failed"
+ok
+m6_event "$M6_Q11" "$M6_Q11" won won '{"quoteNumber":"CI-M6-0011","siteAddress":"11 Far Future St","clientName":"M6 Client Eleven","wonAt":"2099-06-05T01:00:00Z"}'
+m6_sync "$DPM" "sync quote 11"
+expect_eq "$(m6_intake_field "$M6_Q11" state)" "linked" "quote 11 linked by itself"
+req GET "/api/job-records/$M6_Q11_JOB" "$DPM"
+expect_jq '.externalRef != null and .stage == "quoted" and .wonDate == null' "tied to the quote, still Quoted, no won date"
+docker exec "$CONTAINER" node -e '
+const D = require("better-sqlite3");
+const d = new D("/data/db/photos.db");
+d.pragma("busy_timeout = 5000");
+d.prepare("DELETE FROM week_rows WHERE job_id = ?").run(Number(process.argv[1]));
+d.close();' "$M6_Q11_JOB" || fail "removing the week row failed"
+ok
 
 echo "--- a unique match that is further along keeps its stage ---"
 req POST /api/job-records "$DPM" '{"name":"M6 already in design","quoteNumber":"CI-M6-0010","stage":"design_ordering"}'

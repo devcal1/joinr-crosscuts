@@ -69,7 +69,7 @@
   }
 
   function lineName(o) {
-    return o.jobName + ": " + o.supplier + (o.description ? ", " + o.description : "");
+    return o.jobName + ": " + (o.supplier || "No supplier yet") + (o.description ? ", " + o.description : "");
   }
 
   function showActions() {

@@ -195,7 +195,8 @@ req GET "/api/job-records/$M19_J1/joinr-quote" "$SCHED"
 expect_status 200 "scheduling (jobs.view only)"
 expect_jq '.status == "ok" and .money == false' "ok, without money"
 expect_jq '(.quote.rooms | length) == 2 and .quote.rooms[0].sections[0].lines[0].name != null and .quote.rooms[0].sections[0].lines[0].qty != null' "the rooms and their lines (item, qty) are there"
-expect_jq '.quote.labour.factory.typed == 32 and .quote.labour.office.hours == 8 and (.quote.options | length) == 1 and (.quote.notes | startswith("Client wants"))' "labour hours, options and notes are there"
+expect_jq '.quote.labour.factory.typed == 32 and .quote.labour.office.hours == 8' "labour hours are there"
+expect_jq '(.quote | has("notes") | not) and (.quote | has("options") | not)' "scheduling's JSON has no quote notes and no options (value holders only)"
 if printf '%s' "$BODY" | grep -Eqi 'cents|markup|"tier"|"gst"|margin|warning|totals|cogs|overhead|"adjust"|rate'; then
   fail "scheduling's answer carries a money-looking field: ${BODY:0:600}"
 fi
@@ -318,6 +319,24 @@ expect_jq '.status == "too-large"' "the page API says so"
 m19_event "$M19_Q4" changed won "$(printf '%s' "$M19_Q4_BASE" | jq -c '.spec.sheetCount = 13 | .quote = {rooms: 5}')"
 m19_sync "sync the change with a malformed quote"
 expect_eq "$(m19_snap "$M19_Q4" "s.quote_json IS NULL")" "1" "a malformed quote does not touch the snapshot"
+
+# --- a quantity over the cap never fails the fill ----------------------------------------------------------------------------------
+echo "--- a huge quantity from Joinr: stored as no quantity, with a note; Update still works ---"
+M19_BIG_ITEM=$(printf '%s' "$M19_Q1_BASE" | jq -c '.spec.sheetCount = 30 | .valueIncGstCents = 1600000 | ._quote = {boards: 3000000}')
+m19_event "$M19_Q1" changed won "$M19_BIG_ITEM"
+m19_sync "sync the quote with 3,000,000 sheets"
+req POST "/api/job-records/$M19_J1/materials/update-from-joinr" "$DPM" '{}'
+expect_status 200 "Update materials from Joinr with a quantity over the cap (no 500)"
+expect_jq '.lines[] | select(.name == "White Melamine 18mm" and (.notes | startswith("Kitchen"))) | .qty == null and (.notes | contains("Quantity too large from Joinr"))' "the board line has no quantity and says why"
+expect_jq '[.lines[] | select(.name == "Bar handle 160mm")] | length == 1' "the rest of the list is intact"
+M19_SUM=$(docker exec "$CONTAINER" node -e '
+const m = require("/app/lib/materials.js");
+const mk = (n, q) => ({ section: "hardware", name: n, qty: q, unit: "each", kind: "materials" });
+const quote = { rooms: [{ id: "r1", name: "K", lines: [mk("Screw", 600000), mk("Screw", 600000), mk("Pin", 3), mk("Pin", 4)], customItems: [] }] };
+process.stdout.write(JSON.stringify(m.linesFromPayload({}, quote)));' | tr -d '\r')
+printf '%s' "$M19_SUM" | jq -e '(.[] | select(.name == "Screw") | .qty == null and (.notes | contains("Quantity too large from Joinr"))) and (.[] | select(.name == "Pin") | .qty == 7)' >/dev/null \
+  || fail "summed quantities over the cap: expected the sum to become no quantity and a small sum to stay, got: ${M19_SUM:0:400}"
+ok
 
 # --- tidy up ----------------------------------------------------------------------------------------------------------------------------------------------
 echo "--- tidy up: stop the stand-in and remove the Joinr set-up ---"

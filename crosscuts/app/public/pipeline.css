@@ -290,8 +290,11 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
 @media (max-width: 640px) {
   .pl-col[data-stage="quoted"] { flex-basis: min(420px, 100%); min-width: 0; }
   /* On a phone the names and buttons wrap under the job's name. */
-  .pl-line { flex-wrap: wrap; }
-  .pl-line .pl-handle { flex-basis: 100%; }
+  .pl-line { flex-wrap: wrap; row-gap: 4px; }
+  /* Wrapped buttons and names must not sit flush with the line's edge: the line carries the left and
+     bottom padding, and the handle's own left padding moves to the line. */
+  .pl-line:not(.pl-joinr) { padding: 0 8px 8px 12px; }
+  .pl-line .pl-handle { flex-basis: 100%; padding-left: 0; }
   .pl-head h1 { font-size: 22px; }
   .pl-cards { max-height: calc(100vh - 260px); }
 }

@@ -379,6 +379,16 @@ text above where they differ.
   outlined teal button beside the wordmark.
 - **Landscape time sheets (2026-10-16).** Printed time sheets are landscape.
 
+### 5.5 Decided 2026-10-18 (Todd)
+
+- **Pipeline in Scheduling:** the Pipeline page is also in the Scheduling menu, read-only there.
+- **Tools page:** a Tools page in Design/PM (the batten calculator is its first tool).
+- **Login to worker link, names on tiles:** a login can be linked to a board worker. Pipeline tiles and the job page show who is on a job, as chips in that worker's colour (a use of the worker-colour exception); anyone with jobs.edit adds or removes their own name, and users.admin removes anyone's.
+- **Team tasks for Design/PM:** a task can be given to the Design/PM team (holders of notes.design and tasks.use) as one shared task.
+- **Won quotes become jobs by themselves:** a won Joinr quote is auto-Won. Exactly one live job with the same quote number is linked automatically; none makes a new Won job; two or more go to the inbox for a person to choose which to link. Import creates Won jobs too.
+- **Materials list:** each job has a Materials list filled from the Joinr quote, with overrides (a line a person changes or removes is left alone by later syncs), and a button turns chosen lines into order lines.
+- **Full Joinr quote on the job:** the whole quote is shown on the job page. The money, Joinr's warnings, the quote notes and the option names are shown only to holders of jobs.value.
+
 ## 6. Cross-cutting systems
 
 ### 6.1 Notifications and messaging (no email)

@@ -310,17 +310,34 @@ function linesFromPayload(payload, quote) {
   const raw = p.raw && typeof p.raw === "object" ? p.raw : {};
   const out = [];
   const byKey = new Map();
+  // A quantity over the cap (alone or summed over lines with the same key) can't be stored: the line
+  // keeps no quantity and says so in its notes, so the fill never fails on migration 034's CHECK.
+  const TOO_BIG = "Quantity too large from Joinr";
+  const flagBig = (line) => {
+    line.qty = null;
+    line.big = true;
+    if (!line.notes.includes(TOO_BIG)) line.notes = cut(line.notes ? line.notes + "; " + TOO_BIG : TOO_BIG, NOTES_MAX);
+  };
   const add = (key, section, name, qty, unit, notes) => {
     const k = cut(key, KEY_MAX);
-    const q = typeof qty === "number" && Number.isFinite(qty) && qty >= 0 && qty <= QTY_MAX ? Math.round(qty * 1000) / 1000 : null;
+    const isNum = typeof qty === "number" && Number.isFinite(qty) && qty >= 0;
+    const big = isNum && qty > QTY_MAX;
+    const q = isNum && !big ? Math.round(qty * 1000) / 1000 : null;
     const have = byKey.get(k);
     if (have) {
-      if (q !== null) have.qty = (have.qty || 0) + q;
+      if (have.big) return;
+      if (big) flagBig(have);
+      else if (q !== null) {
+        const sum = Math.round(((have.qty || 0) + q) * 1000) / 1000;
+        if (sum > QTY_MAX) flagBig(have);
+        else have.qty = sum;
+      }
       return;
     }
     const line = { key: k, section, name: cut(name, NAME_MAX), qty: q, unit: unit || null, notes: notes || "" };
     byKey.set(k, line);
     out.push(line);
+    if (big) flagBig(line);
   };
 
   // Sheets: spec.sheetCount, a whole number (the sum of the quote's board sheets, rounded up).

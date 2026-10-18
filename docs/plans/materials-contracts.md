@@ -14,7 +14,7 @@ Table `job_materials`:
 | `position` | order within the job (a new line takes max + 1); the page lists by section, then position |
 | `section` | free text, 1 to 40 characters. Typed lines use one of `boards, edging, doors, benchtop, handles, hardware, drawers, room_extras, paint, other`; Joinr lines may later carry their own |
 | `name` | NOT NULL, 1 to 300 characters (not blank) |
-| `qty` | REAL, NULL or 0 to 1,000,000 (three decimals kept) |
+| `qty` | REAL, NULL or 0 to 1,000,000 (three decimals kept). A Joinr quantity over 1,000,000, alone or summed over lines with the same key, is stored as NULL with the note "Quantity too large from Joinr", so a fill or Update never fails on this CHECK |
 | `unit` | NULL or at most 30 characters |
 | `notes` | NOT NULL, default `''`, at most 1000 |
 | `source` | `joinr` or `manual` |
@@ -88,7 +88,7 @@ Never automatic. For each chosen line that is not already ordered it calls `orde
 
 ## 5. The page (job page, `public/jobmaterials.js`)
 
-A "Materials" section after "From Joinr" and before "Orders" (`#materials`), for `jobs.view` holders: a table of section, item, qty, unit, notes and marks, with a small word on each line: **JOINR**, **EDITED** (a Joinr line a person changed) or **TYPED**, plus **ORDERED** and **NO LONGER IN JOINR**. Section label shown on the first line of each group. `jobs.edit`: Edit (in place), Remove (confirm dialog), an Add a line form, and **Fill from Joinr** in the section bar when the job is tied to Joinr and has no Joinr lines. `orders.edit`: a tick per not-yet-ordered line, an optional supplier (from the supplier list) and **Create order lines (n)**; the Orders section reloads after. The "Changed in Joinr" callout gains **Update materials from Joinr** (`jobs.edit`), with a one-line result ("1 added, 1 updated, 2 no longer in Joinr. 2 lines you changed or removed were left alone."). House style only: outlined buttons, badges, no icons. No board files touched.
+A "Materials" section after "From Joinr" and before "Orders" (`#materials`), for `jobs.view` holders: a table of section, item, qty, unit, notes and marks, with a small word on each line: **JOINR**, **EDITED** (a Joinr line a person changed) or **TYPED** (grey, like the others: violet is for the numbered discs only), plus **ORDERED** and **NO LONGER IN JOINR**. Section label shown on the first line of each group. `jobs.edit`: Edit (in place), Remove (confirm dialog), an Add a line form, and **Fill from Joinr** in the section bar when the job is tied to Joinr and has no Joinr lines. `orders.edit`: a tick per not-yet-ordered line, an optional supplier (from the supplier list) and **Create order lines (n)**; the Orders section reloads after. Drawer lines stay orderable here (Todd, 2026-10-18), so a muted line under the button says "Drawers from Joinr are also on the Drawer order. Take care not to order them twice." The "Changed in Joinr" callout gains **Update materials from Joinr** (`jobs.edit`), with a one-line result ("1 added, 1 updated, 2 no longer in Joinr. 2 lines you changed or removed were left alone."). House style only: outlined buttons, badges, no icons. No board files touched.
 
 ## 6. Tests: `ci/smoke-m18-materials.sh`
 

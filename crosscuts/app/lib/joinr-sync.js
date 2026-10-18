@@ -586,8 +586,16 @@ function applyItemInner(db, item) {
       } catch (e) {
         console.error(`[joinr] could not make a job from quote ${item.quoteNumber || item.rootQuoteId} automatically: ${scrub(e && e.message)}`);
       }
-      if (!auto) alert(db, "joinr.new", id, titleFor("New from Joinr", item), item.clientName || "");
-      return { action: "created", ...(auto ? { decided: auto.state, jobId: auto.jobId } : {}) };
+      const decided = auto && auto.state !== "inbox" ? auto : null;
+      if (!decided) {
+        // Two or more live jobs carry the quote number: a person chooses which to link (2026-10-18).
+        const body =
+          auto && auto.state === "inbox"
+            ? `Won in Joinr: more than one job has quote number ${item.quoteNumber}. Choose which to link.`
+            : item.clientName || "";
+        alert(db, "joinr.new", id, titleFor("New from Joinr", item), body);
+      }
+      return { action: "created", ...(decided ? { decided: decided.state, jobId: decided.jobId } : {}) };
     }
 
     const update = (extraSql = "", extraArgs = []) =>

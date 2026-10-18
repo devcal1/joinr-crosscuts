@@ -56,7 +56,7 @@
   const MARKS = {
     joinr: ["Joinr", "hs-badge-na"],
     edited: ["Edited", "hs-badge-check"],
-    typed: ["Typed", "hs-badge-violet"],
+    typed: ["Typed", "hs-badge-na"],
   };
 
   // A modal on the shell's cc-dialog frame; resolves true only when the confirm button is pressed.
