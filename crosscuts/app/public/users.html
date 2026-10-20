@@ -27,8 +27,8 @@
         <div class="field">
           <label for="newUsername">Username</label>
           <input class="hs-input" id="newUsername" type="text" autocomplete="off" autocapitalize="none" spellcheck="false"
-                 placeholder="e.g. sam" required>
-          <div class="hint">Lowercase letters, numbers, dot, dash, underscore (2-32).</div>
+                 placeholder="e.g. sam@thcabinets.com.au" required>
+          <div class="hint">A name or an email address. Lowercase; not case-sensitive when they sign in. A name is 2-32 letters, numbers, dot, dash or underscore; an email address is up to 64 characters.</div>
         </div>
         <div class="field">
           <label for="newDisplayName">Display name</label>
@@ -101,6 +101,7 @@
 
           <div class="hs-sectionbar"><h3 class="hs-sectionbar-title">Account</h3></div>
           <div class="actions">
+            <button class="hs-btn" type="button" id="usRename">Change username</button>
             <button class="hs-btn" type="button" id="toggleDisabled"></button>
             <button class="hs-btn hs-btn-stop" type="button" id="signOutAll">Sign out everywhere</button>
           </div>

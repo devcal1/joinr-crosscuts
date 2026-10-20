@@ -255,6 +255,100 @@ expect_jq ".ownerId == $M13_O_ADMIN_ID" "meta names the admin as the owner again
 req GET /api/auth/me "$ADMIN"
 expect_jq ".user.isOwner == true and (.user.perms | length) == $M13_O_NKEYS" "the admin holds all $M13_O_NKEYS keys again"
 
+echo "--- email usernames, and changing a username (Todd 2026-10-20) ---"
+M13_O_EM_A="m13.a$M13_O_TAG@example.test"
+M13_O_EM_B="m13.b$M13_O_TAG@example.test"
+M13_O_EM_PW="M13-Email-Passw0rd-$M13_O_TAG"
+M13_O_PLAIN="m13plain$M13_O_TAG"
+# A mixed-case email address is stored lowercase; the user has no roles beyond showroom.
+req POST /api/users "$ADMIN" \
+  "$(jq -nc --arg u "M13.A$M13_O_TAG@Example.TEST" --arg p "Tmp-$M13_O_EM_PW" '{username:$u,displayName:"M13 Email A",password:$p,roles:["showroom"]}')"
+expect_status 201 "create a user whose username is an email address (typed in mixed case)"
+expect_jq ".username == \"$M13_O_EM_A\"" "the email username is stored lowercase"
+M13_O_EM_ID=$(jqr '.id')
+# Not allowed: no dot in the domain, two @, a space, an empty part, too long.
+for bad in "a@b" "a@@b.test" "a b@x.test" "a@b..test" "@x.test" "a@.test" "a@b.test." "$(printf 'x%.0s' $(seq 1 33))" "$(printf 'x%.0s' $(seq 1 60))@x.test"; do
+  req POST /api/users "$ADMIN" "$(jq -nc --arg u "$bad" '{username:$u,displayName:"Bad",password:"Bad-Passw0rd-1",roles:[]}')"
+  expect_status 400 "create with username '${bad:0:20}' is refused"
+done
+# A plain name still works.
+create_user "$M13_O_PLAIN" "M13 Plain Name" "Tmp-$M13_O_EM_PW" showroom
+M13_O_PLAIN_ID=$CREATED_ID
+# Sign in with the address in any case.
+M13_O_EM_JAR="$WORK/jar-m13-em"
+new_jar "$M13_O_EM_JAR"
+login "$M13_O_EM_JAR" "M13.A$M13_O_TAG@EXAMPLE.test" "Tmp-$M13_O_EM_PW"
+expect_status 200 "sign in with the email username typed in mixed case"
+own_password "$M13_O_EM_JAR" "Tmp-$M13_O_EM_PW" "$M13_O_EM_PW"
+M13_O_PLAIN_JAR="$WORK/jar-m13-plain"
+new_jar "$M13_O_PLAIN_JAR"
+login "$M13_O_PLAIN_JAR" "$(printf '%s' "$M13_O_PLAIN" | tr a-z A-Z)" "Tmp-$M13_O_EM_PW"
+expect_status 200 "sign in with a plain username in capitals"
+
+echo "--- renaming a login ---"
+req PATCH "/api/users/$M13_O_EM_ID/username" "$ACCT" "{\"username\":\"x$M13_O_EM_B\"}"
+expect_status 403 "acct (no users.admin) renames a login"
+req PATCH "/api/users/$M13_O_EM_ID/username" "$ADMIN" '{"username":"a@b"}'
+expect_status 400 "rename to an invalid username"
+req PATCH "/api/users/$M13_O_EM_ID/username" "$ADMIN" '{}'
+expect_status 400 "rename with no username"
+req PATCH "/api/users/999999/username" "$ADMIN" "{\"username\":\"$M13_O_EM_B\"}"
+expect_status 404 "rename a login that doesn't exist"
+req PATCH "/api/users/$M13_O_EM_ID/username" "$ADMIN" "{\"username\":\"$(printf '%s' "$M13_O_PLAIN" | tr a-z A-Z)\"}"
+expect_status 409 "rename to a name that is taken (case-insensitively)"
+req PATCH "/api/users/$M13_O_EM_ID/username" "$ADMIN" "{\"username\":\"$M13_O_ACCT_USER\"}"
+expect_status 409 "rename to another login's username"
+req PATCH "/api/users/$M13_O_EM_ID/username" "$ADMIN" "{\"username\":\"  $(printf '%s' "$M13_O_EM_B" | tr a-z A-Z)  \"}"
+expect_status 200 "the owner renames the email user (typed in capitals with spaces)"
+expect_jq ".id == $M13_O_EM_ID and .username == \"$M13_O_EM_B\" and .displayName == \"M13 Email A\" and .roles == [\"showroom\"] and .mustChangePassword == false and .disabled == false" \
+  "the new username is stored lowercase and everything else is as it was"
+req GET "/api/audit?action=user.username&entityId=$M13_O_EM_ID" "$ADMIN"
+expect_status 200 "read the user.username audit rows"
+expect_jq ".total == 1 and .rows[0].entityType == \"user\" and .rows[0].before.username == \"$M13_O_EM_A\" and .rows[0].after.username == \"$M13_O_EM_B\"" \
+  "a user.username audit row records the before and after"
+# The same name again changes nothing and writes no second audit row.
+req PATCH "/api/users/$M13_O_EM_ID/username" "$ADMIN" "{\"username\":\"$M13_O_EM_B\"}"
+expect_status 200 "rename to the name it already has"
+req GET "/api/audit?action=user.username&entityId=$M13_O_EM_ID" "$ADMIN"
+expect_jq '.total == 1' "no second audit row for an unchanged username"
+# The session they already had carries on, under the new name.
+req GET /api/auth/me "$M13_O_EM_JAR"
+expect_status 200 "the renamed user's existing session still works"
+expect_jq ".user.username == \"$M13_O_EM_B\" and .user.id == $M13_O_EM_ID" "the session shows the new username"
+M13_O_EM_JAR2="$WORK/jar-m13-em2"
+new_jar "$M13_O_EM_JAR2"
+login "$M13_O_EM_JAR2" "$M13_O_EM_A" "$M13_O_EM_PW"
+expect_status 401 "the old username no longer signs in"
+login "$M13_O_EM_JAR2" "$M13_O_EM_B" "$M13_O_EM_PW"
+expect_status 200 "the new username signs in with the same password"
+# The old name is free again.
+req PATCH "/api/users/$M13_O_PLAIN_ID/username" "$M13_O_ADM" "{\"username\":\"$M13_O_EM_A\"}"
+expect_status 200 "a second admin takes the freed username for another login"
+req PATCH "/api/users/$M13_O_PLAIN_ID/username" "$M13_O_ADM" "{\"username\":\"$M13_O_PLAIN\"}"
+expect_status 200 "and gives it back"
+# The owner's username: only the owner.
+req PATCH "/api/users/$M13_O_ADMIN_ID/username" "$M13_O_ADM" "{\"username\":\"owner.$M13_O_TAG@example.test\"}"
+m13_o_refused 403 "Only the owner can change the owner's username" "the second admin renames the owner"
+req PATCH "/api/users/$M13_O_ADMIN_ID/username" "$ADMIN" "{\"username\":\"owner.$M13_O_TAG@example.test\"}"
+expect_status 200 "the owner renames themselves"
+expect_jq ".isOwner == true and .username == \"owner.$M13_O_TAG@example.test\"" "still the owner, under the new username"
+req GET /api/auth/me "$ADMIN"
+expect_jq ".user.isOwner == true and (.user.perms | length) == $M13_O_NKEYS" "the owner's session is untouched"
+M13_O_OWN2="$WORK/jar-m13-owner2"
+new_jar "$M13_O_OWN2"
+login "$M13_O_OWN2" "$M13_O_ADMIN_USER" "$ADMIN_PW"
+expect_status 401 "the owner's old username no longer signs in"
+login "$M13_O_OWN2" "owner.$M13_O_TAG@example.test" "$ADMIN_PW"
+expect_status 200 "the owner signs in with the new username"
+# Put the owner's username back for the suites after this one.
+req PATCH "/api/users/$M13_O_ADMIN_ID/username" "$ADMIN" "{\"username\":\"$M13_O_ADMIN_USER\"}"
+expect_status 200 "the owner changes their username back"
+expect_jq ".username == \"$M13_O_ADMIN_USER\"" "the owner has the original username again"
+for id in "$M13_O_EM_ID" "$M13_O_PLAIN_ID"; do
+  req PATCH "/api/users/$id" "$ADMIN" '{"disabled":true}'
+  expect_status 200 "disable the test login $id"
+done
+
 echo "--- clean-up, and no hand-over to a disabled admin (review A-M1) ---"
 req PATCH "/api/users/$M13_O_ADM_ID" "$ADMIN" '{"disabled":true}'
 expect_status 200 "the owner disables the second admin"

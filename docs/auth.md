@@ -26,6 +26,15 @@ The reference for Crosscuts' logins, sessions, roles and enforcement. `docs/plan
 - At most 4 password or PIN checks run at once across the whole app. Beyond that the server answers `429 {"error":"Busy, try again","retryAfterSec":2}` and records no attempt.
 - Changing your own password signs out your other sessions and forgets your other remembered devices.
 
+## Usernames
+
+**Changed 2026-10-20 (Todd):** a login's username may be an email address, so staff sign in with the address they already use (for example `accounts@thcabinets.com.au`).
+
+- **The rule** (`lib/username.js`, used when a user is created, renamed, and at first-run setup): trimmed and lowercased, 2 to 64 characters, and either a **plain name** (2 to 32 characters from `a-z 0-9 . _ -`, the original rule) or an **email-like address** `local@domain`: exactly one `@`; letters, digits and `. _ + -` before it; letters, digits and `-` after it, in dot-separated parts with at least one dot and no empty part. A refusal is 400 with "Username must be a name (...) or an email address (up to 64 characters)".
+- **Not case-sensitive.** The column is `COLLATE NOCASE`, so `Accounts@TH.com.au` signs in as `accounts@th.com.au`, and two usernames that differ only by case are the same name (409 "That username is already taken").
+- **Usernames already stored stay valid.** The rule is applied only when a username is created or changed. The sign-in form accepts whatever is stored.
+- **Changing a username** (`PATCH /api/users/:id/username`, body `{username}`, `users.admin`; the **Change username** button on the Users page). Only the name changes: the password, roles, overrides, worker link, PIN, remembered devices and signed-in sessions all follow the user id, so the person stays signed in and uses the new name next time. Checks in order: 404 no such user; 403 "Only the owner can change the owner's username" (the owner's username is changed by the owner only); 400 the rule above; 409 taken. Naming the name they already have changes nothing. It writes a `user.username` audit row with the before and after username. Nothing else keys on the username: the 15-minute failed-login count is kept per username and IP, so a rename starts that count fresh, and audit rows keep the username as it was when they were written.
+
 ## Roles and feature keys
 
 A role is a preset: a set of feature keys. A user's effective permissions are the union of their roles' keys, then each override is applied. A **grant** adds a key; a **revoke** removes it. Unknown keys in overrides are refused (400).
@@ -134,6 +143,7 @@ Approved by Todd 2026-10-16 (`docs/plans/m13-plan.md` §5, `docs/plans/m13-contr
 | Action | Refused for anyone else with |
 |---|---|
 | Change the owner's login (display name, roles, disable, overrides) | "Only the owner can change the owner's login" |
+| Change the owner's username | "Only the owner can change the owner's username" |
 | Reset the owner's password | "Only the owner can reset the owner's password" |
 | Sign the owner out everywhere | "Only the owner can sign the owner out" |
 | Grant or revoke an owner-only key, for anyone (themselves included) | "Only the owner can grant or revoke <key>" |

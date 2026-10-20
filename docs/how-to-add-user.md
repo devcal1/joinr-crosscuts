@@ -7,7 +7,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
 ## Add a user
 
 1. Open **Users** and choose **Add user**.
-2. Enter a username (the name they type to log in; it is not case-sensitive), their display name, and a starting password.
+2. Enter a username (the name they type to log in), their display name, and a starting password. **A username can be a name or an email address** (Todd, 2026-10-20), for example `accounts@thcabinets.com.au`. It is not case-sensitive, and it is saved in lowercase. A name is 2 to 32 letters, numbers, dots, dashes or underscores; an email address is up to 64 characters.
 3. Tick their roles. A person can have more than one. The list is below.
 4. Save.
 5. Tell them the username and starting password in person. They will be asked to choose their own password at first login, and again every six months.
@@ -89,6 +89,15 @@ Logins and the board's workers (Workers page) are separate lists. Linking a logi
 3. A worker can be linked to one login only; a worker already linked to someone else is greyed out in the list.
 
 Why it matters: anyone who can edit jobs can put their own name on a Pipeline job tile (the small **+ ME** button on the tile, or **Add me** on the job page) and take it off again. Their name appears as a small chip in their worker colour; a login with no worker gets a grey chip. Everyone who can see the Pipeline sees the names. An admin can remove anyone's name (click the chip, or the name on the job page). Changing a worker's colour on the Workers page changes the chip too.
+
+## Change a username
+
+Dated 2026-10-20. Use this to move someone onto their email address, or to fix a typo.
+
+1. Open the person's entry and press **Change username** (under **Account**).
+2. Type the new username (a name or an email address) and press **Save**.
+
+Their password, roles, exceptions and board worker stay exactly as they were, and they stay signed in. From next time they sign in with the new username; the old one stops working at once. A username already used by anyone else (in any capitals) is refused in the dialog. Only the owner can change the owner's username. The change is written to the audit log (`user.username`, with the old and new name).
 
 ## Reset a password
 

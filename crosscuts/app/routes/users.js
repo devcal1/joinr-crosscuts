@@ -7,11 +7,11 @@ const permissions = require("../lib/permissions");
 const { hashSecret, verifySecret } = require("../lib/password");
 const audit = require("../lib/audit");
 const auth = require("../lib/auth");
+const { cleanUsername, MESSAGE: USERNAME_MESSAGE } = require("../lib/username");
 
 const r = defineRoutes("/api/users");
 
 const ACCESS = "users.admin";
-const USERNAME_RE = /^[a-z0-9._-]{2,32}$/;
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200;
 const MAX_NAME = 80;
@@ -259,10 +259,8 @@ r.post(
   ACCESS,
   handler(async (req, res) => {
     const body = req.body || {};
-    const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
-    if (!USERNAME_RE.test(username)) {
-      throw new HttpError(400, "Username must be 2-32 characters: letters, numbers, dot, dash, underscore");
-    }
+    const username = cleanUsername(body.username);
+    if (!username) throw new HttpError(400, USERNAME_MESSAGE);
     const displayName = cleanDisplayName(body.displayName);
     const password = cleanPassword(body.password);
     const roles = body.roles === undefined ? [] : cleanRoles(body.roles);
@@ -378,6 +376,41 @@ r.patch(
       audit.log(req, { ...entity, action: "user.enable", before: { disabled: true }, after: { disabled: false } });
     }
     res.json(after);
+  })
+);
+
+// 2026-10-20 (Todd): change a login's username (logins are staff email addresses). Body {username}.
+// Only the username changes: sessions, password, roles, overrides and the worker link all key on the
+// user id, so they carry over. The owner's username is changed only by the owner. Check order:
+// 404, 403 (owner), 400 (rule), 409 (taken, case-insensitively).
+r.patch(
+  "/:id/username",
+  ACCESS,
+  handler(async (req, res) => {
+    const id = parseId(req);
+    const before = requireUser(id);
+    guardOwnerTarget(req, before, "Only the owner can change the owner's username");
+    const username = cleanUsername((req.body || {}).username);
+    if (!username) throw new HttpError(400, USERNAME_MESSAGE);
+    if (username !== before.username) {
+      if (db.prepare("SELECT id FROM users WHERE username = ? COLLATE NOCASE AND id != ?").get(username, id)) {
+        throw new HttpError(409, "That username is already taken");
+      }
+      try {
+        db.prepare("UPDATE users SET username = ?, updated_at = ? WHERE id = ?").run(username, nowIso(), id);
+      } catch (e) {
+        if (isUniqueError(e)) throw new HttpError(409, "That username is already taken");
+        throw e;
+      }
+      audit.log(req, {
+        action: "user.username",
+        entityType: "user",
+        entityId: String(id),
+        before: { username: before.username },
+        after: { username },
+      });
+    }
+    res.json(requireUser(id));
   })
 );
 

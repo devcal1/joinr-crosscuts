@@ -352,6 +352,41 @@
     })
   );
 
+  // 2026-10-20 (Todd): change a login's username (PATCH /api/users/:id/username). Their password,
+  // roles, overrides, worker link and sessions are untouched; only the name they type to sign in
+  // changes. The rule is the server's (lib/username.js); the check here just saves a round trip.
+  const USERNAME_MESSAGE =
+    "Username must be a name (2-32 characters: letters, numbers, dot, dash, underscore) or an email address (up to 64 characters)";
+  const USERNAME_PLAIN = /^[a-z0-9._-]{2,32}$/;
+  const USERNAME_EMAIL = /^[a-z0-9._+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+  function validUsername(v) {
+    return v.length >= 2 && v.length <= 64 && (USERNAME_PLAIN.test(v) || USERNAME_EMAIL.test(v));
+  }
+
+  $("usRename").addEventListener("click", async () => {
+    const u = selected();
+    if (!u || !window.OrderUI) return;
+    const ui = OrderUI.ui;
+    const input = h("input", { class: "hs-input", type: "text", autocomplete: "off", autocapitalize: "none", spellcheck: "false", maxlength: "64", value: u.username });
+    const done = await ui.dialog({
+      title: "Change username",
+      note: `The name ${u.displayName} types to sign in. Their password, roles and everything else stay as they are, and they stay signed in. A name or an email address.`,
+      fields: [ui.field("New username", input)],
+      submit: "Save",
+      focus: input,
+      run: async () => {
+        const username = input.value.trim().toLowerCase();
+        if (!validUsername(username)) throw new Error(USERNAME_MESSAGE);
+        if (username === u.username.toLowerCase()) throw new Error("That is already their username");
+        return await api(`/api/users/${u.id}/username`, { method: "PATCH", body: JSON.stringify({ username }) });
+      },
+    });
+    if (done && done.id === u.id) {
+      applyUser(done);
+      toast("Username changed");
+    }
+  });
+
   $("toggleDisabled").addEventListener(
     "click",
     guarded(async () => {

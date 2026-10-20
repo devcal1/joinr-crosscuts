@@ -4,6 +4,7 @@ const { defineRoutes } = require("../lib/routes");
 const { hashSecret, verifySecret } = require("../lib/password");
 const audit = require("../lib/audit");
 const auth = require("../lib/auth");
+const { cleanUsername, MESSAGE: USERNAME_MESSAGE } = require("../lib/username");
 
 const r = defineRoutes("/api/auth");
 
@@ -100,12 +101,10 @@ r.get("/status", "public", (req, res) => {
 r.post("/setup", "public", wrap(async (req, res) => {
   if (userCount() > 0) return res.status(404).json({ error: "Not found" });
   const b = req.body || {};
-  const username = str(b.username).trim();
+  const username = cleanUsername(b.username);
   const displayName = str(b.displayName).trim();
   const password = str(b.password);
-  if (!/^[A-Za-z0-9._@-]{2,64}$/.test(username)) {
-    return res.status(400).json({ error: "Username must be 2-64 characters: letters, numbers and . _ @ -" });
-  }
+  if (!username) return res.status(400).json({ error: USERNAME_MESSAGE });
   if (!displayName || displayName.length > 100) return res.status(400).json({ error: "Display name is required (max 100 characters)" });
   if (password.length < MIN_PASSWORD || password.length > MAX_SECRET_LEN) {
     return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters` });
