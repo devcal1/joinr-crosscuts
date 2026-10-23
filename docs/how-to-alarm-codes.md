@@ -67,7 +67,7 @@ Press **Edit** on the slot. Change what you need and press **Save**. Leave **Cod
 
 ## Weekly times
 
-For each day, Monday to Sunday: **Arms at** (evening) and **Disarms at** (morning), each optional. Press **Save**.
+For each day, Monday to Sunday: **Deactivate** (evening) and **Activate** (morning), each optional. Press **Save**.
 
 ## If the alarm code key is missing
 

@@ -501,7 +501,7 @@ function putTimes(db, req, body) {
   for (const d of [...days].sort((x, y) => x.day - y.day)) {
     unknownKeys(d, new Set(["day", "armsAt", "disarmsAt"]));
     const label = DAY_LABELS[d.day - 1];
-    next.set(d.day, { day: d.day, armsAt: timeValue(d.armsAt, label, "arms at"), disarmsAt: timeValue(d.disarmsAt, label, "disarms at") });
+    next.set(d.day, { day: d.day, armsAt: timeValue(d.armsAt, label, "deactivate"), disarmsAt: timeValue(d.disarmsAt, label, "activate") });
   }
   const current = timesOut(db);
   const before = [];

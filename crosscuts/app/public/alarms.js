@@ -248,10 +248,10 @@
     $("alTimesRows").replaceChildren(...times.map((t) => {
       const arms = el("input", { class: "hs-input al-time", type: "time", "data-day": String(t.day), "data-which": "armsAt" });
       arms.value = t.armsAt || "";
-      arms.setAttribute("aria-label", t.label + " arms at");
+      arms.setAttribute("aria-label", t.label + " deactivate");
       const disarms = el("input", { class: "hs-input al-time", type: "time", "data-day": String(t.day), "data-which": "disarmsAt" });
       disarms.value = t.disarmsAt || "";
-      disarms.setAttribute("aria-label", t.label + " disarms at");
+      disarms.setAttribute("aria-label", t.label + " activate");
       return el("tr", null,
         el("th", { scope: "row", class: "al-day", text: t.label }),
         el("td", null, arms),

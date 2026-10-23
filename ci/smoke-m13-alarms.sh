@@ -353,7 +353,7 @@ expect_status 400 "six days"
 expect_jq '.error == "Give all seven days, Monday to Sunday"' "the seven-days sentence"
 req PUT /api/alarms/times "$ADMIN" "{\"days\":$(printf '%s' "$M13_A_DAYS" | jq -c '.[0].armsAt = "25:00"')}"
 expect_status 400 "25:00"
-expect_jq '.error == "Monday arms at must be a time (HH:MM)"' "the time sentence"
+expect_jq '.error == "Monday deactivate must be a time (HH:MM)"' "the time sentence"
 req PUT /api/alarms/times "$ADMIN" "{\"days\":$M13_A_DAYS}"
 expect_status 200 "the weekly times"
 expect_jq 'length == 7 and .[0].day == 1 and .[0].label == "Monday" and .[6].label == "Sunday" and .[0].armsAt == "18:00" and .[0].disarmsAt == "06:30" and .[5].disarmsAt == null and .[6].armsAt == null' \
