@@ -438,7 +438,10 @@
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
+    text-decoration: none;
   }
+  a.cc-dept-head:hover,
+  a.cc-dept-head[aria-current="page"] { color: var(--text); }
   .cc-dept-panel,
   .cc-dept-panel.cc-open {
     display: block;

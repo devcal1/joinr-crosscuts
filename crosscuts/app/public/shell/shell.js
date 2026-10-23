@@ -27,10 +27,11 @@
   var DEPARTMENTS = [
     {
       id: "scheduling",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=scheduling", key: "notes.scheduling" },
       label: "Scheduling",
       dept: "scheduling",
       items: [
-        { label: "Notes", href: "/notes.html?dept=scheduling", key: "notes.scheduling" },
         { label: "Board", href: "/schedule.html", key: "board.view" },
         // 2026-10-18 (Todd): read-only without jobs.edit; it stays in Design/PM too.
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
@@ -39,10 +40,11 @@
     },
     {
       id: "design",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=design", key: "notes.design" },
       label: "Design/PM",
       dept: "design",
       items: [
-        { label: "Notes", href: "/notes.html?dept=design", key: "notes.design" },
         { label: "Design/PM", href: "/design.html", key: "design.view" },
         { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
@@ -58,10 +60,11 @@
       // needed); Deliveries for whoever receives them. M11 (docs/plans/m11-contracts.md section 10):
       // the drawer, stock and paint orders and the board stocktake.
       id: "ordering",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=ordering", key: "notes.ordering" },
       label: "Ordering",
       dept: "ordering",
       items: [
-        { label: "Notes", href: "/notes.html?dept=ordering", key: "notes.ordering" },
         { label: "Orders", href: "/orders.html", key: "orders.view" },
         { label: "Deliveries", href: "/deliveries.html", key: "orders.receive" },
         { label: "Drawer order", href: "/drawers.html", key: "stock.order" },
@@ -72,10 +75,11 @@
     },
     {
       id: "accounts",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=accounts", key: "notes.accounts" },
       label: "Accounts",
       dept: "accounts",
       items: [
-        { label: "Notes", href: "/notes.html?dept=accounts", key: "notes.accounts" },
         { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
         { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
         { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
@@ -96,9 +100,10 @@
     },
     {
       id: "admin",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=admin", key: "notes.admin" },
       label: "Admin",
       items: [
-        { label: "Notes", href: "/notes.html?dept=admin", key: "notes.admin" },
         { label: "Users", href: "/users.html", key: "users.admin" },
         { label: "Audit", href: "/audit.html", key: "audit.view" },
         { label: "Availability", href: "/availability.html", key: "users.admin" },
@@ -726,7 +731,8 @@
   // and the department shows as a heading over a flat list (shell.css), so there is no nesting.
   function buildDepartment(d, allowed) {
     var panelId = "cc-dept-" + d.id;
-    var current = allowed.some(function (it) { return isCurrent(it.href); });
+    var home = d.home && cc.can(d.home.key) ? d.home.href : "";
+    var current = (home && isCurrent(home)) || allowed.some(function (it) { return isCurrent(it.href); });
     var btn = h("button", {
       class: "cc-dept-btn" + (d.dept ? " cc-dept-ruled" : ""),
       type: "button",
@@ -736,7 +742,10 @@
       "aria-current": current ? "true" : false,
       text: d.label,
     });
-    var head = h("span", { class: "cc-dept-head", id: "cc-dh-" + d.id, text: d.label });
+    // In the collapsed Menu panel the heading is the way to the department Notes page.
+    var head = home
+      ? h("a", { class: "cc-dept-head", id: "cc-dh-" + d.id, href: home, "aria-current": isCurrent(home) ? "page" : false, text: d.label })
+      : h("span", { class: "cc-dept-head", id: "cc-dh-" + d.id, text: d.label });
     var list = h("ul", { class: "cc-dept-list" });
     allowed.forEach(function (it) {
       list.appendChild(
@@ -755,9 +764,11 @@
       if (focusFirst) { var l = links(); if (l.length) l[0].focus(); }
     }
     btn.addEventListener("click", function () {
-      // With a mouse (Todd, 2026-10-23), clicking the department's name opens its first page: the
-      // department Notes page (its dashboard), or Photos for Photos. Touch keeps tap-to-open.
-      if (canHover.matches && btn.offsetParent) { location.href = allowed[0].href; return; }
+      // Clicking the department's name opens its Notes page (Todd, 2026-10-23), or its first page
+      // when it has none (Photos). With a mouse that is straight away; on touch the first tap opens
+      // the menu and a second tap on the name goes there.
+      var dest = home || (allowed[0] && allowed[0].href);
+      if (dest && (canHover.matches || btn.getAttribute("aria-expanded") === "true")) { location.href = dest; return; }
       // A click on a menu the mouse has just opened keeps it open rather than shutting it.
       if (hoverOpened) { hoverOpened = false; return; }
       if (btn.getAttribute("aria-expanded") === "true") setOpen(btn, false);
@@ -852,7 +863,7 @@
     );
     DEPARTMENTS.forEach(function (d) {
       var allowed = d.items.filter(function (it) { return cc.can(it.key); });
-      if (allowed.length) depts.appendChild(buildDepartment(d, allowed));
+      if (allowed.length || (d.home && cc.can(d.home.key))) depts.appendChild(buildDepartment(d, allowed));
     });
     nav.appendChild(depts);
 
