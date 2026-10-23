@@ -251,3 +251,6 @@ body {
   body.al-body > .al-noprint { display: block !important; margin: 20mm; font-size: 12pt; }
 }
 /* style-check: print-end */
+
+/* Paste list beside Add slot. */
+.al-bar-btns { display: flex; gap: 8px; flex-wrap: wrap; }

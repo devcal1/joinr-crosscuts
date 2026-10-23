@@ -428,6 +428,88 @@
     }).then((r) => after(r, editing ? "Slot " + slot.slot + " saved." : "Slot added."));
   }
 
+  // Paste list: one slot per line, "slot name code" split by tabs (a spreadsheet copy) or spaces,
+  // the code optional. A name matching one person on the pay list (any case) is that person, type
+  // Staff; any other name is typed in as it is, type Temp. Every line is checked before anything
+  // is sent; then each goes to POST /slots in turn, so a slot already in use is refused on its own
+  // line and the rest still go in. The box is emptied whatever the answer: codes aren't kept.
+  function parsePaste(text) {
+    const people = (data && data.people) || [];
+    const used = new Set(((data && data.slots) || []).filter((s) => !s.removedDate).map((s) => s.slot));
+    const rows = [];
+    const errors = [];
+    const seen = new Set();
+    text.split(/\r?\n/).forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line) return;
+      const parts = line.split(/\t+|\s{2,}/).map((p) => p.trim()).filter(Boolean);
+      const words = parts.length >= 2 ? parts : line.split(/\s+/);
+      const slotNo = Number(words[0]);
+      let code = null;
+      let nameParts = words.slice(1);
+      if (nameParts.length > 1 && CODE_RE.test(nameParts[nameParts.length - 1])) code = nameParts.pop();
+      const name = nameParts.join(" ").trim();
+      const where = "Line " + (i + 1);
+      if (!/^\d+$/.test(words[0]) || slotNo < 1 || slotNo > 999) return errors.push(where + ": the slot number must be 1 to 999.");
+      if (!name) return errors.push(where + ": no name.");
+      if (name.length > 100) return errors.push(where + ": the name is over 100 characters.");
+      if (seen.has(slotNo)) return errors.push(where + ": slot " + slotNo + " is listed twice.");
+      if (used.has(slotNo)) return errors.push(where + ": slot " + slotNo + " is already in use.");
+      seen.add(slotNo);
+      const matches = people.filter((p) => (p.name || "").trim().toLowerCase() === name.toLowerCase());
+      const body = { slot: slotNo };
+      if (matches.length === 1) {
+        const p = matches[0];
+        Object.assign(body, p.id != null ? { personId: p.id } : { workerId: p.workerId }, { type: "staff" });
+      } else {
+        Object.assign(body, { holderName: name, type: "temp" });
+      }
+      if (code) body.code = code;
+      rows.push({ body, name, matched: matches.length === 1 });
+    });
+    return { rows, errors };
+  }
+
+  function pasteDialog() {
+    const U = ui();
+    const missing = data && data.keyState === "missing";
+    const box = U.textArea("", 20000, 10);
+    box.setAttribute("spellcheck", "false");
+    box.setAttribute("autocomplete", "off");
+    return U.dialog({
+      title: "Paste list",
+      note: "One slot per line: slot number, name, code. Copy the rows straight from a spreadsheet.",
+      hint: "A name that matches someone on the pay list is linked to them as Staff; any other name goes in as Temp. Change the type afterwards with Edit."
+        + (missing ? " The alarm code key is missing, so lines with a code will be refused." : ""),
+      fields: [U.field("Slots", box, { wide: true })],
+      wide: true,
+      submit: "Add slots",
+      focus: box,
+      run: async () => {
+        const { rows, errors } = parsePaste(box.value);
+        if (errors.length) throw U.fail(errors.slice(0, 5).join(" ") + (errors.length > 5 ? " (and " + (errors.length - 5) + " more)" : ""), box);
+        if (!rows.length) throw U.fail("Paste at least one line.", box);
+        box.value = ""; // codes aren't kept on the page
+        const failed = [];
+        let added = 0;
+        for (const r of rows) {
+          try {
+            await send("/api/alarms/slots", "POST", r.body);
+            added++;
+          } catch (e) {
+            failed.push("slot " + r.body.slot + " (" + failText(e).replace(/[.!?]$/, "") + ")");
+          }
+        }
+        return { added, failed, linked: rows.filter((r) => r.matched).length };
+      },
+    }).then((r) => {
+      if (!r) return;
+      const msg = r.added + " slot" + (r.added === 1 ? "" : "s") + " added, " + r.linked + " linked to the pay list."
+        + (r.failed.length ? " Not added: " + r.failed.join("; ") + "." : "");
+      return after({ refused: false }, msg);
+    });
+  }
+
   function clearDialog(slot) {
     return ui().dialog({
       title: "Clear the code for slot " + slot.slot + "?",
@@ -542,6 +624,7 @@
   });
 
   $("alAdd").addEventListener("click", () => slotDialog(null));
+  $("alPaste").addEventListener("click", () => pasteDialog());
 
   (async () => {
     await (window.cc && window.cc.ready ? window.cc.ready : Promise.resolve());
