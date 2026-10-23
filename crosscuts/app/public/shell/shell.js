@@ -755,6 +755,9 @@
       if (focusFirst) { var l = links(); if (l.length) l[0].focus(); }
     }
     btn.addEventListener("click", function () {
+      // With a mouse (Todd, 2026-10-23), clicking the department's name opens its first page: the
+      // department Notes page (its dashboard), or Photos for Photos. Touch keeps tap-to-open.
+      if (canHover.matches && btn.offsetParent) { location.href = allowed[0].href; return; }
       // A click on a menu the mouse has just opened keeps it open rather than shutting it.
       if (hoverOpened) { hoverOpened = false; return; }
       if (btn.getAttribute("aria-expanded") === "true") setOpen(btn, false);
