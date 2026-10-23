@@ -93,8 +93,8 @@ M15N_SHELL=$(curl -s "$BASE/shell/shell.js")
 for M15N_PAIR in scheduling:notes.scheduling design:notes.design ordering:notes.ordering accounts:notes.accounts admin:notes.admin; do
   M15N_D=${M15N_PAIR%%:*}
   M15N_K=${M15N_PAIR#*:}
-  printf '%s\n' "$M15N_SHELL" | grep -A1 'items: \[' | grep -q "{ label: \"Notes\", href: \"/notes.html?dept=$M15N_D\", key: \"$M15N_K\" }" \
-    || fail "the $M15N_D menu has no Notes first item with key $M15N_K"
+  printf '%s\n' "$M15N_SHELL" | grep -qF "home: { href: \"/notes.html?dept=$M15N_D\", key: \"$M15N_K\" }" \
+    || fail "the $M15N_D department name doesn't open Notes with key $M15N_K"
   ok
 done
 req GET "/notes.html?dept=accounts"
