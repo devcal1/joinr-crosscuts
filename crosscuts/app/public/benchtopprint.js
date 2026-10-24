@@ -80,25 +80,10 @@
       el("p", { class: "bp-cap" }, pieceTitle(p, i) + " ", el("span", { text: sub })), r.svg);
   }
 
-  function legendLine(style) {
-    const s = document.createElementNS(NS, "svg");
-    s.setAttribute("viewBox", "0 0 50 10");
-    s.setAttribute("class", "bt-print");
-    const mk = (y, cls) => {
-      const l = document.createElementNS(NS, "line");
-      for (const [k, v] of [["x1", 0], ["x2", 50], ["y1", y], ["y2", y], ["class", cls]]) l.setAttribute(k, String(v));
-      s.append(l);
-    };
-    if (style === "double") { mk(3, "bt-edge bt-ls-double"); mk(7, "bt-edge bt-ls-double"); }
-    else if (style === "join") mk(5, "bt-join");
-    else mk(5, "bt-edge bt-ls-" + style);
+  function legendLine(kind) {
+    const s = D.sample(kind);
+    s.classList.add("bt-print");
     return s;
-  }
-
-  function cutPos(p, c) {
-    const o = D.outline(p);
-    const e = o.edges.find((x) => x.key === c.edge) || o.edges[0];
-    return `${c.along} along ${e.name.toLowerCase()} ${e.from}, ${c.in} in from it`;
   }
 
   // The All arrangement on one sheet, at the largest standard scale that fits the room left on
@@ -151,10 +136,12 @@
       out.push(el("div", {}, ...kids));
     });
 
-    // legend and cut-outs side by side
+    // legend, cut-outs (what they are, never their sizes) and totals
     const usedFin = new Set();
+    const thick = new Set();
     let unset = false;
     let joins = false;
+    let located = false;
     for (const p of ps) {
       const n = D.outline(p).edges.length;
       for (let k = 0; k < n; k++) {
@@ -162,26 +149,36 @@
         if (f != null && snap.finishes[f]) usedFin.add(String(f));
         else unset = true;
       }
+      for (const v of Object.values(p.thick || {})) thick.add(v);
       if (p.joins && p.joins.length) joins = true;
+      if ((p.cutouts || []).some((c) => c.located)) located = true;
     }
     const leg = [];
-    for (const id of usedFin) {
-      const f = snap.finishes[id];
-      leg.push(legendLine(f.lineStyle), el("span", {}, el("b", { text: f.code }), " " + f.name + (f.waterfall ? ", drop height in mm after the code" : "")));
+    for (const m of ["X", "//", "[]"]) {
+      const fs2 = [...usedFin].map((id) => snap.finishes[id]).filter((f) => (f.mark || "//") === m);
+      if (!fs2.length) continue;
+      const words = { X: "unfinished (to a wall or panel)", "//": "finished, seen", "[]": "seen, finished square" }[m];
+      leg.push(legendLine(m), el("span", {}, el("b", { text: m }), " " + words + ": " + fs2.map((f) => f.code + " " + f.name + (f.waterfall ? " (drop in mm)" : "")).join(", ")));
     }
-    if (unset) leg.push(legendLine("none"), el("span", { text: "No finish set (cut edge)" }));
-    if (joins) leg.push(legendLine("join"), el("span", {}, el("b", { text: "J" }), " Join, at mm from the run's start"));
+    if (thick.size) leg.push(legendLine("bold"), el("span", {}, el("b", { text: "Bold" }), " " + [...thick].sort((a, b) => a - b).map((t) => t + " mm").join(", ") + " edge"));
+    if (unset) leg.push(legendLine("plain"), el("span", { text: "No mark: finish not set" }));
+    if (joins) leg.push(legendLine("join"), el("span", {}, el("b", { text: "J" }), " Join (dashed), at mm from the run's start"));
+    leg.push(legendLine("cut"), el("span", { text: "Cut-out (dashed)" + (located ? "; located ones dimensioned from the piece's REF edge" : "") }));
     const cuts = [];
-    ps.forEach((p, i) => (p.cutouts || []).forEach((c) => cuts.push(el("tr", {},
-      el("td", { text: String(i + 1) }),
-      el("td", { text: (D.KIND_NAMES[c.kind] || "Cut-out") + (c.label ? ", " + c.label : "") }),
-      el("td", { text: c.kind === "tap" ? "Ø" + c.w : `${c.w} × ${c.h}` }),
-      el("td", { text: cutPos(p, c) })))));
+    ps.forEach((p, i) => {
+      const list = (p.cutouts || []).map((c) => (D.KIND_NAMES[c.kind] || "Cut-out") + (c.label ? " (" + c.label + ")" : ""));
+      if (list.length) cuts.push(el("li", {}, el("b", { text: pieceTitle(p, i) + ": " }), list.join(", ")));
+    });
+    const t = D.totals(ps, snap.finishes, snap.materials);
+    const tot = [el("div", {}, el("b", { text: "Area " + t.m2 + " m²" }))];
+    if (t.mats.length > 1) tot.push(el("div", { text: t.mats.map((m) => m.name + " " + m.m2 + " m²").join(" · ") }));
+    tot.push(el("div", { text: t.fins.map((f) => f.name + (f.mark ? " " + f.mark : "") + " " + f.m + " m").join(" · ") }));
+    if (t.thick.length) tot.push(el("div", { text: t.thick.map((x) => x.name + " " + x.m + " m").join(" · ") }));
     out.push(el("div", { class: "bp-two" },
       el("div", {}, el("h2", { class: "bp-h2", text: "Edge legend" }), el("div", { class: "bp-leg" }, ...leg)),
-      el("div", {}, el("h2", { class: "bp-h2", text: "Cut-outs" }), cuts.length
-        ? el("table", { class: "bp-t" }, el("thead", {}, el("tr", {}, ...["Piece", "Cut-out", "Size", "Position (to near sides)"].map((h) => el("th", { text: h })))), el("tbody", {}, ...cuts))
-        : el("p", { text: "None." }))));
+      el("div", {},
+        el("h2", { class: "bp-h2", text: "Totals" }), el("div", { class: "bp-tot" }, ...tot),
+        el("h2", { class: "bp-h2", text: "Cut-outs" }), cuts.length ? el("ul", { class: "bp-cuts" }, ...cuts) : el("p", { text: "None." }))));
 
     // material schedule
     const mrows = ps.map((p, i) => {

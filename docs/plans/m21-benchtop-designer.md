@@ -5,7 +5,7 @@ Approved by Todd 2026-10-24 (mock-ups `designer` and `plan-print`). Short bindin
 ## Data (migration 038_benchtop_designer, additive)
 
 - `benchtop_materials` (supplier, range_name, colour, thickness_mm 5-200, active). Admin list.
-- `benchtop_edge_finishes` (code, name, line_style in heavy/thin/double/dashed/dotted, sort, active). Admin list; seeded with PR Pencil round (heavy), AR Arris (thin), MITRE Mitred (double), BN Bullnose (dotted), RAW Raw, against wall (dashed).
+- `benchtop_edge_finishes` (code, name, line_style in heavy/thin/double/dashed/dotted, sort, active). Admin list; seeded with PR Pencil round, AR Arris, MITRE Mitred, BN Bullnose, RAW Raw, against wall, then WF Waterfall (039) and SQ Square (040). Since 040 each finish is drawn by its mark, not its line style.
 - `benchtop_plans`: one per job (`job_id UNIQUE`), `design_json`, `notes` (max 4000), created/updated.
 - `benchtop_plan_revisions`: `seq` (1 = A, 27 = AA), `letter`, `snapshot_json` (job, design, notes, the materials used and all finishes as they were, the letterhead), printed at/by.
 
@@ -17,9 +17,18 @@ Approved by Todd 2026-10-24 (mock-ups `designer` and `plan-print`). Short bindin
 - `edges`: `{eN: finishId}`; edges are numbered clockwise from the top-left corner (straight 4, L 6, U 8). Unset = no finish.
 - `drops`: `{eN: mm 50-1500}` for each edge whose finish is a waterfall (required). A waterfall finish goes on end edges only (straight e1/e3, l e1/e4, lr e2/e5, u e2/e6). Shown as "WF 870".
 - `joins`: `{run, at}` (mm from the run's start, 1 to len-1), at most 10.
-- `cutouts`: `{kind sink|cooktop|tap|other, label, w, h (tap: h = w, the diameter), edge, along, in}`: along the reference edge from its start, and in from it, both to the cut-out's near sides. At most 20.
+- `cutouts`: `{kind sink|cooktop|tap|other, label, w, h (outline only; tap: h = w), edge (= the piece's datum), located, along, in}`: along the reference edge from its start, and in from it, both to the cut-out's near sides. At most 20.
+- `datum`: the piece's reference edge for located cut-outs; `thick`: built-up edges (see below).
 
 Changed 2026-10-24 (Todd): the Waterfall leg piece was removed (it is now the Waterfall edge finish, migration 039 `benchtop_waterfall`: `benchtop_edge_finishes.waterfall` and a WF finish); leg pieces in older plans are dropped on read; L split into left and right; the All view and its positions.
+
+## Drawing convention, totals and cut-outs (Todd, 2026-10-25; migration 040 `benchtop_marks`)
+
+- Every edge is one thin unbroken line; its finish is a mark repeated across it: **X** unfinished (to a wall or panel), **//** finished and seen (arris, pencil round, bullnose, waterfall), **[]** seen and finished square. `benchtop_edge_finishes.mark` (X, //, []) replaces the line-style column in Admin (line_style stays in the table, unused). Seeded: RAW → X, SQ Square added → [], the rest //. Teal only marks the selection on screen.
+- `thick: {eN: mm 5-200}`: an edge built up to another thickness than the material's (e.g. 40 mm) draws bold; the legend reads "Bold: 40 mm edge".
+- Joins and cut-outs are drawn dashed.
+- Cut-outs show only what they are (Sink, Cooktop, Tap hole, Cut-out, plus the label), never their size. `w`/`h` are kept for the drawn outline only. Each piece has one reference edge `datum` (default e0); every cut-out's `edge` is set to it by the server. A cut-out with `located: true` is dimensioned from that edge (along it, and in from it); the reference edge is labelled REF. The print lists cut-outs by piece and type, with no size table.
+- Totals (screen and print): area in m² overall and per material (when more than one), and metres of each edge finish and of each built-up thickness. Area is the outline area (joins and cut-outs don't reduce it). Rounding: summed exactly in mm, then m² to 2 decimals and metres to 1 decimal.
 
 ## Revisions
 

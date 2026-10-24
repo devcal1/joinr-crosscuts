@@ -11,6 +11,8 @@ const EDGE_COUNT = { straight: 4, l: 6, lr: 6, u: 8 };
 const END_EDGES = { straight: ["e1", "e3"], l: ["e1", "e4"], lr: ["e2", "e5"], u: ["e2", "e6"] };
 const CUTOUT_KINDS = ["sink", "cooktop", "tap", "other"];
 const LINE_STYLES = ["heavy", "thin", "double", "dashed", "dotted"];
+// The finish marks drawn across an edge (Todd, 2026-10-25): X unfinished, // finished seen, [] square.
+const MARKS = ["X", "//", "[]"];
 const MAX_PIECES = 30;
 
 const now = () => new Date().toISOString();
@@ -106,6 +108,20 @@ function cleanDesign(db, raw) {
       drops[k] = int(d0[k], 50, 1500, `${what} waterfall drop`);
     }
     out.drops = drops;
+    // Edges built up to a thickness other than the material's (drawn bold), e.g. 40 mm.
+    const thick = {};
+    const t0 = p.thick === undefined || p.thick === null ? {} : obj(p.thick, `${what} edge thickness`);
+    for (const [k, v] of Object.entries(t0)) {
+      const mm = /^e(\d)$/.exec(k);
+      if (!mm || Number(mm[1]) >= EDGE_COUNT[p.shape]) throw bad(`${what}: unknown edge ${k}`);
+      if (v === null) continue;
+      thick[k] = int(v, 5, 200, `${what} edge thickness`);
+    }
+    out.thick = thick;
+    // The one reference edge every located cut-out on this piece is measured from.
+    const dm = typeof p.datum === "string" ? /^e(\d)$/.exec(p.datum) : null;
+    if (p.datum != null && (!dm || Number(dm[1]) >= EDGE_COUNT[p.shape])) throw bad(`${what}: unknown reference edge`);
+    out.datum = p.datum == null ? "e0" : p.datum;
     // Where the piece sits in the All view (mm).
     out.x = p.x == null ? 0 : int(p.x, -50000, 50000, `${what} position`);
     out.y = p.y == null ? 0 : int(p.y, -50000, 50000, `${what} position`);
@@ -122,15 +138,14 @@ function cleanDesign(db, raw) {
     out.cutouts = cuts.map((c0) => {
       const c = obj(c0, `${what} cut-out`);
       if (!CUTOUT_KINDS.includes(c.kind)) throw bad(`${what}: cut-out kind must be sink, cooktop, tap or other`);
-      const m = typeof c.edge === "string" ? /^e(\d)$/.exec(c.edge) : null;
-      if (!m || Number(m[1]) >= EDGE_COUNT[p.shape]) throw bad(`${what}: a cut-out needs a reference edge`);
       const w = int(c.w, 10, 3000, `${what} cut-out size`);
       return {
         kind: c.kind,
         label: str(c.label, 40, `${what} cut-out label`),
         w,
         h: c.kind === "tap" ? w : int(c.h, 10, 3000, `${what} cut-out size`),
-        edge: c.edge,
+        edge: out.datum,
+        located: c.located === true,
         along: int(c.along, 0, 10000, `${what} cut-out distance along`),
         in: int(c.in, 0, 3000, `${what} cut-out distance in`),
       };
@@ -322,14 +337,14 @@ function materialShape(m) {
 }
 
 function finishShape(f) {
-  return { id: f.id, code: f.code, name: f.name, lineStyle: f.line_style, sort: f.sort, waterfall: f.waterfall === 1, active: f.active === 1 };
+  return { id: f.id, code: f.code, name: f.name, mark: f.mark, lineStyle: f.line_style, sort: f.sort, waterfall: f.waterfall === 1, active: f.active === 1 };
 }
 
 function lists(db) {
   return {
     materials: db.prepare("SELECT * FROM benchtop_materials ORDER BY supplier, range_name, colour, thickness_mm").all().map(materialShape),
     finishes: db.prepare("SELECT * FROM benchtop_edge_finishes ORDER BY sort, id").all().map(finishShape),
-    lineStyles: LINE_STYLES,
+    marks: MARKS,
   };
 }
 
@@ -353,9 +368,15 @@ function cleanFinish(b, partial) {
   const out = {};
   if (!partial || b.code !== undefined) out.code = str(b.code, 12, "Code", { required: true }).toUpperCase();
   if (!partial || b.name !== undefined) out.name = str(b.name, 80, "Name", { required: true });
-  if (!partial || b.lineStyle !== undefined) {
+  if (!partial || b.mark !== undefined) {
+    if (!MARKS.includes(b.mark)) throw bad("Mark must be one of " + MARKS.join(" "));
+    out.mark = b.mark;
+  }
+  if (b.lineStyle !== undefined) {
     if (!LINE_STYLES.includes(b.lineStyle)) throw bad("Line style must be one of " + LINE_STYLES.join(", "));
     out.line_style = b.lineStyle;
+  } else if (!partial) {
+    out.line_style = "thin";
   }
   if (b.waterfall !== undefined) {
     if (typeof b.waterfall !== "boolean") throw bad("waterfall must be true or false");

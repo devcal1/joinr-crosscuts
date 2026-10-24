@@ -6,7 +6,7 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  let lineStyles = [];
+  let marks = [];
 
   function el(tag, props, ...kids) {
     const node = document.createElement(tag);
@@ -55,16 +55,16 @@
   function finRow(f) {
     const code = input(f && f.code, { maxlength: 12, "aria-label": "Code" });
     const name = input(f && f.name, { maxlength: 80, "aria-label": "Name" });
-    const ls = el("select", { class: "hs-input", "aria-label": "Line style" },
-      ...lineStyles.map((s) => {
+    const ls = el("select", { class: "hs-input", "aria-label": "Mark" },
+      ...marks.map((s) => {
         const o = el("option", { value: s, text: s });
-        if (f && f.lineStyle === s) o.selected = true;
+        if ((f ? f.mark : "//") === s) o.selected = true;
         return o;
       }));
     const wf = el("input", { type: "checkbox", checked: f ? f.waterfall : false, "aria-label": "Waterfall" });
     const sort = input(f ? f.sort : 0, { type: "number", min: 0, max: 999, "aria-label": "Order" });
     const act = el("input", { type: "checkbox", checked: f ? f.active : true, "aria-label": "Shown" });
-    const body = () => ({ code: code.value, name: name.value, lineStyle: ls.value, waterfall: wf.checked, sort: Math.round(Number(sort.value)) || 0, active: act.checked });
+    const body = () => ({ code: code.value, name: name.value, mark: ls.value, waterfall: wf.checked, sort: Math.round(Number(sort.value)) || 0, active: act.checked });
     return el("tr", { class: f ? (f.active ? "" : "ba-hidden") : "ba-new" },
       el("td", {}, code), el("td", {}, name), el("td", {}, ls), el("td", {}, wf), el("td", {}, sort), el("td", {}, act),
       el("td", {}, el("button", { type: "button", class: "hs-btn" + (f ? "" : " hs-btn-primary"), text: f ? "Save" : "Add", onclick: () => send("finishes", f && f.id, body()) })));
@@ -72,7 +72,7 @@
 
   async function load() {
     const l = await api("/api/benchtop-lists");
-    lineStyles = l.lineStyles;
+    marks = l.marks;
     $("baMat").replaceChildren(...l.materials.map(matRow), matRow(null));
     $("baFin").replaceChildren(...l.finishes.map(finRow), finRow(null));
   }

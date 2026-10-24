@@ -143,6 +143,47 @@
     return f.code;
   }
 
+  // The finish mark repeated across an edge, about every 70 base px: X, // or [].
+  function marks(g, e, mark, u) {
+    const [ux, uy] = e.u;
+    const [nx, ny] = e.n;
+    const n = Math.max(1, Math.floor(e.len / (70 * u)));
+    const s = 4 * u;
+    for (let k = 0; k < n; k++) {
+      const t = ((k + 0.5) * e.len) / n;
+      const px = e.a[0] + ux * t;
+      const py = e.a[1] + uy * t;
+      markAt(g, px, py, ux, uy, nx, ny, s, mark);
+    }
+  }
+
+  function markAt(g, px, py, ux, uy, nx, ny, s, mark) {
+    const P = (a, b) => [px + ux * a + nx * b, py + uy * a + ny * b];
+    const seg = (p, q) => line(g, p[0], p[1], q[0], q[1], "bt-mark");
+    if (mark === "X") {
+      seg(P(-s, -s), P(s, s));
+      seg(P(-s, s), P(s, -s));
+    } else if (mark === "[]") {
+      const c = [P(-s, -s), P(s, -s), P(s, s), P(-s, s)];
+      g.append(node("polygon", { points: c.map((q) => q.join(",")).join(" "), class: "bt-mark bt-markbox", "vector-effect": "non-scaling-stroke" }));
+    } else {
+      seg(P(-s * 1.1, -s * 1.2), P(-s * 0.1, s * 1.2));
+      seg(P(s * 0.1, -s * 1.2), P(s * 1.1, s * 1.2));
+    }
+  }
+
+  // A short sample line with a mark, for legends: an <svg> 48 x 12.
+  function sample(kind) {
+    const svg = node("svg", { viewBox: "0 0 48 12", class: "bt-sample" });
+    if (kind === "join") line(svg, 0, 6, 48, 6, "bt-join");
+    else if (kind === "cut") svg.append(node("rect", { x: 10, y: 1, width: 28, height: 10, class: "bt-cut", "vector-effect": "non-scaling-stroke" }));
+    else {
+      line(svg, 0, 6, 48, 6, "bt-edge" + (kind === "bold" ? " bt-bold" : ""));
+      if (kind === "X" || kind === "//" || kind === "[]") for (const x of [12, 36]) markAt(svg, x, 6, 1, 0, 0, 1, 3.2, kind);
+    }
+    return svg;
+  }
+
   // Draws one piece into group g in its own frame. opts: {finishes, u, print, selEdge, selCut,
   // index (data-piece), number}.
   function drawPiece(g, p, opts) {
@@ -151,21 +192,40 @@
     const pi = opts.index != null ? opts.index : 0;
     g.append(node("polygon", { points: o.pts.map((q) => q.join(",")).join(" "), class: "bt-shape", "data-piece": pi }));
 
+    // Cut-outs: a dashed outline labelled by what it is, never its size (Todd, 2026-10-25). A
+    // located one is dimensioned from the piece's one reference edge: along it, and in from it.
     (p.cutouts || []).forEach((c, i) => {
       const cg = cutGeom(o, c);
       const sel = opts.selCut === i;
       const cls = "bt-cut" + (sel ? " bt-sel" : "");
+      const name = (c.kind === "tap" ? "TAP" : KIND_NAMES[c.kind] + (c.label ? " · " + c.label : "")).toUpperCase();
       if (c.kind === "tap") {
         g.append(node("circle", { cx: cg.x + cg.w / 2, cy: cg.y + cg.h / 2, r: c.w / 2, class: cls, "data-cut": i, "data-piece": pi, "vector-effect": "non-scaling-stroke" }));
-        label(g, cg.x + cg.w / 2, cg.y - 9 * u, "TAP Ø" + c.w, "bt-cutlbl", u * 0.85);
+        label(g, cg.x + cg.w / 2, cg.y - 9 * u, name, "bt-cutlbl", u * 0.85);
       } else {
         g.append(node("rect", { x: cg.x, y: cg.y, width: cg.w, height: cg.h, rx: c.kind === "sink" ? Math.min(40, cg.w / 6) : 0, class: cls, "data-cut": i, "data-piece": pi, "vector-effect": "non-scaling-stroke" }));
-        const name = (KIND_NAMES[c.kind] + (c.label ? " · " + c.label : "")).toUpperCase();
         const vert = cg.h > cg.w * 1.4 && cg.w < 140 * u;
-        label(g, cg.x + cg.w / 2, cg.y + cg.h / 2 - (vert ? 0 : 7 * u), name, "bt-cutlbl", u * 0.85, vert);
-        if (!vert) label(g, cg.x + cg.w / 2, cg.y + cg.h / 2 + 7 * u, `${c.w} × ${c.h}`, "bt-cutsize", u * 0.85);
+        label(g, cg.x + cg.w / 2, cg.y + cg.h / 2, name, "bt-cutlbl", u * 0.85, vert);
       }
-      if (sel && !opts.print) line(g, ...cg.guide, "bt-guide");
+      if (c.located) {
+        const e = cg.edge;
+        const [ux, uy] = e.u;
+        const [nx, ny] = e.n;
+        // along: from the reference edge's start to the cut-out's near side, just off the edge
+        const off = Math.min(c.in / 2, 25 * u) || 12 * u;
+        const a0 = [e.a[0] + nx * off, e.a[1] + ny * off];
+        const a1 = [a0[0] + ux * c.along, a0[1] + uy * c.along];
+        line(g, a0[0], a0[1], a1[0], a1[1], "bt-dim");
+        label(g, (a0[0] + a1[0]) / 2 + nx * 8 * u, (a0[1] + a1[1]) / 2 + ny * 8 * u, String(c.along), "bt-dimlbl", u * 0.85, Math.abs(uy) > 0.5);
+        // in: from the reference edge to the cut-out's near side, at the cut-out's middle
+        const m = c.along + c.w / 2;
+        const b0 = [e.a[0] + ux * m, e.a[1] + uy * m];
+        const b1 = [b0[0] + nx * c.in, b0[1] + ny * c.in];
+        if (c.in > 0) {
+          line(g, b0[0], b0[1], b1[0], b1[1], "bt-dim");
+          label(g, (b0[0] + b1[0]) / 2 + ux * 9 * u, (b0[1] + b1[1]) / 2 + uy * 9 * u, String(c.in), "bt-dimlbl", u * 0.85, Math.abs(ny) > 0.5);
+        }
+      }
     });
 
     (p.joins || []).forEach((j, i) => {
@@ -180,24 +240,27 @@
       label(g, tx, ty, "J" + (i + 1) + " · " + j.at, "bt-joinlbl", u * 0.85, false, "start");
     });
 
+    // Edges: one thin unbroken line each, bold when built up to another thickness, with the
+    // finish's mark repeated across it (X unfinished, // finished seen, [] square).
     for (const e of o.edges) {
       const fid = p.edges ? p.edges[e.key] : null;
       const f = fid != null && opts.finishes ? opts.finishes[fid] : null;
-      const style = f ? f.lineStyle : "none";
+      const tk = p.thick && p.thick[e.key];
       const sel = opts.selEdge === e.key;
       const [ax, ay] = e.a;
       const [bx, by] = e.b;
-      line(g, ax, ay, bx, by, "bt-edge bt-ls-" + style);
-      if (style === "double") {
-        const off = 5 * u;
-        line(g, ax + e.n[0] * off, ay + e.n[1] * off, bx + e.n[0] * off, by + e.n[1] * off, "bt-edge bt-ls-double");
-      }
+      line(g, ax, ay, bx, by, "bt-edge" + (tk ? " bt-bold" : ""));
+      if (f) marks(g, e, f.mark, u);
       if (sel) line(g, ax, ay, bx, by, "bt-edge-sel");
       if (!opts.print) line(g, ax, ay, bx, by, "bt-hit", { "data-edge": e.key, "data-piece": pi });
-      const mx = (ax + bx) / 2 - e.n[0] * 16 * u;
-      const my = (ay + by) / 2 - e.n[1] * 16 * u;
+      const mx = (ax + bx) / 2 - e.n[0] * 18 * u;
+      const my = (ay + by) / 2 - e.n[1] * 18 * u;
       const vertical = Math.abs(e.u[1]) > 0.5;
-      const code = finishText(f, p, e.key);
+      const bits = [];
+      if (f) bits.push(opts.print ? finishText(f, p, e.key) : f.waterfall ? finishText(f, p, e.key) : f.name.toUpperCase());
+      if (tk) bits.push(tk + " MM");
+      if (p.datum === e.key && (p.cutouts || []).some((c) => c.located)) bits.push("REF");
+      const code = bits.join(" · ");
       if (opts.print) {
         label(g, mx, my, code ? `${e.len} · ${code}` : String(e.len), "bt-elbl", u, vertical);
       } else {
@@ -206,10 +269,7 @@
         const ly = my - e.n[1] * (code ? off2 / 2 : 0);
         // the length is clickable: benchtop.js opens an input on it
         label(g, lx, ly, String(e.len), "bt-elbl bt-edit" + (sel ? " bt-sel-txt" : ""), u, vertical, null, { "data-len": e.key, "data-piece": pi });
-        if (code) {
-          const txt = f.waterfall ? code : f.name.toUpperCase();
-          label(g, lx + e.n[0] * off2, ly + e.n[1] * off2, txt, "bt-ecode" + (sel ? " bt-sel-txt" : ""), u * 0.8, vertical);
-        }
+        if (code) label(g, lx + e.n[0] * off2, ly + e.n[1] * off2, code, "bt-ecode" + (sel ? " bt-sel-txt" : ""), u * 0.8, vertical);
       }
       if (sel && !opts.print) {
         g.append(node("circle", { cx: ax, cy: ay, r: 5 * u, class: "bt-node" }));
@@ -274,6 +334,53 @@
     return { svg, groups, bounds: b, pad };
   }
 
+  function area(p) {
+    const pts = outline(p).pts;
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[(i + 1) % pts.length];
+      a += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(a) / 2; // mm²
+  }
+
+  // Totals (Todd, 2026-10-25): area in m² (2 dp) overall and per material, metres of each edge
+  // finish (1 dp) and of built-up edges. Joins and cut-outs don't reduce the area. Rounded once,
+  // from the exact sums.
+  function totals(pieces, finishes, materials) {
+    let all = 0;
+    const byMat = new Map();
+    const byFin = new Map();
+    const byThick = new Map();
+    for (const p of pieces) {
+      const a = area(p);
+      all += a;
+      const mk = p.materialId == null ? "none" : String(p.materialId);
+      byMat.set(mk, (byMat.get(mk) || 0) + a);
+      for (const e of outline(p).edges) {
+        const fid = p.edges ? p.edges[e.key] : null;
+        const f = fid != null && finishes ? finishes[fid] : null;
+        const k = f ? String(f.id) : "none";
+        byFin.set(k, (byFin.get(k) || 0) + e.len);
+        const tk = p.thick && p.thick[e.key];
+        if (tk) byThick.set(tk, (byThick.get(tk) || 0) + e.len);
+      }
+    }
+    const m2 = (v) => (v / 1e6).toFixed(2);
+    const m = (v) => (v / 1000).toFixed(1);
+    const mats = [...byMat.entries()].map(([k, v]) => {
+      const mt = k !== "none" && materials ? materials[k] : null;
+      return { name: mt ? [mt.colour, mt.thickness + " mm"].join(" ") : "No material", m2: m2(v) };
+    });
+    const fins = [...byFin.entries()].map(([k, v]) => {
+      const f = k !== "none" ? finishes[k] : null;
+      return { name: f ? f.name : "Not set", mark: f ? f.mark : null, m: m(v) };
+    });
+    const thick = [...byThick.entries()].map(([t, v]) => ({ name: t + " mm edge", m: m(v) }));
+    return { m2: m2(all), mats, fins, thick };
+  }
+
   function describe(p) {
     if (p.shape === "straight") return `Straight · ${p.runs[0].len} × ${p.runs[0].depth}`;
     if (p.shape === "l" || p.shape === "lr") {
@@ -282,5 +389,5 @@
     return `U · ${p.runs[1].len} × ${p.runs[0].len} × ${p.runs[2].len}, depths ${p.runs[1].depth} / ${p.runs[0].depth} / ${p.runs[2].depth}`;
   }
 
-  window.BtDraw = { outline, setEdgeLen, cutGeom, joinLine, runAt, render, renderSet, bounds, describe, EDGE_NAMES, END_EDGES, RUN_NAMES, SHAPE_NAMES, KIND_NAMES };
+  window.BtDraw = { totals, sample, outline, setEdgeLen, cutGeom, joinLine, runAt, render, renderSet, bounds, describe, EDGE_NAMES, END_EDGES, RUN_NAMES, SHAPE_NAMES, KIND_NAMES };
 })();

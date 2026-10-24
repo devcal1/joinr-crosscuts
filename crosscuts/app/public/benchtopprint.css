@@ -42,22 +42,21 @@ table.bp-t { width: 100%; border-collapse: collapse; font-size: 8pt; }
 .bp-t th { font-size: 6.5pt; letter-spacing: 0.1em; text-transform: uppercase; }
 .bp-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 6mm; }
 .bp-leg { display: grid; grid-template-columns: 14mm 1fr; gap: 1.2mm 3mm; align-items: center; font-size: 8pt; }
-.bp-leg svg { width: 14mm; height: 3mm; overflow: visible; }
+.bp-leg svg { width: 14mm; height: 3.5mm; overflow: visible; }
 .bp-pre { white-space: pre-line; overflow-wrap: anywhere; }
 .bp-check { margin-top: 4mm; padding: 2mm 3mm; border: 0.4mm solid var(--ink); font-size: 10pt; font-weight: 700; text-align: center; }
 .bp-foot { position: absolute; left: 12mm; right: 12mm; bottom: 10mm; display: flex; justify-content: space-between; gap: 4mm; padding-top: 1.5mm; border-top: 0.3mm solid var(--ink); font-size: 7.5pt; }
 
 /* the drawing on paper */
 .bt-print .bt-shape { fill: none; }
-.bt-print .bt-edge { stroke: var(--ink); fill: none; }
-.bt-print .bt-ls-heavy { stroke-width: 2.4; }
-.bt-print .bt-ls-thin { stroke-width: 0.8; }
-.bt-print .bt-ls-double { stroke-width: 0.9; }
-.bt-print .bt-ls-dashed { stroke-width: 1; stroke-dasharray: 5 4; }
-.bt-print .bt-ls-dotted { stroke-width: 1.6; stroke-dasharray: 0.5 3; stroke-linecap: round; }
-.bt-print .bt-ls-none { stroke-width: 0.5; }
-.bt-print .bt-join { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 8 3 2 3; }
-.bt-print .bt-cut { fill: none; stroke: var(--ink); stroke-width: 0.8; }
+.bt-print .bt-edge { stroke: var(--ink); stroke-width: 0.8; fill: none; }
+.bt-print .bt-bold { stroke-width: 2.6; }
+.bt-print .bt-mark { stroke: var(--ink); stroke-width: 0.7; fill: none; }
+.bt-print .bt-join { stroke: var(--ink); stroke-width: 0.8; stroke-dasharray: 5 3; }
+.bt-print .bt-cut { fill: none; stroke: var(--ink); stroke-width: 0.7; stroke-dasharray: 4 3; }
+.bt-print .bt-dim { stroke: var(--ink); stroke-width: 0.5; stroke-dasharray: 2 2; }
+.bt-print .bt-shape { fill: none; }
+.bp-tot { font-size: 8.5pt; line-height: 1.5; }
 .bt-print text { fill: var(--ink); }
 .bt-print .bt-elbl, .bt-print .bt-joinlbl, .bt-print .bt-num, .bt-print .bt-cutlbl { font-weight: 700; }
 
@@ -73,7 +72,8 @@ table.bp-t { width: 100%; border-collapse: collapse; font-size: 8pt; }
   .bp-sheet { background: #fff; color: #000; break-after: page; page-break-after: always; }
   .bp-sheet:last-child { break-after: auto; page-break-after: auto; }
   .bp-sheet *:not(img) { border-color: #000; }
-  .bt-print .bt-edge, .bt-print .bt-join, .bt-print .bt-cut { stroke: #000; }
+  .bt-print .bt-edge, .bt-print .bt-join, .bt-print .bt-cut, .bt-print .bt-mark, .bt-print .bt-dim { stroke: #000; }
   .bt-print text { fill: #000; }
 }
 /* style-check: print-end */
+.bp-cuts { margin: 0; padding-left: 4mm; font-size: 8.5pt; }

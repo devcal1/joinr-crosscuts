@@ -19,15 +19,23 @@ Click **Straight**, **L shape (left)**, **L shape (right)** or **U**. The plan o
 
 ## Edges, joins and cut-outs
 
-- **Edges:** click an edge, then choose its finish on the right. Finishes are shown by line style and name; teal only marks what is selected.
-- **Waterfall:** on an end edge, choose **Waterfall** and type the drop height (mm). It shows as "WF 870" on screen and on the print.
-- **Joins:** click **Place join**, then click along a run. Adjust the position (mm from the run's start) on the right.
-- **Cut-outs:** select a piece and click **Add cut-out**. Choose the kind (sink, cooktop, tap hole, other), size, the edge it is measured from, the distance along that edge and the distance in from it (both to the cut-out's near sides).
+The plan follows the usual stone-drawing convention: every edge is a thin unbroken line, and a mark repeated across it says how it is finished.
+
+- **X** unfinished, against a wall or panel. **//** finished and seen (arris, pencil round, bullnose). **[]** seen and finished square.
+- **Edges:** click an edge, then choose its finish on the right.
+- **Thicker edges:** if an edge is built up (say 40 mm on a 20 mm top), type it under Edge thickness. It draws bold, and the legend says what bold means.
+- **Waterfall:** on an end edge, choose **Waterfall** and type the drop height (mm). It shows as "WF 870".
+- **Joins:** click **Place join**, then click along a run (drawn dashed). Adjust the position on the right.
+- **Cut-outs:** select a piece and click **Add cut-out**, then choose what it is (sink, cooktop, tap hole, other). Cut-outs are drawn dashed and labelled; their sizes are not shown. If a cut-out's position matters, tick **Show location**: it is dimensioned from the piece's one reference edge (marked REF). Change the reference edge under the piece, or with **Make this the reference edge** on a selected edge.
+
+## Totals
+
+The right panel (and the print) shows the total area in m² (and per material when there is more than one) and the metres of each edge finish and of any thicker edges. Area counts the whole outline: joins and cut-outs don't reduce it. Lengths are added up exactly, then area is rounded to 2 decimals and metres to 1 decimal.
 
 Type notes for the supplier on the left, then **Save**.
 
 ## Print
 
-**Print plan set** saves, then opens the plan set: the All arrangement to scale on the first sheet (pieces go across sheets only if it does not fit), the legend, cut-outs, material schedule and notes. If anything changed since the last revision, it becomes the next letter (A, B, C...). Use the browser's print to save a PDF (A4 portrait). Older revisions are listed on the left: **Open** shows one read-only, **Print** reprints it.
+**Print plan set** saves, then opens the plan set: the All arrangement to scale on the first sheet (pieces go across sheets only if it does not fit), the legend, totals, the cut-outs by piece, the material schedule and notes. If anything changed since the last revision, it becomes the next letter (A, B, C...). Use the browser's print to save a PDF (A4 portrait). Older revisions are listed on the left: **Open** shows one read-only, **Print** reprints it.
 
 **Send to supplier** is coming later.

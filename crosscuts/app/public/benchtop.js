@@ -353,40 +353,7 @@
     return true;
   }
 
-  function edgeSection(p, o) {
-    const e = o.edges.find((x) => x.key === st.selEdge);
-    if (!e) return null;
-    const cur = p.edges[e.key] != null ? p.edges[e.key] : null;
-    const opts = st.rev ? Object.values(st.finishes) : st.lists.finishes.filter((f) => f.active || f.id === cur);
-    const choose = (f) => {
-      if (f.waterfall && !askDrop(p, e.key)) return;
-      if (!f.waterfall && p.drops) delete p.drops[e.key];
-      p.edges[e.key] = f.id;
-      changed();
-    };
-    const seg = el("div", { class: "bt-seg" },
-      ...opts.filter((f) => !f.waterfall || e.end).map((f) => el("button", {
-        type: "button", class: "hs-btn" + (cur === f.id ? " on" : ""), disabled: st.readOnly,
-        "aria-pressed": cur === f.id ? "true" : "false", text: f.name, onclick: () => choose(f),
-      })),
-      el("button", {
-        type: "button", class: "hs-btn" + (cur == null ? " on" : ""), disabled: st.readOnly, text: "None",
-        onclick: () => { delete p.edges[e.key]; if (p.drops) delete p.drops[e.key]; changed(); },
-      }));
-    const kids = [el("div", { class: "bt-note", text: `Piece ${st.sel + 1} · ${e.name} · ${e.len} mm (click the size on the drawing to change it)` }),
-      el("div", { class: "bt-f" }, el("span", { class: "hs-label", text: "Edge finish" }), seg)];
-    const f = cur != null ? st.finishes[cur] : null;
-    if (f && f.waterfall) kids.push(field("Waterfall drop (mm)", numInput((p.drops && p.drops[e.key]) || 870, (v) => { p.drops = p.drops || {}; p.drops[e.key] = v; }, { min: 50 })));
-    return section("Selected edge", ...kids);
-  }
 
-  function pieceSection(p) {
-    return section(`Piece ${st.sel + 1} · ${D.SHAPE_NAMES[p.shape]}`,
-      field("Name", el("input", {
-        class: "hs-input", value: p.name, maxlength: 80, disabled: st.readOnly, placeholder: "e.g. Island",
-        onchange: (ev) => { p.name = ev.target.value.trim(); changed(); },
-      })));
-  }
 
   function joinsSection(p) {
     const rows = (p.joins || []).map((j, i) => el("div", { class: "bt-item" },
@@ -397,35 +364,6 @@
     return section("Joins", ...(rows.length ? rows : [el("p", { class: "bt-note", text: "None. Use Place join, then click along a run." })]));
   }
 
-  function cutSection(p, o) {
-    const rows = (p.cutouts || []).map((c, i) => {
-      const e = o.edges.find((x) => x.key === c.edge) || o.edges[0];
-      const kind = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { c.kind = ev.target.value; if (c.kind === "tap") c.h = c.w = 35; changed(); } },
-        ...Object.entries(D.KIND_NAMES).map(([k, n]) => el("option", { value: k, text: n, selected: c.kind === k })));
-      const edge = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { c.edge = ev.target.value; changed(); } },
-        ...o.edges.map((x) => el("option", { value: x.key, text: x.name, selected: x.key === c.edge })));
-      const size = c.kind === "tap"
-        ? el("div", { class: "bt-row" }, field("Diameter", numInput(c.w, (v) => { c.w = v; c.h = v; }, { min: 10 })))
-        : el("div", { class: "bt-row" }, field("Along edge", numInput(c.w, (v) => { c.w = v; }, { min: 10 })), field("Across", numInput(c.h, (v) => { c.h = v; }, { min: 10 })));
-      return el("div", { class: "bt-item" + (st.selCut === i ? " on" : ""), onclick: (ev) => {
-        if (ev.target.closest("input,select,button")) return;
-        st.selCut = i; st.selEdge = null; renderCanvas(); renderRight();
-      } },
-        el("div", { class: "bt-item-head" },
-          el("b", { text: `${c.label || D.KIND_NAMES[c.kind]} · ${c.kind === "tap" ? "Ø" + c.w : c.w + " × " + c.h}` }),
-          st.readOnly ? null : el("button", { type: "button", class: "bt-linkbtn bt-del", text: "Remove", onclick: () => { p.cutouts.splice(i, 1); st.selCut = null; changed(); } })),
-        el("div", { class: "bt-row" }, field("Kind", kind), field("Label", el("input", {
-          class: "hs-input", value: c.label || "", maxlength: 40, disabled: st.readOnly, placeholder: "e.g. undermount",
-          onchange: (ev) => { c.label = ev.target.value.trim(); changed(); },
-        }))),
-        size,
-        field("Measured from edge", edge),
-        el("div", { class: "bt-row" },
-          field("Along, " + e.from, numInput(c.along, (v) => { c.along = v; })),
-          field("In from edge", numInput(c.in, (v) => { c.in = v; }))));
-    });
-    return section("Cut-outs", ...(rows.length ? rows : [el("p", { class: "bt-note", text: "None. Add cut-out adds one to this piece. Positions are to the cut-out's near sides." })]));
-  }
 
   function materialSection(p) {
     const mats = st.rev ? Object.values(st.materials) : st.lists.materials.filter((m) => m.active || m.id === p.materialId);
@@ -448,40 +386,132 @@
       el("div", { class: "bt-note", text: mats.length ? "From the list in Admin › Benchtop lists." : "No materials yet: an admin adds them in Admin › Benchtop lists." }));
   }
 
-  function legendSvg(style) {
-    const NS = "http://www.w3.org/2000/svg";
-    const s = document.createElementNS(NS, "svg");
-    s.setAttribute("viewBox", "0 0 48 10");
-    const mk = (y, cls) => {
-      const l = document.createElementNS(NS, "line");
-      for (const [k, v] of [["x1", 0], ["x2", 48], ["y1", y], ["y2", y], ["class", cls]]) l.setAttribute(k, String(v));
-      s.append(l);
+
+
+  function edgeSection(p, o) {
+    const e = o.edges.find((x) => x.key === st.selEdge);
+    if (!e) return null;
+    const cur = p.edges[e.key] != null ? p.edges[e.key] : null;
+    const opts = st.rev ? Object.values(st.finishes) : st.lists.finishes.filter((f) => f.active || f.id === cur);
+    const choose = (f) => {
+      if (f.waterfall && !askDrop(p, e.key)) return;
+      if (!f.waterfall && p.drops) delete p.drops[e.key];
+      p.edges[e.key] = f.id;
+      changed();
     };
-    if (style === "double") { mk(3, "bt-edge bt-ls-double"); mk(7, "bt-edge bt-ls-double"); }
-    else if (style === "join") mk(5, "bt-join");
-    else mk(5, "bt-edge bt-ls-" + style);
-    return s;
+    const seg = el("div", { class: "bt-seg" },
+      ...opts.filter((f) => !f.waterfall || e.end).map((f) => el("button", {
+        type: "button", class: "hs-btn" + (cur === f.id ? " on" : ""), disabled: st.readOnly,
+        "aria-pressed": cur === f.id ? "true" : "false", text: f.mark + "  " + f.name, onclick: () => choose(f),
+      })),
+      el("button", {
+        type: "button", class: "hs-btn" + (cur == null ? " on" : ""), disabled: st.readOnly, text: "None",
+        onclick: () => { delete p.edges[e.key]; if (p.drops) delete p.drops[e.key]; changed(); },
+      }));
+    const kids = [el("div", { class: "bt-note", text: `Piece ${st.sel + 1} · ${e.name} · ${e.len} mm (click the size on the drawing to change it)` }),
+      el("div", { class: "bt-f" }, el("span", { class: "hs-label", text: "Edge finish" }), seg)];
+    const f = cur != null ? st.finishes[cur] : null;
+    if (f && f.waterfall) kids.push(field("Waterfall drop (mm)", numInput((p.drops && p.drops[e.key]) || 870, (v) => { p.drops = p.drops || {}; p.drops[e.key] = v; }, { min: 50 })));
+    const mat = st.materials[p.materialId];
+    p.thick = p.thick || {};
+    kids.push(field("Edge thickness (mm, blank = the material's" + (mat ? " " + mat.thickness : "") + ")", el("input", {
+      class: "hs-input", type: "number", min: 5, max: 200, step: 1, value: p.thick[e.key] ? String(p.thick[e.key]) : "", placeholder: mat ? String(mat.thickness) : "",
+      disabled: st.readOnly,
+      onchange: (ev) => {
+        const v = Math.round(Number(ev.target.value));
+        if (!ev.target.value || !Number.isFinite(v) || (mat && v === mat.thickness)) delete p.thick[e.key];
+        else p.thick[e.key] = v;
+        changed();
+      },
+    })));
+    if (!st.readOnly) {
+      kids.push(el("button", {
+        type: "button", class: "hs-btn" + (p.datum === e.key ? " on" : ""), disabled: p.datum === e.key,
+        text: p.datum === e.key ? "Reference edge for cut-outs" : "Make this the reference edge",
+        onclick: () => { p.datum = e.key; changed(); },
+      }));
+    }
+    return section("Selected edge", ...kids);
+  }
+
+  function pieceSection(p, o) {
+    const datum = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { p.datum = ev.target.value; changed(); } },
+      ...o.edges.map((x) => el("option", { value: x.key, text: x.name, selected: x.key === (p.datum || "e0") })));
+    return section(`Piece ${st.sel + 1} · ${D.SHAPE_NAMES[p.shape]}`,
+      field("Name", el("input", {
+        class: "hs-input", value: p.name, maxlength: 80, disabled: st.readOnly, placeholder: "e.g. Island",
+        onchange: (ev) => { p.name = ev.target.value.trim(); changed(); },
+      })),
+      field("Reference edge (located cut-outs are measured from it)", datum));
+  }
+
+  function cutSection(p, o) {
+    const e = o.edges.find((x) => x.key === (p.datum || "e0")) || o.edges[0];
+    const rows = (p.cutouts || []).map((c, i) => {
+      const kind = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { c.kind = ev.target.value; if (c.kind === "tap") c.h = c.w = 35; changed(); } },
+        ...Object.entries(D.KIND_NAMES).map(([k, n]) => el("option", { value: k, text: n, selected: c.kind === k })));
+      const loc = el("input", { type: "checkbox", disabled: st.readOnly, onchange: (ev) => { c.located = ev.target.checked; changed(); } });
+      loc.checked = !!c.located;
+      const kids = [
+        el("div", { class: "bt-item-head" },
+          el("b", { text: c.label ? D.KIND_NAMES[c.kind] + " · " + c.label : D.KIND_NAMES[c.kind] }),
+          st.readOnly ? null : el("button", { type: "button", class: "bt-linkbtn bt-del", text: "Remove", onclick: () => { p.cutouts.splice(i, 1); st.selCut = null; changed(); } })),
+        el("div", { class: "bt-row" }, field("Kind", kind), field("Label", el("input", {
+          class: "hs-input", value: c.label || "", maxlength: 40, disabled: st.readOnly, placeholder: "e.g. undermount",
+          onchange: (ev) => { c.label = ev.target.value.trim(); changed(); },
+        }))),
+        el("label", { class: "bt-check" }, loc, el("span", { text: "Show location (from the " + e.name.toLowerCase() + ")" })),
+        el("div", { class: "bt-row" },
+          field("Along, " + e.from, numInput(c.along, (v) => { c.along = v; })),
+          field("In from it", numInput(c.in, (v) => { c.in = v; }))),
+        c.kind === "tap"
+          ? el("div", { class: "bt-row" }, field("Outline Ø (drawing only)", numInput(c.w, (v) => { c.w = v; c.h = v; }, { min: 10 })))
+          : el("div", { class: "bt-row" }, field("Outline along (drawing only)", numInput(c.w, (v) => { c.w = v; }, { min: 10 })), field("Across", numInput(c.h, (v) => { c.h = v; }, { min: 10 }))),
+      ];
+      return el("div", { class: "bt-item" + (st.selCut === i ? " on" : ""), onclick: (ev) => {
+        if (ev.target.closest("input,select,button,label")) return;
+        st.selCut = i; st.selEdge = null; renderCanvas(); renderRight();
+      } }, ...kids);
+    });
+    return section("Cut-outs", ...(rows.length ? rows : [el("p", { class: "bt-note", text: "None. Add cut-out adds one to this piece. Sizes are not shown on the plan; tick Show location to dimension one from the reference edge." })]));
   }
 
   function legendSection() {
     const fs = st.rev ? Object.values(st.finishes) : st.lists.finishes.filter((f) => f.active);
     const rows = [];
-    for (const f of fs) rows.push(legendSvg(f.lineStyle), el("span", { text: `${f.code} · ${f.name}${f.waterfall ? " (with its drop)" : ""}` }));
-    rows.push(legendSvg("none"), el("span", { text: "No finish set" }));
-    rows.push(legendSvg("join"), el("span", { text: "Join" }));
+    for (const m of ["X", "//", "[]"]) {
+      const names = fs.filter((f) => f.mark === m).map((f) => f.name);
+      if (names.length) rows.push(D.sample(m), el("span", { text: m + " " + names.join(", ") }));
+    }
+    const thick = new Set();
+    for (const p of st.design.pieces) for (const v of Object.values(p.thick || {})) thick.add(v);
+    if (thick.size) rows.push(D.sample("bold"), el("span", { text: "Bold: " + [...thick].sort((a, b) => a - b).map((t) => t + " mm").join(", ") + " edge" }));
+    rows.push(D.sample("plain"), el("span", { text: "No mark: finish not set" }));
+    rows.push(D.sample("join"), el("span", { text: "Join" }));
+    rows.push(D.sample("cut"), el("span", { text: "Cut-out" }));
     return section("Edge legend", el("div", { class: "bt-leg" }, ...rows));
+  }
+
+  function totalsSection() {
+    if (!st.design.pieces.length) return null;
+    const t = D.totals(st.design.pieces, st.finishes, st.materials);
+    const lines = [el("div", {}, el("b", { text: "Area " + t.m2 + " m²" }))];
+    if (t.mats.length > 1) for (const m of t.mats) lines.push(el("div", { text: m.name + ": " + m.m2 + " m²" }));
+    lines.push(el("div", { text: t.fins.map((f) => f.name + (f.mark ? " " + f.mark : "") + " " + f.m + " m").join(" · ") }));
+    if (t.thick.length) lines.push(el("div", { text: t.thick.map((x) => x.name + " " + x.m + " m").join(" · ") }));
+    return section("Totals", el("div", { class: "bt-totals" }, ...lines));
   }
 
   function renderRight() {
     const box = $("btRight");
     const p = piece();
     if (!p) {
-      box.replaceChildren(section("Selection", el("p", { class: "bt-note", text: st.design.pieces.length ? "Click a piece or an edge on the drawing." : "Add a piece on the left." })), legendSection());
+      box.replaceChildren(...[section("Selection", el("p", { class: "bt-note", text: st.design.pieces.length ? "Click a piece or an edge on the drawing." : "Add a piece on the left." })), totalsSection(), legendSection()].filter(Boolean));
       return;
     }
     const o = D.outline(p);
     if (st.selEdge && !o.edges.some((e) => e.key === st.selEdge)) st.selEdge = null;
-    box.replaceChildren(...[edgeSection(p, o), pieceSection(p), materialSection(p), cutSection(p, o), joinsSection(p), legendSection()].filter(Boolean));
+    box.replaceChildren(...[edgeSection(p, o), pieceSection(p, o), materialSection(p), cutSection(p, o), joinsSection(p), totalsSection(), legendSection()].filter(Boolean));
   }
 
   function renderAll() {
@@ -505,7 +535,7 @@
 
   function addPiece(shape) {
     const ps = st.design.pieces;
-    const p = { id: newId(), name: "", shape, materialId: null, edges: {}, drops: {}, joins: [], cutouts: [], x: 0, y: 0 };
+    const p = { id: newId(), name: "", shape, materialId: null, edges: {}, drops: {}, thick: {}, datum: "e0", joins: [], cutouts: [], x: 0, y: 0 };
     const last = ps.length ? ps[ps.length - 1] : null;
     if (last && last.materialId != null) p.materialId = last.materialId;
     if (shape === "straight") p.runs = [{ len: 2400, depth: 600 }];
@@ -542,7 +572,7 @@
       return;
     }
     p.cutouts = p.cutouts || [];
-    p.cutouts.push({ kind: "sink", label: "", w: 800, h: 450, edge: "e0", along: 200, in: 75 });
+    p.cutouts.push({ kind: "sink", label: "", w: 800, h: 450, edge: p.datum || "e0", located: false, along: 200, in: 75 });
     st.selCut = p.cutouts.length - 1;
     st.selEdge = null;
     setStatus("");
