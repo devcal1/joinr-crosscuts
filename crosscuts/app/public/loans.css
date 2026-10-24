@@ -15,7 +15,7 @@ a:hover { text-decoration: underline; }
 a.hs-btn:hover { text-decoration: none; }
 a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 
-.ln-page { max-width: 1240px; margin: 0 auto; padding: 22px 16px 48px; }
+.ln-page { max-width: 2560px; margin: 0 auto; padding: 22px 16px 48px; }
 .ln-sr {
   position: absolute;
   width: 1px;
@@ -68,7 +68,6 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .ln-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ln-table-list { min-width: 920px; }
 .ln-table-rates { min-width: 520px; }
-.ln-table-reps { min-width: 860px; }
 .ln-table th {
   padding: 8px 10px;
   background: var(--raised);
@@ -107,6 +106,67 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .ln-row-off td { color: var(--label); }
 .ln-worked { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; }
 .ln-rowacts { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+
+/* ---------- the loans side by side (changed 2026-10-24): 2 a row at 1440, 3 at 2560, 1 on phones ---------- */
+.ln-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 640px), 1fr)); gap: 14px; align-items: start; }
+.ln-col {
+  min-width: 0;
+  padding: 12px 14px 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+.ln-col-off { opacity: 0.85; }
+.ln-colhead { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 22px; margin-bottom: 4px; }
+.ln-colname { margin: 0; font-size: 16px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; flex: 0 1 auto; }
+.ln-colname .ln-link { color: var(--white); }
+.ln-fig { display: flex; flex-direction: column; }
+.ln-figv { color: var(--white); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.ln-figbig { font-size: 22px; }
+.ln-plan { margin: 4px 0 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.ln-warn { margin: 4px 0 0; color: var(--orange-tint); font-size: 13px; }
+.ln-colacts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 10px; }
+
+/* the month table: a table on every screen, scrolling inside its own box if it must */
+.ln-mwrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--ink); }
+.ln-mtable { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ln-mtable th {
+  padding: 6px 8px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: right;
+  white-space: nowrap;
+}
+.ln-mtable td { padding: 5px 8px; border-bottom: 1px solid var(--hairline); color: var(--body); text-align: right; white-space: nowrap; vertical-align: top; }
+.ln-mtable tbody tr:last-child td { border-bottom: 0; }
+.ln-mtable .ln-c-month { text-align: left; }
+.ln-mtable .ln-c-paid { text-align: center; }
+.ln-mtable .ln-c-act { text-align: right; }
+.ln-mlabel { color: var(--white); font-weight: 700; }
+.ln-msub { display: block; color: var(--muted); font-size: 11px; }
+.ln-dim { color: var(--muted) !important; }
+.ln-tag { margin-left: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.ln-tag-now { color: var(--teal-tint); }
+.ln-tag-plan { color: var(--muted); }
+.ln-mtable tr.ln-now td { background: var(--teal-16); }
+.ln-mtable tr.ln-plan-row td { color: var(--muted); }
+.ln-mtable tr.ln-plan-row .ln-mlabel { color: var(--label); }
+.ln-mtable .ln-plan-row .ln-tag-plan:first-child { margin-left: 0; }
+.ln-more { margin-top: 6px; padding-left: 0; }
+
+/* dialogs: the live split and the plan choices */
+.ln-split { margin: 0; color: var(--body); font-size: 13px; }
+.ln-split:empty { display: none; }
+.ln-split.ln-warn { color: var(--orange-tint); }
+.ln-radios { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.ln-radios input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
+.ou-field[hidden] { display: none; }
 
 /* ---------- one loan ---------- */
 .ln-loan { max-width: 1040px; }
@@ -181,6 +241,9 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 }
 @media (max-width: 760px) {
   .ln-page { padding-top: 16px; }
+  .ln-col { padding: 10px; }
+  .ln-mtable { font-size: 12px; }
+  .ln-mtable th, .ln-mtable td { padding: 4px 5px; }
   .ln-head h1 { font-size: 20px; }
   .ln-head-actions { margin-left: 0; width: 100%; }
   .ln-grid { grid-template-columns: minmax(0, 1fr); }

@@ -80,7 +80,7 @@ body.lp-body {
 .lp-table th, .lp-table td { padding: 1.4mm 1.5mm; border-bottom: 0.2mm solid var(--ink); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .lp-table thead th { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 0.4mm solid var(--ink); }
 .lp-table tr { break-inside: avoid; page-break-inside: avoid; }
-.lp-c-date { width: 25mm; white-space: nowrap; }
+.lp-c-date { width: 22mm; white-space: nowrap; }
 .lp-c-ref { width: auto; }
 .lp-c-num { width: 27mm; text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lp-total th, .lp-total td { font-weight: 700; border-top: 0.4mm solid var(--ink); border-bottom: 0; }

@@ -71,6 +71,23 @@ r.get("/:id/statement", KEY, handle((req, res) => {
   res.json(loans.statement(db, id, { from: req.query.from, to: req.query.to }));
 }));
 
+// --- the plan and month interest (changed 2026-10-24) ---------------------------------------
+
+r.get("/:id/plan", KEY, handle((req, res) => {
+  const id = idOr404(req.params.id);
+  res.json(loans.previewPlan(db, id, req.query));
+}));
+
+r.put("/:id/plan", KEY, handle((req, res) => {
+  const id = idOr404(req.params.id);
+  res.json(loans.setPlan(db, req, id, body(req)));
+}));
+
+r.put("/:id/months/:period", KEY, handle((req, res) => {
+  const id = idOr404(req.params.id);
+  res.json(loans.setMonthInterest(db, req, id, req.params.period, body(req)));
+}));
+
 // --- rates ------------------------------------------------------------------------------------
 
 r.post("/:id/rates", KEY, handle((req, res) => {

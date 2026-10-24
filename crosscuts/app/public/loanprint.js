@@ -3,9 +3,10 @@
 //
 //   ?id=N&from=YYYY-MM-DD&to=YYYY-MM-DD    GET /api/loans/:id/statement?from=&to=
 //
-// from defaults to the opening date and to to today (the server's defaults). The sheet: "Loan
+// Whole months from the month of from to the month of to (default: the opening date, today). The sheet: "Loan
 // statement", the loan's name, its direction in words and the other party, the period; the balance
-// at the start, a table (Date, Reference, Principal, Interest, Total, Balance), the totals, the
+// at the start, the month table (Month, Paid, Reference, Principal, Interest, Total, New balance; a
+// month with no payment shows its interest only), the totals paid, the interest charged, the
 // balance at the end, and the rates in force ("6.00% from 1 Jan 2025"). A4 portrait, black on
 // white, no letterhead (loanprint.css); a long statement runs on to further pages with the table
 // header repeated. On screen the sheet sits on a white paper box with Print and Back; no access or
@@ -47,6 +48,11 @@
     return (neg ? "-$" : "$") + whole + "." + String(c % 100).padStart(2, "0");
   }
 
+  function periodWords(p) {
+    const m = /^(\d{4})-(\d{2})$/.exec(p || "");
+    return m ? MONTHS[Number(m[2]) - 1] + " " + m[1] : "";
+  }
+
   function pct(bp) {
     return bp == null ? "" : (bp / 100).toFixed(2) + "%";
   }
@@ -81,40 +87,45 @@
         el("h1", { class: "lp-h1", text: "Loan statement" }),
         el("p", { class: "lp-name", text: loan.name || "" })),
       el("dl", { class: "lp-meta" },
-        el("dt", { text: "Period" }), el("dd", { text: fmtDate(s.from) + " to " + fmtDate(s.to) }),
+        el("dt", { text: "Period" }), el("dd", { text: periodWords(s.fromPeriod) + " to " + periodWords(s.toPeriod) }),
         el("dt", { text: "Direction" }), el("dd", { text: DIRECTION_LABEL[loan.direction] || loan.direction || "" }),
         el("dt", { text: "Other party" }), el("dd", { text: loan.otherParty || "Not given" }),
         el("dt", { text: "Opened" }), el("dd", { text: fmtDate(loan.openingDate) }))));
 
-    out.push(balanceLine("Balance at " + fmtDate(s.from), s.balanceAtStartCents, "lp-start"));
+    out.push(balanceLine("Balance at the start of " + periodWords(s.fromPeriod), s.balanceAtStartCents, "lp-start"));
 
     const rows = s.rows || [];
+    const dash = "—";
+    const t = s.totals || {};
     const table = el("table", { class: "lp-table" },
       el("thead", null, el("tr", null,
-        el("th", { scope: "col", class: "lp-c-date", text: "Date" }),
+        el("th", { scope: "col", class: "lp-c-date", text: "Month" }),
+        el("th", { scope: "col", class: "lp-c-date", text: "Paid" }),
         el("th", { scope: "col", class: "lp-c-ref", text: "Reference" }),
         el("th", { scope: "col", class: "lp-c-num", text: "Principal" }),
         el("th", { scope: "col", class: "lp-c-num", text: "Interest" }),
         el("th", { scope: "col", class: "lp-c-num", text: "Total" }),
-        el("th", { scope: "col", class: "lp-c-num", text: "Balance" }))),
+        el("th", { scope: "col", class: "lp-c-num", text: "New balance" }))),
       el("tbody", null,
-        ...(rows.length ? rows.map((r) => el("tr", null,
-          el("td", { class: "lp-c-date", text: fmtDate(r.paidDate) }),
+        ...(rows.length ? rows.map((r) => el("tr", { class: r.first ? "lp-first" : null },
+          el("td", { class: "lp-c-date", text: r.first ? r.label : "" }),
+          el("td", { class: "lp-c-date", text: r.paidDate ? fmtDate(r.paidDate) : dash }),
           el("td", { class: "lp-c-ref", text: r.reference || "" }),
-          el("td", { class: "lp-c-num", text: money(r.principalCents) }),
+          el("td", { class: "lp-c-num", text: r.principalCents == null ? dash : money(r.principalCents) }),
           el("td", { class: "lp-c-num", text: money(r.interestCents) }),
-          el("td", { class: "lp-c-num", text: money(r.totalCents) }),
+          el("td", { class: "lp-c-num", text: r.totalCents == null ? dash : money(r.totalCents) }),
           el("td", { class: "lp-c-num", text: money(r.balanceAfterCents) })))
-          : [el("tr", null, el("td", { class: "lp-none", colspan: "6", text: "No repayments in this period." }))]),
+          : [el("tr", null, el("td", { class: "lp-none", colspan: "7", text: "No months in this period." }))]),
         el("tr", { class: "lp-total" },
-          el("th", { scope: "row", class: "lp-c-date", colspan: "2", text: "Totals" }),
-          el("td", { class: "lp-c-num", text: money(s.totals ? s.totals.principalCents : 0) }),
-          el("td", { class: "lp-c-num", text: money(s.totals ? s.totals.interestCents : 0) }),
-          el("td", { class: "lp-c-num", text: money(s.totals ? s.totals.totalCents : 0) }),
+          el("th", { scope: "row", class: "lp-c-date", colspan: "3", text: "Totals paid" }),
+          el("td", { class: "lp-c-num", text: money(t.principalCents || 0) }),
+          el("td", { class: "lp-c-num", text: money(t.interestCents || 0) }),
+          el("td", { class: "lp-c-num", text: money(t.totalCents || 0) }),
           el("td", { class: "lp-c-num" }))));
     out.push(table);
 
-    out.push(balanceLine("Balance at " + fmtDate(s.to), s.balanceAtEndCents, "lp-end"));
+    out.push(balanceLine("Interest charged in the period", t.interestChargedCents || 0, "lp-end"));
+    out.push(balanceLine("Balance at the end of " + periodWords(s.toPeriod), s.balanceAtEndCents, "lp-end"));
 
     const rates = s.rates || [];
     out.push(el("section", { class: "lp-rates" },
@@ -122,7 +133,7 @@
       rates.length
         ? el("ul", { class: "lp-ratelist" }, ...rates.map((r) => el("li", { text: pct(r.rateBp) + " from " + fmtDate(r.fromDate) })))
         : el("p", { text: "No rate was in force in this period." })));
-    out.push(el("p", { class: "lp-foot", text: "Balance = the opening balance less every principal repaid. Interest is paid as it falls due and doesn't change the balance." }));
+    out.push(el("p", { class: "lp-foot", text: "Interest is charged once a month on the balance at the start of the month (the rate in force on the 1st, a twelfth of the annual rate) and added to the balance. Each payment comes off the balance in full: interest first, the rest principal." }));
     return out;
   }
 
@@ -156,7 +167,7 @@
       return;
     }
     if (!s) return;
-    const title = "Loan statement " + ((s.loan && s.loan.name) || "") + " " + fmtDate(s.from) + " to " + fmtDate(s.to);
+    const title = "Loan statement " + ((s.loan && s.loan.name) || "") + " " + periodWords(s.fromPeriod) + " to " + periodWords(s.toPeriod);
     const box = $("lpSheet");
     box.classList.remove("lp-sheet-error");
     box.setAttribute("aria-label", title);

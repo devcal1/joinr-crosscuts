@@ -1,6 +1,6 @@
 # How to keep loan balances in Crosscuts
 
-For Todd, and anyone he gives the Loans page to. The **Loans** page replaces the Loan Balances tab of the jobs master workbook: each loan's repayments, its interest rate over time, and a balance that is always worked out, never typed.
+For Todd, and anyone he gives the Loans page to. The **Loans** page replaces the Loan Balances tab of the jobs master workbook: each loan's payments month by month, its interest rate over time, a plan to pay it off, and a balance that is always worked out, never typed.
 
 Who can open it:
 - **The owner** (Todd). Loans needs the owner-only key `loans.manage`, so other admins don't see it in the menu, can't open it, and don't see its rows in the audit log.
@@ -21,81 +21,81 @@ They then see **Loans** under Accounts, and nothing else of the owner's. To take
 
 While they hold it, **only the owner can reset their password** (another admin sees "Only the owner can reset this password (they hold loans.manage)."), so no other admin can sign in as them to read the loans.
 
-## The list
+## The Loans page (changed 2026-10-24)
 
-The list shows each loan's **Name**, **Direction**, **Other party**, **Balance**, **Rate now**, **Last paid** and the interest paid in the current financial year (the column says which, for example "Interest FY 2026-27"; the year runs 1 July to 30 June). Press a loan's name to open it. **Show archived** lists the archived loans instead.
+Every current loan sits side by side, as a column each (two across a laptop screen, three on a big screen, one under the other on a phone). **Show archived** shows the archived ones instead; **New loan** adds one.
+
+Each loan shows its **name**, its **Balance** in large type, the **Rate** now and its **plan** in a line ("Plan: $1,500.00 a month · paid off about Jun 2031", or "Plan: paid off by Dec 2028 · $707.94 a month"). Then the buttons **Add payment**, **Rate**, **Plan**, **Details** (the loan's own page) and **Statement**, and the **month table**, like the workbook:
+
+| Month | Principal | Interest | Total | Paid | New balance |
+|---|---|---|---|---|---|
+
+- One line per payment, with the month on its first line. Paid is the day it was paid (14/10).
+- A month with no payment still has a line: its interest only, Principal, Total and Paid "—", and the balance goes **up** by the interest.
+- This month is highlighted teal and marked THIS MONTH.
+- Below it, in grey and marked PLANNED, the months the plan lays out (the first 12, with a button for the rest).
+
+## How the balance and interest work (Todd, 2026-10-24)
+
+- **Interest is charged once a month**, on the 1st: the balance at the start of the month × the annual rate in force on the 1st ÷ 12, rounded to the cent, and **added to the balance**. Example (made-up): $69,000.00 at 10.35% with no payment that month gives $595.13 interest and a balance of $69,595.13.
+- **The first month charged:** the opening month if the loan opened on the 1st, otherwise the month after (the opening month's line shows "—" for interest).
+- **A payment takes its whole total off the balance.** Crosscuts splits it: the **interest part** is the month's interest still unpaid (an earlier payment that month pays it first), the rest is **principal**. A second payment in the same month is all principal. If a month's payments don't cover its interest, what's left stays in the balance and earns interest from then on.
+- Months run up to this month (Sydney time). The balance shown is after this month's interest.
+- The balance can't go below zero after any payment.
 
 ## A new loan
 
 1. Press **New loan**.
-2. Fill in:
-   - **Name**, for example "M13 Lender loan".
-   - **Direction:** **Lent to the business** (the business repays it) or **Lent by the business** (it is repaid to the business). It only changes the words; the sums are the same.
-   - **Other party** (optional).
-   - **Opening balance:** the balance on the opening date, in dollars.
-   - **Opening date:** not in the future.
-   - **Note** (optional).
-3. Press **Add loan**. The loan opens.
-4. Add its rate (below) before its first repayment.
+2. Fill in **Name**, **Direction** (**Lent to the business** or **Lent by the business**; it only changes the words), **Other party** (optional), **Opening balance** and **Opening date** (not in the future), **Note** (optional).
+3. Press **Add loan**. The loan's page opens. Add its **rate** before anything else.
 
-At cutover, each loan starts from its balance on the cutover day, as its opening balance, rather than the workbook's history.
+At cutover, each loan starts from its balance on the cutover day as its opening balance.
 
-## A loan
+## Add a payment
 
-The top shows the **Balance** in large type, then the direction, other party, the rate now, when it opened and at what balance, and this financial year's principal and interest.
+1. Press **Add payment** on the loan.
+2. Choose the **Date paid** (not in the future, not before the opening date) and type the **Total paid**.
+3. The split shows as you type, for example "Interest $146.51 (worked out) · Principal $853.49 · Balance after about $16,133.22", with the month's interest and how much is still to pay underneath.
+4. **Interest part (optional):** leave it empty. Type a figure only to match a lender's statement; it changes the split, never the balance. It can't be more than the total.
+5. Add a **Reference** (MYOB or bank) and a **Note** if you like, and press **Add payment**.
+
+## The plan
+
+Press **Plan** and choose:
+- **A fixed amount a month:** Crosscuts lays out each month to come (interest, principal, total, new balance) until the balance reaches zero, and says when it's paid off. If the amount doesn't cover the interest it says so in orange: "This doesn't cover the interest; the balance grows."
+- **Paid off by a month:** Crosscuts works out the even monthly payment (an ordinary loan repayment at the rate now ÷ 12, rounded up to the cent) and lays out the months to that month; the last payment clears what's left.
+- **No plan:** no future months.
+
+The plan starts **this month** when nothing has been paid this month yet (its interest is already charged), otherwise **next month**. It shows at most 10 years. The dialog previews the result before you save. The plan only shows; it records nothing.
+
+## A loan's page (Details)
+
+Press **Details** (or the loan's name). The page shows the balance, direction, other party, rate now, when it opened and at what balance, and this financial year's principal paid and interest charged.
 
 - **Details:** change any of them and press **Save**.
-- **Rates:** the rate history.
-- **Repayments:** every repayment, oldest first.
+- **Rates:** the rate history. **Add rate** with a **From** date and the **Annual rate (%)**; the rate on any day is the latest one that started on or before it. **Edit** and **Delete** change the history; the month table follows.
+- **Months:** the same month table, with **Edit** and **Delete** on each payment, and **Interest** on each month to type the interest a lender charged that month (leave it empty to go back to the worked-out figure). Each month shows what it was charged under its name.
 - **Statement:** the print.
 - **Archive** / **Restore** at the top.
 
-### Rates
+## Archive
 
-Interest is worked out from the **annual rate** in force on the day. A loan keeps its whole rate history: press **Add rate**, choose **From** (the date the rate starts) and the **Annual rate (%)** (for example 6.50), add a note if you like, and press **Add rate**. The rate on any day is the latest one that started on or before it. **Edit** and **Delete** change the history. Deleting a rate leaves the interest already recorded alone; only the worked-out figures change.
-
-### Repayments
-
-1. Press **Add repayment**.
-2. Choose the **Date paid** (not in the future, not before the opening date).
-3. Type the **Principal** (what comes off the balance).
-4. The **Interest** fills itself in as you choose the date, with how it was worked out underneath, for example "Worked out: balance $118,000.00 × 6.00% ÷ 12 = $590.00." Change it to match the lender's statement if it differs.
-5. Add a **Reference** (a MYOB or bank reference) and a **Note** if you like.
-6. Press **Add repayment**.
-
-**How the interest is worked out:** once a month, as the workbook did. If another repayment in the same calendar month already carries interest, the suggestion is $0.00, with "Interest already charged this month (d Mon)." Otherwise it is the balance just before the repayment × the annual rate ÷ 12, rounded to the cent. So a repayment of principal only (interest $0.00) leaves the month's interest to the next repayment that month. If no rate covers the date, it says "No rate covers d Mon yyyy: type the interest or add a rate."
-
-Example (made-up figures): a loan opened at $120,000.00 at 6.00%. A repayment on 10 January of $2,000.00 principal gets $600.00 interest ($120,000.00 × 6% ÷ 12) and leaves $118,000.00. A second repayment on 24 January gets $0.00 interest.
-
-The interest you type is what's kept and printed. When it differs from the worked-out figure, the Repayments table shows the worked-out one beside it in small grey type ("worked out $x"). When you edit a repayment, its interest stays as it was; **Use $x** puts the worked-out figure in.
-
-**Edit** and **Delete** (it asks first) change a repayment. Deleting one raises every later balance by its principal.
-
-### The balance
-
-**The balance is the opening balance less every principal repaid.** It is worked out every time, never typed, so it can't drift. Interest is paid as it falls due and doesn't change the balance. The **Balance after** column shows it after each repayment.
-
-A balance can't go below zero. Further borrowing on the same loan isn't recorded: make a new loan if that ever happens.
-
-### Archive
-
-When a loan is paid off, press **Archive** (it asks first). An archived loan leaves the list (it's under **Show archived**), takes no new rates or repayments, and its page is read-only, but its statement still prints. **Restore** brings it back. Loans are never deleted.
+When a loan is paid off, press **Archive** on its page (it asks first). It leaves the Loans page (it's under **Show archived**), takes nothing new, and its page is read-only; its statement still prints. **Restore** brings it back. Loans are never deleted.
 
 ## The statement
 
-On the loan, under **Statement**, choose **From** and **To** (the opening date and today unless you change them) and press **Print statement**. It opens on screen on a white sheet with **Print** and **Back to the loan**.
-
-The statement is A4, black on white, with no letterhead: "Loan statement", the loan's name, the period, its direction and other party, and when it opened; the balance at the start; a table of Date, Reference, Principal, Interest, Total and Balance; the totals; the balance at the end; and the rates in force during the period ("6.00% from 1 Jan 2025"). A long statement runs on to more pages, with the table's heading repeated.
+On the loan's page, under **Statement**, choose **From** and **To** and press **Print statement** (the **Statement** button on the Loans page prints from opening to today). It covers **whole months**, from the month of From to the month of To. A4, black on white, no letterhead: the loan, the period, the balance at the start, the month table (Month, Paid, Reference, Principal, Interest, Total, New balance; a month with no payment shows its interest only), the totals paid, the interest charged in the period, the balance at the end, and the rates in force.
 
 ## When Crosscuts refuses
 
 | It says | What it means |
 |---|---|
-| That would take the balance below zero on d Mon yyyy | The principal is more than what's owed by then. Check the figures. |
-| A repayment can't be before the opening date (d Mon yyyy) | Choose a later date, or change the opening date. |
-| A repayment is dated before that (d Mon yyyy) | The new opening date is after a repayment. |
-| Enter the principal, the interest or both | A repayment needs at least one of them. |
-| No rate covers d Mon yyyy: type the interest or add a rate | No rate started on or before that date. |
+| That would take the balance below zero on d Mon yyyy | More than is owed by then. Check the figures. |
+| A payment can't be before the opening date (d Mon yyyy) | Choose a later date, or change the opening date. |
+| A payment is dated before that (d Mon yyyy) | The new opening date is after a payment. |
+| Enter the total paid | A payment needs its total. |
+| The interest part can't be more than the total paid | Lower the typed interest part. |
+| The payoff month must be next month or later | Choose a later month (up to 10 years ahead). |
 | There is already a rate from d Mon yyyy | Each start date has one rate. Edit that one. |
 | The rate must be from 0 to 5000 basis points (0% to 50%) | Type a percent from 0 to 50. |
 | This loan is archived; restore it to change it | Restore it first. |
