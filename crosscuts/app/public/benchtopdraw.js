@@ -218,12 +218,12 @@
         line(g, a0[0], a0[1], a1[0], a1[1], "bt-dim");
         label(g, (a0[0] + a1[0]) / 2 + nx * 8 * u, (a0[1] + a1[1]) / 2 + ny * 8 * u, String(c.along), "bt-dimlbl", u * 0.85, Math.abs(uy) > 0.5);
         // in: from the reference edge to the cut-out's near side, at the cut-out's middle
-        const m = c.along + c.w / 2;
+        const m = c.along - 6 * u; // just before the cut-out's near side, so the figure sits outside it
         const b0 = [e.a[0] + ux * m, e.a[1] + uy * m];
         const b1 = [b0[0] + nx * c.in, b0[1] + ny * c.in];
         if (c.in > 0) {
           line(g, b0[0], b0[1], b1[0], b1[1], "bt-dim");
-          label(g, (b0[0] + b1[0]) / 2 + ux * 9 * u, (b0[1] + b1[1]) / 2 + uy * 9 * u, String(c.in), "bt-dimlbl", u * 0.85, Math.abs(ny) > 0.5);
+          label(g, (b0[0] + b1[0]) / 2 - ux * 9 * u, (b0[1] + b1[1]) / 2 - uy * 9 * u, String(c.in), "bt-dimlbl", u * 0.85, Math.abs(ny) > 0.5);
         }
       }
     });

@@ -1,10 +1,10 @@
 /* The benchtop plan set (/benchtopprint.html; docs/plans/m21-benchtop-designer.md). On screen: the
    house-style frame with each A4 sheet as a white box on the ink ground. On paper: only the sheets,
-   A4 portrait, black on white, one per page. Edge finishes differ by line style and short codes.
+   A4 landscape, black on white, one per page. Edge finishes differ by line style and short codes.
    Colours come from tokens.css, except in the print block. Classes are bp- (and bt- for the
    drawing, from benchtopdraw.js). */
 body.bp-body { margin: 0; background: var(--ink); color: var(--body); font-family: var(--font); }
-.bp-page { max-width: 210mm; margin: 0 auto; padding: 20px 16px 48px; }
+.bp-page { max-width: 297mm; margin: 0 auto; padding: 20px 16px 48px; }
 .bp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 14px; }
 .bp-status { flex: 1 1 260px; margin: 0; color: var(--label); font-size: 13px; }
 .bp-status:empty { display: none; }
@@ -19,15 +19,15 @@ body.bp-body { margin: 0; background: var(--ink); color: var(--body); font-famil
   font-size: 9pt;
   line-height: 1.35;
 }
-.bp-sheet { position: relative; width: 210mm; height: 297mm; padding: 12mm; overflow: hidden; }
-.bp-measure { position: absolute; left: -10000px; top: 0; width: 186mm; }
+.bp-sheet { position: relative; width: 297mm; height: 210mm; padding: 12mm; overflow: hidden; }
+.bp-measure { position: absolute; left: -10000px; top: 0; width: 273mm; }
 .bp-sheet :where(h1, h2, p), .bp-measure :where(h1, h2, p) { margin: 0; }
 
 .bp-banner { display: block; width: 100%; height: auto; }
 .bp-bizline { margin-top: 2mm; padding-bottom: 2.5mm; border-bottom: 0.5mm solid var(--ink); font-size: 8.5pt; text-align: center; }
 .bp-lab { display: block; font-size: 7pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-.bp-h1 { margin-top: 4mm !important; font-size: 13pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
-.bp-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2mm 6mm; padding: 1mm 0 3mm; border-bottom: 0.3mm solid var(--ink); }
+.bp-h1 { margin-top: 0 !important; margin-bottom: 2mm !important; font-size: 13pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.bp-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2mm 6mm; padding: 1mm 0 3mm; border-bottom: 0.3mm solid var(--ink); }
 .bp-meta > div { overflow-wrap: anywhere; }
 .bp-runhead { padding-bottom: 1.5mm; border-bottom: 0.3mm solid var(--ink); font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .bp-h2 { margin-top: 4mm !important; margin-bottom: 1mm !important; font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
@@ -47,6 +47,12 @@ table.bp-t { width: 100%; border-collapse: collapse; font-size: 8pt; }
 .bp-check { margin-top: 4mm; padding: 2mm 3mm; border: 0.4mm solid var(--ink); font-size: 10pt; font-weight: 700; text-align: center; }
 .bp-foot { position: absolute; left: 12mm; right: 12mm; bottom: 10mm; display: flex; justify-content: space-between; gap: 4mm; padding-top: 1.5mm; border-top: 0.3mm solid var(--ink); font-size: 7.5pt; }
 
+/* landscape: letterhead left, title and job details right; arrangement left, column right */
+.bp-head { display: grid; grid-template-columns: 125mm minmax(0, 1fr); gap: 8mm; align-items: start; padding-bottom: 2mm; border-bottom: 0.3mm solid var(--ink); }
+.bp-head .bp-meta { border-bottom: 0; padding-bottom: 0; }
+.bp-split { display: grid; grid-template-columns: minmax(0, 1fr) 82mm; gap: 6mm; align-items: start; }
+.bp-side { border-left: 0.3mm solid var(--ink); padding-left: 4mm; }
+
 /* the drawing on paper */
 .bt-print .bt-shape { fill: none; }
 .bt-print .bt-edge { stroke: var(--ink); stroke-width: 0.8; fill: none; }
@@ -61,7 +67,7 @@ table.bp-t { width: 100%; border-collapse: collapse; font-size: 8pt; }
 .bt-print .bt-elbl, .bt-print .bt-joinlbl, .bt-print .bt-num, .bt-print .bt-cutlbl { font-weight: 700; }
 
 /* style-check: print-start (paper colours: pure black on white) */
-@page { size: A4 portrait; margin: 0; }
+@page { size: A4 landscape; margin: 0; }
 @media print {
   html:has(> body.bp-body), body.bp-body { background: #fff; color: #000; }
   body.bp-body > :not(main) { display: none !important; }

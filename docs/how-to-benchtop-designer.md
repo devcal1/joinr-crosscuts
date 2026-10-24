@@ -36,6 +36,6 @@ Type notes for the supplier on the left, then **Save**.
 
 ## Print
 
-**Print plan set** saves, then opens the plan set: the All arrangement to scale on the first sheet (pieces go across sheets only if it does not fit), the legend, totals, the cut-outs by piece, the material schedule and notes. If anything changed since the last revision, it becomes the next letter (A, B, C...). Use the browser's print to save a PDF (A4 portrait). Older revisions are listed on the left: **Open** shows one read-only, **Print** reprints it.
+**Print plan set** saves, then opens the plan set: the All arrangement to scale on the first sheet (pieces go across sheets only if it does not fit), the legend, totals, the cut-outs by piece, the material schedule and notes. If anything changed since the last revision, it becomes the next letter (A, B, C...). Use the browser's print to save a PDF (A4 landscape). Older revisions are listed on the left: **Open** shows one read-only, **Print** reprints it.
 
 **Send to supplier** is coming later.

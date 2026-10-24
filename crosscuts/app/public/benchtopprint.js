@@ -1,5 +1,5 @@
 // The benchtop plan set (/benchtopprint.html?plan=N&rev=B; docs/plans/m21-benchtop-designer.md).
-// Prints one frozen revision from GET /api/benchtop-plans/:id/revisions/:letter: A4 portrait
+// Prints one frozen revision from GET /api/benchtop-plans/:id/revisions/:letter: A4 landscape
 // sheets, black on white, the stone-order letterhead on the first, several pieces per sheet at one
 // common scale, then the edge legend (line style and short code), the cut-out table, the material
 // schedule and the notes. Every sheet ends "Check all sizes on site before cutting" and "Page X of
@@ -12,8 +12,11 @@
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const NS = "http://www.w3.org/2000/svg";
   const PX_PER_MM = 96 / 25.4;
-  const CONTENT_W = 186; // mm inside the 12 mm margins
-  const CONTENT_H = 297 - 24 - 12; // mm, less room for the footer
+  // A4 landscape (Todd, 2026-10-25): 297 x 210 mm, 12 mm margins.
+  const CONTENT_W = 273; // mm inside the margins
+  const CONTENT_H = 210 - 24 - 12; // mm, less room for the footer
+  const SIDE_W = 82; // the right column beside the arrangement: legend, totals, cut-outs
+  const DRAW_W = CONTENT_W - SIDE_W - 6; // the arrangement's width when the column sits beside it
   const SCALES = [10, 20, 25, 40, 50, 75, 100, 150, 200];
 
   function el(tag, props, ...kids) {
@@ -64,7 +67,7 @@
 
   function pickScale(pieces) {
     for (const S of SCALES) {
-      if (pieces.every((p) => { const z = paperSize(p, S); return z.w <= CONTENT_W && z.h <= 110; })) return S;
+      if (pieces.every((p) => { const z = paperSize(p, S); return z.w <= CONTENT_W && z.h <= 120; })) return S;
     }
     return SCALES[SCALES.length - 1];
   }
@@ -96,7 +99,7 @@
       if (S > 100) break;
       const w = b.w / S + 2 * pad;
       const h = b.h / S + 2 * pad;
-      if (w <= CONTENT_W && h <= room) {
+      if (w <= DRAW_W && h <= room) {
         const u = (2.5 * S) / 11;
         const r = D.renderSet(ps, { finishes: snap.finishes, u, print: true, pad: pad * S });
         r.svg.setAttribute("width", w + "mm");
@@ -128,8 +131,7 @@
       used += (row.length > 1 ? 4 : 0) + w;
     });
     if (row.length) rows.push(row);
-    if (arranged) out.push(arranged);
-    else rows.forEach((r, k) => {
+    if (!arranged) rows.forEach((r, k) => {
       const kids = [];
       if (k === 0) kids.push(el("h2", { class: "bp-h2" }, "Plan view ", el("span", { text: `(to scale, 1:${S}, all sizes in mm)` })));
       kids.push(el("div", { class: "bp-row" }, ...r.map(([p, i]) => drawing(p, i, S, snap))));
@@ -174,11 +176,14 @@
     if (t.mats.length > 1) tot.push(el("div", { text: t.mats.map((m) => m.name + " " + m.m2 + " m²").join(" · ") }));
     tot.push(el("div", { text: t.fins.map((f) => f.name + (f.mark ? " " + f.mark : "") + " " + f.m + " m").join(" · ") }));
     if (t.thick.length) tot.push(el("div", { text: t.thick.map((x) => x.name + " " + x.m + " m").join(" · ") }));
-    out.push(el("div", { class: "bp-two" },
-      el("div", {}, el("h2", { class: "bp-h2", text: "Edge legend" }), el("div", { class: "bp-leg" }, ...leg)),
-      el("div", {},
-        el("h2", { class: "bp-h2", text: "Totals" }), el("div", { class: "bp-tot" }, ...tot),
-        el("h2", { class: "bp-h2", text: "Cut-outs" }), cuts.length ? el("ul", { class: "bp-cuts" }, ...cuts) : el("p", { text: "None." }))));
+    const legend = el("div", {}, el("h2", { class: "bp-h2", text: "Edge legend" }), el("div", { class: "bp-leg" }, ...leg));
+    const side = el("div", {},
+      el("h2", { class: "bp-h2", text: "Totals" }), el("div", { class: "bp-tot" }, ...tot),
+      el("h2", { class: "bp-h2", text: "Cut-outs" }), cuts.length ? el("ul", { class: "bp-cuts" }, ...cuts) : el("p", { text: "None." }));
+    // Landscape: the arrangement on the left, legend, totals and cut-outs in a column on the right;
+    // without an arrangement (pieces in rows) they sit side by side under the drawings.
+    if (arranged) out.unshift(el("div", { class: "bp-split" }, arranged, el("div", { class: "bp-side" }, legend, side)));
+    else out.push(el("div", { class: "bp-two" }, legend, side));
 
     // material schedule
     const mrows = ps.map((p, i) => {
@@ -192,23 +197,27 @@
         el("td", { text: m ? String(m.thickness) : "" }),
         el("td", { text: jn || "None" }));
     });
-    out.push(el("div", {}, el("h2", { class: "bp-h2", text: "Material schedule" }),
+    const sched = (el("div", {}, el("h2", { class: "bp-h2", text: "Material schedule" }),
       el("table", { class: "bp-t" }, el("thead", {}, el("tr", {}, ...["Piece", "Shape · size", "Supplier · range", "Colour", "Thick", "Joins"].map((h) => el("th", { text: h })))), el("tbody", {}, ...mrows))));
 
-    out.push(el("div", {}, el("h2", { class: "bp-h2", text: "Notes for supplier" }), el("p", { class: "bp-pre", text: snap.notes || "None." }),
-      el("p", { class: "bp-check", text: "Check all sizes on site before cutting" })));
+    const notes = el("div", { class: "bp-side" }, el("h2", { class: "bp-h2", text: "Notes for supplier" }), el("p", { class: "bp-pre", text: snap.notes || "None." }),
+      el("p", { class: "bp-check", text: "Check all sizes on site before cutting" }));
+    // the schedule on the left, the notes in the right column
+    out.push(el("div", { class: "bp-split" }, sched, notes));
     return out;
   }
 
   function header(snap) {
     const j = snap.job || {};
-    return el("div", {}, ...letterhead(snap.business),
+    return el("div", { class: "bp-head" },
+      el("div", { class: "bp-headl" }, ...letterhead(snap.business)),
+      el("div", { class: "bp-headr" },
       el("h1", { class: "bp-h1", text: "Benchtop plan" }),
       el("div", { class: "bp-meta" },
         el("div", {}, el("span", { class: "bp-lab", text: "Job" }), text(j.name)),
         el("div", {}, el("span", { class: "bp-lab", text: "Client" }), text(j.clientName)),
         el("div", {}, el("span", { class: "bp-lab", text: "Site" }), text(j.siteAddress)),
-        el("div", {}, el("span", { class: "bp-lab", text: "Revision · date" }), `${snap.letter} · ${fmtDate(snap.date)}`)));
+        el("div", {}, el("span", { class: "bp-lab", text: "Revision · date" }), `${snap.letter} · ${fmtDate(snap.date)}`))));
   }
 
   function runningHead(snap) {
