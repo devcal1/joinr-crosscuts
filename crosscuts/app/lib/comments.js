@@ -54,7 +54,7 @@ function assertAccess(db, user, type, id, { write = false } = {}) {
   if (type === "task") {
     if (!has(user, "tasks.use")) throw forbidden();
     // A team task (2026-10-18) is the team's: anyone else is told there is no such task.
-    if (teamTasks.isTeamId(id) && !teamTasks.isMember(user)) throw notFound();
+    if (teamTasks.isTeamId(id) && !teamTasks.canSee(db, user, id)) throw notFound();
   } else {
     if (!has(user, "jobs.view")) throw forbidden();
     if (write && !has(user, "messages.use")) throw forbidden();
@@ -132,7 +132,7 @@ function add(db, req, entityType, entityId, body) {
     // Followers who can no longer see the entity are skipped.
     const team = type === "task" && teamTasks.isTeamId(id);
     const canSee = new Set(
-      (team ? teamTasks.memberIds(db) : notify.usersWithKey(db, type === "task" ? "tasks.use" : "jobs.view")).map(Number)
+      (team ? teamTasks.memberIds(db, teamTasks.teamOf(db, id) || "design") : notify.usersWithKey(db, type === "task" ? "tasks.use" : "jobs.view")).map(Number)
     );
     const followers = db
       .prepare("SELECT user_id FROM follows WHERE entity_type = ? AND entity_id = ?")

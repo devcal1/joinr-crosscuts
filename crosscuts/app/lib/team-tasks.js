@@ -1,6 +1,6 @@
 // Team tasks: a task for a whole team rather than one person (docs/plans/m4-contracts.md
 // section 13, 2026-10-18). Today the only team is 'design': the people who hold notes.design
-// (the Design/PM notes wall's people; admins add or remove them on the Users page) and tasks.use.
+// (the Projects notes wall's people; admins add or remove them on the Users page) and tasks.use.
 //
 // They live in their own table (migration 032) because `tasks` needs a person in assignee_id and
 // created_by. Their ids are 1000000000 or more, so one id means one task across /api/tasks, the
@@ -8,15 +8,31 @@
 // the team rows into its lists, counts and reminder. Only members see a team task (a non-member gets
 // a 404); any member may edit, finish or reopen it, and whoever finishes it closes it for everyone.
 //
+// 0.2.0 (docs/plans/m20-recurring-tasks.md): a recurring task given to a department makes one task
+// for that whole department here too: the teams are now the five departments (members hold tasks.use
+// and that department's notes key). The department rows live in dept_tasks (migration 036, ids
+// 2000000000 or more), because team_tasks only allows 'design'; reads see both tables as one.
+//
 // A team task has no files (task_files points at `tasks`). It is made by the Joinr intake
-// (createFromJoinr, a system actor) or by a member who picks "Design/PM team" as the assignee.
+// (createFromJoinr, a system actor) or by a member who picks "Projects team" as the assignee.
 const audit = require("./audit");
 const notify = require("./notify");
 const { bad, notFound, forbidden, conflict } = require("./httperror");
 const { sydneyToday } = require("./time");
 
 const TEAM_BASE = 1000000000;
-const TEAMS = { design: { key: "notes.design", name: "Design/PM team" } };
+const DEPT_BASE = 2000000000;
+const TEAMS = {
+  scheduling: { key: "notes.scheduling", name: "Scheduling team" },
+  design: { key: "notes.design", name: "Projects team" },
+  ordering: { key: "notes.ordering", name: "Ordering team" },
+  accounts: { key: "notes.accounts", name: "Accounts team" },
+  admin: { key: "notes.admin", name: "Admin team" },
+};
+const COLS = "id, team, title, notes, job_id, due_date, status, done_at, done_by, created_by, created_label, source, created_at, updated_at";
+// Both tables read as one.
+const ALL = `(SELECT ${COLS} FROM team_tasks UNION ALL SELECT ${COLS} FROM dept_tasks)`;
+const tableOf = (id) => (Number(id) >= DEPT_BASE ? "dept_tasks" : "team_tasks");
 const TEAM_KEYS = ["tasks.use", "notes.design"];
 const SYSTEM_LABEL = "Joinr (automatic)";
 
@@ -44,6 +60,11 @@ function isMember(user, team = "design") {
   return has("tasks.use") && has(TEAMS[team].key);
 }
 
+// The teams the user is on.
+function teamsOf(user) {
+  return Object.keys(TEAMS).filter((t) => isMember(user, t));
+}
+
 // The enabled users on the team, as ids.
 function memberIds(db, team = "design") {
   const t = TEAMS[team];
@@ -56,7 +77,7 @@ function teamLabel(team) {
 }
 
 const SELECT = `SELECT t.*, c.display_name AS creator_name, d.display_name AS done_by_name, j.name AS job_name
-    FROM team_tasks t
+    FROM ${ALL} t
     LEFT JOIN users c ON c.id = t.created_by
     LEFT JOIN users d ON d.id = t.done_by
     LEFT JOIN jobs j ON j.id = t.job_id`;
@@ -68,7 +89,20 @@ function loadRow(db, user, id) {
   return row;
 }
 
+// The team of a team task id, or null when there is none.
+function teamOf(db, id) {
+  const row = db.prepare(`SELECT team FROM ${tableOf(id)} WHERE id = ?`).get(id);
+  return row ? row.team : null;
+}
+
+// May the user see this team task (it exists and they are on its team)?
+function canSee(db, user, id) {
+  const team = teamOf(db, id);
+  return !!team && isMember(user, team);
+}
+
 function present(db, user, row, today) {
+  const recurring = !!db.prepare("SELECT 1 FROM recurring_occurrences WHERE task_id = ?").get(row.id);
   const comments = db
     .prepare("SELECT COUNT(*) AS n FROM comments WHERE entity_type = 'task' AND entity_id = ? AND removed_at IS NULL")
     .get(row.id).n;
@@ -94,6 +128,7 @@ function present(db, user, row, today) {
     commentCount: Number(comments) || 0,
     following,
     canEdit: row.status === "open",
+    recurring,
   };
 }
 
@@ -106,21 +141,23 @@ function get(db, user, id, today) {
 // The user's team tasks for a list view, as presented tasks (the caller merges and orders them).
 // view: mine | open | done | job; `raised` is the user's own creations. A non-member gets none.
 function listFor(db, user, view, { jobId, limit, today }) {
-  if (!isMember(user)) return [];
+  const teams = teamsOf(user);
+  if (!teams.length) return [];
+  const inTeams = `t.team IN (${teams.map(() => "?").join(",")})`;
   let sql;
   let args;
   if (view === "mine" || view === "open") {
-    sql = `${SELECT} WHERE t.status = 'open' ORDER BY t.id LIMIT ?`;
-    args = [limit];
+    sql = `${SELECT} WHERE ${inTeams} AND t.status = 'open' ORDER BY t.id LIMIT ?`;
+    args = [...teams, limit];
   } else if (view === "raised") {
-    sql = `${SELECT} WHERE t.created_by = ? AND t.status = 'open' ORDER BY t.id LIMIT ?`;
-    args = [user.id, limit];
+    sql = `${SELECT} WHERE ${inTeams} AND t.created_by = ? AND t.status = 'open' ORDER BY t.id LIMIT ?`;
+    args = [...teams, user.id, limit];
   } else if (view === "done") {
-    sql = `${SELECT} WHERE t.status IN ('done','cancelled') ORDER BY t.updated_at DESC, t.id DESC LIMIT ?`;
-    args = [limit];
+    sql = `${SELECT} WHERE ${inTeams} AND t.status IN ('done','cancelled') ORDER BY t.updated_at DESC, t.id DESC LIMIT ?`;
+    args = [...teams, limit];
   } else {
-    sql = `${SELECT} WHERE t.job_id = ? ORDER BY t.updated_at DESC, t.id DESC LIMIT ?`;
-    args = [jobId, limit];
+    sql = `${SELECT} WHERE ${inTeams} AND t.job_id = ? ORDER BY t.updated_at DESC, t.id DESC LIMIT ?`;
+    args = [...teams, jobId, limit];
   }
   return db
     .prepare(sql)
@@ -128,15 +165,16 @@ function listFor(db, user, view, { jobId, limit, today }) {
     .map((row) => present(db, user, row, today));
 }
 
-// {open, overdue} of the open team tasks the user can see (nothing for a non-member).
-function countsFor(db, today) {
+// {open, overdue} of the open team tasks of these teams (default: the design team).
+function countsFor(db, today, teams = ["design"]) {
+  if (!teams || !teams.length) return { open: 0, overdue: 0 };
   const row = db
     .prepare(
       `SELECT COUNT(*) AS open,
               COALESCE(SUM(CASE WHEN due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END), 0) AS overdue
-         FROM team_tasks WHERE status = 'open'`
+         FROM ${ALL} t WHERE status = 'open' AND team IN (${teams.map(() => "?").join(",")})`
     )
-    .get(today);
+    .get(today, ...teams);
   return { open: Number(row.open) || 0, overdue: Number(row.overdue) || 0 };
 }
 
@@ -144,7 +182,7 @@ function countsFor(db, today) {
 function dueRows(db, today) {
   return db
     .prepare(
-      `SELECT title, due_date FROM team_tasks
+      `SELECT team, title, due_date FROM ${ALL} t
         WHERE status = 'open' AND due_date IS NOT NULL AND due_date <= ? ORDER BY due_date, id`
     )
     .all(today);
@@ -162,11 +200,23 @@ function insert(db, { team, title, notes, jobId, dueDate, createdBy, createdLabe
   return id;
 }
 
+// A department task made by a recurring task (lib/recurring.js), in dept_tasks. Returns the id.
+function insertDept(db, { team, title, notes, dueDate, createdLabel }) {
+  if (!TEAMS[team]) throw bad("Unknown team");
+  const id = Math.max(DEPT_BASE, Number(db.prepare("SELECT COALESCE(MAX(id), 0) AS m FROM dept_tasks").get().m) + 1);
+  const ts = nowIso();
+  db.prepare(
+    `INSERT INTO dept_tasks (id, team, title, notes, job_id, due_date, created_by, created_label, source, created_at, updated_at)
+     VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, 'recurring', ?, ?)`
+  ).run(id, team, title, notes || "", dueDate || null, createdLabel || null, ts, ts);
+  return id;
+}
+
 function follow(db, userId, taskId) {
   db.prepare("INSERT OR IGNORE INTO follows (user_id, entity_type, entity_id) VALUES (?, 'task', ?)").run(userId, taskId);
 }
 
-// A member raises a task for the whole team (the "Design/PM team" choice in the assignee picker).
+// A member raises a task for the whole team (the "Projects team" choice in the assignee picker).
 // `fields` are the already-validated title, notes, dueDate, jobId from lib/tasks.js.
 function create(db, req, team, fields) {
   const user = req.user;
@@ -290,7 +340,7 @@ function update(db, req, id, body, { parseDue, parseJob, textField, TITLE_MAX, N
       job_id: changes.jobId !== undefined ? changes.jobId : row.job_id == null ? null : row.job_id,
     };
     const info = db
-      .prepare(`UPDATE team_tasks SET title = ?, notes = ?, due_date = ?, job_id = ?, updated_at = ? WHERE id = ? AND updated_at = ?`)
+      .prepare(`UPDATE ${tableOf(id)} SET title = ?, notes = ?, due_date = ?, job_id = ?, updated_at = ? WHERE id = ? AND updated_at = ?`)
       .run(next.title, next.notes, next.due_date, next.job_id, nextStamp(row.updated_at), id, row.updated_at);
     if (info.changes !== 1) throw conflict("Someone else changed this task. Reload to see it.", { task: get(db, user, id, today) });
     audit.log(req, { action: "task.update", entityType: "task", entityId: id, before, after: changes });
@@ -307,7 +357,7 @@ function setStatus(db, req, id, action) {
     const ts = nextStamp(row.updated_at);
     if (action === "done") {
       if (row.status !== "open") throw conflict("This task isn't open");
-      db.prepare("UPDATE team_tasks SET status = 'done', done_at = ?, done_by = ?, updated_at = ? WHERE id = ?").run(nowIso(), user.id, ts, id);
+      db.prepare(`UPDATE ${tableOf(id)} SET status = 'done', done_at = ?, done_by = ?, updated_at = ? WHERE id = ?`).run(nowIso(), user.id, ts, id);
       audit.log(req, { action: "task.done", entityType: "task", entityId: id, before: { status: "open" }, after: { status: "done", team: row.team } });
       if (row.created_by != null && Number(row.created_by) !== Number(user.id)) {
         notify.toUser(db, row.created_by, {
@@ -321,7 +371,7 @@ function setStatus(db, req, id, action) {
       }
     } else if (action === "reopen") {
       if (row.status !== "done") throw conflict("Only a finished task can be reopened");
-      db.prepare("UPDATE team_tasks SET status = 'open', done_at = NULL, done_by = NULL, updated_at = ? WHERE id = ?").run(ts, id);
+      db.prepare(`UPDATE ${tableOf(id)} SET status = 'open', done_at = NULL, done_by = NULL, updated_at = ? WHERE id = ?`).run(ts, id);
       audit.log(req, { action: "task.reopen", entityType: "task", entityId: id, before: { status: "done" }, after: { status: "open", team: row.team } });
       notify.toUsers(
         db,
@@ -340,7 +390,7 @@ function setStatus(db, req, id, action) {
       // Cancel: an admin, or the member who raised it.
       if (!isAdmin(user) && !(row.created_by != null && Number(row.created_by) === Number(user.id))) throw forbidden();
       if (row.status !== "open") throw conflict("This task isn't open");
-      db.prepare("UPDATE team_tasks SET status = 'cancelled', updated_at = ? WHERE id = ?").run(ts, id);
+      db.prepare(`UPDATE ${tableOf(id)} SET status = 'cancelled', updated_at = ? WHERE id = ?`).run(ts, id);
       audit.log(req, { action: "task.cancel", entityType: "task", entityId: id, before: { status: "open" }, after: { status: "cancelled" } });
     }
   })();
@@ -349,18 +399,23 @@ function setStatus(db, req, id, action) {
 
 // The title of a team task for the comment thread, or null when there is none.
 function labelOf(db, id) {
-  const row = db.prepare("SELECT title FROM team_tasks WHERE id = ?").get(id);
+  const row = db.prepare(`SELECT title FROM ${tableOf(id)} WHERE id = ?`).get(id);
   return row ? row.title : null;
 }
 
 module.exports = {
   TEAM_BASE,
+  DEPT_BASE,
   TEAMS,
   TEAM_KEYS,
   SYSTEM_LABEL,
   isTeamId,
   isMember,
+  teamsOf,
+  teamOf,
+  canSee,
   memberIds,
+  insertDept,
   teamLabel,
   get,
   listFor,

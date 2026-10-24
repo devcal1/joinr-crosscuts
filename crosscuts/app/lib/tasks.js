@@ -32,8 +32,11 @@ function countsFor(db, userId, today, opts) {
     )
     .get(today, userId);
   const out = { open: Number(row.open) || 0, overdue: Number(row.overdue) || 0 };
-  if (opts && opts.team) {
-    const t = teamTasks.countsFor(db, today);
+  // 0.2.0: opts.teams, the teams the user is on (department tasks from recurring tasks);
+  // opts.team true still means the design team.
+  const teams = opts && Array.isArray(opts.teams) ? opts.teams : opts && opts.team ? ["design"] : [];
+  if (teams.length) {
+    const t = teamTasks.countsFor(db, today, teams);
     out.open += t.open;
     out.overdue += t.overdue;
   }
@@ -161,6 +164,8 @@ function present(db, user, row, today) {
     commentCount: Number(comments) || 0,
     following,
     canEdit: canEditRow(user, row),
+    // 0.2.0: made by a recurring task (Admin > Tasks).
+    recurring: !!db.prepare("SELECT 1 FROM recurring_occurrences WHERE task_id = ?").get(row.id),
   };
 }
 
@@ -523,10 +528,12 @@ function runReminder(db, { now = new Date(), force = false } = {}) {
     let sent = 0;
     // Team tasks due today or earlier count for every member of the team (2026-10-18).
     const teamDue = teamTasks.dueRows(db, today);
-    const members = new Set(teamDue.length ? teamTasks.memberIds(db) : []);
+    // 0.2.0: each team's rows go to that team's members (department tasks from recurring tasks).
+    const members = new Map();
+    for (const team of new Set(teamDue.map((t) => t.team))) members.set(team, new Set(teamTasks.memberIds(db, team)));
     for (const p of people.withKey(db, "tasks.use")) {
       const rows = due.all(p.id, today);
-      if (members.has(Number(p.id))) rows.push(...teamDue);
+      for (const t of teamDue) if (members.get(t.team).has(Number(p.id))) rows.push(t);
       rows.sort((a, b) => (a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0));
       if (!rows.length) continue;
       const shown = rows.slice(0, REMINDER_TITLES).map((t) => `${t.title} (due ${dMon(t.due_date)})`);

@@ -45,8 +45,10 @@ const SQL = {
       FROM invoices i JOIN jobs j ON j.id = i.job_id
      WHERE i.status = 'issued' AND i.due_date BETWEEN ? AND ?`,
   invoicesOverdue: "SELECT COUNT(*) AS n FROM invoices WHERE status = 'issued' AND due_date < ?",
+  // 0.2.0: tasks made by a recurring task show as the recurring item instead (lib/recurring.js).
   tasksDue: `SELECT id, title, due_date FROM tasks
-     WHERE assignee_id = ? AND status = 'open' AND due_date BETWEEN ? AND ?`,
+     WHERE assignee_id = ? AND status = 'open' AND due_date BETWEEN ? AND ?
+       AND id NOT IN (SELECT task_id FROM recurring_occurrences)`,
 };
 
 // Prepared statements, once per database handle.
@@ -306,6 +308,8 @@ function listAuto(db, user, { from, to, today, layers } = {}) {
   if (eff.has("company")) leaveEvents(db, user, from, to, events);
   if (eff.has("accounts")) accountsEvents(db, user, from, to, day, events);
   if (eff.has("personal")) taskEvents(db, user, from, to, events);
+  // 0.2.0: recurring tasks (docs/plans/m20-recurring-tasks.md), on their due dates.
+  events.push(...require("../recurring").plannerItems(db, user, { from, to, today: day, layers: [...eff], item }));
   return { events, weeks };
 }
 

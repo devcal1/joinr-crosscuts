@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recurring tasks - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="admintasks.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="rt-body">
+  <div id="cc-shell"></div>
+
+  <!-- Admin > Tasks: recurring tasks (0.2.0, docs/plans/m20-recurring-tasks.md). admintasks.js
+       talks to /api/recurring. Admins only. -->
+  <main class="rt-page">
+    <div class="rt-head">
+      <h1 id="rtTitle" tabindex="-1">Recurring tasks</h1>
+      <button id="rtAdd" class="hs-btn hs-btn-primary" type="button">Add recurring task</button>
+    </div>
+    <p class="rt-intro">Each one becomes a task on its due date (or the set number of days before), for one person or for a whole department. A department's task is shared: whoever ticks it closes it for everyone. Each also shows on the Planner on its due date.</p>
+    <p id="rtStatus" class="rt-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="rtWrap" class="rt-wrap" hidden>
+      <table class="hs-table rt-table">
+        <thead>
+          <tr>
+            <th scope="col">Task</th>
+            <th scope="col">For</th>
+            <th scope="col">Repeats</th>
+            <th scope="col">Next due</th>
+            <th scope="col">State</th>
+            <th scope="col"><span class="rt-sr">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="rtRows"></tbody>
+      </table>
+    </div>
+    <p id="rtEmpty" class="rt-empty" hidden>No recurring tasks yet. Add one to start.</p>
+  </main>
+
+  <dialog id="rtDlg" class="cc-dialog rt-dialog" aria-labelledby="rtDlgTitle">
+    <form id="rtForm" class="cc-dialog-form" method="dialog" novalidate>
+      <h2 class="cc-dialog-title" id="rtDlgTitle">Add recurring task</h2>
+      <label class="rt-field"><span class="hs-label">Title</span>
+        <input id="fTitle" class="hs-input" type="text" maxlength="200" required>
+      </label>
+      <label class="rt-field"><span class="hs-label">Note (optional)</span>
+        <textarea id="fNotes" class="hs-input" rows="2" maxlength="4000"></textarea>
+      </label>
+      <label class="rt-field"><span class="hs-label">For</span>
+        <select id="fFor" class="hs-input"></select>
+      </label>
+      <div class="rt-row">
+        <label class="rt-field"><span class="hs-label">Repeats</span>
+          <select id="fRepeat" class="hs-input">
+            <option value="weekly">Every week</option>
+            <option value="fortnightly">Every fortnight</option>
+            <option value="monthly">Every month</option>
+            <option value="annually">Every year</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label class="rt-field rt-custom" hidden><span class="hs-label">Every</span>
+          <input id="fEvery" class="hs-input rt-num" type="number" min="1" max="99" step="1" value="2">
+        </label>
+        <label class="rt-field rt-custom" hidden><span class="hs-label">Unit</span>
+          <select id="fUnit" class="hs-input">
+            <option value="day">Days</option>
+            <option value="week">Weeks</option>
+            <option value="month">Months</option>
+            <option value="year">Years</option>
+          </select>
+        </label>
+      </div>
+      <div class="rt-row">
+        <label class="rt-field"><span class="hs-label">First due date</span>
+          <input id="fStart" class="hs-input" type="date" required>
+        </label>
+        <label class="rt-field"><span class="hs-label">End date (optional)</span>
+          <input id="fEnd" class="hs-input" type="date">
+        </label>
+      </div>
+      <label class="rt-field"><span class="hs-label">Show it this many days before it is due (0 to 60)</span>
+        <input id="fLead" class="hs-input rt-num" type="number" min="0" max="60" step="1" value="0">
+      </label>
+      <p class="cc-dialog-note">A monthly or yearly task due on the 29th, 30th or 31st falls on the last day of a shorter month (29 Feb falls on 28 Feb outside a leap year).</p>
+      <p id="fError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="fCancel" class="hs-btn hs-btn-quiet" type="button">Cancel</button>
+        <button id="fSave" class="hs-btn hs-btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/shell/shell.js"></script>
+  <script src="admintasks.js"></script>
+</body>
+</html>

@@ -98,6 +98,8 @@
       const bits = [];
       if (t.commentCount) bits.push(t.commentCount + (t.commentCount === 1 ? " comment" : " comments"));
       if (t.files.length) bits.push(t.files.length + (t.files.length === 1 ? " file" : " files"));
+      // 0.2.0: made by a recurring task (Admin > Tasks).
+      if (t.recurring) bits.push("Recurring");
       if (bits.length) titleCell.append(el("span", { class: "tk-sub", text: bits.join(", ") }));
       const job = el("td", { class: "tk-job" });
       if (t.job) job.append(el("a", { href: `/job.html?id=${t.job.id}`, text: t.job.name }));

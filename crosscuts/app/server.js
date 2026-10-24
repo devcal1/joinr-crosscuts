@@ -43,6 +43,8 @@ app.use(
     setHeaders: (res) => res.setHeader("Cache-Control", "private, max-age=2592000, immutable"),
   })
 );
+// 0.2.0 (Todd, 2026-10-24): the Projects dashboard now sits under the Projects notes wall.
+app.get("/design.html", (req, res) => res.redirect(302, "/notes.html?dept=design"));
 app.use(express.static(path.join(__dirname, "public")));
 
 // Each router module is a defineRoutes() router and carries its own prefix.
@@ -94,6 +96,8 @@ const routers = [
   require("./routes/materials"),
   // The job's "From Joinr quote" (task J4; money only for jobs.value).
   require("./routes/joinr-quote"),
+  // Recurring tasks, Admin > Tasks (0.2.0, docs/plans/m20-recurring-tasks.md).
+  require("./routes/recurring"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -112,6 +116,12 @@ app.listen(PORT, () => {
   require("./lib/roundup").start(require("./db"));
   // The weekday 7:00 Sydney task reminder (REMINDER_DISABLED=1 turns it off).
   require("./lib/tasks").startReminder(require("./db"));
+  // Recurring tasks: make the due occurrences at boot and hourly (RECURRING_DISABLED=1 turns it off).
+  try {
+    require("./lib/recurring").start(require("./db"));
+  } catch (e) {
+    console.error(`[recurring] failed to start (${safeCode(e)})`);
+  }
   // The Joinr intake pull, every 5 minutes once a key is set (JOINR_SYNC_DISABLED=1 turns it off).
   require("./lib/joinr-sync").start(require("./db"));
   // Joinr's open-quotes list (sent and won quotes for the Pipeline), same schedule (J3, 0.1.20).

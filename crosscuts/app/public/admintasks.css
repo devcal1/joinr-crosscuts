@@ -1,0 +1,38 @@
+/* Admin > Tasks, recurring tasks (admintasks.html). Tokens from tokens.css, hs- components from
+   components.css, the dialog frame from the shell's cc-dialog. Page classes are prefixed rt-. */
+html, body { margin: 0; background: var(--ink); }
+body { color: var(--body); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+[hidden] { display: none !important; }
+
+.rt-page { max-width: 1100px; margin: 0 auto; padding: 22px 24px 40px; }
+.rt-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.rt-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.rt-intro { margin: 0 0 16px; color: var(--label); max-width: 760px; }
+.rt-status { margin: 0 0 12px; color: var(--label); }
+.rt-status:empty { display: none; }
+.rt-empty { color: var(--label); }
+.rt-wrap { overflow-x: auto; }
+.rt-table td { vertical-align: top; }
+.rt-task { color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.rt-note { display: block; color: var(--label); font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+.rt-sub { display: block; color: var(--muted); font-size: 12px; }
+.rt-paused td { color: var(--muted); }
+.rt-paused .rt-task { color: var(--label); }
+.rt-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.rt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.cc-dialog.rt-dialog { width: min(94vw, 560px); max-height: 92vh; overflow-y: auto; }
+.rt-field { display: flex; flex-direction: column; gap: 4px; }
+.rt-row > .rt-field { flex: 1 1 140px; min-width: 0; }
+.rt-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.rt-num { max-width: 120px; }
+
+@media (max-width: 640px) {
+  .rt-page { padding: 16px 16px 32px; }
+  .rt-table thead { display: none; }
+  .rt-table, .rt-table tbody, .rt-table tr, .rt-table td { display: block; width: 100%; }
+  .rt-table tr { border-bottom: 1px solid var(--hairline); padding: 8px 0; }
+  .rt-table td { border: 0; padding: 2px 0; }
+  .rt-table td[data-label]::before { content: attr(data-label) ": "; color: var(--label); font-size: 12px; }
+  .rt-actions { justify-content: flex-start; padding-top: 6px; }
+}

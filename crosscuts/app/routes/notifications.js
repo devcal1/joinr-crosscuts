@@ -65,7 +65,7 @@ r.get("/", "login", (req, res) => {
 // The menu bar counts (one poll for all three buttons). M4 adds tasks, tasksOverdue
 // and messages; unread is unchanged.
 r.get("/unread-count", "login", (req, res) => {
-  const t = can(req, "tasks.use") ? tasks.countsFor(db, req.user.id, sydneyToday(), { team: teamTasks.isMember(req.user) }) : { open: 0, overdue: 0 };
+  const t = can(req, "tasks.use") ? tasks.countsFor(db, req.user.id, sydneyToday(), { teams: teamTasks.teamsOf(req.user) }) : { open: 0, overdue: 0 };
   res.json({
     unread: unreadCount(req.user.id),
     tasks: t.open,
