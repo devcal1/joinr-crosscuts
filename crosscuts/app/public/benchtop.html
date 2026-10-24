@@ -44,15 +44,15 @@
             </button>
             <button class="hs-btn bt-addbtn" type="button" data-shape="l">
               <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 3H37V10H10V21H3Z"/></svg>
-              <span>L</span>
+              <span>L shape (left)</span>
+            </button>
+            <button class="hs-btn bt-addbtn" type="button" data-shape="lr">
+              <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 3H37V21H30V10H3Z"/></svg>
+              <span>L shape (right)</span>
             </button>
             <button class="hs-btn bt-addbtn" type="button" data-shape="u">
               <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 3H37V21H30V10H10V21H3Z"/></svg>
               <span>U</span>
-            </button>
-            <button class="hs-btn bt-addbtn" type="button" data-shape="leg">
-              <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 3H31V8H3ZM31 3H37V21H31Z"/></svg>
-              <span>Waterfall leg</span>
             </button>
           </div>
         </div>
@@ -70,7 +70,7 @@
           <button class="hs-btn bt-mode" type="button" data-mode="join">Place join</button>
           <button class="hs-btn" type="button" id="btAddCut">Add cut-out</button>
           <span class="hs-label bt-scale">Drawn to scale · mm</span>
-          <span class="bt-hint" id="btHint">Click an edge to set its finish · Place join, then click along a run</span>
+          <span class="bt-hint" id="btHint">Click an edge for its finish · click a size to type it · drag a piece to arrange</span>
         </div>
         <div class="bt-canvas" id="btCanvas"></div>
       </section>

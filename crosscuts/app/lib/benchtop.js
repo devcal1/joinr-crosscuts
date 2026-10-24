@@ -5,8 +5,10 @@
 const audit = require("./audit");
 const { bad, notFound, conflict } = require("./httperror");
 
-const SHAPES = { straight: 1, l: 2, u: 3, leg: 0 };
-const EDGE_COUNT = { straight: 4, l: 6, u: 8, leg: 4 };
+const SHAPES = { straight: 1, l: 2, lr: 2, u: 3 };
+const EDGE_COUNT = { straight: 4, l: 6, lr: 6, u: 8 };
+// The end edges of each shape: the only edges a waterfall finish may go on.
+const END_EDGES = { straight: ["e1", "e3"], l: ["e1", "e4"], lr: ["e2", "e5"], u: ["e2", "e6"] };
 const CUTOUT_KINDS = ["sink", "cooktop", "tap", "other"];
 const LINE_STYLES = ["heavy", "thin", "double", "dashed", "dotted"];
 const MAX_PIECES = 30;
@@ -57,34 +59,25 @@ function cleanDesign(db, raw) {
   if (!Array.isArray(d.pieces)) throw bad("design.pieces must be a list");
   if (d.pieces.length > MAX_PIECES) throw bad(`At most ${MAX_PIECES} pieces`);
   const matIds = new Set(db.prepare("SELECT id FROM benchtop_materials").all().map((r) => r.id));
-  const finIds = new Set(db.prepare("SELECT id FROM benchtop_edge_finishes").all().map((r) => r.id));
+  const fins = new Map(db.prepare("SELECT id, waterfall FROM benchtop_edge_finishes").all().map((r) => [r.id, r.waterfall === 1]));
   const ids = new Set();
   const pieces = d.pieces.map((p0, i) => {
     const p = obj(p0, `piece ${i + 1}`);
     const what = `Piece ${i + 1}`;
     if (typeof p.id !== "string" || !/^[a-z0-9]{1,12}$/.test(p.id) || ids.has(p.id)) throw bad(`${what}: a bad id`);
     ids.add(p.id);
-    if (!Object.prototype.hasOwnProperty.call(SHAPES, p.shape)) throw bad(`${what}: shape must be straight, l, u or leg`);
+    if (!Object.prototype.hasOwnProperty.call(SHAPES, p.shape)) throw bad(`${what}: shape must be straight, l, lr or u`);
     const out = { id: p.id, name: str(p.name, 80, `${what} name`), shape: p.shape };
     if (p.materialId === null || p.materialId === undefined) out.materialId = null;
     else if (!matIds.has(p.materialId)) throw bad(`${what}: unknown material`);
     else out.materialId = p.materialId;
-    if (p.shape === "leg") {
-      const leg = obj(p.leg, `${what} leg`);
-      out.leg = {
-        width: int(leg.width, 50, 3000, `${what} width`),
-        height: int(leg.height, 50, 3000, `${what} height`),
-        attachTo: leg.attachTo == null || leg.attachTo === "" ? null : str(leg.attachTo, 12, `${what} attached piece`),
-        end: leg.end === "end" ? "end" : "start",
-      };
-      out.runs = [];
-    } else {
+    {
       if (!Array.isArray(p.runs) || p.runs.length !== SHAPES[p.shape]) throw bad(`${what}: ${SHAPES[p.shape]} run(s) needed`);
       out.runs = p.runs.map((r, k) => {
         const rr = obj(r, `${what} run ${k + 1}`);
         return { len: int(rr.len, 50, 10000, `${what} run ${k + 1} length`), depth: int(rr.depth, 50, 2000, `${what} run ${k + 1} depth`) };
       });
-      if (p.shape === "l" && (out.runs[0].len <= out.runs[1].depth || out.runs[1].len <= out.runs[0].depth)) {
+      if ((p.shape === "l" || p.shape === "lr") && (out.runs[0].len <= out.runs[1].depth || out.runs[1].len <= out.runs[0].depth)) {
         throw bad(`${what}: each run must be longer than the other run's depth`);
       }
       if (p.shape === "u") {
@@ -100,13 +93,25 @@ function cleanDesign(db, raw) {
       const m = /^e(\d)$/.exec(k);
       if (!m || Number(m[1]) >= EDGE_COUNT[p.shape]) throw bad(`${what}: unknown edge ${k}`);
       if (v === null) continue;
-      if (!finIds.has(v)) throw bad(`${what}: unknown edge finish`);
+      if (!fins.has(v)) throw bad(`${what}: unknown edge finish`);
       edges[k] = v;
     }
     out.edges = edges;
+    // Waterfall finishes: only on end edges, each with its drop height.
+    const drops = {};
+    const d0 = p.drops === undefined || p.drops === null ? {} : obj(p.drops, `${what} drops`);
+    for (const [k, v] of Object.entries(edges)) {
+      if (!fins.get(v)) continue;
+      if (!END_EDGES[p.shape].includes(k)) throw bad(`${what}: a waterfall goes on an end edge`);
+      drops[k] = int(d0[k], 50, 1500, `${what} waterfall drop`);
+    }
+    out.drops = drops;
+    // Where the piece sits in the All view (mm).
+    out.x = p.x == null ? 0 : int(p.x, -50000, 50000, `${what} position`);
+    out.y = p.y == null ? 0 : int(p.y, -50000, 50000, `${what} position`);
     const joins = p.joins == null ? [] : p.joins;
     if (!Array.isArray(joins) || joins.length > 10) throw bad(`${what}: at most 10 joins`);
-    out.joins = p.shape === "leg" ? [] : joins.map((j0) => {
+    out.joins = joins.map((j0) => {
       const j = obj(j0, `${what} join`);
       if (!Number.isInteger(j.run) || j.run < 0 || j.run >= out.runs.length) throw bad(`${what}: a join on an unknown run`);
       const len = runLength(out, j.run);
@@ -132,12 +137,12 @@ function cleanDesign(db, raw) {
     });
     return out;
   });
-  for (const p of pieces) {
-    if (p.shape === "leg" && p.leg.attachTo !== null && !pieces.some((q) => q.id === p.leg.attachTo && q.shape !== "leg")) {
-      throw bad("A waterfall leg is joined to a piece that is not in the plan");
-    }
-  }
   return { pieces };
+}
+
+// Plans drawn before 2026-10-24 may hold waterfall leg pieces (unreleased); they are dropped on read.
+function withoutLegs(d) {
+  return { pieces: (d.pieces || []).filter((p) => p.shape !== "leg") };
 }
 
 // --- reads ---------------------------------------------------------------------------------------
@@ -180,7 +185,7 @@ function latestSnapshot(db, planId) {
 
 function planShape(db, row) {
   const job = jobOr404(db, row.job_id);
-  const design = JSON.parse(row.design_json);
+  const design = withoutLegs(JSON.parse(row.design_json));
   const last = latestSnapshot(db, row.id);
   return {
     id: row.id,
@@ -277,7 +282,7 @@ function update(db, req, id, b) {
 // Print: if the plan changed since its last revision (or has none), freeze it as the next letter.
 function print(db, req, id, business) {
   const row = planRowOr404(db, id);
-  const design = JSON.parse(row.design_json);
+  const design = withoutLegs(JSON.parse(row.design_json));
   if (!design.pieces.length) throw bad("Add a piece before printing");
   return db.transaction(() => {
     const last = latestSnapshot(db, id);
@@ -317,7 +322,7 @@ function materialShape(m) {
 }
 
 function finishShape(f) {
-  return { id: f.id, code: f.code, name: f.name, lineStyle: f.line_style, sort: f.sort, active: f.active === 1 };
+  return { id: f.id, code: f.code, name: f.name, lineStyle: f.line_style, sort: f.sort, waterfall: f.waterfall === 1, active: f.active === 1 };
 }
 
 function lists(db) {
@@ -351,6 +356,10 @@ function cleanFinish(b, partial) {
   if (!partial || b.lineStyle !== undefined) {
     if (!LINE_STYLES.includes(b.lineStyle)) throw bad("Line style must be one of " + LINE_STYLES.join(", "));
     out.line_style = b.lineStyle;
+  }
+  if (b.waterfall !== undefined) {
+    if (typeof b.waterfall !== "boolean") throw bad("waterfall must be true or false");
+    out.waterfall = b.waterfall ? 1 : 0;
   }
   if (b.sort !== undefined) {
     if (!Number.isInteger(b.sort) || b.sort < 0 || b.sort > 999) throw bad("sort must be 0 to 999");

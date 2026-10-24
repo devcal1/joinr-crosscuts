@@ -11,7 +11,7 @@ M21_TAG="m21b$(date +%s)"
 
 echo "--- pages and access ---"
 req GET /benchtop.html "$DPM";        expect_status 200 "dpm GET /benchtop.html"
-case $BODY in *'class="bt-shapeicon"'*'Waterfall leg'*) ok ;; *) fail "benchtop.html has no shape buttons" ;; esac
+case $BODY in *'class="bt-shapeicon"'*'L shape (right)'*) ok ;; *) fail "benchtop.html has no shape buttons" ;; esac
 req GET /benchtopprint.html "$DPM";   expect_status 200 "dpm GET /benchtopprint.html"
 req GET /benchtopadmin.html "$ADMIN"; expect_status 200 "admin GET /benchtopadmin.html"
 req GET /benchtopadmin.html "$DPM";   expect_status 403 "dpm GET /benchtopadmin.html"
@@ -25,6 +25,8 @@ expect_status 200 "dpm reads the lists"
 expect_jq '([.finishes[] | select(.code == "PR" or .code == "RAW" or .code == "MITRE")] | length) == 3' "the starting finishes"
 M21_PR=$(jqr '[.finishes[] | select(.code == "PR")][0].id')
 M21_RAW=$(jqr '[.finishes[] | select(.code == "RAW")][0].id')
+M21_WF=$(jqr '[.finishes[] | select(.code == "WF")][0].id')
+expect_jq '[.finishes[] | select(.code == "WF")][0].waterfall == true' "the Waterfall finish asks for a drop"
 req POST /api/benchtop-lists/materials "$DPM" '{"supplier":"x","colour":"y","thickness":20}'
 expect_status 403 "dpm can't add a material"
 req POST /api/benchtop-lists/materials "$ADMIN" '{"supplier":"","colour":"y","thickness":20}'
@@ -56,10 +58,16 @@ expect_status 403 "acct (no jobs.edit) can't start one"
 M21_BAD='{"design":{"pieces":[{"id":"a1","name":"Run","shape":"l","runs":[{"len":3600,"depth":600}],"edges":{},"joins":[],"cutouts":[]}]}}'
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" "$M21_BAD"
 expect_status 400 "an L needs two runs"
-M21_D="{\"pieces\":[{\"id\":\"a1\",\"name\":\"Kitchen L\",\"shape\":\"l\",\"materialId\":$M21_MAT,\"runs\":[{\"len\":3600,\"depth\":600},{\"len\":2400,\"depth\":650}],\"edges\":{\"e0\":$M21_RAW,\"e2\":$M21_PR},\"joins\":[{\"run\":0,\"at\":1800}],\"cutouts\":[{\"kind\":\"sink\",\"label\":\"Undermount\",\"w\":800,\"h\":450,\"edge\":\"e0\",\"along\":2200,\"in\":75},{\"kind\":\"tap\",\"w\":35,\"edge\":\"e0\",\"along\":2580,\"in\":25}]},{\"id\":\"b2\",\"name\":\"Leg\",\"shape\":\"leg\",\"leg\":{\"width\":600,\"height\":870,\"attachTo\":\"a1\",\"end\":\"end\"},\"edges\":{},\"joins\":[],\"cutouts\":[]}]}"
+M21_D="{\"pieces\":[{\"id\":\"a1\",\"name\":\"Kitchen L\",\"shape\":\"l\",\"materialId\":$M21_MAT,\"runs\":[{\"len\":3600,\"depth\":600},{\"len\":2400,\"depth\":650}],\"edges\":{\"e0\":$M21_RAW,\"e2\":$M21_PR},\"joins\":[{\"run\":0,\"at\":1800}],\"cutouts\":[{\"kind\":\"sink\",\"label\":\"Undermount\",\"w\":800,\"h\":450,\"edge\":\"e0\",\"along\":2200,\"in\":75},{\"kind\":\"tap\",\"w\":35,\"edge\":\"e0\",\"along\":2580,\"in\":25}]},{\"id\":\"b2\",\"name\":\"Island\",\"shape\":\"lr\",\"x\":1200,\"y\":1500,\"runs\":[{\"len\":2400,\"depth\":900},{\"len\":1800,\"depth\":600}],\"edges\":{\"e2\":$M21_WF},\"drops\":{\"e2\":870},\"joins\":[],\"cutouts\":[]}]}"
+req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{"design":{"pieces":[{"id":"a1","shape":"leg","leg":{"width":600,"height":870}}]}}'
+expect_status 400 "the waterfall leg piece is gone"
+req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" "{\"design\":{\"pieces\":[{\"id\":\"a1\",\"shape\":\"straight\",\"runs\":[{\"len\":2000,\"depth\":600}],\"edges\":{\"e0\":$M21_WF},\"drops\":{\"e0\":870}}]}}"
+expect_status 400 "a waterfall only on an end edge"
+req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" "{\"design\":{\"pieces\":[{\"id\":\"a1\",\"shape\":\"straight\",\"runs\":[{\"len\":2000,\"depth\":600}],\"edges\":{\"e1\":$M21_WF}}]}}"
+expect_status 400 "a waterfall needs its drop"
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" "{\"design\":$M21_D,\"notes\":\"Made-up note.\"}"
 expect_status 201 "dpm starts the plan"
-expect_jq '.revision == null and (.design.pieces | length) == 2 and .design.pieces[0].cutouts[1].h == 35 and .notes == "Made-up note."' "the plan as saved"
+expect_jq '.revision == null and (.design.pieces | length) == 2 and .design.pieces[0].cutouts[1].h == 35 and .design.pieces[1].shape == "lr" and .design.pieces[1].x == 1200 and .design.pieces[1].y == 1500 and .design.pieces[1].drops.e2 == 870 and .notes == "Made-up note."' "the plan as saved"
 M21_PLAN=$(jqr '.id')
 M21_UPD=$(jqr '.updatedAt')
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{}'

@@ -1,9 +1,11 @@
 // The benchtop designer (/benchtop.html; docs/plans/m21-benchtop-designer.md). One plan per job,
-// several pieces (Straight, L, U, Waterfall leg), each with its own material, side lengths and
-// depths in mm, edge finishes, joins and cut-outs, drawn to scale (benchtopdraw.js). Save writes
-// the working copy (PUT); Print plan set freezes a new revision letter when something changed and
-// opens the print. ?plan=N&rev=B shows a printed revision, read-only. Every rule lives in
-// lib/benchtop.js; this only hides what the user can't use. Text goes in through textContent.
+// several pieces (Straight, L shape left or right, U), each with its own material, drawn to scale
+// (benchtopdraw.js). The "All" view (the default) draws every piece together: drag a piece to
+// arrange it, click an edge for its finish, click a size to type it, Place join, Add cut-out.
+// Choosing a waterfall finish asks for the drop. Save writes the working copy (PUT); Print plan
+// set freezes a new revision letter when something changed and opens the print. ?plan=N&rev=B
+// shows a printed revision, read-only. Every rule lives in lib/benchtop.js. Text goes in through
+// textContent.
 (function () {
   "use strict";
 
@@ -13,21 +15,22 @@
 
   const st = {
     jobId: null,
-    plan: null, // the plan as saved (null: none yet)
+    plan: null,
     job: null,
     design: { pieces: [] },
     notes: "",
     lists: { materials: [], finishes: [] },
-    finishes: {}, // id -> finish (for drawing)
-    materials: {}, // id -> material
-    sel: 0,
+    finishes: {},
+    materials: {},
+    view: "all", // "all" or "one"
+    sel: -1, // the selected piece (-1: none)
     selEdge: null,
     selCut: null,
     mode: "select",
     dirty: false,
     readOnly: true,
-    rev: null, // the revision letter when showing one
-    revData: null,
+    rev: null,
+    drawn: null, // the last drawing: {svg, set (bool)}
   };
 
   function el(tag, props, ...kids) {
@@ -49,8 +52,7 @@
 
   function fmtDate(iso) {
     const d = new Date(iso);
-    if (isNaN(d)) return "";
-    return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    return isNaN(d) ? "" : `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   }
 
   function setStatus(msg, err) {
@@ -64,13 +66,8 @@
     return (e && e.message) || "That didn't work.";
   }
 
-  function newId() {
-    return "p" + Math.random().toString(36).slice(2, 9);
-  }
-
-  function piece() {
-    return st.design.pieces[st.sel] || null;
-  }
+  const newId = () => "p" + Math.random().toString(36).slice(2, 9);
+  const piece = () => st.design.pieces[st.sel] || null;
 
   function markDirty() {
     if (st.readOnly) return;
@@ -78,12 +75,17 @@
     renderHead();
   }
 
+  function changed() {
+    markDirty();
+    renderAll();
+  }
+
   // ---- the head ------------------------------------------------------------------------------
 
   function renderHead() {
     const j = st.job || {};
     $("btJob").textContent = [j.name ? "Job " + j.name : "", j.clientName, j.siteAddress].filter(Boolean).join(" · ");
-    let rev = "";
+    let rev;
     if (st.rev) rev = "Revision " + st.rev + " · read-only";
     else if (!st.plan || !st.plan.revision) rev = "Not printed yet";
     else if (st.plan.changedSinceRevision || st.dirty) rev = "Rev " + st.plan.revision + " · changed since";
@@ -92,8 +94,7 @@
     $("btDirty").hidden = !st.dirty;
     $("btSave").disabled = st.readOnly || !st.dirty;
     $("btSave").hidden = !!st.rev;
-    const mayPrint = st.rev ? true : !st.readOnly && st.design.pieces.length > 0;
-    $("btPrint").disabled = !mayPrint;
+    $("btPrint").disabled = st.rev ? false : st.readOnly || !st.design.pieces.length;
     $("btPrint").textContent = st.rev ? "Print revision " + st.rev : "Print plan set";
   }
 
@@ -101,23 +102,29 @@
 
   function matText(id) {
     const m = st.materials[id];
-    return m ? [m.colour, m.thickness + " mm"].join(" ") : "No material yet";
+    return m ? m.colour + " " + m.thickness + " mm" : "No material yet";
   }
 
   function renderPieces() {
-    const list = $("btPieces");
     const ps = st.design.pieces;
     $("btPieceCount").textContent = "Pieces · " + ps.length;
-    list.replaceChildren(...ps.map((p, i) => {
+    const cards = [el("button", { type: "button", class: "bt-pc bt-all" + (st.view === "all" ? " on" : ""), onclick: () => { st.view = "all"; renderAll(); } },
+      el("h3", {}, el("span", { text: "All" })),
+      el("p", { text: ps.length ? "Every piece, to scale. Drag to arrange." : "No pieces yet." }))];
+    ps.forEach((p, i) => {
       const extra = [];
       if (p.joins && p.joins.length) extra.push(p.joins.length === 1 ? "1 join" : p.joins.length + " joins");
       if (p.cutouts && p.cutouts.length) extra.push(p.cutouts.length === 1 ? "1 cut-out" : p.cutouts.length + " cut-outs");
-      return el("button", { type: "button", class: "bt-pc" + (i === st.sel ? " on" : ""), onclick: () => selectPiece(i) },
-        el("h3", {}, el("span", { class: "bt-disc", text: String(i + 1) }), el("span", { text: p.name || D.SHAPE_NAMES[p.shape] })),
-        el("p", { text: [D.describe(p)].concat(extra).join(" · ") }),
-        el("p", { text: matText(p.materialId) }));
-    }));
-    if (!ps.length) list.append(el("p", { class: "bt-muted", text: st.readOnly ? "No pieces." : "No pieces yet. Add one below." }));
+      const on = i === st.sel;
+      const card = el("div", { class: "bt-pcwrap" },
+        el("button", { type: "button", class: "bt-pc" + (on ? " on" : "") + (on && st.view === "one" ? " solo" : ""), onclick: () => selectPiece(i, true) },
+          el("h3", {}, el("span", { class: "bt-disc", text: String(i + 1) }), el("span", { text: p.name || D.SHAPE_NAMES[p.shape] })),
+          el("p", { text: [D.describe(p)].concat(extra).join(" · ") }),
+          el("p", { text: matText(p.materialId) })),
+        on && !st.readOnly ? el("button", { type: "button", class: "bt-x", "aria-label": "Delete piece " + (i + 1), title: "Delete piece", text: "×", onclick: deletePiece }) : null);
+      cards.push(card);
+    });
+    $("btPieces").replaceChildren(...cards);
     $("btAddWrap").hidden = st.readOnly;
     $("btNotes").value = st.notes;
     $("btNotes").readOnly = st.readOnly;
@@ -143,23 +150,28 @@
     const box = $("btCanvas");
     box.classList.toggle("join", st.mode === "join");
     document.querySelectorAll(".bt-mode").forEach((b) => b.classList.toggle("on", b.dataset.mode === st.mode));
-    const p = piece();
-    if (!p) {
-      box.replaceChildren(el("div", { class: "bt-empty", text: "Add a piece to start drawing." }));
+    const ps = st.design.pieces;
+    if (!ps.length) {
+      box.replaceChildren(el("div", { class: "bt-empty", text: st.readOnly ? "No pieces." : "Add a piece to start drawing." }));
       return;
     }
-    const o = D.outline(p);
+    const all = st.view === "all" || !piece();
+    const b = all ? D.bounds(ps) : (() => { const o = D.outline(piece()); return { w: o.w, h: o.h }; })();
     const cw = Math.max(200, box.clientWidth);
     const ch = Math.max(200, box.clientHeight);
     let u = 1;
-    for (let k = 0; k < 3; k++) {
-      const pad = 70 * u;
-      const s = Math.min(cw / (o.w + 2 * pad), ch / (o.h + 2 * pad));
-      u = 1 / s;
+    for (let k = 0; k < 3; k++) u = 1 / Math.min(cw / (b.w + 140 * u), ch / (b.h + 140 * u));
+    const opts = { finishes: st.finishes, u, pad: 70 * u, selEdge: st.selEdge, selCut: st.selCut };
+    let svg;
+    if (all) {
+      svg = D.renderSet(ps, Object.assign(opts, { sel: st.sel })).svg;
+    } else {
+      svg = D.render(piece(), Object.assign(opts, { index: st.sel })).svg;
     }
-    const r = D.render(p, { finishes: st.finishes, u, selEdge: st.selEdge, selCut: st.selCut, pad: 70 * u });
-    r.svg.addEventListener("click", (ev) => onCanvasClick(ev, r));
-    box.replaceChildren(r.svg);
+    st.drawn = { svg, set: all, u };
+    svg.addEventListener("click", onCanvasClick);
+    svg.addEventListener("pointerdown", onPointerDown);
+    box.replaceChildren(svg);
   }
 
   function toMm(svg, ev) {
@@ -170,39 +182,140 @@
     return m ? pt.matrixTransform(m.inverse()) : null;
   }
 
-  function onCanvasClick(ev, r) {
-    const p = piece();
-    if (!p) return;
+  // The piece-local point of a click: in the All view each piece is offset by its position.
+  function localPoint(ev, i) {
+    const q = toMm(st.drawn.svg, ev);
+    if (!q) return null;
+    const p = st.design.pieces[i];
+    return st.drawn.set ? { x: q.x - (p.x || 0), y: q.y - (p.y || 0) } : { x: q.x, y: q.y };
+  }
+
+  function pieceAt(ev) {
+    const t = ev.target.closest("[data-piece]");
+    return t ? Number(t.dataset.piece) : -1;
+  }
+
+  let dragMoved = false;
+
+  function onCanvasClick(ev) {
+    if (dragMoved) { dragMoved = false; return; }
     const t = ev.target;
+    const i = pieceAt(ev);
     if (st.mode === "join") {
-      if (st.readOnly || p.shape === "leg") return;
-      const q = toMm(r.svg, ev);
-      if (!q) return;
-      const hit = D.runAt(r.outline, q.x, q.y);
+      if (st.readOnly || i < 0) return;
+      const p = st.design.pieces[i];
+      const q = localPoint(ev, i);
+      const hit = q && D.runAt(D.outline(p), q.x, q.y);
       if (!hit) return;
       const len = p.runs[hit.run].len;
-      const at = Math.max(1, Math.min(len - 1, Math.round(hit.at / 10) * 10));
-      p.joins = (p.joins || []).concat([{ run: hit.run, at }]);
+      p.joins = (p.joins || []).concat([{ run: hit.run, at: Math.max(1, Math.min(len - 1, Math.round(hit.at / 10) * 10)) }]);
+      st.sel = i;
       st.mode = "select";
-      markDirty();
-      renderAll();
+      changed();
+      return;
+    }
+    if (t.dataset && t.dataset.len && !st.readOnly) {
+      editLength(t, Number(t.dataset.piece), t.dataset.len);
       return;
     }
     if (t.dataset && t.dataset.edge) {
+      st.sel = Number(t.dataset.piece);
       st.selEdge = t.dataset.edge;
       st.selCut = null;
     } else if (t.dataset && t.dataset.cut != null) {
+      st.sel = Number(t.dataset.piece);
       st.selCut = Number(t.dataset.cut);
       st.selEdge = null;
+    } else if (i >= 0) {
+      st.sel = i;
+      st.selEdge = null;
+      st.selCut = null;
     } else {
       st.selEdge = null;
       st.selCut = null;
     }
-    renderCanvas();
-    renderRight();
+    renderAll();
   }
 
-  // ---- the right panel -----------------------------------------------------------------------
+  // Drag a piece (All view, Select): moves in 10 mm steps; saved with the plan.
+  function onPointerDown(ev) {
+    if (st.readOnly || st.mode !== "select" || !st.drawn.set) return;
+    const t = ev.target;
+    if (!t.classList.contains("bt-shape")) return;
+    const i = Number(t.dataset.piece);
+    const p = st.design.pieces[i];
+    const g = st.drawn.svg.querySelector(`[data-group="${i}"]`);
+    const start = toMm(st.drawn.svg, ev);
+    if (!start || !g) return;
+    const x0 = p.x || 0;
+    const y0 = p.y || 0;
+    dragMoved = false;
+    if (t.setPointerCapture) t.setPointerCapture(ev.pointerId);
+    const move = (e) => {
+      const q = toMm(st.drawn.svg, e);
+      if (!q) return;
+      const nx = Math.round((x0 + q.x - start.x) / 10) * 10;
+      const ny = Math.round((y0 + q.y - start.y) / 10) * 10;
+      if (nx !== p.x || ny !== p.y) {
+        if (Math.abs(nx - x0) + Math.abs(ny - y0) >= 10) dragMoved = true;
+        p.x = nx;
+        p.y = ny;
+        g.setAttribute("transform", `translate(${nx} ${ny})`);
+      }
+    };
+    const up = () => {
+      t.removeEventListener("pointermove", move);
+      t.removeEventListener("pointerup", up);
+      if (dragMoved) {
+        st.sel = i;
+        markDirty();
+        renderAll();
+      }
+    };
+    t.addEventListener("pointermove", move);
+    t.addEventListener("pointerup", up);
+  }
+
+  // Type a length in place: Enter saves, Esc (or leaving the box) cancels.
+  function editLength(textNode, i, key) {
+    const box = $("btCanvas");
+    const r = textNode.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const p = st.design.pieces[i];
+    const cur = D.outline(p).edges.find((e) => e.key === key);
+    const inp = el("input", { class: "hs-input bt-inline", type: "number", min: 1, step: 1, value: String(cur.len), "aria-label": cur.name + " length (mm)" });
+    inp.style.left = Math.max(0, r.left - b.left + r.width / 2 - 45) + "px";
+    inp.style.top = Math.max(0, r.top - b.top + r.height / 2 - 16) + "px";
+    let done = false;
+    const close = () => { if (!done) { done = true; inp.remove(); } };
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const v = Math.round(Number(inp.value));
+        if (!Number.isFinite(v) || v < 1) { setStatus("Type a length in mm.", true); return; }
+        const before = JSON.stringify(p.runs);
+        D.setEdgeLen(p, key, v);
+        if (p.runs.some((x) => x.len < 50 || x.depth < 50)) {
+          p.runs = JSON.parse(before);
+          setStatus("That length leaves a run too short.", true);
+          close();
+          return;
+        }
+        st.sel = i;
+        st.selEdge = key;
+        done = true;
+        setStatus("");
+        changed();
+      }
+    });
+    inp.addEventListener("blur", close);
+    box.append(inp);
+    inp.focus();
+    inp.select();
+  }
+
+  // ---- the right panel: finish, material, joins and cut-outs ---------------------------------
 
   function numInput(value, onset, opts) {
     const o = opts || {};
@@ -213,8 +326,7 @@
         const v = Math.round(Number(ev.target.value));
         if (!Number.isFinite(v)) return;
         onset(v);
-        markDirty();
-        renderAll();
+        changed();
       },
     });
   }
@@ -227,64 +339,60 @@
     return el("div", { class: "bt-sect" }, el("h2", { text: title }), ...kids);
   }
 
+  function askDrop(p, key) {
+    const cur = (p.drops && p.drops[key]) || 870;
+    const v = window.prompt("Waterfall drop height (mm)", String(cur));
+    if (v === null) return false;
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n) || n < 50 || n > 1500) {
+      setStatus("The drop must be 50 to 1500 mm.", true);
+      return false;
+    }
+    p.drops = p.drops || {};
+    p.drops[key] = n;
+    return true;
+  }
+
   function edgeSection(p, o) {
     const e = o.edges.find((x) => x.key === st.selEdge);
     if (!e) return null;
     const cur = p.edges[e.key] != null ? p.edges[e.key] : null;
-    const active = st.lists.finishes.filter((f) => f.active || f.id === cur);
-    const opts = st.rev ? Object.values(st.finishes) : active;
+    const opts = st.rev ? Object.values(st.finishes) : st.lists.finishes.filter((f) => f.active || f.id === cur);
+    const choose = (f) => {
+      if (f.waterfall && !askDrop(p, e.key)) return;
+      if (!f.waterfall && p.drops) delete p.drops[e.key];
+      p.edges[e.key] = f.id;
+      changed();
+    };
     const seg = el("div", { class: "bt-seg" },
-      ...opts.map((f) => el("button", {
+      ...opts.filter((f) => !f.waterfall || e.end).map((f) => el("button", {
         type: "button", class: "hs-btn" + (cur === f.id ? " on" : ""), disabled: st.readOnly,
-        "aria-pressed": cur === f.id ? "true" : "false", text: f.name,
-        onclick: () => { p.edges[e.key] = f.id; markDirty(); renderAll(); },
+        "aria-pressed": cur === f.id ? "true" : "false", text: f.name, onclick: () => choose(f),
       })),
       el("button", {
         type: "button", class: "hs-btn" + (cur == null ? " on" : ""), disabled: st.readOnly, text: "None",
-        onclick: () => { delete p.edges[e.key]; markDirty(); renderAll(); },
+        onclick: () => { delete p.edges[e.key]; if (p.drops) delete p.drops[e.key]; changed(); },
       }));
-    return section("Selected edge",
-      el("div", { class: "bt-note", text: `Piece ${st.sel + 1} · ${e.name} · ${e.len} mm` }),
-      el("div", { class: "bt-f" }, el("span", { class: "hs-label", text: "Edge finish" }), seg));
+    const kids = [el("div", { class: "bt-note", text: `Piece ${st.sel + 1} · ${e.name} · ${e.len} mm (click the size on the drawing to change it)` }),
+      el("div", { class: "bt-f" }, el("span", { class: "hs-label", text: "Edge finish" }), seg)];
+    const f = cur != null ? st.finishes[cur] : null;
+    if (f && f.waterfall) kids.push(field("Waterfall drop (mm)", numInput((p.drops && p.drops[e.key]) || 870, (v) => { p.drops = p.drops || {}; p.drops[e.key] = v; }, { min: 50 })));
+    return section("Selected edge", ...kids);
   }
 
-  function pieceSection(p, o) {
-    const kids = [field("Name", el("input", {
-      class: "hs-input", value: p.name, maxlength: 80, disabled: st.readOnly,
-      onchange: (ev) => { p.name = ev.target.value.trim(); markDirty(); renderAll(); },
-    }))];
-    if (p.shape === "leg") {
-      kids.push(el("div", { class: "bt-row" },
-        field("Width", numInput(p.leg.width, (v) => { p.leg.width = v; })),
-        field("Height", numInput(p.leg.height, (v) => { p.leg.height = v; }))));
-      const others = st.design.pieces.map((q, i) => [q, i]).filter(([q]) => q.shape !== "leg");
-      const sel = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { p.leg.attachTo = ev.target.value || null; markDirty(); renderAll(); } },
-        el("option", { value: "", text: "Not joined yet" }),
-        ...others.map(([q, i]) => el("option", { value: q.id, text: `Piece ${i + 1} · ${q.name || D.SHAPE_NAMES[q.shape]}`, selected: p.leg.attachTo === q.id })));
-      const end = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { p.leg.end = ev.target.value; markDirty(); renderAll(); } },
-        el("option", { value: "start", text: "Left / start end", selected: p.leg.end !== "end" }),
-        el("option", { value: "end", text: "Right / far end", selected: p.leg.end === "end" }));
-      kids.push(el("div", { class: "bt-row" }, field("Mitred to", sel), field("End", end)));
-    } else {
-      p.runs.forEach((r, i) => {
-        kids.push(el("div", { class: "bt-row" },
-          field(D.RUN_NAMES[p.shape][i] + " length", numInput(r.len, (v) => { r.len = v; })),
-          field("Depth", numInput(r.depth, (v) => { r.depth = v; }))));
-      });
-    }
-    if (!st.readOnly) {
-      kids.push(el("div", { class: "bt-row" },
-        el("button", { type: "button", class: "bt-linkbtn bt-del", text: "Delete piece", onclick: deletePiece })));
-    }
-    return section(`Piece ${st.sel + 1} · ${p.name || D.SHAPE_NAMES[p.shape]}`, ...kids);
+  function pieceSection(p) {
+    return section(`Piece ${st.sel + 1} · ${D.SHAPE_NAMES[p.shape]}`,
+      field("Name", el("input", {
+        class: "hs-input", value: p.name, maxlength: 80, disabled: st.readOnly, placeholder: "e.g. Island",
+        onchange: (ev) => { p.name = ev.target.value.trim(); changed(); },
+      })));
   }
 
-  function joinsSection(p, o) {
-    if (p.shape === "leg") return null;
+  function joinsSection(p) {
     const rows = (p.joins || []).map((j, i) => el("div", { class: "bt-item" },
       el("div", { class: "bt-item-head" },
         el("b", { text: `J${i + 1} · ${D.RUN_NAMES[p.shape][j.run] || "Run"}` }),
-        st.readOnly ? null : el("button", { type: "button", class: "bt-linkbtn bt-del", text: "Remove", onclick: () => { p.joins.splice(i, 1); markDirty(); renderAll(); } })),
+        st.readOnly ? null : el("button", { type: "button", class: "bt-linkbtn bt-del", text: "Remove", onclick: () => { p.joins.splice(i, 1); changed(); } })),
       field("Position (mm from the run's start)", numInput(j.at, (v) => { j.at = v; }, { min: 1 }))));
     return section("Joins", ...(rows.length ? rows : [el("p", { class: "bt-note", text: "None. Use Place join, then click along a run." })]));
   }
@@ -292,9 +400,9 @@
   function cutSection(p, o) {
     const rows = (p.cutouts || []).map((c, i) => {
       const e = o.edges.find((x) => x.key === c.edge) || o.edges[0];
-      const kind = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { c.kind = ev.target.value; if (c.kind === "tap") c.h = c.w = 35; markDirty(); renderAll(); } },
+      const kind = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { c.kind = ev.target.value; if (c.kind === "tap") c.h = c.w = 35; changed(); } },
         ...Object.entries(D.KIND_NAMES).map(([k, n]) => el("option", { value: k, text: n, selected: c.kind === k })));
-      const edge = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { c.edge = ev.target.value; markDirty(); renderAll(); } },
+      const edge = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { c.edge = ev.target.value; changed(); } },
         ...o.edges.map((x) => el("option", { value: x.key, text: x.name, selected: x.key === c.edge })));
       const size = c.kind === "tap"
         ? el("div", { class: "bt-row" }, field("Diameter", numInput(c.w, (v) => { c.w = v; c.h = v; }, { min: 10 })))
@@ -305,10 +413,10 @@
       } },
         el("div", { class: "bt-item-head" },
           el("b", { text: `${c.label || D.KIND_NAMES[c.kind]} · ${c.kind === "tap" ? "Ø" + c.w : c.w + " × " + c.h}` }),
-          st.readOnly ? null : el("button", { type: "button", class: "bt-linkbtn bt-del", text: "Remove", onclick: () => { p.cutouts.splice(i, 1); st.selCut = null; markDirty(); renderAll(); } })),
+          st.readOnly ? null : el("button", { type: "button", class: "bt-linkbtn bt-del", text: "Remove", onclick: () => { p.cutouts.splice(i, 1); st.selCut = null; changed(); } })),
         el("div", { class: "bt-row" }, field("Kind", kind), field("Label", el("input", {
           class: "hs-input", value: c.label || "", maxlength: 40, disabled: st.readOnly, placeholder: "e.g. undermount",
-          onchange: (ev) => { c.label = ev.target.value.trim(); markDirty(); renderAll(); },
+          onchange: (ev) => { c.label = ev.target.value.trim(); changed(); },
         }))),
         size,
         field("Measured from edge", edge),
@@ -316,7 +424,7 @@
           field("Along, " + e.from, numInput(c.along, (v) => { c.along = v; })),
           field("In from edge", numInput(c.in, (v) => { c.in = v; }))));
     });
-    return section("Cut-outs", ...(rows.length ? rows : [el("p", { class: "bt-note", text: "None. Sizes and positions are to the cut-out's near sides." })]));
+    return section("Cut-outs", ...(rows.length ? rows : [el("p", { class: "bt-note", text: "None. Add cut-out adds one to this piece. Positions are to the cut-out's near sides." })]));
   }
 
   function materialSection(p) {
@@ -327,12 +435,12 @@
     const supKey = cur ? key(cur) : "";
     const colours = [...new Set(mats.filter((m) => key(m) === supKey).map((m) => m.colour))];
     const thick = mats.filter((m) => key(m) === supKey && cur && m.colour === cur.colour);
-    const pick = (list) => { p.materialId = list.length ? list[0].id : null; markDirty(); renderAll(); };
+    const pick = (list) => { p.materialId = list.length ? list[0].id : null; changed(); };
     const s1 = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => pick(mats.filter((m) => key(m) === ev.target.value)) },
       el("option", { value: "", text: "Choose..." }), ...sups.map((s) => el("option", { value: s, text: s.replace(/ · $/, ""), selected: s === supKey })));
     const s2 = el("select", { class: "hs-input", disabled: st.readOnly || !cur, onchange: (ev) => pick(mats.filter((m) => key(m) === supKey && m.colour === ev.target.value)) },
       ...colours.map((c) => el("option", { value: c, text: c, selected: cur && c === cur.colour })));
-    const s3 = el("select", { class: "hs-input", disabled: st.readOnly || !cur, onchange: (ev) => { p.materialId = Number(ev.target.value); markDirty(); renderAll(); } },
+    const s3 = el("select", { class: "hs-input", disabled: st.readOnly || !cur, onchange: (ev) => { p.materialId = Number(ev.target.value); changed(); } },
       ...thick.map((m) => el("option", { value: String(m.id), text: m.thickness + " mm", selected: m.id === p.materialId })));
     return section("Material",
       field("Supplier · range", s1),
@@ -346,8 +454,7 @@
     s.setAttribute("viewBox", "0 0 48 10");
     const mk = (y, cls) => {
       const l = document.createElementNS(NS, "line");
-      l.setAttribute("x1", "0"); l.setAttribute("x2", "48"); l.setAttribute("y1", String(y)); l.setAttribute("y2", String(y));
-      l.setAttribute("class", cls);
+      for (const [k, v] of [["x1", 0], ["x2", 48], ["y1", y], ["y2", y], ["class", cls]]) l.setAttribute(k, String(v));
       s.append(l);
     };
     if (style === "double") { mk(3, "bt-edge bt-ls-double"); mk(7, "bt-edge bt-ls-double"); }
@@ -359,7 +466,7 @@
   function legendSection() {
     const fs = st.rev ? Object.values(st.finishes) : st.lists.finishes.filter((f) => f.active);
     const rows = [];
-    for (const f of fs) rows.push(legendSvg(f.lineStyle), el("span", { text: `${f.code} · ${f.name}` }));
+    for (const f of fs) rows.push(legendSvg(f.lineStyle), el("span", { text: `${f.code} · ${f.name}${f.waterfall ? " (with its drop)" : ""}` }));
     rows.push(legendSvg("none"), el("span", { text: "No finish set" }));
     rows.push(legendSvg("join"), el("span", { text: "Join" }));
     return section("Edge legend", el("div", { class: "bt-leg" }, ...rows));
@@ -369,12 +476,12 @@
     const box = $("btRight");
     const p = piece();
     if (!p) {
-      box.replaceChildren(legendSection());
+      box.replaceChildren(section("Selection", el("p", { class: "bt-note", text: st.design.pieces.length ? "Click a piece or an edge on the drawing." : "Add a piece on the left." })), legendSection());
       return;
     }
     const o = D.outline(p);
     if (st.selEdge && !o.edges.some((e) => e.key === st.selEdge)) st.selEdge = null;
-    box.replaceChildren(...[edgeSection(p, o), pieceSection(p, o), joinsSection(p, o), cutSection(p, o), materialSection(p), legendSection()].filter(Boolean));
+    box.replaceChildren(...[edgeSection(p, o), pieceSection(p), materialSection(p), cutSection(p, o), joinsSection(p), legendSection()].filter(Boolean));
   }
 
   function renderAll() {
@@ -387,7 +494,9 @@
 
   // ---- actions -------------------------------------------------------------------------------
 
-  function selectPiece(i) {
+  // From the list: the first click selects (staying in All); clicking the selected one shows it alone.
+  function selectPiece(i, fromList) {
+    if (fromList && st.sel === i) st.view = st.view === "one" ? "all" : "one";
     st.sel = i;
     st.selEdge = null;
     st.selCut = null;
@@ -396,43 +505,48 @@
 
   function addPiece(shape) {
     const ps = st.design.pieces;
-    const p = { id: newId(), name: "", shape, materialId: null, edges: {}, joins: [], cutouts: [] };
+    const p = { id: newId(), name: "", shape, materialId: null, edges: {}, drops: {}, joins: [], cutouts: [], x: 0, y: 0 };
     const last = ps.length ? ps[ps.length - 1] : null;
     if (last && last.materialId != null) p.materialId = last.materialId;
     if (shape === "straight") p.runs = [{ len: 2400, depth: 600 }];
-    else if (shape === "l") p.runs = [{ len: 3600, depth: 600 }, { len: 2400, depth: 600 }];
-    else if (shape === "u") p.runs = [{ len: 3000, depth: 600 }, { len: 2400, depth: 600 }, { len: 2400, depth: 600 }];
-    else {
-      const host = ps.slice().reverse().find((q) => q.shape !== "leg");
-      p.runs = [];
-      p.leg = { width: host ? host.runs[0].depth : 600, height: 870, attachTo: host ? host.id : null, end: "end" };
-      const mitre = st.lists.finishes.find((f) => f.active && f.lineStyle === "double");
-      if (mitre) p.edges.e0 = mitre.id;
+    else if (shape === "l" || shape === "lr") p.runs = [{ len: 3600, depth: 600 }, { len: 2400, depth: 600 }];
+    else p.runs = [{ len: 3000, depth: 600 }, { len: 2400, depth: 600 }, { len: 2400, depth: 600 }];
+    if (ps.length) {
+      const b = D.bounds(ps);
+      p.x = Math.round(b.x0 / 10) * 10;
+      p.y = Math.round((b.y0 + b.h + 600) / 10) * 10;
     }
     ps.push(p);
-    selectPiece(ps.length - 1);
-    markDirty();
+    st.view = "all";
+    st.sel = ps.length - 1;
+    st.selEdge = null;
+    st.selCut = null;
+    changed();
   }
 
   function deletePiece() {
     const p = piece();
-    if (!p || !confirm(`Delete piece ${st.sel + 1}?`)) return;
+    if (!p || !confirm(`Delete piece ${st.sel + 1}${p.name ? " (" + p.name + ")" : ""}?`)) return;
     st.design.pieces.splice(st.sel, 1);
-    for (const q of st.design.pieces) if (q.shape === "leg" && q.leg.attachTo === p.id) q.leg.attachTo = null;
-    st.sel = Math.max(0, st.sel - 1);
-    markDirty();
-    selectPiece(st.sel);
+    st.sel = -1;
+    st.view = "all";
+    st.selEdge = null;
+    st.selCut = null;
+    changed();
   }
 
   function addCut() {
     const p = piece();
-    if (!p || st.readOnly) return;
+    if (!p || st.readOnly) {
+      setStatus("Click a piece first, then Add cut-out.", true);
+      return;
+    }
     p.cutouts = p.cutouts || [];
-    p.cutouts.push({ kind: "sink", label: "", w: 800, h: 450, edge: p.shape === "leg" ? "e0" : "e0", along: 200, in: 75 });
+    p.cutouts.push({ kind: "sink", label: "", w: 800, h: 450, edge: "e0", along: 200, in: 75 });
     st.selCut = p.cutouts.length - 1;
     st.selEdge = null;
-    markDirty();
-    renderAll();
+    setStatus("");
+    changed();
   }
 
   async function save() {
@@ -513,8 +627,7 @@
       if (rev && st.plan) {
         const snap = await api("/api/benchtop-plans/" + st.plan.id + "/revisions/" + encodeURIComponent(rev));
         st.rev = snap.letter;
-        st.revData = snap;
-        st.design = snap.design;
+        st.design = { pieces: (snap.design.pieces || []).filter((p) => p.shape !== "leg") };
         st.notes = snap.notes;
         st.job = snap.job;
         st.finishes = {};

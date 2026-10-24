@@ -27,7 +27,7 @@
 //     cursor rule), shell/busy.js and shell/cursor-dot-N.svg; a cursor image (url(...)) or a
 //     cursor-dot reference anywhere else is refused
 //   - Benchtop designer shape diagrams (approved by Todd on 2026-10-24): the Add piece buttons
-//     carry a small thin white line diagram of each shape (inline <svg class="bt-shapeicon">), only
+//     (Straight, L left, L right, U) carry a small thin white line diagram of each shape (inline <svg class="bt-shapeicon">), only
 //     in benchtop.html and benchtop.css; an inline <svg> or bt-shapeicon anywhere else is refused
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"

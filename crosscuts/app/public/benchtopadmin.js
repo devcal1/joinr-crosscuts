@@ -61,11 +61,12 @@
         if (f && f.lineStyle === s) o.selected = true;
         return o;
       }));
+    const wf = el("input", { type: "checkbox", checked: f ? f.waterfall : false, "aria-label": "Waterfall" });
     const sort = input(f ? f.sort : 0, { type: "number", min: 0, max: 999, "aria-label": "Order" });
     const act = el("input", { type: "checkbox", checked: f ? f.active : true, "aria-label": "Shown" });
-    const body = () => ({ code: code.value, name: name.value, lineStyle: ls.value, sort: Math.round(Number(sort.value)) || 0, active: act.checked });
+    const body = () => ({ code: code.value, name: name.value, lineStyle: ls.value, waterfall: wf.checked, sort: Math.round(Number(sort.value)) || 0, active: act.checked });
     return el("tr", { class: f ? (f.active ? "" : "ba-hidden") : "ba-new" },
-      el("td", {}, code), el("td", {}, name), el("td", {}, ls), el("td", {}, sort), el("td", {}, act),
+      el("td", {}, code), el("td", {}, name), el("td", {}, ls), el("td", {}, wf), el("td", {}, sort), el("td", {}, act),
       el("td", {}, el("button", { type: "button", class: "hs-btn" + (f ? "" : " hs-btn-primary"), text: f ? "Save" : "Add", onclick: () => send("finishes", f && f.id, body()) })));
   }
 

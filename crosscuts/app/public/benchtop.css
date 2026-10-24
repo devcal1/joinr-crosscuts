@@ -109,3 +109,15 @@ body.bt-body { margin: 0; background: var(--ink); color: var(--body); font-famil
   .bt-left { border-right: 0; }
   .bt-right { border-left: 0; }
 }
+
+/* Todd's changes (2026-10-24): the All entry, the delete cross on the selected piece (red: a
+   destructive action), sizes typed in place on the drawing, pieces dragged in the All view. */
+.bt-pcwrap { position: relative; }
+.bt-pc.solo { background: var(--teal-8); }
+.bt-x { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: var(--r-control); background: none; color: var(--stop); font-family: var(--font); font-size: 20px; font-weight: 700; line-height: 22px; cursor: pointer; }
+.bt-x:hover, .bt-x:focus-visible { border-color: var(--stop); background: var(--stop-16); }
+.bt-canvas .bt-edit { pointer-events: auto; cursor: text; }
+.bt-canvas .bt-edit:hover { fill: var(--teal-tint); text-decoration: underline; }
+.bt-canvas:not(.join) .bt-pg .bt-shape { cursor: move; }
+.bt-inline { position: absolute; z-index: 2; width: 90px; padding: 5px 6px; border-color: var(--teal); text-align: center; }
+.bt-pc.on { padding-right: 34px; }

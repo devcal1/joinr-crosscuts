@@ -11,13 +11,15 @@ Approved by Todd 2026-10-24 (mock-ups `designer` and `plan-print`). Short bindin
 
 ## design_json
 
-`{pieces: [piece]}`, at most 30. A piece: `id` (`[a-z0-9]{1,12}`, unique), `name`, `shape` (`straight` | `l` | `u` | `leg`), `materialId` (or null), `runs`, `edges`, `joins`, `cutouts`.
+`{pieces: [piece]}`, at most 30. A piece: `id` (`[a-z0-9]{1,12}`, unique), `name`, `shape` (`straight` | `l` (L shape, return on the left) | `lr` (L shape, return on the right) | `u`), `materialId` (or null), `x`, `y` (its place in the All view, mm), `runs`, `edges`, `drops`, `joins`, `cutouts`.
 
-- `runs`: straight `[run]`; l `[back, return]`; u `[back, left return, right return]`; each `{len 50-10000, depth 50-2000}` mm. A run's length is its full outside length.
-- leg: `leg: {width, height (50-3000), attachTo: piece id or null, end: start|end}`, no runs; drawn in elevation, top edge mitred.
-- `edges`: `{eN: finishId}`; edges are numbered clockwise from the top-left corner (straight 4, L 6, U 8, leg 4). Unset = no finish.
+- `runs`: straight `[run]`; l and lr `[back, return]`; u `[back, left return, right return]`; each `{len 50-10000, depth 50-2000}` mm. A run's length is its full outside length. On the drawing every edge's length can be typed; it sets the run length or depth it comes from.
+- `edges`: `{eN: finishId}`; edges are numbered clockwise from the top-left corner (straight 4, L 6, U 8). Unset = no finish.
+- `drops`: `{eN: mm 50-1500}` for each edge whose finish is a waterfall (required). A waterfall finish goes on end edges only (straight e1/e3, l e1/e4, lr e2/e5, u e2/e6). Shown as "WF 870".
 - `joins`: `{run, at}` (mm from the run's start, 1 to len-1), at most 10.
 - `cutouts`: `{kind sink|cooktop|tap|other, label, w, h (tap: h = w, the diameter), edge, along, in}`: along the reference edge from its start, and in from it, both to the cut-out's near sides. At most 20.
+
+Changed 2026-10-24 (Todd): the Waterfall leg piece was removed (it is now the Waterfall edge finish, migration 039 `benchtop_waterfall`: `benchtop_edge_finishes.waterfall` and a WF finish); leg pieces in older plans are dropped on read; L split into left and right; the All view and its positions.
 
 ## Revisions
 
@@ -39,6 +41,8 @@ Archived jobs: create and save are 409. Audit actions: `benchtop_plan.create`, `
 
 ## Pages
 
-`/benchtop.html` (jobs.view; ?job=N, ?plan=N, ?plan=N&rev=B), `/benchtopprint.html` (jobs.view; ?plan=N&rev=B), `/benchtopadmin.html` (users.admin; menu Admin > Benchtop lists). The job's Benchtops section links "Benchtop plan"; the Benchtops page lists plans under the stone orders. Print: A4 portrait, black on white, stone-order letterhead, one common scale (1:10 to 1:200), pieces packed several per sheet, legend, cut-out table, material schedule, notes, "Check all sizes on site before cutting", page X of Y. "Send to supplier" is shown disabled (coming later). House-style exception eight: the Add piece shape diagrams (CLAUDE.md).
+The designer opens on **All**: every piece together to scale, dragged to arrange, with edges, sizes, joins and cut-outs edited there; clicking a selected piece in the list shows it alone. The selected piece carries a red × (delete, confirmed). The print draws the All arrangement at the largest standard scale up to 1:100 that fits the first sheet, and falls back to pieces in rows across sheets when it does not.
+
+`/benchtop.html` (jobs.view; ?job=N, ?plan=N, ?plan=N&rev=B), `/benchtopprint.html` (jobs.view; ?plan=N&rev=B), `/benchtopadmin.html` (users.admin; menu Admin > Benchtop lists). The job's Benchtops section links "Benchtop plan"; the Benchtops page lists plans under the stone orders. Print: A4 portrait, black on white, stone-order letterhead, the All arrangement to scale (or pieces in rows when it does not fit), legend, cut-out table, material schedule, notes, "Check all sizes on site before cutting", page X of Y. "Send to supplier" is shown disabled (coming later). House-style exception eight: the Add piece shape diagrams (CLAUDE.md).
 
 Smoke: `ci/smoke-m21-benchtop-designer.sh`.

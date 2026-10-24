@@ -75,11 +75,7 @@
     const r = D.render(p, { finishes: snap.finishes, u, print: true, pad: z.pad * S, number: i + 1 });
     r.svg.setAttribute("width", z.w + "mm");
     r.svg.setAttribute("height", z.h + "mm");
-    let sub = D.describe(p);
-    if (p.shape === "leg") {
-      const host = snap.design.pieces.findIndex((q) => q.id === p.leg.attachTo);
-      sub += host >= 0 ? `, elevation, mitred to piece ${host + 1} (${p.leg.end === "end" ? "right / far" : "left / start"} end)` : ", elevation";
-    }
+    const sub = D.describe(p);
     return el("div", { class: "bp-piece", style: `width:${z.w}mm` },
       el("p", { class: "bp-cap" }, pieceTitle(p, i) + " ", el("span", { text: sub })), r.svg);
   }
@@ -105,9 +101,32 @@
     return `${c.along} along ${e.name.toLowerCase()} ${e.from}, ${c.in} in from it`;
   }
 
-  function blocks(snap, S) {
+  // The All arrangement on one sheet, at the largest standard scale that fits the room left on
+  // the first page (1:100 at the most); null when it doesn't fit, so the pieces go in rows.
+  function arrangement(snap, room) {
+    const ps = snap.design.pieces;
+    const b = D.bounds(ps);
+    const pad = 15;
+    for (const S of SCALES) {
+      if (S > 100) break;
+      const w = b.w / S + 2 * pad;
+      const h = b.h / S + 2 * pad;
+      if (w <= CONTENT_W && h <= room) {
+        const u = (2.5 * S) / 11;
+        const r = D.renderSet(ps, { finishes: snap.finishes, u, print: true, pad: pad * S });
+        r.svg.setAttribute("width", w + "mm");
+        r.svg.setAttribute("height", h + "mm");
+        return el("div", {}, el("h2", { class: "bp-h2" }, "Plan view ", el("span", { text: `(as arranged, to scale, 1:${S}, all sizes in mm)` })),
+          el("div", { class: "bp-piece" }, r.svg));
+      }
+    }
+    return null;
+  }
+
+  function blocks(snap, S, room) {
     const ps = snap.design.pieces;
     const out = [];
+    const arranged = arrangement(snap, room);
 
     // plan views, packed into rows across the page
     const rows = [];
@@ -124,7 +143,8 @@
       used += (row.length > 1 ? 4 : 0) + w;
     });
     if (row.length) rows.push(row);
-    rows.forEach((r, k) => {
+    if (arranged) out.push(arranged);
+    else rows.forEach((r, k) => {
       const kids = [];
       if (k === 0) kids.push(el("h2", { class: "bp-h2" }, "Plan view ", el("span", { text: `(to scale, 1:${S}, all sizes in mm)` })));
       kids.push(el("div", { class: "bp-row" }, ...r.map(([p, i]) => drawing(p, i, S, snap))));
@@ -147,7 +167,7 @@
     const leg = [];
     for (const id of usedFin) {
       const f = snap.finishes[id];
-      leg.push(legendLine(f.lineStyle), el("span", {}, el("b", { text: f.code }), " " + f.name));
+      leg.push(legendLine(f.lineStyle), el("span", {}, el("b", { text: f.code }), " " + f.name + (f.waterfall ? ", drop height in mm after the code" : "")));
     }
     if (unset) leg.push(legendLine("none"), el("span", { text: "No finish set (cut edge)" }));
     if (joins) leg.push(legendLine("join"), el("span", {}, el("b", { text: "J" }), " Join, at mm from the run's start"));
@@ -218,7 +238,7 @@
     await waitImages(head);
     const headH = heightMm(head);
     const runH = heightMm(runningHead(snap));
-    const parts = blocks(snap, S).map((b) => ({ node: b, h: heightMm(b) }));
+    const parts = blocks(snap, S, CONTENT_H - headH - 10).map((b) => ({ node: b, h: heightMm(b) }));
     const pages = [[head]];
     let left = CONTENT_H - headH;
     for (const b of parts) {
@@ -254,6 +274,7 @@
       refuse(e instanceof TypeError ? "Couldn't reach the server. Reload to try again." : /not found/i.test(e.message) ? "There is no revision " + rev + " of that plan." : e.message);
       return;
     }
+    snap.design = { pieces: (snap.design.pieces || []).filter((p) => p.shape !== "leg") };
     await build(snap);
     document.title = `Benchtop plan ${text(snap.job && snap.job.name)} rev ${snap.letter}`;
     $("bpStatus").textContent = `Revision ${snap.letter}, printed ${fmtDate(snap.date)}${snap.printedBy ? " by " + snap.printedBy : ""}.` +
