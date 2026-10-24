@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchtop plan - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="benchtop.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="bt-body">
+  <div id="cc-shell"></div>
+
+  <!-- The benchtop designer (benchtop.js; docs/plans/m21-benchtop-designer.md). One plan per job:
+       ?job=N (starts one if the job has none) or ?plan=N, and ?plan=N&rev=B for a printed revision,
+       read-only. -->
+  <main class="bt-page" id="btPage">
+    <div class="bt-head">
+      <h1 id="btTitle" tabindex="-1">Benchtop plan</h1>
+      <span id="btJob" class="bt-job"></span>
+      <span id="btRev" class="bt-rev"></span>
+      <span id="btDirty" class="bt-dirty" hidden>Unsaved changes</span>
+      <span class="bt-sp"></span>
+      <button id="btSave" class="hs-btn" type="button" disabled>Save</button>
+      <button id="btPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print plan set</button>
+      <button id="btSend" class="hs-btn" type="button" disabled title="Coming later">Send to supplier (coming later)</button>
+    </div>
+    <p id="btStatus" class="bt-status" role="status" aria-live="polite">Loading...</p>
+    <div id="btRevBar" class="bt-revbar" hidden></div>
+
+    <div class="bt-main" id="btMain" hidden>
+      <aside class="bt-left">
+        <div class="hs-label" id="btPieceCount">Pieces</div>
+        <div id="btPieces"></div>
+        <div id="btAddWrap">
+          <div class="hs-label bt-gap">Add piece</div>
+          <!-- House-style exception eight (Todd, 2026-10-24): each Add piece button carries its text
+               label and a small thin white line diagram of the shape, on this page only. -->
+          <div class="bt-add">
+            <button class="hs-btn bt-addbtn" type="button" data-shape="straight">
+              <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 8H37V16H3Z"/></svg>
+              <span>Straight</span>
+            </button>
+            <button class="hs-btn bt-addbtn" type="button" data-shape="l">
+              <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 3H37V10H10V21H3Z"/></svg>
+              <span>L</span>
+            </button>
+            <button class="hs-btn bt-addbtn" type="button" data-shape="u">
+              <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 3H37V21H30V10H10V21H3Z"/></svg>
+              <span>U</span>
+            </button>
+            <button class="hs-btn bt-addbtn" type="button" data-shape="leg">
+              <svg class="bt-shapeicon" viewBox="0 0 40 24" aria-hidden="true"><path d="M3 3H31V8H3ZM31 3H37V21H31Z"/></svg>
+              <span>Waterfall leg</span>
+            </button>
+          </div>
+        </div>
+        <label class="bt-notes">
+          <span class="hs-label">Notes for supplier</span>
+          <textarea id="btNotes" class="hs-input" maxlength="4000" rows="6"></textarea>
+        </label>
+        <div class="hs-label bt-gap">Revisions</div>
+        <div id="btRevs" class="bt-revs"></div>
+      </aside>
+
+      <section class="bt-cv" aria-label="Drawing">
+        <div class="bt-tools">
+          <button class="hs-btn bt-mode" type="button" data-mode="select">Select</button>
+          <button class="hs-btn bt-mode" type="button" data-mode="join">Place join</button>
+          <button class="hs-btn" type="button" id="btAddCut">Add cut-out</button>
+          <span class="hs-label bt-scale">Drawn to scale · mm</span>
+          <span class="bt-hint" id="btHint">Click an edge to set its finish · Place join, then click along a run</span>
+        </div>
+        <div class="bt-canvas" id="btCanvas"></div>
+      </section>
+
+      <aside class="bt-right" id="btRight"></aside>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="benchtopdraw.js"></script>
+  <script src="benchtop.js"></script>
+</body>
+</html>

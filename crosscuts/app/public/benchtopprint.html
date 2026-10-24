@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchtop plan set - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="benchtopprint.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="bp-body">
+  <div id="cc-shell"></div>
+
+  <!-- The benchtop plan set (benchtopprint.js; docs/plans/m21-benchtop-designer.md): a printed
+       revision (?plan=N&rev=B) on A4 portrait sheets, black on white, on the stone-order letterhead. -->
+  <main class="bp-page">
+    <div class="bp-toolbar">
+      <button id="bpPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print</button>
+      <a id="bpBack" class="hs-btn" href="/stone.html">Back</a>
+      <p id="bpStatus" class="bp-status" role="status" aria-live="polite">Loading...</p>
+    </div>
+    <div class="bp-scroll" id="bpSheets"></div>
+    <div class="bp-measure" id="bpMeasure" aria-hidden="true"></div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="benchtopdraw.js"></script>
+  <script src="benchtopprint.js"></script>
+</body>
+</html>

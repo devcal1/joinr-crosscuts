@@ -98,6 +98,8 @@ const routers = [
   require("./routes/joinr-quote"),
   // Recurring tasks, Admin > Tasks (0.2.0, docs/plans/m20-recurring-tasks.md).
   require("./routes/recurring"),
+  // Benchtop designer (0.2.0, docs/plans/m21-benchtop-designer.md).
+  require("./routes/benchtop"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

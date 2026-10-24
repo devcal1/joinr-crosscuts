@@ -205,3 +205,6 @@ a.hs-btn:hover { text-decoration: none; }
   .so-actions .hs-btn, .so-unsure .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
   .so-push { margin-left: 0; }
 }
+
+/* 0.2.0: the benchtop plans list under the stone orders (benchtopplans.js) */
+.so-plansh { margin: 28px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--white); }

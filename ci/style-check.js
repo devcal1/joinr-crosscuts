@@ -26,6 +26,9 @@
 //   - loading cursor: the Joinr dot (approved by Todd on 2026-10-18), only in shell/shell.css (the
 //     cursor rule), shell/busy.js and shell/cursor-dot-N.svg; a cursor image (url(...)) or a
 //     cursor-dot reference anywhere else is refused
+//   - Benchtop designer shape diagrams (approved by Todd on 2026-10-24): the Add piece buttons
+//     carry a small thin white line diagram of each shape (inline <svg class="bt-shapeicon">), only
+//     in benchtop.html and benchtop.css; an inline <svg> or bt-shapeicon anywhere else is refused
 //   - print styles: the paper colours between the comments
 //     "style-check: print-start" and "style-check: print-end"
 // If this check fails, fix the page, not the check.
@@ -47,6 +50,8 @@ const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.
 const CURSOR_FILE = "shell/shell.css";
 const CURSOR_DOT_OK = new Set(["shell/shell.css", "shell/busy.js"]);
 const DEPT_FILE = "shell/shell.css";
+// Exception eight: the Add piece shape diagrams on the Benchtop designer page only.
+const SHAPE_ICON_OK = new Set(["benchtop.html", "benchtop.css"]);
 const DEPT_LAYERS = new Set(["--layer-scheduling", "--layer-design", "--layer-install", "--layer-accounts"]);
 
 const HEX = "(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})";
@@ -65,6 +70,7 @@ const RULES = [
   ["Inter font", /\bInter\b|vendor\/inter/, () => true],
   ["cursor image outside the loading cursor rule", /\bcursor\s*:[^;{}]*\burl\(/, f => f !== CURSOR_FILE],
   ["loading cursor image outside the shell", /cursor-dot/, f => !CURSOR_DOT_OK.has(f)],
+  ["inline SVG icon outside the Benchtop designer's Add piece buttons", /<svg|bt-shapeicon/, f => !SHAPE_ICON_OK.has(f)],
   ["icon (Phosphor) outside the board", /phosphor|["'\s]ph ph-|["'\s]ph-[a-z]/, f => !PHOSPHOR_OK.has(f)],
 ];
 

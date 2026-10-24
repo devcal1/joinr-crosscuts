@@ -1,0 +1,18 @@
+/* Admin > Benchtop lists (benchtopadmin.html). Tokens from tokens.css, hs- components from
+   components.css. Page classes are ba-. */
+html, body { margin: 0; background: var(--ink); }
+body { color: var(--body); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+[hidden] { display: none !important; }
+.ba-page { max-width: 1100px; margin: 0 auto; padding: 22px 24px 40px; }
+.ba-page h1 { margin: 0 0 8px; font-size: 22px; font-weight: 700; color: var(--white); }
+.ba-page h2 { margin: 24px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--white); }
+.ba-intro { margin: 0 0 12px; color: var(--label); max-width: 760px; }
+.ba-status { margin: 0 0 12px; color: var(--label); }
+.ba-status.err { color: var(--stop-tint); }
+.ba-status:empty { display: none; }
+.ba-wrap { overflow-x: auto; }
+.ba-table td { vertical-align: middle; }
+.ba-table .hs-input { width: 100%; box-sizing: border-box; min-width: 70px; }
+.ba-hidden td { opacity: 0.6; }
+.ba-new td { border-top: 1px solid var(--na); }
+.ba-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

@@ -119,6 +119,8 @@
     if (can("jobs.edit") && can("design.view") && data.job && !data.job.archived) {
       btns.push(el("a", { class: "hs-btn hs-btn-primary", href: "/stone.html?job=" + encodeURIComponent(jobId), text: "New stone order" }));
     }
+    // 0.2.0 (docs/plans/m21-benchtop-designer.md): the job's one benchtop plan, in the designer.
+    btns.push(el("a", { class: "hs-btn", href: "/benchtop.html?job=" + encodeURIComponent(jobId), text: "Benchtop plan" }));
     btns.push(el("a", { class: "hs-btn", href: "/stoneprint.html?sheet=" + encodeURIComponent(jobId), text: "Print benchtop sheet" }));
     tools.replaceChildren(...btns);
   }

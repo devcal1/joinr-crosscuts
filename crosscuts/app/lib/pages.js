@@ -24,6 +24,10 @@ const PAGE_ACCESS = {
   "/design.html": "design.view",
   // 0.2.0 (docs/plans/m20-recurring-tasks.md): recurring tasks, admins only.
   "/admintasks.html": "users.admin",
+  // 0.2.0 (docs/plans/m21-benchtop-designer.md): the benchtop designer, its print and its lists.
+  "/benchtop.html": "jobs.view",
+  "/benchtopprint.html": "jobs.view",
+  "/benchtopadmin.html": "users.admin",
   "/tasks.html": "tasks.use",
   "/messages.html": "messages.use",
   "/reports.html": "accounts.view",

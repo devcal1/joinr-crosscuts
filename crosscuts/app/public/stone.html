@@ -52,6 +52,19 @@
       </div>
     </section>
 
+    <!-- 0.2.0 (docs/plans/m21-benchtop-designer.md): the benchtop plans, one per job (benchtopplans.js) -->
+    <section id="bpList" class="so-list" aria-labelledby="bpListH" hidden>
+      <h2 id="bpListH" class="so-plansh">Benchtop plans</h2>
+      <p class="so-intro">Start a plan from its job's Benchtops section (Benchtop plan).</p>
+      <p id="bpEmpty" class="so-empty" hidden>No benchtop plans yet.</p>
+      <div id="bpWrap" class="so-wrap" hidden>
+        <table class="so-table so-table-list">
+          <thead><tr><th scope="col">Job</th><th scope="col">Pieces</th><th scope="col">Revision</th><th scope="col">Updated</th><th scope="col"><span class="so-sr">Open</span></th></tr></thead>
+          <tbody id="bpRows"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- One stone order (?id=N) or a new one for a job (?job=N), built by stone.js -->
     <section id="soOrder" class="so-order" aria-labelledby="soTitle" hidden></section>
   </main>
@@ -60,5 +73,6 @@
   <script src="/shell/shell.js"></script>
   <script src="orderui.js"></script>
   <script src="stone.js"></script>
+  <script src="benchtopplans.js"></script>
 </body>
 </html>

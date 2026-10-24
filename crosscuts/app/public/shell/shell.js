@@ -108,6 +108,8 @@
         { label: "Availability", href: "/availability.html", key: "users.admin" },
         // 0.2.0 (docs/plans/m20-recurring-tasks.md): recurring tasks, admins only.
         { label: "Tasks", href: "/admintasks.html", key: "users.admin" },
+        // 0.2.0 (docs/plans/m21-benchtop-designer.md): benchtop materials and edge finishes.
+        { label: "Benchtop lists", href: "/benchtopadmin.html", key: "users.admin" },
         // M13 (docs/plans/m13-contracts.md section 9): owner-only keys.
         { label: "Bonuses", href: "/bonuses.html", key: "bonuses.manage" },
         { label: "Alarms", href: "/alarms.html", key: "alarms.manage" },
@@ -127,6 +129,9 @@
     // 2026-10-18: the batten calculator is a tool, so the menu lights up Tools.
     "/battens.html": "/tools.html",
     "/index.html": "/",
+    // 0.2.0: the benchtop designer and its print belong to Benchtops.
+    "/benchtop.html": "/stone.html",
+    "/benchtopprint.html": "/stone.html",
   };
 
   var path = location.pathname;

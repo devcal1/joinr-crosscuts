@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchtop lists - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="benchtopadmin.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="ba-body">
+  <div id="cc-shell"></div>
+
+  <!-- Admin > Benchtop lists (0.2.0, docs/plans/m21-benchtop-designer.md): the materials and edge
+       finishes the benchtop designer offers. Admins only. benchtopadmin.js talks to
+       /api/benchtop-lists. -->
+  <main class="ba-page">
+    <h1 id="baTitle" tabindex="-1">Benchtop lists</h1>
+    <p class="ba-intro">The materials and edge finishes offered in the benchtop designer. Hiding one keeps it on plans that already use it. Each finish is drawn in its line style with its short code, on screen and on the printed plan set.</p>
+    <p id="baStatus" class="ba-status" role="status" aria-live="polite">Loading...</p>
+
+    <section class="ba-sec" aria-labelledby="baMatH">
+      <h2 id="baMatH">Materials</h2>
+      <div class="ba-wrap">
+        <table class="hs-table ba-table">
+          <thead><tr><th scope="col">Supplier</th><th scope="col">Range</th><th scope="col">Colour</th><th scope="col">Thickness (mm)</th><th scope="col">Shown</th><th scope="col"><span class="ba-sr">Save</span></th></tr></thead>
+          <tbody id="baMat"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="ba-sec" aria-labelledby="baFinH">
+      <h2 id="baFinH">Edge finishes</h2>
+      <div class="ba-wrap">
+        <table class="hs-table ba-table">
+          <thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Line style</th><th scope="col">Order</th><th scope="col">Shown</th><th scope="col"><span class="ba-sr">Save</span></th></tr></thead>
+          <tbody id="baFin"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="benchtopadmin.js"></script>
+</body>
+</html>
