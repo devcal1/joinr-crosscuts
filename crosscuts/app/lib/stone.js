@@ -1,5 +1,5 @@
 // Stone orders and the benchtop sheet (docs/plans/m12-contracts.md sections 3 and 4): a job's stone
-// benchtop orders, each sent revision frozen, the list, the Design/PM summary, the suggestions and
+// benchtop orders, each sent revision frozen, the list, the Projects summary, the suggestions and
 // the benchtop sheet. Wave 1 A.
 //
 // A stone order is not an order line (Decision 1): nothing here touches lib/orders.js. Every

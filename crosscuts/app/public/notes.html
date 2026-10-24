@@ -55,10 +55,32 @@
 
       <div id="wall" class="nt-wall"></div>
     </div>
+
+    <!-- The Projects dashboard (0.2.0, Todd 2026-10-24): only on ?dept=design and only with
+         design.view; projectsdash.js shows it. House style, not the notes paper. -->
+    <section id="pjDash" class="pj-dash" aria-labelledby="pjNowH" hidden>
+      <div class="hs-sectionbar"><h2 id="pjNowH">Available now</h2></div>
+      <div class="pj-tiles">
+        <article class="pj-tile hs-card" id="joinrTile">
+          <h3 class="pj-tile-title">New from Joinr</h3>
+          <p class="pj-tile-text">Quotes won in Joinr become jobs by themselves. This page shows the history and any quote waiting for a person.</p>
+          <p class="pj-tile-stat" id="joinrStat" hidden></p>
+          <div class="pj-tile-links"><a class="hs-btn hs-btn-primary" href="/intake.html">Open New from Joinr</a></div>
+        </article>
+        <article class="pj-tile hs-card" id="stoneTile">
+          <h3 class="pj-tile-title">Benchtops</h3>
+          <p class="pj-tile-text">Stone benchtop orders still to send: drafts, changes not yet sent, and their installs coming up.</p>
+          <p class="pj-tile-stat" id="stoneStat" hidden></p>
+          <p class="pj-tile-stat" id="stoneSoon" hidden></p>
+          <div class="pj-tile-links"><a class="hs-btn hs-btn-primary" href="/stone.html">Open Benchtops</a></div>
+        </article>
+      </div>
+    </section>
   </main>
 
   <script src="shared.js"></script>
   <script src="notes.js"></script>
   <script src="/shell/shell.js"></script>
+  <script src="projectsdash.js"></script>
 </body>
 </html>

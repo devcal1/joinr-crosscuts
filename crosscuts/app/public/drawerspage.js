@@ -1,7 +1,7 @@
 // Drawer order (/drawers.html, stock.order): docs/plans/m11-contracts.md sections 4.3, 6.1, 6.2 and
 // 11.2. Five tabs, kept in the hash: EDGE and DTC (each brand's checked drawer lines still to order,
 // added up as the workbook's sheet, with the stock row typed in, Print and Mark ordered, and the
-// lines waiting for the Design/PM check), Placed (each placed order's frozen sheet, Print again,
+// lines waiting for the Projects check), Placed (each placed order's frozen sheet, Print again,
 // Undo and Stock received), Names (the drawer name list, and the names from Joinr not on it) and
 // Settings (the two supplier names).
 //
@@ -386,7 +386,7 @@
 
     const waitSec = el("section", { class: "dw-group", "aria-labelledby": "dwWaitH-" + brand },
       el("div", { class: "hs-sectionbar dw-sbar" + (d.waiting.length ? " hs-sectionbar-orange" : "") },
-        el("h2", { id: "dwWaitH-" + brand, tabindex: "-1" }, "Waiting for Design/PM check ",
+        el("h2", { id: "dwWaitH-" + brand, tabindex: "-1" }, "Waiting for Projects check ",
           el("span", { class: "dw-count" + (d.waiting.length ? " dw-count-check" : ""), text: String(d.waiting.length) })),
         el("span", { class: "dw-sbar-note", text: "Not in the totals until checked" })));
     if (!d.waiting.length) {

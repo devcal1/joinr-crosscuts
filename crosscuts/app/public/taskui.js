@@ -242,7 +242,7 @@
       if (n) v.notes = n.value;
       var a = dlg.querySelector("#tk-assignee");
       if (a) {
-        // "Design/PM team" (2026-10-18) is a task for the whole team, not one person.
+        // "Projects team" (2026-10-18) is a task for the whole team, not one person.
         if (a.value === "team:design") v.team = "design";
         else v.assigneeId = a.value ? Number(a.value) : null;
       }
@@ -414,7 +414,7 @@
       if (create) sel.append(el("option", { value: "", text: "Choose a person" }));
       // Members of the design team can also give a task to the whole team.
       if (create && can("notes.design") && can("tasks.use")) {
-        var teamOpt = el("option", { value: "team:design", text: "Design/PM team" });
+        var teamOpt = el("option", { value: "team:design", text: "Projects team" });
         if (want === "team:design") teamOpt.selected = true;
         sel.append(teamOpt);
       }

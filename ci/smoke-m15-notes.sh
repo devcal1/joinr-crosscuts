@@ -90,13 +90,16 @@ M15N_SCHED_ID=$(jqr '.user.id')
 
 echo "--- the menu and the pages ---"
 M15N_SHELL=$(curl -s "$BASE/shell/shell.js")
-for M15N_PAIR in scheduling:notes.scheduling design:notes.design ordering:notes.ordering accounts:notes.accounts admin:notes.admin; do
+for M15N_PAIR in scheduling:notes.scheduling ordering:notes.ordering accounts:notes.accounts admin:notes.admin; do
   M15N_D=${M15N_PAIR%%:*}
   M15N_K=${M15N_PAIR#*:}
   grep -qF "home: { href: \"/notes.html?dept=$M15N_D\", key: \"$M15N_K\" }" <<<"$M15N_SHELL" \
     || fail "the $M15N_D department name doesn't open Notes with key $M15N_K"
   ok
 done
+# 0.2.0: the Projects page is the notes wall plus the Projects dashboard, so design.view opens it too.
+grep -qF 'home: { href: "/notes.html?dept=design", key: ["notes.design", "design.view"] }' <<<"$M15N_SHELL"   || fail "the Projects department name doesn't open Notes with notes.design or design.view"
+ok
 req GET "/notes.html?dept=accounts"
 expect_status 302 "logged out GET /notes.html"
 for M15N_J in "$ACCT" "$SCHED" "$DPM" "$ADMIN" "$WSMGR" "$ORDR"; do

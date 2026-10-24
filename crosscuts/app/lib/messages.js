@@ -87,7 +87,8 @@ function listChannels(db, user) {
     return {
       id: c.id,
       slug: c.slug,
-      name: c.name,
+      // 0.2.0: the design channel reads "Projects" (its stored name stays as it was).
+      name: c.slug === "design" ? "Projects" : c.name,
       unread: Number(unread.get(c.id, user.id, user.id, c.id).n) || 0,
       lastMessageAt: l ? l.created_at : null,
     };

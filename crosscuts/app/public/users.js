@@ -5,7 +5,7 @@
   const ROLE_LABELS = {
     admin: "Admin",
     accounts: "Accounts",
-    design_pm: "Design / PM",
+    design_pm: "Projects",
     scheduling: "Scheduling",
     showroom: "Showroom",
     workshop: "Workshop",
@@ -695,7 +695,7 @@
   $("joinrImport").addEventListener(
     "click",
     guarded(async () => {
-      if (!confirm("Import every quote that is currently won in Joinr? Each one not already in Crosscuts becomes a Won job straight away (or is linked to the one job with its quote number), with a task for the Design/PM team. Quotes already there are not duplicated.")) return;
+      if (!confirm("Import every quote that is currently won in Joinr? Each one not already in Crosscuts becomes a Won job straight away (or is linked to the one job with its quote number), with a task for the Projects team. Quotes already there are not duplicated.")) return;
       showJoinrError("");
       showJoinrResult("Importing...", true);
       const btn = $("joinrImport");

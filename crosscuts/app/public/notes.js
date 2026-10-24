@@ -446,6 +446,17 @@
     try {
       await load(params.get("week") || null, "replace");
     } catch (e) {
+      // 0.2.0: someone with design.view but not the Projects notes still gets the Projects
+      // dashboard below (projectsdash.js), so the page just says so instead of refusing.
+      if (/^Forbidden/.test(e.message) && dept === "design" && window.cc && window.cc.ready) {
+        await window.cc.ready;
+        if (window.cc.can("design.view")) {
+          titleEl.textContent = "Projects";
+          document.title = "Projects - Crosscuts";
+          showMessage("The Projects notes are for the people in Projects. The Projects pages are below.");
+          return;
+        }
+      }
       if (/^Forbidden/.test(e.message)) showMessage("These notes are only for the people in that department. You don't have access to them.");
       else if (/Unknown department/.test(e.message)) showMessage("There is no Notes page for that department. Choose one from the menu.");
       else if (/^week must be/.test(e.message)) {

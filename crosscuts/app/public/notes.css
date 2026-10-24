@@ -127,3 +127,17 @@ body {
   .nt-ack { color: #000; opacity: 1; }
 }
 /* style-check: print-end */
+
+/* The Projects dashboard under the Projects notes wall (0.2.0, Todd 2026-10-24; was design.html).
+   House style: hs-sectionbar, hs-card tiles and hs-btn links; no paper. */
+.pj-dash { margin-top: 32px; }
+.pj-dash > .hs-sectionbar { margin-bottom: 12px; }
+.pj-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+.pj-tile { display: flex; flex-direction: column; gap: 6px; padding: 18px 18px 16px; }
+.pj-tile-title { margin: 0; color: var(--white); font-size: 17px; font-weight: 700; }
+.pj-tile-text { margin: 0; color: var(--label); font-size: 14px; }
+.pj-tile-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; }
+.pj-tile-stat { margin: 2px 0 0; color: var(--label); font-size: 14px; }
+.pj-tile-stat strong { color: var(--white); font-weight: 700; }
+/* Installs in the next 2 weeks: orange, attend to this (M12). */
+.pj-tile-stat.pj-soon { color: var(--orange-tint); font-weight: 700; }

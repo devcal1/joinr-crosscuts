@@ -116,7 +116,7 @@ function onFinishedComplete(db, jobId, req, completedDate, auditExtra) {
   });
 }
 
-// Design/PM set ready_to_cut: make sure the job waits on the backlog (unless it
+// Projects set ready_to_cut: make sure the job waits on the backlog (unless it
 // already has current or future rows, or is already there; backlog.job_id is UNIQUE).
 function onDesignReadyToCut(db, jobId, req) {
   return safely("onDesignReadyToCut", () => {

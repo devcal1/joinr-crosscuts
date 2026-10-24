@@ -539,8 +539,8 @@ req GET "/api/planner/events?from=$(m7e_day -21)&to=$(m7e_day +22)" "$ACCT"
 expect_eq "$(m7e_got events "$M7E_H3W")" "$(m7e_run_days -20 21 3)" "every 3 weeks: three in 44 days, 21 days apart"
 # Someone whose layers don't include Accounts sees none of them on the tile.
 req GET "/api/planner/events?from=$M7E_T&to=$M7E_T1" "$DPM"
-expect_status 200 "the home tile's request, as a design/PM user"
-expect_jq "[.events[] | select(.eventId == $M7E_H2D or .eventId == $M7E_H3W or .eventId == $M7E_HM)] | length == 0" "design/PM sees no Accounts events on the tile"
+expect_status 200 "the home tile's request, as a Projects user"
+expect_jq "[.events[] | select(.eventId == $M7E_H2D or .eventId == $M7E_H3W or .eventId == $M7E_HM)] | length == 0" "Projects sees no Accounts events on the tile"
 
 # --- the job page: GET /api/planner/job/:id, today to today + 89 ---
 req POST /api/job-records "$ADMIN" '{"name":"CI M7E Custom Job"}'
@@ -580,8 +580,8 @@ expect_jq '.more == true' "and says there is more"
 expect_jq "[.rows[].eventId] | unique == [$M7E_JO]" "the other job shows only its own event"
 # A viewer without the Accounts layer sees none of this job's custom events.
 req GET "/api/planner/job/$M7E_CJ" "$DPM"
-expect_status 200 "GET /api/planner/job/:id as a design/PM user"
-expect_jq '.rows == [] and .more == false' "design/PM sees no Accounts events on the job page"
+expect_status 200 "GET /api/planner/job/:id as a Projects user"
+expect_jq '.rows == [] and .more == false' "Projects sees no Accounts events on the job page"
 # Every day (custom 1 day): the page shows 20 rows and says there is more.
 req POST /api/job-records "$ADMIN" '{"name":"CI M7E Daily Job"}'
 expect_status 201 "create the daily job"

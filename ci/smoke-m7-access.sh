@@ -107,7 +107,7 @@ m7x_layers() {
     "$1: the layers, default and canEdit of section 5.2"
 }
 m7x_layers admin '[["company",true],["install",true],["accounts",true],["design_pm",true],["scheduling",true],["workshop",true],["personal",true]]' '"company"' true
-expect_jq '[.layers[].label] == ["Company-wide","Install & hardware","Accounts","Design/PM","Scheduling/Production","Workshop","Personal"]' "the layer labels, in order"
+expect_jq '[.layers[].label] == ["Company-wide","Install & hardware","Accounts","Projects","Scheduling/Production","Workshop","Personal"]' "the layer labels, in order"
 m7x_layers acct '[["company",true],["install",false],["accounts",true],["personal",true]]' '"accounts"' true
 m7x_layers acct2 '[["company",true],["install",false],["accounts",true],["personal",true]]' '"accounts"' true
 m7x_layers dpm '[["company",true],["install",true],["design_pm",true],["personal",true]]' '"design_pm"' true
@@ -404,10 +404,10 @@ req PATCH "/api/planner/events/${M7X_ID[AC]}" "$ACCT2" "{\"updatedAt\":\"$M7X_UP
 expect_status 403 "acct2 can't move acct's Accounts event to Personal"
 expect_jq '.error == "You can'"'"'t add events to that layer"' "the layer sentence on a move"
 req PATCH "/api/planner/events/${M7X_ID[AC]}" "$ACCT2" "{\"updatedAt\":\"$M7X_UPD\",\"layer\":\"design_pm\"}"
-expect_status 403 "acct2 can't move the Accounts event to Design/PM"
+expect_status 403 "acct2 can't move the Accounts event to Projects"
 m7x_upd IN
 req PATCH "/api/planner/events/${M7X_ID[IN]}" "$MULTI" "{\"updatedAt\":\"$M7X_UPD\",\"layer\":\"design_pm\"}"
-expect_status 200 "multi (design_pm) moves the Install event to Design/PM"
+expect_status 200 "multi (design_pm) moves the Install event to Projects"
 req GET "/api/planner/events/${M7X_ID[IN]}" "$SCHED"
 expect_status 404 "sched no longer sees it"
 req GET "/api/planner/events/${M7X_ID[IN]}" "$WSHOP"

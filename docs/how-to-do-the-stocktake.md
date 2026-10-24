@@ -10,7 +10,7 @@ For Todd, Ordering and the Workshop Manager. Four jobs live under the **Ordering
 Who does what:
 - **The Workshop Manager** (and Ordering and admin) counts: types **Have** on the stock order and quantities on the board stocktake. Counting needs the `stock.count` key.
 - **Ordering** (and admin) keeps the lists, types what to order, marks it ordered, sets board prices and can reopen a finished board count. That needs the `stock.order` key.
-- **The Workshop Manager** (and Ordering, Design/PM and admin) marks deliveries received on **Deliveries**.
+- **The Workshop Manager** (and Ordering, Projects and admin) marks deliveries received on **Deliveries**.
 
 The stock order and board stocktake are not order lines on jobs: they have no job and no effect on any invoice. Paint can be (see below).
 

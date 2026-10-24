@@ -3,7 +3,7 @@
 # expect_status, expect_jq, expect_eq, jqr, fail, ok) and the cookie jars ($ADMIN $DPM $ORDR $ACCT
 # $SCHED $WSMGR). No shebang and no `set`: the caller owns both.
 # It does not assume a pristine database: its job and names carry a run tag, it reads its user ids
-# from /api/auth/me, it checks only its own rows, and the Design/PM summary is checked by its change
+# from /api/auth/me, it checks only its own rows, and the Projects summary is checked by its change
 # from a reading taken at the start. Made-up names only (this repo is public).
 # Contract: docs/plans/m12-contracts.md sections 3, 4, 5 and 10.2 (with the "Added at 4.3" list).
 
@@ -49,7 +49,7 @@ m12_s_audit_count() {
   M12_S_N=$(jqr '.rows | length')
 }
 
-# m12_s_sum DRAFTS CHANGED SOON WHAT: the Design/PM summary has changed by exactly these amounts
+# m12_s_sum DRAFTS CHANGED SOON WHAT: the Projects summary has changed by exactly these amounts
 # since the start reading (M12_S_D0, M12_S_C0, M12_S_I0).
 m12_s_sum() {
   req GET /api/stone/summary "$DPM"

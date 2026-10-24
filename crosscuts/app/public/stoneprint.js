@@ -68,7 +68,7 @@
     sheet.classList.add("sp-sheet-error");
     sheet.replaceChildren(el("p", { class: "sp-error", text: msg }));
     $("spPrint").disabled = true;
-    document.title = "Stone order print - Crosscuts";
+    document.title = "Benchtop order print - Crosscuts";
   }
 
   function failText(e, what) {
@@ -171,7 +171,7 @@
       const ref = text(r.form && r.form.jobReference) || text(r.jobName);
       const off = r.status === "cancelled";
       showStone({ form: r.form, draft: false, cancelled: off, revision: r.revision, sentDate: r.sentDate, sentBy: r.sentBy, biz: r.business },
-        "Stone order " + ref + " rev " + r.revision + (off ? " cancelled" : ""));
+        "Benchtop order " + ref + " rev " + r.revision + (off ? " cancelled" : ""));
       setStatus("Revision " + r.revision + " as it was sent on " + fmtDate(r.sentDate) + "." + (off ? " The stone order has since been cancelled." : ""));
       return;
     }
@@ -187,7 +187,7 @@
     const off = o.status === "cancelled";
     const ref = text(o.form && o.form.jobReference) || text(o.jobName);
     showStone({ form: o.form, draft, cancelled: off, revision: o.revision, sentDate: o.sentDate, sentBy: o.sentBy, biz: o.business },
-      "Stone order " + ref + (draft ? " draft" : " rev " + o.revision) + (off ? " cancelled" : ""));
+      "Benchtop order " + ref + (draft ? " draft" : " rev " + o.revision) + (off ? " cancelled" : ""));
     const notes = [];
     if (off) notes.push("This stone order is cancelled.");
     if (draft && o.revision > 0) {
@@ -277,7 +277,7 @@
 
   async function startSheet(param) {
     if (param === "blank") {
-      if (can("design.view")) setBack("/stone.html", "Back to Stone orders");
+      if (can("design.view")) setBack("/stone.html", "Back to Benchtops");
       let r;
       try {
         r = await api("/api/stone/letterhead");

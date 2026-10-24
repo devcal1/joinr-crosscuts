@@ -1,28 +1,28 @@
 # How to order drawers in Crosscuts
 
-For Todd, Design/PM, Ordering and the Workshop Manager. Drawers aren't ordered line by line. Each job has a **drawer grid**. The **Drawer order** page adds up every checked grid, per brand (EDGE and DTC), and Ordering places one order from it. The Workshop Manager receives the delivery on **Deliveries**.
+For Todd, Projects, Ordering and the Workshop Manager. Drawers aren't ordered line by line. Each job has a **drawer grid**. The **Drawer order** page adds up every checked grid, per brand (EDGE and DTC), and Ordering places one order from it. The Workshop Manager receives the delivery on **Deliveries**.
 
 Who does what:
-- **Design/PM** (and admin) **checks** a job's grid. Only checked grids go on the Drawer order.
-- **Ordering** and **Design/PM** (and admin) add and edit a job's grid.
+- **Projects** (and admin) **checks** a job's grid. Only checked grids go on the Drawer order.
+- **Ordering** and **Projects** (and admin) add and edit a job's grid.
 - **Ordering** (and admin) uses the **Drawer order** page: the stock row, the name list, placing the order.
-- **The Workshop Manager** (and Ordering, Design/PM and admin) receives the drawers on **Deliveries**.
+- **The Workshop Manager** (and Ordering, Projects and admin) receives the drawers on **Deliveries**.
 
 Each brand has four heights and seven runner lengths (300 to 600 mm, in 50 mm steps). A count is a whole number from 1 to 999. A zero count is simply left empty.
 
 ## A job's drawer grid
 
-Open the job (**Design/PM**, then **Jobs**) and go to its **Orders** section. The **Drawers** block under the order lines shows each drawer line: its brand, the grid (heights down, lengths across, only the rows and columns in use, with totals), where it came from (**From Joinr** or **Typed in**) and whether it's checked. A grid that Design/PM hasn't checked says **Not checked**.
+Open the job (**Projects**, then **Jobs**) and go to its **Orders** section. The **Drawers** block under the order lines shows each drawer line: its brand, the grid (heights down, lengths across, only the rows and columns in use, with totals), where it came from (**From Joinr** or **Typed in**) and whether it's checked. A grid that Projects hasn't checked says **Not checked**.
 
 A job has at most one grid per brand while it is waiting to be ordered.
 
 ### From Joinr
 
-When a quote won in Joinr becomes a job (it does so by itself; a quote that needed a person is accepted or linked by Design/PM on the **New from Joinr** page), Crosscuts reads the quote's **Drawers** and **Inner Drawers** lines and fills in a grid for each brand it finds. It works out the brand, height and length of each line from the **name list** (below). The new grid is **From Joinr** and **Not checked**, and Design/PM is told: "Drawers to check: <job>".
+When a quote won in Joinr becomes a job (it does so by itself; a quote that needed a person is accepted or linked by Projects on the **New from Joinr** page), Crosscuts reads the quote's **Drawers** and **Inner Drawers** lines and fills in a grid for each brand it finds. It works out the brand, height and length of each line from the **name list** (below). The new grid is **From Joinr** and **Not checked**, and Projects is told: "Drawers to check: <job>".
 
 - **A name that isn't on the list** isn't counted. Ordering is told ("Drawer names to add: <job>"), and the Joinr box on the job page lists the name in orange as "not on the drawer name list". Once Ordering adds it, press **Fill from Joinr** on the job (when it has no grid for that brand yet) or **Refill from Joinr** (when it already has one; see below).
-- **A job with no grid yet** can still be filled later: if the quote has mapped drawer lines for a brand and the job has no live grid for that brand (a cancelled one doesn't count), the Joinr box shows **Fill from Joinr**. It makes a grid for each such brand, **Not checked**, for Ordering, Design/PM and admin (anyone who can edit order lines). If there is nothing to fill it says "Nothing to fill from Joinr".
-- **A job with no Joinr drawer lines** gets no grid. This covers jobs from before drawers came from Joinr, jobs that didn't come from Joinr, and quotes with no drawer lines. For a job that came from Joinr the box on the job page says Joinr sent no drawer lines (to people who can edit it, "so the grid is typed in here"); a job that didn't come from Joinr has no Joinr box at all. Either way, Design/PM types the grid in.
+- **A job with no grid yet** can still be filled later: if the quote has mapped drawer lines for a brand and the job has no live grid for that brand (a cancelled one doesn't count), the Joinr box shows **Fill from Joinr**. It makes a grid for each such brand, **Not checked**, for Ordering, Projects and admin (anyone who can edit order lines). If there is nothing to fill it says "Nothing to fill from Joinr".
+- **A job with no Joinr drawer lines** gets no grid. This covers jobs from before drawers came from Joinr, jobs that didn't come from Joinr, and quotes with no drawer lines. For a job that came from Joinr the box on the job page says Joinr sent no drawer lines (to people who can edit it, "so the grid is typed in here"); a job that didn't come from Joinr has no Joinr box at all. Either way, Projects types the grid in.
 
 ### Typing a grid in
 
@@ -30,18 +30,18 @@ When a quote won in Joinr becomes a job (it does so by itself; a quote that need
 2. Choose the brand, type the count for each height and length, add a note if one helps (for example, "3 fronts"), and save.
 3. To change it later, press **Edit grid**. It works only while the line is still **To order**.
 
-Ticking **Checked** in the same dialog checks it at once. Only Design/PM (and admin) see that tick. When you open **Edit grid** on a grid that is already checked, **Checked** is ticked already: leave it ticked to keep the check after the save, or untick it to clear it.
+Ticking **Checked** in the same dialog checks it at once. Only Projects (and admin) see that tick. When you open **Edit grid** on a grid that is already checked, **Checked** is ticked already: leave it ticked to keep the check after the save, or untick it to clear it.
 
 ### Checking at design sign-off
 
-Design/PM checks each grid when the design is signed off: compare the counts with the design, correct them with **Edit grid**, then press **Check**. **Uncheck** takes the check back.
+Projects checks each grid when the design is signed off: compare the counts with the design, correct them with **Edit grid**, then press **Check**. **Uncheck** takes the check back.
 
-- **Changing the counts clears the check**, unless Checked stays ticked in the same save (Design/PM and admin see the tick). Ordering can fix a count, but Design/PM has to check it again.
+- **Changing the counts clears the check**, unless Checked stays ticked in the same save (Projects and admin see the tick). Ordering can fix a count, but Projects has to check it again.
 - A checked grid shows "Checked by <name>, <date>".
 
 ### When Joinr changes: Refill from Joinr
 
-Crosscuts never rewrites a grid by itself. If the quote's drawer lines change in Joinr after the grid was filled, the job page says **Changed in Joinr since the grid was filled**. Press **Refill from Joinr** to replace the counts with the quote's lines, as the name list maps them now. The check is cleared, so Design/PM checks the grid again. A confirmation says so first.
+Crosscuts never rewrites a grid by itself. If the quote's drawer lines change in Joinr after the grid was filled, the job page says **Changed in Joinr since the grid was filled**. Press **Refill from Joinr** to replace the counts with the quote's lines, as the name list maps them now. The check is cleared, so Projects checks the grid again. A confirmation says so first.
 
 **Refill from Joinr** is shown only on a grid that is still **To order**, and only when the quote has drawer lines for that brand. It works on a grid that already exists; to make a grid for a brand the job has none for, use **Fill from Joinr** (above). Also use Refill after Ordering adds or changes a name on the list: a name-list change alone doesn't set the "Changed in Joinr" message.
 
@@ -74,7 +74,7 @@ Each brand's tab is the order sheet:
 - One block per height, with the seven lengths across.
 - A row per job (its note in small type under the name), then a **Stock** row, then the totals. The grand total is at the foot.
 - **Stock** is for extra drawers to keep on the shelf. Type the counts in; each saves when you leave the box.
-- Only **checked** grids are in the totals. Grids still **Waiting for Design/PM check** are listed underneath and aren't counted.
+- Only **checked** grids are in the totals. Grids still **Waiting for Projects check** are listed underneath and aren't counted.
 
 ### Placing the order
 

@@ -68,7 +68,7 @@ body {
 .tile-stat strong { color: var(--white); font-weight: 700; }
 .tile-stat .stat-overdue,
 .week-line .stat-overdue { color: var(--stop-tint); }
-/* The Design/PM Stone orders tile's "installs in the next 2 weeks": orange, attend to this (M12). */
+/* The Projects Stone orders tile's "installs in the next 2 weeks": orange, attend to this (M12). */
 .tile-stat.stone-soon { color: var(--orange-tint); font-weight: 700; }
 
 /* Latest alerts */

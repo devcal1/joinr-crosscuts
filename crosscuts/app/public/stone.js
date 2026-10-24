@@ -233,7 +233,7 @@
   }
 
   function startList() {
-    document.title = "Stone orders - Crosscuts";
+    document.title = "Benchtops - Crosscuts";
     $("soList").hidden = false;
     $("soHeadActions").replaceChildren(el("a", { class: "hs-btn", href: "/stoneprint.html?sheet=blank", text: "Print blank benchtop sheet" }));
     $("soFilter").addEventListener("change", () => {
@@ -478,7 +478,7 @@
         const mayCancel = can("jobs.edit") && order.status !== "cancelled";
         lines.push("The job is archived: this stone order can be printed" + (mayCancel ? " or cancelled" : "") + ", but not changed.");
       }
-      else if (!can("jobs.edit")) lines.push("You can see and print this stone order. Design/PM makes and changes stone orders.");
+      else if (!can("jobs.edit")) lines.push("You can see and print this stone order. Projects makes and changes stone orders.");
       for (const t of lines) box.append(el("p", { class: "so-meta-note" + (order.changedSinceSent && order.status !== "cancelled" && t.startsWith("Changed") ? " so-attend-text" : ""), text: t }));
     } else {
       box.append(el("p", { class: "so-meta-note", text: "Filled in from the job where it can be. Change anything here: the job itself isn't changed." }));
@@ -551,11 +551,11 @@
   function setHead(title) {
     $("soTitle").textContent = title;
     const ref = order ? normText(order.form && order.form.jobReference) || order.jobName : job && job.name;
-    document.title = (mode === "new" ? "New stone order" : "Stone order") + (ref ? " " + ref : "") + " - Crosscuts";
+    document.title = (mode === "new" ? "New benchtop order" : "Benchtop order") + (ref ? " " + ref : "") + " - Crosscuts";
   }
 
   function renderOrder() {
-    setHead(mode === "new" ? "New stone order" : "Stone order");
+    setHead(mode === "new" ? "New benchtop order" : "Benchtop order");
     const sec = $("soOrder");
     sec.hidden = false;
     sec.replaceChildren(metaBlock(), formBlock(), actionsBlock(), revisionsBlock() || "");
@@ -865,7 +865,7 @@
   });
 
   function headBack() {
-    $("soHeadActions").replaceChildren(el("a", { class: "hs-btn hs-btn-quiet", href: "/stone.html", text: "All stone orders" }));
+    $("soHeadActions").replaceChildren(el("a", { class: "hs-btn hs-btn-quiet", href: "/stone.html", text: "All benchtop orders" }));
   }
 
   // ---- opening ----
@@ -873,13 +873,13 @@
   async function startNew(jobParam) {
     mode = "new";
     headBack();
-    setHead("New stone order");
+    setHead("New benchtop order");
     if (!/^[1-9]\d*$/.test(jobParam || "")) {
       setStatus("That isn't a job. Start a stone order from its job's Benchtops section.", "err");
       return;
     }
     if (!can("jobs.edit")) {
-      setStatus("Starting a stone order needs the Design/PM role. Open the job to see its stone orders.", "err");
+      setStatus("Starting a stone order needs the Projects role. Open the job to see its stone orders.", "err");
       $("soHeadActions").prepend(el("a", { class: "hs-btn", href: "/job.html?id=" + encodeURIComponent(jobParam) + "#benchtops", text: "Open the job" }));
       return;
     }
@@ -893,7 +893,7 @@
     job = d.job || { id: Number(jobParam), name: "" };
     if (job.archived) {
       setStatus("", "");
-      setHead("New stone order");
+      setHead("New benchtop order");
       const sec = $("soOrder");
       sec.hidden = false;
       sec.replaceChildren(el("p", { class: "so-empty" }, "The job ", jobLink(job.id, job.name), " is archived, so it takes no new stone orders."));
@@ -912,7 +912,7 @@
   async function startOrder(idParam) {
     mode = "order";
     headBack();
-    setHead("Stone order");
+    setHead("Benchtop order");
     if (!/^[1-9]\d*$/.test(idParam || "")) {
       setStatus("That isn't a stone order. Open one from the list.", "err");
       return;

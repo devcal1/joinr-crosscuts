@@ -1,14 +1,14 @@
 # How to use the department notes in Crosscuts
 
-For everyone in Scheduling, Design/PM, Ordering, Accounts and Admin. Each department has a **Notes** page that works like sticky notes on a wall: a column for each weekday, and the people in that department stick signed notes on the day they are for.
+For everyone in Scheduling, Projects, Ordering, Accounts and Admin. Each department has a **Notes** page that works like sticky notes on a wall: a column for each weekday, and the people in that department stick signed notes on the day they are for.
 
 ## Open it
 
-Open your department's menu (Scheduling, Design/PM, Ordering, Accounts or Admin). **Notes** is the first item. The page title says which department it is, for example **Accounts notes**.
+Open your department's menu (Scheduling, Projects, Ordering, Accounts or Admin). **Notes** is the first item. The page title says which department it is, for example **Accounts notes**.
 
 Only the people in that department can open and use its notes. If you open another department's Notes page you get a short message and no notes.
 
-Each department's notes have their own permission: `notes.scheduling`, `notes.design`, `notes.ordering`, `notes.accounts` and `notes.admin`. People get theirs with their role (Scheduling, Design/PM, Ordering and Workshop Manager, Accounts; admins have all five). To give someone another department's notes, or take theirs away, an admin opens them on the Users page and grants or revokes the key. Showroom and Workshop logins have none.
+Each department's notes have their own permission: `notes.scheduling`, `notes.design`, `notes.ordering`, `notes.accounts` and `notes.admin`. People get theirs with their role (Scheduling, Projects, Ordering and Workshop Manager, Accounts; admins have all five). To give someone another department's notes, or take theirs away, an admin opens them on the Users page and grants or revokes the key. Showroom and Workshop logins have none.
 
 ## The wall
 

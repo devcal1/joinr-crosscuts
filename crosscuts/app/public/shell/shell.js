@@ -33,7 +33,7 @@
       dept: "scheduling",
       items: [
         { label: "Board", href: "/schedule.html", key: "board.view" },
-        // 2026-10-18 (Todd): read-only without jobs.edit; it stays in Design/PM too.
+        // 2026-10-18 (Todd): read-only without jobs.edit; it stays in Projects too.
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
         { label: "Workers", href: "/workers.html", key: "workers.edit" },
       ],
@@ -41,16 +41,15 @@
     {
       id: "design",
       // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
-      home: { href: "/notes.html?dept=design", key: "notes.design" },
-      label: "Design/PM",
+      home: { href: "/notes.html?dept=design", key: ["notes.design", "design.view"] },
+      label: "Projects",
       dept: "design",
       items: [
-        { label: "Design/PM", href: "/design.html", key: "design.view" },
         { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
         { label: "Intake", href: "/intake.html", key: "design.view" },
         // M12 (docs/plans/m12-contracts.md section 8).
-        { label: "Stone orders", href: "/stone.html", key: "design.view" },
+        { label: "Benchtops", href: "/stone.html", key: "design.view" },
         // 2026-10-18 (Todd): the tools page holds the batten calculator (and later tools).
         { label: "Tools", href: "/tools.html", key: "design.view" },
       ],
@@ -80,7 +79,7 @@
       label: "Accounts",
       dept: "accounts",
       items: [
-        { label: "Accounts", href: "/accounts.html", key: "accounts.view" },
+        { label: "Overdue accounts", href: "/accounts.html", key: "accounts.view" },
         { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
         { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
         { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
@@ -107,6 +106,8 @@
         { label: "Users", href: "/users.html", key: "users.admin" },
         { label: "Audit", href: "/audit.html", key: "audit.view" },
         { label: "Availability", href: "/availability.html", key: "users.admin" },
+        // 0.2.0 (docs/plans/m20-recurring-tasks.md): recurring tasks, admins only.
+        { label: "Tasks", href: "/admintasks.html", key: "users.admin" },
         // M13 (docs/plans/m13-contracts.md section 9): owner-only keys.
         { label: "Bonuses", href: "/bonuses.html", key: "bonuses.manage" },
         { label: "Alarms", href: "/alarms.html", key: "alarms.manage" },
@@ -729,9 +730,16 @@
   // Disclosure pattern: aria-expanded/aria-controls, Escape closes and refocuses the button, only
   // one popup is open at a time (closeAllPopups). In the collapsed Menu panel the button is hidden
   // and the department shows as a heading over a flat list (shell.css), so there is no nesting.
+  // A department's home page: one key, or a list of keys of which any one will do (0.2.0: the
+  // Projects page shows the notes wall and the Projects dashboard, so design.view opens it too).
+  function canHome(home) {
+    var keys = Array.isArray(home.key) ? home.key : [home.key];
+    return keys.some(function (k) { return cc.can(k); });
+  }
+
   function buildDepartment(d, allowed) {
     var panelId = "cc-dept-" + d.id;
-    var home = d.home && cc.can(d.home.key) ? d.home.href : "";
+    var home = d.home && canHome(d.home) ? d.home.href : "";
     var current = (home && isCurrent(home)) || allowed.some(function (it) { return isCurrent(it.href); });
     var btn = h("button", {
       class: "cc-dept-btn" + (d.dept ? " cc-dept-ruled" : ""),
@@ -863,7 +871,7 @@
     );
     DEPARTMENTS.forEach(function (d) {
       var allowed = d.items.filter(function (it) { return cc.can(it.key); });
-      if (allowed.length || (d.home && cc.can(d.home.key))) depts.appendChild(buildDepartment(d, allowed));
+      if (allowed.length || (d.home && canHome(d.home))) depts.appendChild(buildDepartment(d, allowed));
     });
     nav.appendChild(depts);
 

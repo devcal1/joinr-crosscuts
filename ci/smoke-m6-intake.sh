@@ -96,7 +96,7 @@ M6_Q11=c6000000-0000-4000-8000-000000000011
 
 # Joinr is wired to make a job by itself (2026-10-18, Todd): a won quote that arrives from the puller
 # or the import becomes a Won job at once (or links to the one live job with its quote number), with
-# a team task and an alert for the Design/PM team, and no person decides. Where this suite needs a
+# a team task and an alert for the Projects team, and no person decides. Where this suite needs a
 # quote to wait for a person, it first makes a job that already holds the quote's root id, which makes
 # the automatic Accept fail (the row then stays `new`).
 m6_alerts() { # KIND INTAKE_ID -> how many alerts of KIND for that record dpm has (read or not)
@@ -205,7 +205,7 @@ expect_jq '.rows[0].actorUserId == null and .rows[0].actorLabel == "Joinr (autom
 req GET "/api/audit?action=job.create&entityId=$M6_Q1_JOB&limit=1" "$ADMIN"
 expect_jq '.rows[0].actorUserId == null and .rows[0].actorLabel == "Joinr (automatic)"' "job.create is audited as Joinr (automatic)"
 
-echo "--- the alert goes to the Design/PM team (notes.design), not to the others ---"
+echo "--- the alert goes to the Projects team (notes.design), not to the others ---"
 req GET "/api/notifications?limit=100" "$DPM"
 expect_status 200 "dpm notifications"
 expect_jq "[.rows[] | select(.kind == \"joinr.job\" and .link == \"/job.html?id=$M6_Q1_JOB\")] | length == 1" "dpm has one joinr.job alert linking the job"
@@ -220,11 +220,11 @@ for pair in "SCHED:$SCHED" "ACCT:$ACCT" "SHOW:$SHOW"; do
   expect_jq '[.rows[] | select(.kind | startswith("joinr."))] | length == 0' "$who gets no Joinr alert"
 done
 
-echo "--- the Design/PM team task for the new job ---"
+echo "--- the Projects team task for the new job ---"
 req GET "/api/tasks?view=mine" "$DPM"
 expect_status 200 "dpm GET /api/tasks?view=mine"
 expect_jq "[.rows[] | select(.job.id == $M6_Q1_JOB)] | length == 1" "the team task is in dpm's Mine"
-expect_jq ".rows[] | select(.job.id == $M6_Q1_JOB) | .title == \"New job from Joinr: 1 Far Future St, Sydney - set up the job\" and .team == \"design\" and .assignee.name == \"Design/PM team\" and .assignee.id == null and .createdBy.name == \"Joinr (automatic)\" and .createdBy.id == null and .status == \"open\" and .dueDate == null and .canEdit == true" "its title, team, assignee label, creator label and no due date"
+expect_jq ".rows[] | select(.job.id == $M6_Q1_JOB) | .title == \"New job from Joinr: 1 Far Future St, Sydney - set up the job\" and .team == \"design\" and .assignee.name == \"Projects team\" and .assignee.id == null and .createdBy.name == \"Joinr (automatic)\" and .createdBy.id == null and .status == \"open\" and .dueDate == null and .canEdit == true" "its title, team, assignee label, creator label and no due date"
 M6_Q1_TASK=$(jqr ".rows[] | select(.job.id == $M6_Q1_JOB) | .id")
 req GET "/api/tasks?view=mine" "$ADMIN"
 expect_jq "[.rows[] | select(.id == $M6_Q1_TASK)] | length == 1" "it is in admin's Mine too (every member sees it)"
@@ -554,7 +554,7 @@ M6_Q8_ID=$(m6_intake_field "$M6_Q8" id)
 expect_eq "$(m6_intake_field "$M6_Q8" job_id)" "null" "no job was made or linked for quote 8"
 expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM jobs WHERE quote_number = 'CI-M6-0008'" | jq -r '.[0].n')" "2" "still just the two twins carry the number"
 expect_eq "$(m6_sql "SELECT COUNT(*) AS n FROM team_tasks WHERE source = 'joinr' AND job_id IN (SELECT id FROM jobs WHERE quote_number = 'CI-M6-0008')" | jq -r '.[0].n')" "0" "no team task for it"
-expect_eq "$(m6_alerts joinr.new "$M6_Q8_ID")" "1" "the Design/PM team gets the joinr.new alert"
+expect_eq "$(m6_alerts joinr.new "$M6_Q8_ID")" "1" "the Projects team gets the joinr.new alert"
 req GET "/api/notifications?limit=100" "$DPM"
 expect_status 200 "dpm notifications"
 expect_jq "[.rows[] | select(.kind == \"joinr.new\" and .link == \"/intake.html?item=$M6_Q8_ID\" and (.body | contains(\"more than one job has quote number CI-M6-0008\") and contains(\"Choose which to link\")))] | length == 1" "the alert says more than one job has the number and to choose which to link"

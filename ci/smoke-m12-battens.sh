@@ -8,7 +8,7 @@
 step "m12. batten calculator"
 # ============================================================================
 
-# --- access: design.view (admin, Design/PM, Ordering); the maths file is served to the page
+# --- access: design.view (admin, Projects, Ordering); the maths file is served to the page
 req GET /battens.html "$DPM"
 expect_status 200 "dpm GET /battens.html"
 req GET /battens.html "$ORDR"
@@ -30,14 +30,14 @@ expect_status 403 "sched GET /tools.html"
 req GET /battens.html "$DPM"
 case $BODY in *'href="/tools.html"'*) ok ;; *) fail "GET /battens.html: no Back to Tools link" ;; esac
 # The menu: Pipeline is in the Scheduling list (jobs.view, which Scheduling holds) as well as
-# Design/PM; the Design/PM list has Tools, not the Batten calculator.
+# Projects; the Projects list has Tools, not the Batten calculator.
 req GET /shell/shell.js "$SCHED"
 expect_status 200 "sched GET /shell/shell.js"
 M12_SHELL=$BODY
 M12_SCHED_LIST=${M12_SHELL#*'id: "scheduling"'}
 M12_SCHED_LIST=${M12_SCHED_LIST%%'id: "design"'*}
 case $M12_SCHED_LIST in *'"/pipeline.html", key: "jobs.view"'*) ok ;; *) fail "shell.js: no Pipeline item in the Scheduling menu" ;; esac
-case $M12_SHELL in *'label: "Tools", href: "/tools.html", key: "design.view"'*) ok ;; *) fail "shell.js: no Tools item in the Design/PM menu" ;; esac
+case $M12_SHELL in *'label: "Tools", href: "/tools.html", key: "design.view"'*) ok ;; *) fail "shell.js: no Tools item in the Projects menu" ;; esac
 case $M12_SHELL in *'label: "Batten calculator"'*) fail "shell.js: the Batten calculator is still a menu item" ;; *) ok ;; esac
 case $M12_SHELL in *'"/battens.html": "/tools.html"'*) ok ;; *) fail "shell.js: battens.html does not light up Tools" ;; esac
 # A scheduling login reads the pipeline but cannot move anything (smoke-m3-pipeline.sh has the

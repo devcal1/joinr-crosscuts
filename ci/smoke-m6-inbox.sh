@@ -107,7 +107,7 @@ expect_status 200 "no-value user GET intake/:id"
 expect_jq '.quote.valueIncGstCents == null' "value hidden without jobs.value"
 case $BODY in *1234567*) fail "the value leaked to a user without jobs.value" ;; *) ok ;; esac
 req GET "/api/joinr/intake?state=new&countsOnly=1" "$DPM"
-expect_status 200 "dpm GET the counts only (the Design/PM tile)"
+expect_status 200 "dpm GET the counts only (the Projects tile)"
 expect_jq '(keys == ["counts"]) and (.counts.new | type) == "number" and (.counts.changed | type) == "number"' "counts only, no rows"
 req GET "/api/joinr/intake?state=bogus" "$DPM"
 expect_status 400 "unknown view"

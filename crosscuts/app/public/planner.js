@@ -20,7 +20,7 @@
     company: "Company-wide",
     install: "Install & hardware",
     accounts: "Accounts",
-    design_pm: "Design/PM",
+    design_pm: "Projects",
     scheduling: "Scheduling/Production",
     workshop: "Workshop",
     personal: "Personal",

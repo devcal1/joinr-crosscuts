@@ -1,15 +1,15 @@
 # How to place orders and receive deliveries in Crosscuts
 
-For Todd, Ordering, the Workshop Manager and Design/PM. Each job's materials are a list of **order lines** (one per supplier order). A line goes **To order → Ordered → Received**, or is cancelled.
+For Todd, Ordering, the Workshop Manager and Projects. Each job's materials are a list of **order lines** (one per supplier order). A line goes **To order → Ordered → Received**, or is cancelled.
 
 Who does what:
-- **Ordering** (and Design/PM) adds lines and edits them. **Ordering** (and admin) marks them ordered.
-- **The Workshop Manager** (and Ordering, Design/PM and admin) receives them and writes delivery notes.
-- Everyone with Accounts, Design/PM or Scheduling can see the lines on the **Orders** page.
+- **Ordering** (and Projects) adds lines and edits them. **Ordering** (and admin) marks them ordered.
+- **The Workshop Manager** (and Ordering, Projects and admin) receives them and writes delivery notes.
+- Everyone with Accounts, Projects or Scheduling can see the lines on the **Orders** page.
 
 ## Placing orders (Ordering)
 
-1. Open the job (**Design/PM**, then **Jobs**), go to its **Orders** section and add a line for each order: supplier, what it is, the expected date if you know it, notes.
+1. Open the job (**Projects**, then **Jobs**), go to its **Orders** section and add a line for each order: supplier, what it is, the expected date if you know it, notes.
 2. When you've placed an order, press **Mark ordered** on its line. **Undo** puts it back to To order.
 3. **When the last line of a job is marked ordered, the job's materials count as ordered and its 50% progress invoice falls due**, so Accounts are told. Mark the last line only once everything for the job has really been ordered.
 4. **Edit** changes a line's supplier, description, expected date or notes, or the date it was ordered. Keep the expected date up to date: it's what puts the line on the Deliveries page in the right place.

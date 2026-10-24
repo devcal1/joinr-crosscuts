@@ -16,7 +16,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
 
 - **Admin:** everything, including users and the audit log, **except the three owner-only pages** (Bonuses, Alarms and Loans), which only the owner has (below).
 - **Accounts:** bookkeeping, invoices, job values, photo search.
-- **Design/PM:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view. From M11 it also **checks each job's drawer grid** (Joinr's drawer counts, or ones typed in) before the grid goes on the Drawer order. From M12 it makes and sends each job's **stone orders** (the job's Benchtops section and Design/PM, then **Stone orders**) and has the **Batten calculator**.
+- **Projects:** jobs, design, adding and receiving order lines, inspections, photo admin, scheduling view. From M11 it also **checks each job's drawer grid** (Joinr's drawer counts, or ones typed in) before the grid goes on the Drawer order. From M12 it makes and sends each job's **stone orders** (the job's Benchtops section and Projects, then **Benchtops**) and has the **Batten calculator**.
 - **Scheduling:** the board (moving jobs, workers). Leave and part-time patterns are entered by an admin on the Availability page (Admin menu) since 2026-10-16. From M12 it can print a job's stone orders and benchtop sheet from the job page (as can Accounts).
 - **Showroom:** photo search only. Used for the shared showroom account.
 - **Workshop:** the board and the Planner (Company-wide, Install & hardware and Workshop, read-only). For workshop logins (the floor crew, if they get one). It can't edit the board.
@@ -26,10 +26,10 @@ The steps below describe the screen as it is planned. Button and menu names may 
   - **Paint orders**, and
   - the **Board stocktake** (keeps the board list and its prices, and can reopen a finished count).
 
-  Ordering can count too, so it can fill in for the Workshop Manager. It sees board prices. From M12 it also sees the **Stone orders** page and the **Batten calculator**, and reads and prints stone orders, but can't change them.
+  Ordering can count too, so it can fill in for the Workshop Manager. It sees board prices. From M12 it also sees the **Benchtops** page and the **Batten calculator**, and reads and prints stone orders, but can't change them.
 - **Workshop Manager:** runs the workshop floor: the board to view, order lines to view and receive (the **Deliveries** page), the Planner (adds to Workshop), tasks and messages. No job pages, so no client details. **From M11 it also does the monthly counts:** it types **Have** on the **Stock order** and the sheet quantities on the **Board stocktake**, and finishes each count. It never sees board prices, and it has no Drawer order page and no Paint orders menu entry. It receives the stock, paint and drawer deliveries on **Deliveries**, and can open a paint order from there to receive it.
 
-The office roles (Admin, Accounts, Design/PM, Scheduling, Ordering, Workshop Manager) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
+The office roles (Admin, Accounts, Projects, Scheduling, Ordering, Workshop Manager) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
 
 ## The owner (from M13)
 
@@ -129,8 +129,8 @@ This is the plan from the brief (section 3.1).
 | Chloe | Accounts | |
 | Tracy | Accounts | |
 | Jill | Accounts | |
-| Aaron | Design/PM and Scheduling | |
-| Jordan | Design/PM and Scheduling | |
+| Aaron | Projects and Scheduling | |
+| Jordan | Projects and Scheduling | |
 | Sam | Scheduling | Chromebook drives the workshop TV |
 | Michael | Scheduling | |
 | Showroom | Showroom | One shared account for the showroom device |

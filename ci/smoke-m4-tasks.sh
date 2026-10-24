@@ -294,7 +294,7 @@ expect_eq "$(m4a_due 2026-10-16T23:00:00Z null)" "null" "Saturday does not run"
 expect_eq "$(m4a_due 2026-10-17T23:00:00Z null)" "null" "Sunday does not run"
 
 # ============================================================================
-step "m4-team. team tasks: a task for the whole Design/PM team (2026-10-18)"
+step "m4-team. team tasks: a task for the whole Projects team (2026-10-18)"
 # ============================================================================
 # The team is whoever holds notes.design and tasks.use: admin and dpm here. acct and sched are not on
 # it. A team task lives in team_tasks (migration 032) with an id of 1000000000 or more; every
@@ -311,7 +311,7 @@ req POST /api/tasks "$DPM" '{"title":"","team":"design"}'
 expect_status 400 "an empty title"
 req POST /api/tasks "$DPM" "{\"title\":\"CI team: check the drawings\",\"team\":\"design\",\"jobId\":$M4A_JOB,\"dueDate\":\"$M4A_YESTERDAY\",\"notes\":\"CI team notes\"}"
 expect_status 201 "dpm raises a team task"
-expect_jq ".team == \"design\" and .assignee.id == null and .assignee.name == \"Design/PM team\" and .createdBy.id == $M4A_DPM_ID and .status == \"open\" and .overdue == true and .job.id == $M4A_JOB and .canEdit == true and .files == []" "the new team task"
+expect_jq ".team == \"design\" and .assignee.id == null and .assignee.name == \"Projects team\" and .createdBy.id == $M4A_DPM_ID and .status == \"open\" and .overdue == true and .job.id == $M4A_JOB and .canEdit == true and .files == []" "the new team task"
 M4T=$(jqr '.id')
 [ "$M4T" -ge 1000000000 ] || fail "a team task id is 1000000000 or more, got $M4T"
 ok

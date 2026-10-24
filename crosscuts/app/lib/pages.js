@@ -19,7 +19,11 @@ const PAGE_ACCESS = {
   "/audit.html": "audit.view",
   "/accounts.html": "accounts.view",
   "/invoice.html": "accounts.view",
+  // 0.2.0 (Todd, 2026-10-24): the Projects dashboard moved under the Projects notes wall; the old
+  // address redirects there (server.js), still gated by design.view.
   "/design.html": "design.view",
+  // 0.2.0 (docs/plans/m20-recurring-tasks.md): recurring tasks, admins only.
+  "/admintasks.html": "users.admin",
   "/tasks.html": "tasks.use",
   "/messages.html": "messages.use",
   "/reports.html": "accounts.view",
@@ -41,7 +45,7 @@ const PAGE_ACCESS = {
   "/stone.html": "design.view",
   "/stoneprint.html": ["jobs.view", "design.view"],
   "/battens.html": "design.view",
-  // 2026-10-18 (Todd): the Design/PM tools page, which links to the batten calculator.
+  // 2026-10-18 (Todd): the Projects tools page, which links to the batten calculator.
   "/tools.html": "design.view",
   // M13 (docs/plans/m13-contracts.md section 9).
   "/bonuses.html": "bonuses.manage",
@@ -53,7 +57,8 @@ const PAGE_ACCESS = {
 
 // Department notes (docs/plans/notes-contracts.md): anyone holding any of the five department keys
 // may open the page; the API checks the key for the department asked for.
-PAGE_ACCESS["/notes.html"] = require("./notes").DEPT_KEYS;
+// 0.2.0: design.view too, as the Projects page (dept=design) also carries the Projects dashboard.
+PAGE_ACCESS["/notes.html"] = [...require("./notes").DEPT_KEYS, "design.view"];
 
 // Any .html page not listed above.
 const DEFAULT_PAGE_ACCESS = "login";

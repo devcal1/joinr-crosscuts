@@ -10,7 +10,7 @@ const { sydneyToday, sydneyMonday, addDays, parseDateUTC, formatDateUTC, weekLab
 // id -> { label, key }. One feature key per department (lib/permissions.js).
 const DEPTS = {
   scheduling: { label: "Scheduling", key: "notes.scheduling" },
-  design: { label: "Design/PM", key: "notes.design" },
+  design: { label: "Projects", key: "notes.design" },
   ordering: { label: "Ordering", key: "notes.ordering" },
   accounts: { label: "Accounts", key: "notes.accounts" },
   admin: { label: "Admin", key: "notes.admin" },

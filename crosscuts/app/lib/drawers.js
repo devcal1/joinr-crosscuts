@@ -177,7 +177,7 @@ function mapEntries(db, entries) {
     b[k].qty += e.qty;
   }
   for (const id of Object.keys(byBrand)) {
-    // A sum over the cap is held at the cap (the grid's limit); Design/PM checks it anyway.
+    // A sum over the cap is held at the cap (the grid's limit); Projects checks it anyway.
     byBrand[id] = Drawers.sorted(id, Object.values(byBrand[id]).map((c) => ({ ...c, qty: Math.min(c.qty, Drawers.QTY_MAX) })));
   }
   return { mapped, byBrand };

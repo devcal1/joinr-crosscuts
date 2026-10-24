@@ -179,7 +179,7 @@ expect_eq "$(m19_sql "SELECT COUNT(*) AS n FROM job_materials WHERE job_id = $M1
 # --- the API: money for jobs.value, none for the rest ----------------------------------------------------
 echo "--- GET /api/job-records/:id/joinr-quote ---"
 req GET "/api/job-records/$M19_J1/joinr-quote" "$DPM"
-expect_status 200 "design/PM (jobs.value)"
+expect_status 200 "Projects (jobs.value)"
 expect_jq '.status == "ok" and .money == true and .quoteNumber == "CI-M19-0001" and (.joinrUrl | startswith("http"))' "ok, with money, the quote number and the Joinr link"
 expect_jq '(.quote.rooms | length) == 2 and .quote.rooms[0].name == "Kitchen" and .quote.pricedAt == "snapshot"' "two rooms, priced at the frozen card"
 expect_jq '.quote.totals.incGstCents == '"$M19_VALUE"' and .quote.totals.marginCents > 0 and .quote.totals.costOfGoodsCents > 0' "the total equals Joinr's value; margin and cost of goods are there"

@@ -126,7 +126,7 @@
 .cc-dash[aria-current="page"] { color: var(--white); background: var(--teal-16); }
 
 /* A department: one button (its name) that opens a small list of its pages.
-   Menu 3.1, the fourth named exception in CLAUDE.md: Scheduling, Design/PM, Ordering and Accounts carry a
+   Menu 3.1, the fourth named exception in CLAUDE.md: Scheduling, Projects, Ordering and Accounts carry a
    2 px rule in their Planner layer colour under the name and down the left edge of the open
    panel. Photos and Admin stay plain. Nothing else on the bar takes these colours. */
 .cc-dept {

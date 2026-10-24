@@ -3,7 +3,7 @@
 # Sourced by ci/smoke.sh after the M12 suites, so it shares that script's helpers (step, req,
 # expect_status, expect_jq, expect_eq, jqr, hdr, fail, ok) and the cookie jars ($ADMIN $ACCT $DPM).
 # No shebang and no `set`: the caller owns both. $ADMIN is the owner, so it holds loans.manage;
-# Accounts and Design/PM don't (Accounts is granted it for one write, and the grant removed).
+# Accounts and Projects don't (Accounts is granted it for one write, and the grant removed).
 # It does not assume a pristine database: its loans carry a run tag and it checks only its own rows.
 # Fixed past dates, so every figure is exact. Made-up names only (this repo is public).
 # Contract: docs/plans/m13-contracts.md sections 6, 7.3, 8.2 and 11.5.

@@ -58,7 +58,7 @@ function handleB(fn) {
 }
 
 r.get("/intake", "design.view", handleB((req, res) => {
-  // ?countsOnly=1 (M6 · 4.3): the Design/PM tile needs only the counts.
+  // ?countsOnly=1 (M6 · 4.3): the Projects tile needs only the counts.
   if (req.query.countsOnly === "1") return res.json({ counts: intake.counts(inboxDb) });
   const rows = intake.list(inboxDb, req.user, { state: req.query.state });
   res.json({ rows, counts: intake.counts(inboxDb), sync: require("../lib/joinr-sync").status(inboxDb) });

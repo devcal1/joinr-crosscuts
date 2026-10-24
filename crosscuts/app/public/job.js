@@ -959,7 +959,7 @@
 
   // ---- Drawers (docs/plans/m11-contracts.md section 11.1) ----------------------------------
   // Under the order lines: each drawer line's grid (heights down, lengths across, only the ones in
-  // use, with totals) and its Design/PM check, then the won quote's drawer lines from Joinr with
+  // use, with totals) and its Projects check, then the won quote's drawer lines from Joinr with
   // each one's mapping. Add drawers, Edit grid, Check / Uncheck and Refill from Joinr are here;
   // the line's other actions (Received, Cancel ...) are OrderUI's, in the table above. The sizes
   // come from drawers.js (window.Drawers); the server decides who may do what (lib/drawers.js).
@@ -1347,7 +1347,7 @@
     }
     const hint = can("jobs.edit")
       ? "Only checked grids go on the Drawer order. Changing the counts clears the check unless Checked is ticked."
-      : "Design/PM checks the grid before it goes on the Drawer order. Changing the counts clears the check.";
+      : "Projects checks the grid before it goes on the Drawer order. Changing the counts clears the check.";
 
     return drawerDialog({
       title: editing ? `Edit ${drawerBrandLabel(brandId)} drawers` : "Add drawers",
@@ -1389,7 +1389,7 @@
     return drawerDialog({
       title: "Refill from Joinr?",
       note: `${line.description}.`,
-      hint: "The counts are replaced by the Joinr quote's drawer lines, as the drawer name list maps them now. The check is cleared, so Design/PM checks the grid again.",
+      hint: "The counts are replaced by the Joinr quote's drawer lines, as the drawer name list maps them now. The check is cleared, so Projects checks the grid again.",
       submit: "Refill",
       cancel: "Keep these counts",
       focus: "cancel",
@@ -1430,7 +1430,7 @@
         }
         if (r && r.job) applyJobState(r.job);
         const made = r && (Array.isArray(r.created) ? r.created : Array.isArray(r.lines) ? r.lines : Array.isArray(r.orders) ? r.orders : null);
-        setLine(status, `Filled from Joinr${made ? ": " + (made.length === 1 ? "1 drawer grid" : made.length + " drawer grids") : ""}. Design/PM checks each before it goes on the Drawer order.`, "ok");
+        setLine(status, `Filled from Joinr${made ? ": " + (made.length === 1 ? "1 drawer grid" : made.length + " drawer grids") : ""}. Projects checks each before it goes on the Drawer order.`, "ok");
         await Promise.all([loadDrawers(), loadOrders()]);
         const first = made && made[0] && made[0].id;
         focusDrawerAfter(first || 0, []);
@@ -1462,7 +1462,7 @@
       const o = (r && r.order) || line;
       const name = o && o.drawers ? drawerLineName(o) : "Drawers";
       const said = {
-        add: `Added: ${name}. Design/PM checks it before it goes on the Drawer order.`,
+        add: `Added: ${name}. Projects checks it before it goes on the Drawer order.`,
         edit: `Saved: ${name}.`,
         check: `Checked: ${name}. It goes on the Drawer order.`,
         uncheck: `Unchecked: ${name}. It waits for the check again.`,
