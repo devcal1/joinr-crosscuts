@@ -1,12 +1,19 @@
 // Supplier accounts (/suppliers.html[?period=YYYY-MM][&print=blank]): the monthly checklist of
-// supplier statements, its print, and the blank paper form (docs/plans/m9-contracts.md sections 7.2,
-// 7.3 and 9.2; the paper form is m9-plan section 1.4).
+// supplier statements, three months side by side, its print, and the blank paper form
+// (docs/plans/m9-contracts.md sections 7.2, 7.3 and 9.2; the paper form is m9-plan section 1.4).
+//
+// The page shows three months as compact lists, one line per supplier: the month before, the
+// centre month (?period=, default this month in Sydney) and the month after. Each month is its own
+// pane (makePane); every pane is editable with invoices.edit. Previous / Next shift all three by a
+// month. Print and the blank form are the centre month's. Next month is the last one there is
+// (approved by Todd 2026-10-24).
 //
 // Each supplier's line saves on its own: a change commits on blur (Total, Note) or on choosing (the
 // statement state, the ticks), as one PUT per line carrying the updatedAt it last saw. A line has at
 // most one request in flight; changes made meanwhile are queued and sent after it, and what is typed
 // while a save is in flight is never overwritten. A 409 shows its sentence on that row with Reload; a
-// refused value outlines its cell in orange with the sentence under the row.
+// refused value outlines its cell in orange with the sentence under the row. The note and the
+// statement file are in a detail line under the row, opened from the supplier's name.
 //
 // Month arithmetic and money come from public/periods.js (window.Periods). Without invoices.edit the
 // page is read-only: every write control is left out. User text goes in via textContent only.
@@ -18,36 +25,37 @@
 
   // One page, two kinds of account: Supplier accounts (/suppliers.html) and Admin accounts
   // (/adminaccounts.html, body data-kind="admin"; docs/plans/m9-contracts.md section 13). Same
-  // machinery, so only the API base, the page path and the words differ.
+  // machinery, so only the API base, the page path, the audit entity and the words differ.
   const KINDS = {
     supplier: {
       api: "/api/suppliers", page: "/suppliers.html", title: "Supplier accounts",
       one: "supplier", many: "suppliers", One: "Supplier", Many: "Suppliers",
-      form: "Supplier statements form",
+      form: "Supplier statements form", entity: "supplier_statement",
     },
     admin: {
       api: "/api/admin-accounts", page: "/adminaccounts.html", title: "Admin accounts",
       one: "account", many: "accounts", One: "Account", Many: "Accounts",
-      form: "Admin accounts form",
+      form: "Admin accounts form", entity: "admin_account_statement",
     },
   };
   const K = KINDS[document.body.dataset.kind] || KINDS.supplier;
 
   const STATES = [
-    ["have", "Have statement"],
+    ["have", "Have"],
     ["waiting", "Waiting"],
     ["na", "N/A"],
   ];
   const STATE_WORD = { have: "Have statement", waiting: "Waiting", na: "N/A" };
   const TICKS = [
-    ["reconciled", "Reconciled"],
-    ["paid", "Paid"],
-    ["myob", "Entered in MYOB"],
+    ["reconciled", "Reconciled", "R"],
+    ["paid", "Paid", "P"],
+    ["myob", "Entered in MYOB", "M"],
   ];
   const ACCEPT_EXT = ["pdf", "jpg", "jpeg", "png"];
   const MAX_BYTES = 25 * 1024 * 1024;
   const MAX_CENTS = 1000000000;
   const CHECK = "✓"; // a check mark character, not an icon (contracts section 9.2)
+  const DASH = "—";
   const STATE_PAUSE_MS = 700; // arrow keys in the statement choice: save after this pause
 
   const UNREADABLE_TOTAL = "Can't read the total: type an amount like 1,234.50";
@@ -55,6 +63,12 @@
 
   function can(key) {
     return window.cc && typeof window.cc.can === "function" ? !!window.cc.can(key) : false;
+  }
+  // The audit link is for admins only: the admin role, and the audit page's own key.
+  function isAdmin() {
+    const me = window.cc && window.cc.me;
+    const roles = me && Array.isArray(me.roles) ? me.roles : [];
+    return roles.includes("admin") && can("audit.view");
   }
 
   function el(tag, props, ...kids) {
@@ -128,59 +142,82 @@
   let canEdit = false;
   let today = todayISO();
   let current = P.currentPeriod(today);
-  let period = null; // the month on screen
-  let month = null; // the month object (section 7.3) as last loaded
-  let rows = []; // one per line, in the month's order (see makeRow)
-  let loadSeq = 0;
+  let centre = null; // the centre month
+  let panes = []; // [before, centre, after]; a pane outside the months there are is null
   let showArchived = false;
   let suppliers = [];
   let leaving = false; // navigating away on purpose: no unsaved-changes prompt
+  let rowSeq = 0;
 
+  function lastPeriod() {
+    return P.addMonths(current, 1); // next month is the last there is
+  }
   function defaultPeriod() {
-    const p = P.addMonths(current, -1); // statements for a month arrive after it ends
-    return p < P.HISTORY_START ? P.HISTORY_START : p;
+    return current < P.HISTORY_START ? P.HISTORY_START : current;
   }
   function inRange(p) {
-    return P.validPeriod(p) && p >= P.HISTORY_START && p <= current;
+    return P.validPeriod(p) && p >= P.HISTORY_START && p <= lastPeriod();
+  }
+  function centrePane() {
+    return panes[1] || null;
+  }
+  function allRows() {
+    const out = [];
+    for (const pn of panes) if (pn) out.push(...pn.rows);
+    return out;
   }
 
   // ------------------------------------------------------------ the header ---
 
   function renderHeader() {
-    $("suMonth").textContent = P.longLabel(period);
-    document.title = `${K.title} ${P.longLabel(period)} - Crosscuts`;
-    const prev = month && "prev" in month ? month.prev : period > P.HISTORY_START ? P.addMonths(period, -1) : null;
-    const next = month && "next" in month ? month.next : period < current ? P.addMonths(period, 1) : null;
+    $("suMonth").textContent = P.longLabel(centre);
+    document.title = `${K.title} ${P.longLabel(centre)} - Crosscuts`;
+    const prev = centre > P.HISTORY_START ? P.addMonths(centre, -1) : null;
+    const next = centre < lastPeriod() ? P.addMonths(centre, 1) : null;
     const pb = $("suPrev");
     const nb = $("suNext");
+    const tb = $("suToday");
     pb.disabled = !prev;
     nb.disabled = !next;
+    tb.disabled = centre === defaultPeriod();
     pb.dataset.to = prev || "";
     nb.dataset.to = next || "";
-    pb.setAttribute("aria-label", prev ? `Previous month, ${P.longLabel(prev)}` : "Previous month");
-    nb.setAttribute("aria-label", next ? `Next month, ${P.longLabel(next)}` : "Next month");
-    $("suBlank").href = `${K.page}?period=${period}&print=blank`;
-    const bits = [];
-    if (period === current) bits.push("This month is still running; statements usually arrive after it ends.");
-    bits.push(canEdit ? "Each line saves on its own as you change it." : "View only.");
-    $("suMeta").textContent = bits.join(" ");
+    pb.setAttribute("aria-label", prev ? `Previous month: centre on ${P.longLabel(prev)}` : "Previous month");
+    nb.setAttribute("aria-label", next ? `Next month: centre on ${P.longLabel(next)}` : "Next month");
+    $("suBlank").href = `${K.page}?period=${centre}&print=blank`;
+    $("suPrint").setAttribute("aria-label", `Print ${P.longLabel(centre)}`);
+    $("suMeta").textContent = canEdit
+      ? "Each line saves on its own as you change it. Open a name for its note and statement file."
+      : "View only. Open a name for its note and statement file.";
   }
 
   function syncUrl() {
-    history.replaceState(null, "", `${location.pathname}?period=${period}`);
+    history.replaceState(null, "", `${location.pathname}?period=${centre}`);
+  }
+
+  function say(text) {
+    $("suLive").textContent = text;
   }
 
   // --------------------------------------------------------------- the rows ---
 
-  // A row: {id, name, server: the line as last saved, committed: {total, note} texts as last
-  // committed, tr, msgTr, ..., chain: the line's request queue, busy, saveQueued, stale, refused,
-  // error}.
+  // A row: {pane, id, name, server: the line as last saved, committed: {total, note} texts as last
+  // committed, tr, detailTr, msgTr, ..., chain: the line's request queue, busy, saveQueued, stale,
+  // refused, error}.
   function lineTotalText(line) {
     return line.totalCents == null ? "" : P.dollars(line.totalCents);
   }
+  // No total for a line that should have one: never saved, or Waiting (or Have) with no total.
+  function isMissing(line) {
+    return line.state !== "na" && line.totalCents == null;
+  }
+  function missingSentence(line) {
+    return line.state === "have" ? "Information missing: no total yet" : "Information missing: waiting on statement";
+  }
 
-  function makeRow(line) {
+  function makeRow(pane, line) {
     const R = {
+      pane,
       id: line.supplier.id,
       name: line.supplier.name,
       server: line,
@@ -194,51 +231,83 @@
       fileError: null,
       flash: "",
       dead: false,
+      open: false,
     };
+    const key = `${++rowSeq}`;
     R.tr = el("tr", { class: "su-row", "data-id": String(R.id) });
-    R.nameEl = el("span", { class: "su-name", text: R.name });
+    R.detailId = `su-det-${key}`;
+    R.nameBtn = el("button", {
+      type: "button", class: "su-name", "aria-expanded": "false", "aria-controls": R.detailId,
+    });
+    R.nameText = el("span", { class: "su-name-text", text: R.name });
+    R.nameBtn.append(R.nameText);
+    R.marks = el("span", { class: "su-marks" });
+    R.warnEl = el("span", { class: "su-warn" });
     R.stateEl = el("span", { class: "su-rowstate" });
-    R.nameTd = el("th", { scope: "row", class: "su-c-name" }, R.nameEl, R.stateEl);
+    R.nameTd = el("th", { scope: "row", class: "su-c-name" },
+      el("span", { class: "su-namebox" }, R.nameBtn, R.marks, R.warnEl, R.stateEl));
     R.stateTd = el("td", { class: "su-c-state" });
     R.totalTd = el("td", { class: "su-c-total num" });
     R.tickTds = {};
     for (const [k] of TICKS) R.tickTds[k] = el("td", { class: "su-c-tick" });
-    R.noteTd = el("td", { class: "su-c-note" });
-    R.fileTd = el("td", { class: "su-c-file" });
-    R.tr.append(R.nameTd, R.stateTd, R.totalTd, R.tickTds.reconciled, R.tickTds.paid, R.tickTds.myob, R.noteTd, R.fileTd);
-    R.msgId = `su-msg-${R.id}`;
-    R.msgTd = el("td", { colspan: "8", id: R.msgId });
+    R.tr.append(R.nameTd, R.stateTd, R.totalTd, R.tickTds.reconciled, R.tickTds.paid, R.tickTds.myob);
+
+    // The detail line: the note and the statement file.
+    R.noteBox = el("div", { class: "su-det-note" });
+    R.fileBox = el("div", { class: "su-det-file" });
+    R.detailTr = el("tr", { class: "su-detail", id: R.detailId },
+      el("td", { colspan: "6" }, el("div", { class: "su-det" },
+        el("span", { class: "su-det-label", text: "Note" }), R.noteBox,
+        el("span", { class: "su-det-label", text: "Statement file" }), R.fileBox)));
+    R.detailTr.hidden = true;
+
+    R.msgId = `su-msg-${key}`;
+    R.msgTd = el("td", { colspan: "6", id: R.msgId });
     R.msgTr = el("tr", { class: "su-msgrow" }, R.msgTd);
     R.msgTr.hidden = true;
+
+    R.nameBtn.addEventListener("click", () => toggleDetail(R));
+    // A click anywhere on the row that isn't a control opens or closes it too.
+    R.tr.addEventListener("click", (e) => {
+      if (e.target.closest("input, label, button, a, select, textarea")) return;
+      toggleDetail(R);
+    });
 
     if (canEdit) buildEditCells(R);
     else buildReadCells(R);
     renderFile(R);
+    renameRow(R, R.name, true);
     return R;
+  }
+
+  function toggleDetail(R, force) {
+    R.open = force == null ? !R.open : !!force;
+    R.detailTr.hidden = !R.open;
+    R.nameBtn.setAttribute("aria-expanded", R.open ? "true" : "false");
+    R.tr.classList.toggle("su-row-open", R.open);
   }
 
   function buildReadCells(R) {
     const l = R.server;
     const cls = l.state === "have" ? "hs-badge-teal" : l.state === "na" ? "hs-badge-na" : "hs-badge-check";
-    R.stateTd.replaceChildren(el("span", { class: `hs-badge ${cls}`, text: STATE_WORD[l.state] || l.state }));
-    R.totalTd.textContent = lineTotalText(l);
+    R.stateTd.replaceChildren(el("span", { class: `hs-badge su-badge ${cls}`, text: l.state === "have" ? "Have" : STATE_WORD[l.state] || l.state }));
+    R.totalTd.textContent = l.state === "na" && l.totalCents == null ? DASH : P.dollars(l.totalCents || 0);
     for (const [k, label] of TICKS) {
       R.tickTds[k].replaceChildren(l[k] ? el("span", { class: "su-tick-ro", text: CHECK, "aria-label": label, role: "img" }) : "");
     }
-    R.noteTd.replaceChildren(el("span", { class: "su-note-ro", text: l.note || "" }));
+    R.noteBox.replaceChildren(el("span", { class: "su-note-ro", text: l.note || "No note." }));
   }
 
   function buildEditCells(R) {
-    const name = R.name;
     // The statement state: one of three, as radios (arrow keys move and choose).
-    R.radioGroup = el("div", { class: "su-seg", role: "radiogroup", "aria-label": `Statement, ${name}` });
+    R.radioGroup = el("div", { class: "su-seg", role: "radiogroup" });
     R.radios = {};
     // A click chooses at once. Arrow keys move through the choices (each step checks one), so the
     // line saves once the user settles on one: a short pause, Space or Enter, or leaving the choice.
     R.stKeys = false;
     R.stTimer = 0;
     for (const [v, label] of STATES) {
-      const input = el("input", { type: "radio", name: `su-st-${R.id}`, value: v });
+      const input = el("input", { type: "radio", name: `su-st-${R.pane.period}-${R.id}`, value: v });
       input.addEventListener("change", () => {
         if (!input.checked) return;
         const byKeys = R.stKeys;
@@ -262,7 +331,7 @@
 
     R.totalIn = el("input", {
       class: "su-in su-in-total", type: "text", inputmode: "decimal", autocomplete: "off",
-      spellcheck: "false", maxlength: "20", "aria-label": `Total, ${name}`,
+      spellcheck: "false", maxlength: "20",
     });
     R.totalIn.addEventListener("blur", () => {
       const v = P.parseDollars(R.totalIn.value);
@@ -284,15 +353,14 @@
 
     R.ticks = {};
     for (const [k, label] of TICKS) {
-      const input = el("input", { type: "checkbox", "aria-label": `${label}, ${name}` });
+      const input = el("input", { type: "checkbox" });
       input.addEventListener("change", () => commit(R));
       R.ticks[k] = input;
-      R.tickTds[k].replaceChildren(el("label", { class: "su-tick" }, input));
+      R.tickTds[k].replaceChildren(el("label", { class: "su-tick", title: label }, input));
     }
 
     R.noteIn = el("input", {
       class: "su-in su-in-note", type: "text", autocomplete: "off", maxlength: "500",
-      "aria-label": `Note, ${name}`,
     });
     R.noteIn.addEventListener("blur", () => {
       R.committed.note = R.noteIn.value;
@@ -305,7 +373,7 @@
         R.noteIn.focus();
       }
     });
-    R.noteTd.replaceChildren(R.noteIn);
+    R.noteBox.replaceChildren(R.noteIn);
 
     setAllUi(R, R.server);
   }
@@ -323,15 +391,18 @@
     for (const [k] of TICKS) R.ticks[k].checked = !!line[k];
   }
 
-  function renameRow(R, name) {
-    if (name === R.name) return;
+  function renameRow(R, name, force) {
+    if (name === R.name && !force) return;
     R.name = name;
-    R.nameEl.textContent = name;
+    R.nameText.textContent = name;
+    const month = P.longLabel(R.pane.period);
+    R.nameBtn.setAttribute("aria-label", `${name}, ${month}: note and statement file`);
+    R.nameBtn.title = name;
     if (!canEdit) return;
-    R.radioGroup.setAttribute("aria-label", `Statement, ${name}`);
-    R.totalIn.setAttribute("aria-label", `Total, ${name}`);
-    R.noteIn.setAttribute("aria-label", `Note, ${name}`);
-    for (const [k, label] of TICKS) R.ticks[k].setAttribute("aria-label", `${label}, ${name}`);
+    R.radioGroup.setAttribute("aria-label", `Statement, ${name}, ${month}`);
+    R.totalIn.setAttribute("aria-label", `Total, ${name}, ${month}`);
+    R.noteIn.setAttribute("aria-label", `Note, ${name}, ${month}`);
+    for (const [k, label] of TICKS) R.ticks[k].setAttribute("aria-label", `${label}, ${name}, ${month}`);
     renderFile(R);
   }
 
@@ -364,8 +435,29 @@
       }
       kids.push(tools);
     }
-    R.fileTd.replaceChildren(...kids);
-    R.fileTd.classList.toggle("su-bad-cell", !!R.fileError);
+    R.fileBox.replaceChildren(...kids);
+    R.fileBox.classList.toggle("su-bad-cell", !!R.fileError);
+  }
+
+  // The row's small marks: Note / File when there is one, the missing-information warning, and the
+  // total's placeholder ($0.00 when missing, a dash for N/A).
+  function renderInfo(R) {
+    const l = R.server;
+    R.marks.replaceChildren();
+    if (l.note) R.marks.append(el("span", { class: "su-mark", text: "Note", title: l.note }));
+    if (l.file) R.marks.append(el("span", { class: "su-mark", text: "File", title: l.file.name }));
+    R.warnEl.replaceChildren();
+    if (isMissing(l)) {
+      const s = missingSentence(l);
+      R.warnEl.title = s;
+      R.warnEl.append(el("span", { class: "su-warn-long", text: s }), el("span", { class: "su-warn-short", text: "Missing", "aria-hidden": "true" }));
+      R.tr.classList.add("su-row-missing");
+    } else {
+      R.warnEl.removeAttribute("title");
+      R.tr.classList.remove("su-row-missing");
+    }
+    if (canEdit) R.totalIn.placeholder = l.state === "na" ? DASH : "$0.00";
+    else buildReadCells(R);
   }
 
   // The row's message line (409, refused value, other errors) and its small saving state.
@@ -391,7 +483,7 @@
     if (any) td.append(box);
     R.msgTr.hidden = !any;
 
-    // Orange outline on the refused cell.
+    // Orange outline on the refused cell; a refused note or a file problem opens the detail line.
     if (canEdit) {
       const field = R.refused ? R.refused.field : null;
       setBad(R.totalIn, field === "total", R);
@@ -401,8 +493,9 @@
       else R.radioGroup.removeAttribute("aria-describedby");
       for (const [k] of TICKS) R.tickTds[k].classList.toggle("su-bad-cell", field === k);
       R.nameTd.classList.toggle("su-bad-cell", field === "row");
+      if ((field === "note" || R.fileError) && !R.open) toggleDetail(R, true);
     }
-    R.fileTd.classList.toggle("su-bad-cell", !!R.fileError);
+    R.fileBox.classList.toggle("su-bad-cell", !!R.fileError);
 
     let st = R.flash;
     let cls = "su-rowstate";
@@ -413,6 +506,7 @@
     }
     R.stateEl.textContent = st || "";
     R.stateEl.className = cls;
+    renderInfo(R);
   }
 
   function setBad(input, on, R) {
@@ -448,7 +542,7 @@
     }).finally(() => {
       R.busy--;
       if (!R.dead) renderMsg(R);
-      updateFooter();
+      R.pane.updateSummary();
     });
     R.chain = p;
     renderMsg(R);
@@ -532,7 +626,7 @@
       R.error = null;
       return;
     }
-    const sentPeriod = period;
+    const sentPeriod = R.pane.period;
     R.busyText = "Saving...";
     renderMsg(R);
     try {
@@ -542,7 +636,7 @@
       R.refused = refused;
       R.error = null;
       R.flash = "Saved";
-      say(`Saved the line for ${R.name}.`);
+      say(`Saved the line for ${R.name}, ${P.longLabel(sentPeriod)}.`);
     } catch (e) {
       if (R.dead) return;
       R.flash = "";
@@ -601,26 +695,25 @@
   }
 
   // After a 404 on one line: the line as the server has it now. {gone: true} when the supplier isn't
-  // listed in this month any more (archived elsewhere): the rows are brought in line (unsaved typing
-  // on other rows is kept) and the page's status line says why the row went. Otherwise {line}, or
-  // null when the month couldn't be loaded.
+  // listed in this month any more (archived elsewhere): the pane's rows are brought in line (unsaved
+  // typing on other rows is kept) and the pane's status line says why the row went. Otherwise
+  // {line}, or null when the month couldn't be loaded.
   async function lineNow(R) {
+    const pane = R.pane;
     let m;
     try {
-      m = await call("GET", `${K.api}/months/${period}`);
+      m = await call("GET", `${K.api}/months/${pane.period}`);
     } catch (e) {
       return null;
     }
     if (R.dead) return { gone: true };
     const fresh = (m.lines || []).find((l) => l.supplier.id === R.id);
     if (fresh) return { line: fresh };
-    month = m;
-    syncRows(m.lines || []);
-    renderAfterSync();
-    const s = `${R.name} isn't listed in ${P.longLabel(period)} any more (it was archived elsewhere), so the change wasn't saved.`;
-    const status = $("suStatus");
-    status.textContent = s;
-    status.hidden = false;
+    pane.month = m;
+    pane.syncRows(m.lines || []);
+    pane.renderAfterSync();
+    const s = `${R.name} isn't listed in ${P.longLabel(pane.period)} any more (it was archived elsewhere), so the change wasn't saved.`;
+    pane.setStatus(s);
     say(s);
     return { gone: true };
   }
@@ -630,19 +723,20 @@
   }
 
   async function reloadRow(R, btn) {
+    const pane = R.pane;
     if (btn) btn.disabled = true;
     let line = R.stale ? R.stale.line : null;
     try {
-      const m = await call("GET", `${K.api}/months/${period}`);
+      const m = await call("GET", `${K.api}/months/${pane.period}`);
       if (R.dead) return;
-      month = m;
+      pane.month = m;
       const fresh = (m.lines || []).find((l) => l.supplier.id === R.id);
       if (!fresh) {
         // No longer listed in this month: show the month as it now is.
         R.stale = null;
-        syncRows(m.lines || [], { force: true });
-        renderAfterSync();
-        say(`${R.name} isn't listed in ${P.longLabel(period)} any more.`);
+        pane.syncRows(m.lines || [], { force: true });
+        pane.renderAfterSync();
+        say(`${R.name} isn't listed in ${P.longLabel(pane.period)} any more.`);
         return;
       }
       line = fresh;
@@ -663,7 +757,7 @@
     setAllUi(R, line);
     renderFile(R);
     renderMsg(R);
-    updateFooter();
+    pane.updateSummary();
     say(`Reloaded the saved line for ${R.name}.`);
     const first = canEdit ? R.radios[line.state] || R.totalIn : null;
     if (first) first.focus();
@@ -716,7 +810,7 @@
       try {
         const fd = new FormData();
         fd.append("file", file, file.name);
-        const line = await call("POST", `${K.api}/months/${period}/${R.id}/file`, fd);
+        const line = await call("POST", `${K.api}/months/${R.pane.period}/${R.id}/file`, fd);
         if (R.dead) return;
         if (R.stale) R.stale.line = line;
         else applyServer(R, line, before);
@@ -738,7 +832,7 @@
   function removeFile(R) {
     const f = R.server.file;
     if (!f || R.stale) return;
-    if (!confirm(`Remove the statement ${f.name} from the line for ${R.name} (${P.longLabel(period)})?`)) return;
+    if (!confirm(`Remove the statement ${f.name} from the line for ${R.name} (${P.longLabel(R.pane.period)})?`)) return;
     enqueue(R, async () => {
       if (R.dead) return;
       R.busyText = "Removing...";
@@ -764,7 +858,7 @@
           return;
         }
         // fileId: the server refuses (409) if the line holds another file by the time this arrives.
-        const line = await call("DELETE", `${K.api}/months/${period}/${R.id}/file?fileId=${encodeURIComponent(f.id)}`);
+        const line = await call("DELETE", `${K.api}/months/${R.pane.period}/${R.id}/file?fileId=${encodeURIComponent(f.id)}`);
         if (R.dead) return;
         applyServer(R, line, before);
         R.fileError = null;
@@ -798,15 +892,11 @@
 
   function focusFileTool(R) {
     if (R.dead) return;
-    const b = R.fileTd.querySelector("button");
+    const b = R.fileBox.querySelector("button");
     if (b) b.focus();
   }
 
-  // ------------------------------------------------------------- the month ---
-
-  function say(text) {
-    $("suLive").textContent = text;
-  }
+  // ------------------------------------------------------------ dirty lines ---
 
   function isDirty(R) {
     if (!canEdit) return false;
@@ -819,148 +909,232 @@
     return !sameAsServer(R, b);
   }
   function dirtyRows() {
-    return rows.filter(isDirty);
+    return allRows().filter(isDirty);
   }
 
   // Lets a focused field commit, then waits for every line's requests.
   async function settle() {
+    const rows = allRows();
     const a = document.activeElement;
-    if (a && rows.some((R) => R.tr.contains(a)) && typeof a.blur === "function") {
+    if (a && rows.some((R) => R.tr.contains(a) || R.detailTr.contains(a)) && typeof a.blur === "function") {
       a.blur();
       a.focus();
     }
-    await Promise.all(rows.map((R) => R.chain));
+    await Promise.all(allRows().map((R) => R.chain));
   }
 
   async function confirmLeave() {
     await settle();
     const dirty = dirtyRows();
     if (!dirty.length) return true;
-    const names = dirty.slice(0, 5).map((R) => R.name).join(", ") + (dirty.length > 5 ? ", ..." : "");
-    return confirm(`Some lines for ${P.longLabel(period)} aren't saved (${names}). Leave them unsaved?`);
+    const names = dirty.slice(0, 5).map((R) => `${R.name} (${P.label(R.pane.period)})`).join(", ") + (dirty.length > 5 ? ", ..." : "");
+    return confirm(`Some lines aren't saved (${names}). Leave them unsaved?`);
   }
 
-  // Brings the rows in line with the lines: new ones are made, gone ones removed, and a row with
-  // something unsaved keeps it (unless force).
-  function syncRows(lines, opts) {
-    const force = !!(opts && opts.force);
-    const byId = new Map(rows.map((R) => [R.id, R]));
-    const next = [];
-    for (const line of lines) {
-      let R = byId.get(line.supplier.id);
-      if (R) {
-        byId.delete(R.id);
-        if (force || !isDirty(R)) {
-          R.server = line;
-          R.stale = null;
-          R.refused = null;
-          R.error = null;
-          R.fileError = null;
-          renameRow(R, line.supplier.name);
-          setAllUi(R, line);
-          renderFile(R);
+  // ------------------------------------------------------------- a month pane ---
+
+  // One month's column: its heading, Left to pay, and the compact list. `slot` is 0, 1 or 2 (before,
+  // centre, after).
+  function makePane(period, slot) {
+    const pane = { period, slot, month: null, rows: [], loadSeq: 0 };
+    const label = P.longLabel(period);
+    const isCurrent = period === current;
+    const headId = `su-col-h-${slot}`;
+    pane.statusEl = el("p", { class: "su-status", role: "status" });
+    pane.emptyEl = el("p", { class: "su-empty" });
+    pane.emptyEl.hidden = true;
+    pane.leftValue = el("span", { class: "su-left-value", text: DASH });
+    pane.leftMissing = el("span", { class: "su-left-missing" });
+    pane.leftMeta = el("span", { class: "su-left-meta" });
+    pane.tbody = el("tbody");
+    const headRow = el("tr", null,
+      el("th", { scope: "col", class: "su-c-name", text: K.One }),
+      el("th", { scope: "col", class: "su-c-state", text: "Statement" }),
+      el("th", { scope: "col", class: "su-c-total num", text: "Total" }),
+      ...TICKS.map(([, word, letter]) => el("th", { scope: "col", class: "su-c-tick" },
+        el("abbr", { title: word, "aria-label": word, text: letter }))));
+    pane.table = el("table", { class: "su-table", "aria-labelledby": headId }, el("thead", null, headRow), pane.tbody);
+    pane.table.hidden = true;
+    pane.root = el("section", {
+      class: `su-col su-col-${["before", "centre", "after"][slot]}${isCurrent ? " su-col-cur" : ""}`,
+      "aria-labelledby": headId,
+    },
+      el("div", { class: "su-col-head" },
+        el("h2", { class: "su-col-month", id: headId, text: label }),
+        isCurrent ? el("span", { class: "su-col-tag", text: "This month" }) : null),
+      el("div", { class: "su-left" },
+        el("span", { class: "su-left-label", text: "Left to pay" }),
+        pane.leftValue, pane.leftMissing, pane.leftMeta),
+      pane.statusEl, pane.emptyEl, pane.table);
+
+    pane.setStatus = (text) => {
+      pane.statusEl.textContent = text || "";
+    };
+
+    // Brings the rows in line with the lines: new ones are made, gone ones removed, and a row with
+    // something unsaved keeps it (unless force).
+    pane.syncRows = (lines, opts) => {
+      const force = !!(opts && opts.force);
+      const byId = new Map(pane.rows.map((R) => [R.id, R]));
+      const next = [];
+      for (const line of lines) {
+        let R = byId.get(line.supplier.id);
+        if (R) {
+          byId.delete(R.id);
+          if (force || !isDirty(R)) {
+            R.server = line;
+            R.stale = null;
+            R.refused = null;
+            R.error = null;
+            R.fileError = null;
+            renameRow(R, line.supplier.name);
+            setAllUi(R, line);
+            renderFile(R);
+          } else {
+            renameRow(R, line.supplier.name);
+          }
         } else {
-          renameRow(R, line.supplier.name);
+          R = makeRow(pane, line);
         }
-      } else {
-        R = makeRow(line);
+        next.push(R);
       }
-      next.push(R);
-    }
-    for (const R of byId.values()) R.dead = true;
-    rows = next;
-    const body = $("suRows");
-    body.replaceChildren();
-    for (const R of rows) {
-      body.append(R.tr, R.msgTr);
-      renderMsg(R);
-    }
+      for (const R of byId.values()) R.dead = true;
+      pane.rows = next;
+      pane.tbody.replaceChildren();
+      for (const R of pane.rows) {
+        pane.tbody.append(R.tr, R.detailTr, R.msgTr);
+        renderMsg(R);
+      }
+    };
+
+    pane.renderAfterSync = () => {
+      const has = pane.rows.length > 0;
+      pane.table.hidden = !has;
+      pane.emptyEl.hidden = has;
+      pane.emptyEl.textContent = has ? "" :
+        `No ${K.many} are listed for ${label}.` + (canEdit && slot === 1 ? ` Add one with Add ${K.one} below.` : "");
+      pane.updateSummary();
+    };
+
+    pane.counts = () => {
+      const c = { have: 0, waiting: 0, na: 0, listed: pane.rows.length, totalCents: 0, withTotal: 0, reconciled: 0, paid: 0, myob: 0, leftCents: 0, missing: 0 };
+      for (const R of pane.rows) {
+        const l = R.server;
+        if (c[l.state] != null) c[l.state]++;
+        if (l.totalCents != null) {
+          c.totalCents += l.totalCents;
+          c.withTotal++;
+        }
+        if (!l.paid && l.state !== "na" && l.totalCents != null) c.leftCents += l.totalCents;
+        if (isMissing(l)) c.missing++;
+        for (const [k] of TICKS) if (l[k]) c[k]++;
+      }
+      return c;
+    };
+
+    pane.updateSummary = () => {
+      if (!pane.month) {
+        pane.leftValue.textContent = DASH;
+        pane.leftMissing.textContent = "";
+        pane.leftMeta.textContent = "";
+        return;
+      }
+      const c = pane.counts();
+      pane.leftValue.textContent = P.dollars(c.leftCents);
+      pane.leftMissing.textContent = c.missing
+        ? `${c.missing} missing ${DASH} total not final`
+        : "";
+      pane.leftMeta.textContent = c.listed
+        ? `${countsLine(c)}. Statements ${P.dollars(c.totalCents)}. Paid ${c.paid} of ${c.listed}.`
+        : "";
+    };
+
+    pane.load = async (opts) => {
+      const seq = ++pane.loadSeq;
+      pane.setStatus("Loading...");
+      try {
+        const m = await call("GET", `${K.api}/months/${period}`);
+        if (seq !== pane.loadSeq) return;
+        pane.month = m;
+        pane.setStatus(opts && opts.notice ? opts.notice : "");
+        pane.syncRows(m.lines || []);
+        pane.renderAfterSync();
+      } catch (e) {
+        if (seq !== pane.loadSeq) return;
+        pane.month = null;
+        for (const R of pane.rows) R.dead = true;
+        pane.rows = [];
+        pane.tbody.replaceChildren();
+        pane.table.hidden = true;
+        pane.emptyEl.hidden = true;
+        pane.setStatus(`Couldn't load ${label}: ${e.message}`);
+        pane.updateSummary();
+      }
+    };
+
+    // Again, after a change to the suppliers (unsaved lines keep their values).
+    pane.refresh = async () => {
+      const seq = ++pane.loadSeq;
+      const m = await call("GET", `${K.api}/months/${period}`);
+      if (seq !== pane.loadSeq) return;
+      pane.month = m;
+      pane.setStatus("");
+      pane.syncRows(m.lines || []);
+      pane.renderAfterSync();
+    };
+
+    pane.kill = () => {
+      pane.loadSeq++;
+      for (const R of pane.rows) {
+        R.dead = true;
+        clearTimeout(R.stTimer);
+      }
+      pane.rows = [];
+    };
+    return pane;
   }
 
-  function renderAfterSync() {
-    const has = rows.length > 0;
-    $("suTableWrap").hidden = !has;
-    const empty = $("suEmpty");
-    empty.hidden = has;
-    empty.textContent = has ? "" :
-      `No ${K.many} are listed for ${P.longLabel(period)}.` + (canEdit ? ` Add one with Add ${K.one} below.` : "");
-    updateFooter();
+  // A column for a month there is no list for (before the history starts, or after next month).
+  function makeGap(period, slot) {
+    const before = period < P.HISTORY_START;
+    return el("section", { class: `su-col su-col-gap su-col-${["before", "centre", "after"][slot]}` },
+      el("div", { class: "su-col-head" }, el("h2", { class: "su-col-month", text: P.longLabel(period) })),
+      el("p", {
+        class: "su-empty",
+        text: before
+          ? `The lists start in ${P.longLabel(P.HISTORY_START)}.`
+          : "Next month is the furthest ahead the lists go.",
+      }));
   }
 
-  function counts() {
-    const c = { have: 0, waiting: 0, na: 0, listed: rows.length, totalCents: 0, withTotal: 0, reconciled: 0, paid: 0, myob: 0 };
-    for (const R of rows) {
-      const l = R.server;
-      if (c[l.state] != null) c[l.state]++;
-      if (l.totalCents != null) {
-        c.totalCents += l.totalCents;
-        c.withTotal++;
-      }
-      for (const [k] of TICKS) if (l[k]) c[k]++;
-    }
-    return c;
-  }
   function countsLine(c) {
     return `Have ${c.have}, Waiting ${c.waiting}, N/A ${c.na} of ${c.listed}`;
   }
 
-  function updateFooter() {
-    const tr = $("suFoot");
-    if (!rows.length) {
-      tr.replaceChildren();
-      return;
-    }
-    const c = counts();
-    tr.replaceChildren(
-      el("th", { scope: "row", colspan: "2", class: "su-foot-counts", text: countsLine(c) }),
-      el("td", { class: "num su-foot-total", text: P.dollars(c.totalCents) }),
-      ...TICKS.map(([k, label]) => el("td", { class: "su-c-tick su-foot-tick", text: `${c[k]} of ${c.listed}`, title: label })),
-      el("td", { colspan: "2" })
-    );
-  }
-
-  async function loadMonth(p, opts) {
-    const seq = ++loadSeq;
-    period = p;
-    // The month object is the old month's until the new one arrives: without it the buttons go
-    // from the month being loaded (within the history and this month).
-    month = null;
+  async function showMonths(p, opts) {
+    for (const pn of panes) if (pn) pn.kill();
+    centre = p;
     if (!(opts && opts.keepUrl)) syncUrl();
     renderHeader();
-    const status = $("suStatus");
-    status.hidden = false;
-    status.textContent = "Loading...";
-    try {
-      const m = await call("GET", `${K.api}/months/${p}`);
-      if (seq !== loadSeq) return;
-      month = m;
-      status.textContent = opts && opts.notice ? opts.notice : "";
-      status.hidden = !status.textContent;
-      renderHeader();
-      if (opts && opts.fresh) {
-        for (const R of rows) R.dead = true;
-        rows = [];
+    const cols = $("suCols");
+    cols.replaceChildren();
+    panes = [-1, 0, 1].map((d, slot) => {
+      const per = P.addMonths(p, d);
+      if (!inRange(per)) {
+        cols.append(makeGap(per, slot));
+        return null;
       }
-      syncRows(m.lines || []);
-      renderAfterSync();
-    } catch (e) {
-      if (seq !== loadSeq) return;
-      month = null;
-      for (const R of rows) R.dead = true;
-      rows = [];
-      $("suRows").replaceChildren();
-      $("suTableWrap").hidden = true;
-      $("suEmpty").hidden = true;
-      status.hidden = false;
-      status.textContent = `Couldn't load ${P.longLabel(p)}: ${e.message}`;
-      renderHeader();
-    }
+      const pn = makePane(per, slot);
+      cols.append(pn.root);
+      return pn;
+    });
+    await Promise.all(panes.map((pn) => pn && pn.load(pn.slot === 1 ? { notice: opts && opts.notice } : null)));
   }
 
   async function goMonth(to) {
-    if (!to || !inRange(to) || to === period) return;
+    if (!to || !inRange(to) || to === centre) return;
     if (!(await confirmLeave())) return;
-    await loadMonth(to, { fresh: true });
+    await showMonths(to);
   }
 
   // ------------------------------------------------------- the suppliers list ---
@@ -1028,19 +1202,10 @@
     });
   }
 
-  // After a change to the suppliers: the list and the month again (unsaved lines keep their values).
+  // After a change to the suppliers: the list and the three months again.
   async function afterSupplierChange() {
     await settle();
-    await Promise.all([loadSuppliers(), refreshMonth()]);
-  }
-  async function refreshMonth() {
-    const seq = ++loadSeq;
-    const m = await call("GET", `${K.api}/months/${period}`);
-    if (seq !== loadSeq) return;
-    month = m;
-    renderHeader();
-    syncRows(m.lines || []);
-    renderAfterSync();
+    await Promise.all([loadSuppliers(), ...panes.map((pn) => pn && pn.refresh())]);
   }
 
   async function setArchived(s, archived) {
@@ -1055,7 +1220,7 @@
   function openAdd() {
     $("suAddError").textContent = "";
     $("suAddName").value = "";
-    $("suAddNote").textContent = `Listed from ${P.longLabel(period)} (the month on screen) on.`;
+    $("suAddNote").textContent = `Listed from ${P.longLabel(centre)} (the centre month) on.`;
     $("suAddOk").disabled = false;
     $("suAddDlg").showModal();
     $("suAddName").focus();
@@ -1074,11 +1239,12 @@
     ok.disabled = true;
     $("suAddError").textContent = "";
     try {
-      const s = await call("POST", K.api, { name, fromPeriod: period });
+      const s = await call("POST", K.api, { name, fromPeriod: centre });
       $("suAddDlg").close();
       toast(`Added ${s.name}.`);
       await afterSupplierChange();
-      const R = rows.find((x) => x.id === s.id);
+      const cp = centrePane();
+      const R = cp ? cp.rows.find((x) => x.id === s.id) : null;
       if (R && canEdit) (R.radios[R.server.state] || R.totalIn).focus();
       else $("suAdd").focus();
     } catch (err) {
@@ -1133,21 +1299,23 @@
   // ------------------------------------------------------------- the prints ---
 
   function printTitle() {
-    return `${K.title} ${P.longLabel(period)}`;
+    return `${K.title} ${P.longLabel(centre)}`;
   }
 
-  // The month's list as saved, for paper.
+  // The centre month's list as saved, for paper.
   function buildPrint() {
     const box = $("suPrintMonth");
     box.replaceChildren();
+    const pane = centrePane();
+    const rows = pane ? pane.rows : [];
     const head = el("div", { class: "su-p-head" },
       el("div", null,
         el("h1", { class: "su-p-h1", text: K.title }),
-        el("p", { class: "su-p-month", text: P.longLabel(period) })),
+        el("p", { class: "su-p-month", text: P.longLabel(centre) })),
       el("p", { class: "su-p-meta", text: `Printed ${longDate(todayISO())}` }));
     box.append(head);
     if (!rows.length) {
-      box.append(el("p", { class: "su-p-empty", text: `No ${K.many} are listed for ${P.longLabel(period)}.` }));
+      box.append(el("p", { class: "su-p-empty", text: `No ${K.many} are listed for ${P.longLabel(centre)}.` }));
       return;
     }
     const table = el("table", { class: "su-p-table" });
@@ -1170,7 +1338,7 @@
       tr.append(el("td", { class: "su-p-note", text: l.note || "" }));
       tb.append(tr);
     }
-    const c = counts();
+    const c = pane.counts();
     const ft = el("tfoot", null, el("tr", null,
       el("th", { scope: "row", colspan: "2", text: countsLine(c) }),
       el("td", { class: "su-p-num", text: P.dollars(c.totalCents) }),
@@ -1178,7 +1346,7 @@
       el("td")));
     table.append(cols, el("thead", null, hr), tb, ft);
     box.append(table);
-    box.append(el("p", { class: "su-p-foot", text: `${countsLine(c)}. Total of the statements: ${P.dollars(c.totalCents)}. Reconciled ${c.reconciled}, Paid ${c.paid}, Entered in MYOB ${c.myob} of ${c.listed}.` }));
+    box.append(el("p", { class: "su-p-foot", text: `${countsLine(c)}. Total of the statements: ${P.dollars(c.totalCents)}. Left to pay: ${P.dollars(c.leftCents)}. Reconciled ${c.reconciled}, Paid ${c.paid}, Entered in MYOB ${c.myob} of ${c.listed}.` }));
   }
 
   let titleBeforePrint = null;
@@ -1282,6 +1450,7 @@
   function wire() {
     $("suPrev").addEventListener("click", () => goMonth($("suPrev").dataset.to));
     $("suNext").addEventListener("click", () => goMonth($("suNext").dataset.to));
+    $("suToday").addEventListener("click", () => goMonth(defaultPeriod()));
     $("suPrint").addEventListener("click", once($("suPrint"), printMonth));
     $("suBlank").addEventListener("click", async (e) => {
       // Leaving the page: let a focused field save first, and ask about anything unsaved.
@@ -1311,7 +1480,7 @@
     window.addEventListener("afterprint", afterPrint);
     window.addEventListener("beforeunload", (e) => {
       if (leaving) return;
-      for (const R of rows) flushState(R); // a state chosen by arrow keys starts saving now
+      for (const R of allRows()) flushState(R); // a state chosen by arrow keys starts saving now
       if (dirtyRows().length) {
         e.preventDefault();
         e.returnValue = "";
@@ -1332,14 +1501,19 @@
     wire();
     $("suMonthView").hidden = false;
     $("suManage").hidden = !canEdit;
+    if (isAdmin()) {
+      const a = $("suAudit");
+      a.href = `/audit.html?entityType=${encodeURIComponent(K.entity)}`;
+      $("suAuditBox").hidden = false;
+    }
     const asked = params.get("period");
     let notice = "";
     let p = defaultPeriod();
     if (asked) {
       if (inRange(asked)) p = asked;
-      else notice = `There is no ${K.one} list for that month (they go from ${P.label(P.HISTORY_START)} to this month); showing ${P.longLabel(p)}.`;
+      else notice = `There is no ${K.one} list for that month (they go from ${P.label(P.HISTORY_START)} to next month); showing ${P.longLabel(p)}.`;
     }
-    await Promise.all([loadMonth(p, { notice }), loadSuppliers()]);
+    await Promise.all([showMonths(p, { notice }), loadSuppliers()]);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

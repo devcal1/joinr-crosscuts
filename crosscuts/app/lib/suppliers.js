@@ -68,10 +68,14 @@ function supplierName(v) {
   return t;
 }
 
-// A :period outside HISTORY_START .. the current month is a 404 (section 7.2).
+// A :period outside HISTORY_START .. next month is a 404 (section 7.2; next month allowed, approved
+// by Todd 2026-10-24).
+function lastPeriod(today) {
+  return Periods.addMonths(Periods.currentPeriod(today), 1);
+}
 function periodOr404(period, today) {
   if (!Periods.validPeriod(period)) throw notFound();
-  if (period < Periods.HISTORY_START || period > Periods.currentPeriod(today)) throw notFound();
+  if (period < Periods.HISTORY_START || period > lastPeriod(today)) throw notFound();
   return period;
 }
 
@@ -252,9 +256,9 @@ function create(db, req, { name, fromPeriod } = {}) {
       typeof fromPeriod !== "string" ||
       !Periods.validPeriod(fromPeriod) ||
       fromPeriod < Periods.HISTORY_START ||
-      fromPeriod > current
+      fromPeriod > Periods.addMonths(current, 1)
     ) {
-      throw bad(`Choose a month from ${Periods.label(Periods.HISTORY_START)} to this month`);
+      throw bad(`Choose a month from ${Periods.label(Periods.HISTORY_START)} to next month`);
     }
     from = fromPeriod;
   }
@@ -372,12 +376,12 @@ function month(db, period, today = sydneyToday()) {
     if (l.totalCents != null) totalCents += l.totalCents;
     for (const t of TICKS) if (l[t]) ticks[t] += 1;
   }
-  const current = Periods.currentPeriod(today);
+  const last = lastPeriod(today);
   return {
     period,
     label: Periods.longLabel(period),
     prev: period > Periods.HISTORY_START ? Periods.addMonths(period, -1) : null,
-    next: period < current ? Periods.addMonths(period, 1) : null,
+    next: period < last ? Periods.addMonths(period, 1) : null,
     lines,
     counts,
     totalCents,

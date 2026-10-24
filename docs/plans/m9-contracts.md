@@ -239,7 +239,7 @@ function waitingCount(db, period);                     // number, for the round-
 
 ### 7.2 Routes (`routes/suppliers.js`, `defineRoutes('/api/suppliers')`)
 
-Literal paths (`/months`) are registered before `/:id`. A `:period` that isn't valid, is before `HISTORY_START` or after the current month → 404.
+Literal paths (`/months`) are registered before `/:id`. A `:period` that isn't valid, is before `HISTORY_START` or after next month → 404 (next month allowed, approved by Todd 2026-10-24).
 
 | Method & path | Access | Body / query → response |
 |---|---|---|
@@ -255,7 +255,7 @@ Literal paths (`/months`) are registered before `/:id`. A `:period` that isn't v
 
 - **supplier:** `{id, name, fromPeriod, archivedFrom, archived: bool}` (`archived` = `archivedFrom` not null).
 - **line:** `{supplier: {id, name}, period, state: 'have'|'waiting'|'na', totalCents, note, reconciled, paid, myob, file: <files.toFile>|null, saved: bool, updatedAt: string|null, updatedBy: {id, name}|null}`. A listed supplier with no row: `state 'waiting'`, blanks, `saved: false`, `updatedAt: null`.
-- **month object:** `{period, label, prev, next, lines: [line by supplier name], counts: {have, waiting, na, listed}, totalCents: Σ totalCents of lines that have one, ticks: {reconciled, paid, myob}}`. `prev` null at `HISTORY_START`, `next` null at the current month.
+- **month object:** `{period, label, prev, next, lines: [line by supplier name], counts: {have, waiting, na, listed}, totalCents: Σ totalCents of lines that have one, ticks: {reconciled, paid, myob}}`. `prev` null at `HISTORY_START`, `next` null at next month (next month allowed, approved by Todd 2026-10-24).
 
 `PUT` body: `{state, totalCents, note, reconciled, paid, myob, updatedAt}`.
 - `updatedAt` must equal the line's (`null` for a never-saved line): else 409 `{error: "Someone else changed this line; reload it", line}`.
@@ -303,7 +303,7 @@ Both pass `node ci/style-check.js`, follow the house style (`tokens.css`, `compo
 
 ### 9.2 `/suppliers.html[?period=2026-09][&print=blank]` (D, prefix `su-`)
 
-- **Header:** "Supplier accounts", the month (`longLabel`), previous / next month buttons (from `HISTORY_START` to the current month; the default is the **previous** month, as statements arrive after month end), **Print**, **Print blank form**.
+- **Header:** "Supplier accounts", the centre month (`longLabel`), Previous month / This month / Next month buttons (the centre goes from `HISTORY_START` to next month; the default is the **current** month). The page shows three months side by side as compact lists (the month before, the centre month, the month after; Option B, approved by Todd 2026-10-24), each with "Left to pay" (the totals of unpaid lines that are not N/A) and an orange "N missing" line; every month is editable. **Print** and **Print blank form** are the centre month's. An admin sees an Audit log link to `/audit.html?entityType=<statement entity>`.
 - **The month's list:** one row per listed supplier, alphabetical: Supplier, **Have statement / Waiting / N/A** (a three-way choice), **Total** (typed in dollars), **Reconciled**, **Paid**, **Entered in MYOB** (ticks), Note, Statement (the file's name linking to its `url`, opening in a new tab; **Attach** / **Replace** / **Remove** for `invoices.edit`, accepting `.pdf,.jpg,.jpeg,.png`: what `lib/files.js` allows for a statement; `.webp` and `.heic` dropped at 4.1, Todd 2026-10-12).
   - Each line saves on its own (a change commits on blur or on choosing; one request per line, the `updatedAt` it last saw). A 409 shows its sentence on that row with **Reload**. A refused value outlines the cell in orange with the sentence beside the row.
   - The footer: "Have 12, Waiting 3, N/A 2 of 17", the sum of the totals, and the tick counts.

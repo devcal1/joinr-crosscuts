@@ -23,7 +23,7 @@ function idOr404(v) {
   return id;
 }
 
-// A :period that isn't 'YYYY-MM' is a 404. (The range check, HISTORY_START to the current month,
+// A :period that isn't 'YYYY-MM' is a 404. (The range check, HISTORY_START to next month,
 // is lib/suppliers.js's, section 7.2.)
 function periodOr404(v) {
   if (!Periods.validPeriod(v)) throw notFound();

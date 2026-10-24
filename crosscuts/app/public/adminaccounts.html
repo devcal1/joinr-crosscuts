@@ -17,8 +17,9 @@
     <div id="suMonthView" hidden>
       <div class="su-head">
         <h1><span class="su-kicker">Admin accounts</span> <span id="suMonth"></span></h1>
-        <div class="su-nav" role="group" aria-label="Month">
+        <div class="su-nav" role="group" aria-label="Months">
           <button id="suPrev" class="hs-btn" type="button">Previous month</button>
+          <button id="suToday" class="hs-btn" type="button">This month</button>
           <button id="suNext" class="hs-btn" type="button">Next month</button>
         </div>
         <div class="su-actions" role="group" aria-label="Print">
@@ -27,29 +28,9 @@
         </div>
       </div>
       <p id="suMeta" class="su-meta"></p>
-      <p id="suStatus" class="su-status" role="status" aria-live="polite">Loading...</p>
 
-      <p id="suEmpty" class="su-empty" hidden></p>
-      <div id="suTableWrap" class="su-tablewrap" hidden>
-        <table class="su-table" id="suTable">
-          <thead>
-            <tr>
-              <th scope="col" class="su-c-name">Account</th>
-              <th scope="col" class="su-c-state">Statement</th>
-              <th scope="col" class="su-c-total num">Total</th>
-              <th scope="col" class="su-c-tick">Reconciled</th>
-              <th scope="col" class="su-c-tick">Paid</th>
-              <th scope="col" class="su-c-tick">Entered in MYOB</th>
-              <th scope="col" class="su-c-note">Note</th>
-              <th scope="col" class="su-c-file">Statement file</th>
-            </tr>
-          </thead>
-          <tbody id="suRows"></tbody>
-          <tfoot>
-            <tr id="suFoot"></tr>
-          </tfoot>
-        </table>
-      </div>
+      <!-- Three months side by side: the month before, the centre month, the month after -->
+      <div id="suCols" class="su-cols"></div>
       <p id="suLive" class="su-sr" role="status" aria-live="polite"></p>
 
       <section id="suManage" class="su-manage" aria-labelledby="suManageTitle" hidden>
@@ -64,6 +45,8 @@
         <p id="suManageStatus" class="su-status" role="status" aria-live="polite"></p>
         <ul id="suSupplierList" class="su-slist"></ul>
       </section>
+
+      <p id="suAuditBox" class="su-audit" hidden><a id="suAudit" href="/audit.html">Audit log: admin accounts changes</a> <span class="su-audit-note">(admins only)</span></p>
 
       <!-- Print of the month (hidden on screen, built from the saved lines) -->
       <section id="suPrintMonth" class="su-printmonth" aria-hidden="true"></section>

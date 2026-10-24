@@ -178,6 +178,7 @@
       const sel = $("f-action");
       const keep = sel.value;
       for (const a of actions) {
+        if ([...sel.options].some((x) => x.value === a)) continue; // one named in the address
         const o = document.createElement("option");
         o.value = a;
         o.textContent = a;
@@ -215,6 +216,24 @@
     state.offset += PAGE_SIZE;
     load();
   });
+
+  // Filters can be named in the address (/audit.html?entityType=supplier_statement), as the
+  // accounts pages link here: they fill the form and the search runs with them.
+  const FROM_URL = { actor: "f-actor", entityType: "f-etype", entityId: "f-eid", from: "f-from", to: "f-to" };
+  const urlParams = new URLSearchParams(location.search);
+  for (const [k, id] of Object.entries(FROM_URL)) {
+    const v = urlParams.get(k);
+    if (v) $(id).value = v;
+  }
+  const urlAction = urlParams.get("action");
+  if (urlAction) {
+    // the dropdown fills later; an option for it now keeps the filter until it does
+    const o = document.createElement("option");
+    o.value = urlAction;
+    o.textContent = urlAction;
+    $("f-action").appendChild(o);
+    $("f-action").value = urlAction;
+  }
 
   loadActions();
   load();
