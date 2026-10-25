@@ -322,7 +322,10 @@
     // Corners (Todd, 2026-10-25): a rounded external corner is drawn as an arc with a leader to it
     // labelled "R100"; every external corner is clickable on screen.
     o.pts.forEach((P, i) => {
-      if (!o.convex[i]) return;
+      if (!o.convex[i]) {
+        if (!opts.print) g.append(node("circle", { cx: P[0], cy: P[1], r: 14 * u, class: "bt-chit", "data-corner": i, "data-internal": "1", "data-piece": pi }));
+        return;
+      }
       const c = cornerGeom(o, i, radius(p, i));
       const sel = opts.selCorner === i;
       if (c.r) {
@@ -336,7 +339,7 @@
       }
       if (!opts.print) {
         if (sel) g.append(node("circle", { cx: c.mid[0], cy: c.mid[1], r: 5 * u, class: "bt-node" }));
-        g.append(node("circle", { cx: c.mid[0], cy: c.mid[1], r: 9 * u, class: "bt-chit", "data-corner": i, "data-piece": pi }));
+        g.append(node("circle", { cx: c.mid[0], cy: c.mid[1], r: 14 * u, class: "bt-chit", "data-corner": i, "data-piece": pi }));
       }
     });
 

@@ -24,13 +24,13 @@ The plan follows the usual stone-drawing convention: every edge is a thin unbrok
 - **X** unfinished, against a wall or panel. **//** finished and seen (arris, pencil round, bullnose). **[]** seen and finished square.
 - **Edges:** click an edge, then choose its finish on the right.
 - **Thicker edges:** if an edge is built up (say 40 mm on a 20 mm top), type it under Edge thickness. It draws bold, and the legend says what bold means.
-- **Waterfall:** on an end edge, choose **Waterfall** and type the drop height (mm). It shows as "WF 870".
+- **Waterfall:** on an end edge, choose **Waterfall** and type the drop height (mm) in the box that opens. It shows as "WF 870".
 - **Joins:** click **Place join**, then click along a run (drawn dashed). Adjust the position on the right.
 - **Cut-outs:** select a piece and click **Add cut-out**, then choose what it is (sink, cooktop, tap hole, other). Cut-outs are drawn dashed and labelled; their sizes are not shown. If a cut-out's position matters, tick **Show location**: it is dimensioned from the piece's one reference edge (marked REF). Change the reference edge under the piece, or with **Make this the reference edge** on a selected edge.
 
 ## Rounded corners
 
-Click an outside corner on the drawing and type its radius in mm on the right (0 = square). It is drawn rounded with a leader to "R100", on screen and on the plan. Inside corners of an L or U can't be rounded. The limit is half the shorter of the two edges meeting at the corner. Lengths are still measured to the square corner, and the area counts the square outline.
+Right-click an outside corner on the drawing (on a tablet, press and hold) and choose **Radius…**, then type the radius in mm and press Save (or Enter). **Remove radius** squares it again. It is drawn rounded with a leader to "R100", on screen and on the plan. Inside corners of an L or U can't be rounded. The limit is half the shorter of the two edges meeting at the corner. Lengths are still measured to the square corner, and the area counts the square outline.
 
 ## Totals
 

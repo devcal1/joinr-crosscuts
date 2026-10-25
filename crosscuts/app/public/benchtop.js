@@ -172,6 +172,8 @@
     st.drawn = { svg, set: all, u };
     svg.addEventListener("click", onCanvasClick);
     svg.addEventListener("pointerdown", onPointerDown);
+    svg.addEventListener("contextmenu", onContextMenu);
+    svg.addEventListener("pointerdown", onCornerPress);
     box.replaceChildren(svg);
   }
 
@@ -349,18 +351,133 @@
     return el("div", { class: "bt-sect" }, el("h2", { text: title }), ...kids);
   }
 
-  function askDrop(p, key) {
-    const cur = (p.drops && p.drops[key]) || 870;
-    const v = window.prompt("Waterfall drop height (mm)", String(cur));
-    if (v === null) return false;
-    const n = Math.round(Number(v));
-    if (!Number.isFinite(n) || n < 50 || n > 1500) {
-      setStatus("The drop must be 50 to 1500 mm.", true);
-      return false;
-    }
+  // A small house-style dialog for one number in mm (Todd, 2026-10-25: no browser prompts).
+  // Resolves the number, or null when cancelled. Enter saves, Esc cancels.
+  function askNumber(o) {
+    return new Promise((resolve) => {
+      const input = el("input", { class: "hs-input", type: "number", inputmode: "numeric", min: o.min, max: o.max, step: 1, value: String(o.value), id: "btAskInput" });
+      const err = el("p", { class: "cc-dialog-error", role: "alert" });
+      const dlg = el("dialog", { class: "cc-dialog bt-dialog", "aria-labelledby": "btAskTitle" });
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); };
+      const save = () => {
+        const n = Math.round(Number(input.value));
+        if (!input.value || !Number.isFinite(n) || n < o.min || n > o.max) {
+          err.textContent = "Type a whole number from " + o.min + " to " + o.max + " mm.";
+          input.focus();
+          return;
+        }
+        finish(n);
+      };
+      const form = el("form", { class: "cc-dialog-form", method: "dialog", onsubmit: (ev) => { ev.preventDefault(); save(); } },
+        el("h2", { class: "cc-dialog-title", id: "btAskTitle", text: o.title }),
+        o.note ? el("p", { class: "cc-dialog-note", text: o.note }) : null,
+        el("label", { class: "bt-f", for: "btAskInput" }, el("span", { class: "hs-label", text: o.label + " (" + o.min + " to " + o.max + " mm)" })),
+        input,
+        err,
+        el("div", { class: "cc-dialog-actions" },
+          el("button", { type: "button", class: "hs-btn", text: "Cancel", onclick: () => finish(null) }),
+          el("button", { type: "submit", class: "hs-btn hs-btn-primary", text: "Save" })));
+      dlg.append(form);
+      dlg.addEventListener("cancel", (ev) => { ev.preventDefault(); finish(null); });
+      document.body.append(dlg);
+      dlg.showModal();
+      input.focus();
+      input.select();
+    });
+  }
+
+  async function askDrop(p, key) {
+    const n = await askNumber({ title: "Waterfall", note: "The drop height of this waterfall end.", label: "Drop height", value: (p.drops && p.drops[key]) || 870, min: 50, max: 1500 });
+    if (n == null) return false;
     p.drops = p.drops || {};
     p.drops[key] = n;
     return true;
+  }
+
+  // ---- corners: right-click (or long-press) menu, then the radius dialog ----------------------
+
+  function closeMenu() {
+    const m = document.getElementById("btMenu");
+    if (m) m.remove();
+  }
+
+  function cornerInfo(p, i) {
+    const o = D.outline(p);
+    const a = o.edges[(i - 1 + o.edges.length) % o.edges.length];
+    const b = o.edges[i];
+    return { o, a, b, max: Math.floor(Math.min(a.len, b.len) / 2), internal: !o.convex[i] };
+  }
+
+  function openCornerMenu(pi, i, x, y) {
+    closeMenu();
+    const p = st.design.pieces[pi];
+    if (!p) return;
+    const c = cornerInfo(p, i);
+    st.sel = pi;
+    st.selCorner = i;
+    st.selEdge = null;
+    st.selCut = null;
+    renderAll();
+    const cur = p.radii && p.radii["c" + i];
+    const box = $("btCanvas");
+    const r = box.getBoundingClientRect();
+    const items = [];
+    if (c.internal) {
+      items.push(el("button", { type: "button", class: "bt-mi", role: "menuitem", disabled: true, text: "Radius…" }),
+        el("p", { class: "bt-mnote", text: "Inside corners can't be rounded." }));
+    } else {
+      items.push(el("button", { type: "button", class: "bt-mi", role: "menuitem", text: "Radius…", onclick: () => { closeMenu(); editRadius(pi, i); } }));
+      if (cur) items.push(el("button", { type: "button", class: "bt-mi", role: "menuitem", text: "Remove radius", onclick: () => { closeMenu(); delete p.radii["c" + i]; changed(); } }));
+    }
+    const menu = el("div", { class: "bt-menu", id: "btMenu", role: "menu", "aria-label": "Corner" }, ...items);
+    menu.style.left = Math.min(Math.max(0, x - r.left), r.width - 170) + "px";
+    menu.style.top = Math.min(Math.max(0, y - r.top), r.height - 90) + "px";
+    box.append(menu);
+    const first = menu.querySelector("button:not([disabled])");
+    if (first) first.focus();
+  }
+
+  async function editRadius(pi, i) {
+    const p = st.design.pieces[pi];
+    const c = cornerInfo(p, i);
+    const cur = (p.radii && p.radii["c" + i]) || Math.min(100, c.max);
+    const n = await askNumber({
+      title: "Corner radius",
+      note: "Piece " + D.letter(pi) + ", between the " + c.a.name.toLowerCase() + " and the " + c.b.name.toLowerCase() + ". Up to half the shorter of the two edges.",
+      label: "Radius", value: cur, min: 1, max: c.max,
+    });
+    if (n == null) return;
+    p.radii = p.radii || {};
+    p.radii["c" + i] = n;
+    st.sel = pi;
+    st.selCorner = i;
+    changed();
+  }
+
+  function cornerTarget(ev) {
+    const t = ev.target;
+    return t && t.dataset && t.dataset.corner != null ? { pi: Number(t.dataset.piece), i: Number(t.dataset.corner) } : null;
+  }
+
+  function onContextMenu(ev) {
+    const c = cornerTarget(ev);
+    if (!c || st.readOnly) return;
+    ev.preventDefault();
+    openCornerMenu(c.pi, c.i, ev.clientX, ev.clientY);
+  }
+
+  let pressTimer = null;
+  function onCornerPress(ev) {
+    const c = cornerTarget(ev);
+    if (!c || st.readOnly || ev.pointerType !== "touch") return;
+    clearTimeout(pressTimer);
+    const x = ev.clientX;
+    const y = ev.clientY;
+    pressTimer = setTimeout(() => openCornerMenu(c.pi, c.i, x, y), 550);
+    const cancel = () => { clearTimeout(pressTimer); ev.target.removeEventListener("pointerup", cancel); ev.target.removeEventListener("pointermove", cancel); };
+    ev.target.addEventListener("pointerup", cancel);
+    ev.target.addEventListener("pointermove", cancel);
   }
 
 
@@ -403,8 +520,8 @@
     if (!e) return null;
     const cur = p.edges[e.key] != null ? p.edges[e.key] : null;
     const opts = st.rev ? Object.values(st.finishes) : st.lists.finishes.filter((f) => f.active || f.id === cur);
-    const choose = (f) => {
-      if (f.waterfall && !askDrop(p, e.key)) return;
+    const choose = async (f) => {
+      if (f.waterfall && !(await askDrop(p, e.key))) return;
       if (!f.waterfall && p.drops) delete p.drops[e.key];
       p.edges[e.key] = f.id;
       changed();
@@ -451,15 +568,10 @@
     if (i == null || !o.convex[i]) return null;
     const a = o.edges[(i - 1 + o.edges.length) % o.edges.length];
     const b = o.edges[i];
-    const max = Math.floor(Math.min(a.len, b.len) / 2);
-    p.radii = p.radii || {};
-    const cur = p.radii["c" + i] || 0;
+    const cur = (p.radii && p.radii["c" + i]) || 0;
     return section("Selected corner",
       el("div", { class: "bt-note", text: "Piece " + D.letter(st.sel) + " · between the " + a.name.toLowerCase() + " and the " + b.name.toLowerCase() }),
-      field("Radius (mm, 0 = square, up to " + max + ")", numInput(cur, (v) => {
-        if (v <= 0) delete p.radii["c" + i];
-        else p.radii["c" + i] = Math.min(v, max);
-      })));
+      el("p", { class: "bt-totals", text: (cur ? "Radius R" + cur : "Square corner") + " · right-click the corner to change it" }));
   }
 
   function pieceSection(p, o) {
@@ -727,6 +839,8 @@
   $("btSave").addEventListener("click", save);
   $("btPrint").addEventListener("click", print);
   $("btNotes").addEventListener("input", (ev) => { st.notes = ev.target.value; markDirty(); });
+  document.addEventListener("pointerdown", (ev) => { if (!ev.target.closest("#btMenu")) closeMenu(); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeMenu(); });
   window.addEventListener("resize", () => { if (!$("btMain").hidden) renderCanvas(); });
   window.addEventListener("beforeunload", (ev) => {
     if (st.dirty) { ev.preventDefault(); ev.returnValue = ""; }

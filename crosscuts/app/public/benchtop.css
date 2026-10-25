@@ -129,3 +129,11 @@ body.bt-body { margin: 0; background: var(--ink); color: var(--body); font-famil
 .bt-rlbl { fill: var(--white); font-weight: 700; pointer-events: none; }
 .bt-chit { fill: transparent; stroke: none; cursor: pointer; }
 .bt-chit:hover { fill: var(--teal-16); }
+/* the corner menu (right-click or long-press) and the number dialog (Todd, 2026-10-25) */
+.bt-menu { position: absolute; z-index: 3; min-width: 160px; padding: 4px; border: 1px solid var(--na); border-radius: var(--r-control); background: var(--surface); }
+.bt-mi { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--r-control); background: none; color: var(--white); font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: left; cursor: pointer; }
+.bt-mi:hover:not([disabled]), .bt-mi:focus-visible { background: var(--teal-16); color: var(--teal-tint); outline: none; }
+.bt-mi[disabled] { color: var(--muted); cursor: default; }
+.bt-mnote { margin: 0 10px 6px; color: var(--muted); font-size: 12px; }
+.cc-dialog.bt-dialog { width: min(92vw, 380px); }
+.bt-dialog .hs-input { width: 100%; }

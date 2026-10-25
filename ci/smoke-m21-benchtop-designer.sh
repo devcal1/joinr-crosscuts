@@ -16,6 +16,9 @@ req GET /benchtopprint.html "$DPM";   expect_status 200 "dpm GET /benchtopprint.
 req GET /benchtopprint.js "$DPM"
 case $BODY in *'class: "bp-key"'*) ok ;; *) fail "benchtopprint.js has no key" ;; esac
 case $BODY in *'class: "bp-tots"'*) ok ;; *) fail "benchtopprint.js has no totals block" ;; esac
+req GET /benchtop.js "$DPM"
+case $BODY in *'function askNumber'*'text: "Radius…"'*) ok ;; *) fail "benchtop.js has no corner menu or number dialog" ;; esac
+case $BODY in *'window.prompt('*) fail "benchtop.js still uses the browser prompt" ;; *) ok ;; esac
 req GET /tokens.css "$DPM"
 case $BODY in *'--bt-fill-g:'*'--bt-fill-5:'*) ok ;; *) fail "tokens.css has no plan-set fills" ;; esac
 req GET /benchtopadmin.html "$ADMIN"; expect_status 200 "admin GET /benchtopadmin.html"

@@ -40,7 +40,7 @@ Changed 2026-10-24 (Todd): the Waterfall leg piece was removed (it is now the Wa
 
 - `radii: {cN: mm}` on a piece: corner N is the vertex where edge N-1 meets edge N (clockwise from the top-left). External (convex) corners only; the server rejects internal corners of L and U (l: c3, lr: c4, u: c4 and c5). Limit: 1 mm to half the shorter of the two edges meeting there (so two rounded corners on one edge never meet); 0 or null = square.
 - Drawn rounded on screen and on paper, with a leader from the arc to the label "R100" (industry convention). Edge lengths, marks and totals stay to the notional square corner: lengths are measured to where the square corner would be, and the area is the square outline (the corner offcut is not deducted).
-- Click a corner on the drawing (All or single view) to set its radius in the panel. The print's pieces line counts them ("4 × R100").
+- Right-click a corner on the drawing (All or single view; long-press on touch) for a small menu: Radius… opens a house-style dialog (mm, the allowed range, Save/Cancel, Enter saves, Esc cancels); Remove radius when one is set. Inside corners show the item disabled with the reason. The panel only shows the corner's radius, read-only. The waterfall drop is asked in the same kind of dialog (no browser prompts). The print's pieces line counts them ("4 × R100").
 
 ## Revisions
 
