@@ -9,6 +9,26 @@ const SHAPES = { straight: 1, l: 2, lr: 2, u: 3 };
 const EDGE_COUNT = { straight: 4, l: 6, lr: 6, u: 8 };
 // The end edges of each shape: the only edges a waterfall finish may go on.
 const END_EDGES = { straight: ["e1", "e3"], l: ["e1", "e4"], lr: ["e2", "e5"], u: ["e2", "e6"] };
+// The internal (concave) corners of each shape, by vertex index: no radius there (Todd, 2026-10-25).
+const INTERNAL_CORNERS = { straight: [], l: [3], lr: [4], u: [4, 5] };
+
+// The edge lengths of a cleaned piece, in outline order (as public/benchtopdraw.js outline()).
+function edgeLengths(p) {
+  const R = p.runs;
+  let pts;
+  if (p.shape === "straight") pts = [[0, 0], [R[0].len, 0], [R[0].len, R[0].depth], [0, R[0].depth]];
+  else if (p.shape === "l") {
+    const [A, D1, B, D2] = [R[0].len, R[0].depth, R[1].len, R[1].depth];
+    pts = [[0, 0], [A, 0], [A, D1], [D2, D1], [D2, B], [0, B]];
+  } else if (p.shape === "lr") {
+    const [A, D1, B, D2] = [R[0].len, R[0].depth, R[1].len, R[1].depth];
+    pts = [[0, 0], [A, 0], [A, B], [A - D2, B], [A - D2, D1], [0, D1]];
+  } else {
+    const [A, D2, B1, D1, B2, D3] = [R[0].len, R[0].depth, R[1].len, R[1].depth, R[2].len, R[2].depth];
+    pts = [[0, 0], [A, 0], [A, B2], [A - D3, B2], [A - D3, D2], [D1, D2], [D1, B1], [0, B1]];
+  }
+  return pts.map((a, i) => { const b = pts[(i + 1) % pts.length]; return Math.round(Math.hypot(b[0] - a[0], b[1] - a[1])); });
+}
 const CUTOUT_KINDS = ["sink", "cooktop", "tap", "other"];
 const LINE_STYLES = ["heavy", "thin", "double", "dashed", "dotted"];
 // The finish marks drawn across an edge (Todd, 2026-10-25): X unfinished, // finished seen, [] square.
@@ -65,7 +85,7 @@ function cleanDesign(db, raw) {
   const ids = new Set();
   const pieces = d.pieces.map((p0, i) => {
     const p = obj(p0, `piece ${i + 1}`);
-    const what = `Piece ${i + 1}`;
+    const what = `Piece ${letterFor(i + 1)}`;
     if (typeof p.id !== "string" || !/^[a-z0-9]{1,12}$/.test(p.id) || ids.has(p.id)) throw bad(`${what}: a bad id`);
     ids.add(p.id);
     if (!Object.prototype.hasOwnProperty.call(SHAPES, p.shape)) throw bad(`${what}: shape must be straight, l, lr or u`);
@@ -122,6 +142,21 @@ function cleanDesign(db, raw) {
     const dm = typeof p.datum === "string" ? /^e(\d)$/.exec(p.datum) : null;
     if (p.datum != null && (!dm || Number(dm[1]) >= EDGE_COUNT[p.shape])) throw bad(`${what}: unknown reference edge`);
     out.datum = p.datum == null ? "e0" : p.datum;
+    // Corner radii {cN: mm}: external corners only, 1 to half the shorter of the two edges that
+    // meet there (so two rounded corners on one edge never meet). 0 or null = square.
+    const radii = {};
+    const r0 = p.radii === undefined || p.radii === null ? {} : obj(p.radii, `${what} corner radii`);
+    const lens = edgeLengths(out);
+    for (const [k, v] of Object.entries(r0)) {
+      const cm = /^c([0-9])$/.exec(k);
+      if (!cm || Number(cm[1]) >= EDGE_COUNT[p.shape]) throw bad(`${what}: unknown corner ${k}`);
+      if (v === null || v === 0) continue;
+      const i = Number(cm[1]);
+      if (INTERNAL_CORNERS[p.shape].includes(i)) throw bad(`${what}: a radius goes on an external corner only`);
+      const max = Math.floor(Math.min(lens[i], lens[(i - 1 + lens.length) % lens.length]) / 2);
+      radii[k] = int(v, 1, max, `${what} corner radius`);
+    }
+    out.radii = radii;
     // Where the piece sits in the All view (mm).
     out.x = p.x == null ? 0 : int(p.x, -50000, 50000, `${what} position`);
     out.y = p.y == null ? 0 : int(p.y, -50000, 50000, `${what} position`);

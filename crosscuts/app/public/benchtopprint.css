@@ -71,6 +71,8 @@ body.bp-body { margin: 0; background: var(--ink); color: var(--body); font-famil
 .bt-print .bt-cut { fill: none; stroke: var(--ink); stroke-width: 0.7; stroke-dasharray: 4 3; }
 .bt-print .bt-dim { stroke: var(--ink); stroke-width: 0.5; stroke-dasharray: 2 2; }
 .bt-print text { fill: var(--ink); }
+.bt-print .bt-leader { stroke: var(--ink); stroke-width: 0.6; }
+.bt-print .bt-rlbl { font-weight: 700; }
 .bt-print .bt-elbl, .bt-print .bt-joinlbl, .bt-print .bt-num, .bt-print .bt-cutlbl { font-weight: 700; }
 .bt-print .bt-shape, .bp-sw { fill: var(--bt-fill-g); background: var(--bt-fill-g); }
 .bt-print .bt-fill-g, .bp-sw.bt-fill-g { fill: var(--bt-fill-g); background: var(--bt-fill-g); }
@@ -94,7 +96,7 @@ body.bp-body { margin: 0; background: var(--ink); color: var(--body); font-famil
   .bp-sheet { background: #fff; color: #000; break-after: page; page-break-after: always; }
   .bp-sheet:last-child { break-after: auto; page-break-after: auto; }
   .bp-sheet *:not(img) { border-color: #000; }
-  .bt-print .bt-edge, .bt-print .bt-join, .bt-print .bt-cut, .bt-print .bt-mark, .bt-print .bt-dim { stroke: #000; }
+  .bt-print .bt-edge, .bt-print .bt-join, .bt-print .bt-cut, .bt-print .bt-mark, .bt-print .bt-dim, .bt-print .bt-leader { stroke: #000; }
   .bt-print text { fill: #000; }
 }
 /* style-check: print-end */

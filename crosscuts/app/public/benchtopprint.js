@@ -156,7 +156,10 @@
     return el("div", { class: "bp-pieces" }, ...snap.design.pieces.map((p, i) => {
       const m = p.materialId != null ? snap.materials[p.materialId] : null;
       const jn = (p.joins || []).map((j, k) => `J${k + 1} ${j.at}`).join(", ");
-      const bits = [p.name, D.describe(p).replace(/, depths .*$/, ""), m ? `${m.colour} ${m.thickness}` + (m.supplier ? ` (${[m.supplier, m.range].filter(Boolean).join(" ")})` : "") : "No material", jn].filter(Boolean);
+      const rc = {};
+      for (const r of Object.values(p.radii || {})) rc[r] = (rc[r] || 0) + 1;
+      const rad = Object.keys(rc).sort((x, y) => x - y).map((r) => rc[r] + " × R" + r).join(", ");
+      const bits = [p.name, D.describe(p).replace(/, depths .*$/, ""), m ? `${m.colour} ${m.thickness}` + (m.supplier ? ` (${[m.supplier, m.range].filter(Boolean).join(" ")})` : "") : "No material", rad, jn].filter(Boolean);
       return el("span", { class: "bp-pc" }, el("b", { text: D.letter(i) }), swatch(F.of(p)), bits.join(" · "));
     }));
   }

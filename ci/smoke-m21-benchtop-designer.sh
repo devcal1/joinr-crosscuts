@@ -64,7 +64,7 @@ expect_status 403 "acct (no jobs.edit) can't start one"
 M21_BAD='{"design":{"pieces":[{"id":"a1","name":"Run","shape":"l","runs":[{"len":3600,"depth":600}],"edges":{},"joins":[],"cutouts":[]}]}}'
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" "$M21_BAD"
 expect_status 400 "an L needs two runs"
-M21_D="{\"pieces\":[{\"id\":\"a1\",\"name\":\"Kitchen L\",\"shape\":\"l\",\"materialId\":$M21_MAT,\"runs\":[{\"len\":3600,\"depth\":600},{\"len\":2400,\"depth\":650}],\"edges\":{\"e0\":$M21_RAW,\"e2\":$M21_PR},\"thick\":{\"e2\":40},\"datum\":\"e5\",\"joins\":[{\"run\":0,\"at\":1800}],\"cutouts\":[{\"kind\":\"sink\",\"label\":\"Undermount\",\"w\":800,\"h\":450,\"edge\":\"e0\",\"located\":true,\"along\":2200,\"in\":75},{\"kind\":\"tap\",\"w\":35,\"edge\":\"e0\",\"along\":2580,\"in\":25}]},{\"id\":\"b2\",\"name\":\"Island\",\"shape\":\"lr\",\"x\":1200,\"y\":1500,\"runs\":[{\"len\":2400,\"depth\":900},{\"len\":1800,\"depth\":600}],\"edges\":{\"e2\":$M21_WF},\"drops\":{\"e2\":870},\"joins\":[],\"cutouts\":[]}]}"
+M21_D="{\"pieces\":[{\"id\":\"a1\",\"name\":\"Kitchen L\",\"shape\":\"l\",\"materialId\":$M21_MAT,\"runs\":[{\"len\":3600,\"depth\":600},{\"len\":2400,\"depth\":650}],\"edges\":{\"e0\":$M21_RAW,\"e2\":$M21_PR},\"thick\":{\"e2\":40},\"datum\":\"e5\",\"radii\":{\"c1\":100,\"c2\":0},\"joins\":[{\"run\":0,\"at\":1800}],\"cutouts\":[{\"kind\":\"sink\",\"label\":\"Undermount\",\"w\":800,\"h\":450,\"edge\":\"e0\",\"located\":true,\"along\":2200,\"in\":75},{\"kind\":\"tap\",\"w\":35,\"edge\":\"e0\",\"along\":2580,\"in\":25}]},{\"id\":\"b2\",\"name\":\"Island\",\"shape\":\"lr\",\"x\":1200,\"y\":1500,\"runs\":[{\"len\":2400,\"depth\":900},{\"len\":1800,\"depth\":600}],\"edges\":{\"e2\":$M21_WF},\"drops\":{\"e2\":870},\"joins\":[],\"cutouts\":[]}]}"
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{"design":{"pieces":[{"id":"a1","shape":"leg","leg":{"width":600,"height":870}}]}}'
 expect_status 400 "the waterfall leg piece is gone"
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" "{\"design\":{\"pieces\":[{\"id\":\"a1\",\"shape\":\"straight\",\"runs\":[{\"len\":2000,\"depth\":600}],\"edges\":{\"e0\":$M21_WF},\"drops\":{\"e0\":870}}]}}"
@@ -75,9 +75,15 @@ req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{"design":{"pieces":[
 expect_status 400 "an edge thickness out of range"
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{"design":{"pieces":[{"id":"a1","shape":"straight","runs":[{"len":2000,"depth":600}],"datum":"e7"}]}}'
 expect_status 400 "an unknown reference edge"
+req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{"design":{"pieces":[{"id":"a1","shape":"l","runs":[{"len":3600,"depth":600},{"len":2400,"depth":600}],"radii":{"c3":50}}]}}'
+expect_status 400 "no radius on an internal corner"
+req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{"design":{"pieces":[{"id":"a1","shape":"straight","runs":[{"len":2000,"depth":600}],"radii":{"c1":301}}]}}'
+expect_status 400 "a radius over half the shorter edge"
+req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{"design":{"pieces":[{"id":"a1","shape":"straight","runs":[{"len":2000,"depth":600}],"radii":{"c4":50}}]}}'
+expect_status 400 "an unknown corner"
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" "{\"design\":$M21_D,\"notes\":\"Made-up note.\"}"
 expect_status 201 "dpm starts the plan"
-expect_jq '.revision == null and (.design.pieces | length) == 2 and .design.pieces[0].cutouts[1].h == 35 and .design.pieces[0].thick.e2 == 40 and .design.pieces[0].datum == "e5" and .design.pieces[0].cutouts[0].edge == "e5" and .design.pieces[0].cutouts[0].located == true and .design.pieces[0].cutouts[1].located == false and .design.pieces[1].shape == "lr" and .design.pieces[1].x == 1200 and .design.pieces[1].y == 1500 and .design.pieces[1].drops.e2 == 870 and .notes == "Made-up note."' "the plan as saved"
+expect_jq '.revision == null and (.design.pieces | length) == 2 and .design.pieces[0].cutouts[1].h == 35 and .design.pieces[0].thick.e2 == 40 and .design.pieces[0].radii.c1 == 100 and .design.pieces[0].radii.c2 == null and .design.pieces[0].datum == "e5" and .design.pieces[0].cutouts[0].edge == "e5" and .design.pieces[0].cutouts[0].located == true and .design.pieces[0].cutouts[1].located == false and .design.pieces[1].shape == "lr" and .design.pieces[1].x == 1200 and .design.pieces[1].y == 1500 and .design.pieces[1].drops.e2 == 870 and .notes == "Made-up note."' "the plan as saved"
 M21_PLAN=$(jqr '.id')
 M21_UPD=$(jqr '.updatedAt')
 req POST "/api/job-records/$M21_JOB/benchtop-plan" "$DPM" '{}'

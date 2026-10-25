@@ -66,7 +66,13 @@
       h = Math.max(h, y);
     }
     runs.forEach((r, i) => { r.name = RUN_NAMES[p.shape][i]; });
-    return { pts, edges, runs, w, h };
+    // vertex i joins edge i-1 to edge i; external (convex) when the turn is clockwise (y down)
+    const convex = pts.map((_, i) => {
+      const d1 = edges[(i - 1 + edges.length) % edges.length].u;
+      const d2 = edges[i].u;
+      return d1[0] * d2[1] - d1[1] * d2[0] > 0;
+    });
+    return { pts, edges, runs, w, h, convex };
   }
 
   // Typing an edge's length sets the run length or depth it comes from.
@@ -143,6 +149,40 @@
     return f.code;
   }
 
+  function radius(p, i) {
+    const r = p.radii && p.radii["c" + i];
+    return r > 0 ? r : 0;
+  }
+
+  // A corner's arc: from a (on edge i-1) to b (on edge i), its middle and outward bisector.
+  function cornerGeom(o, i, r) {
+    const P = o.pts[i];
+    const d1 = o.edges[(i - 1 + o.edges.length) % o.edges.length].u;
+    const d2 = o.edges[i].u;
+    let bx = d1[0] - d2[0];
+    let by = d1[1] - d2[1];
+    const bl = Math.hypot(bx, by) || 1;
+    bx /= bl;
+    by /= bl;
+    if (!r) return { r: 0, a: P, b: P, mid: P, bis: [bx, by] };
+    const a = [P[0] - d1[0] * r, P[1] - d1[1] * r];
+    const b = [P[0] + d2[0] * r, P[1] + d2[1] * r];
+    const C = [a[0] + d2[0] * r, a[1] + d2[1] * r];
+    return { r, a, b, mid: [C[0] + bx * r, C[1] + by * r], bis: [bx, by] };
+  }
+
+  // The outline as a path, external corners rounded where a radius is set.
+  function shapePath(p, o) {
+    const n = o.pts.length;
+    let d = "";
+    for (let i = 0; i < n; i++) {
+      const c = cornerGeom(o, i, o.convex[i] ? radius(p, i) : 0);
+      d += (i === 0 ? "M" : "L") + c.a[0] + " " + c.a[1];
+      if (c.r) d += ` A${c.r} ${c.r} 0 0 1 ${c.b[0]} ${c.b[1]}`;
+    }
+    return d + " Z";
+  }
+
   // The finish mark repeated across an edge, about every 70 base px: X, // or [].
   function marks(g, e, mark, u) {
     const [ux, uy] = e.u;
@@ -190,7 +230,7 @@
     const o = outline(p);
     const u = opts.u || 1;
     const pi = opts.index != null ? opts.index : 0;
-    g.append(node("polygon", { points: o.pts.map((q) => q.join(",")).join(" "), class: "bt-shape" + (opts.fill ? " " + opts.fill(p) : ""), "data-piece": pi }));
+    g.append(node("path", { d: shapePath(p, o), class: "bt-shape" + (opts.fill ? " " + opts.fill(p) : ""), "data-piece": pi }));
 
     // Cut-outs: a dashed outline labelled by what it is, never its size (Todd, 2026-10-25). A
     // located one is dimensioned from the piece's one reference edge: along it, and in from it.
@@ -249,7 +289,9 @@
       const sel = opts.selEdge === e.key;
       const [ax, ay] = e.a;
       const [bx, by] = e.b;
-      line(g, ax, ay, bx, by, "bt-edge" + (tk ? " bt-bold" : ""));
+      const ra = radius(p, Number(e.key.slice(1)));
+      const rb = radius(p, (Number(e.key.slice(1)) + 1) % o.pts.length);
+      line(g, ax + e.u[0] * ra, ay + e.u[1] * ra, bx - e.u[0] * rb, by - e.u[1] * rb, "bt-edge" + (tk ? " bt-bold" : ""));
       if (f) marks(g, e, f.mark, u);
       if (sel) line(g, ax, ay, bx, by, "bt-edge-sel");
       if (!opts.print) line(g, ax, ay, bx, by, "bt-hit", { "data-edge": e.key, "data-piece": pi });
@@ -276,6 +318,27 @@
         g.append(node("circle", { cx: bx, cy: by, r: 5 * u, class: "bt-node" }));
       }
     }
+
+    // Corners (Todd, 2026-10-25): a rounded external corner is drawn as an arc with a leader to it
+    // labelled "R100"; every external corner is clickable on screen.
+    o.pts.forEach((P, i) => {
+      if (!o.convex[i]) return;
+      const c = cornerGeom(o, i, radius(p, i));
+      const sel = opts.selCorner === i;
+      if (c.r) {
+        const ein = o.edges[(i - 1 + o.pts.length) % o.pts.length];
+        const tk = p.thick && (p.thick[ein.key] || p.thick[o.edges[i].key]);
+        g.append(node("path", { d: `M${c.a[0]} ${c.a[1]} A${c.r} ${c.r} 0 0 1 ${c.b[0]} ${c.b[1]}`, class: "bt-edge" + (tk ? " bt-bold" : ""), "vector-effect": "non-scaling-stroke" }));
+        const L = 22 * u;
+        const end = [c.mid[0] + c.bis[0] * L, c.mid[1] + c.bis[1] * L];
+        line(g, c.mid[0], c.mid[1], end[0], end[1], "bt-leader");
+        label(g, end[0] + c.bis[0] * 4 * u, end[1] + c.bis[1] * 6 * u, "R" + c.r, "bt-rlbl" + (sel ? " bt-sel-txt" : ""), u * 0.9, false, c.bis[0] >= 0 ? "start" : "end");
+      }
+      if (!opts.print) {
+        if (sel) g.append(node("circle", { cx: c.mid[0], cy: c.mid[1], r: 5 * u, class: "bt-node" }));
+        g.append(node("circle", { cx: c.mid[0], cy: c.mid[1], r: 9 * u, class: "bt-chit", "data-corner": i, "data-piece": pi }));
+      }
+    });
 
     if (opts.number != null) {
       const r = o.runs[0].rect;
@@ -327,7 +390,7 @@
     const groups = pieces.map((p, i) => {
       const g = node("g", { transform: `translate(${p.x || 0} ${p.y || 0})`, class: "bt-pg" + (opts.sel === i ? " on" : ""), "data-group": i });
       const mine = opts.sel === i;
-      drawPiece(g, p, Object.assign({}, opts, { index: i, number: letter(i), selEdge: mine ? opts.selEdge : null, selCut: mine ? opts.selCut : null }));
+      drawPiece(g, p, Object.assign({}, opts, { index: i, number: letter(i), selEdge: mine ? opts.selEdge : null, selCut: mine ? opts.selCut : null, selCorner: mine ? opts.selCorner : null }));
       svg.append(g);
       return g;
     });

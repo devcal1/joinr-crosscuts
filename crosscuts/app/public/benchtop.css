@@ -124,3 +124,8 @@ body.bt-body { margin: 0; background: var(--ink); color: var(--body); font-famil
 .bt-inline { position: absolute; z-index: 2; width: 90px; padding: 5px 6px; border-color: var(--teal); text-align: center; }
 .bt-pc.on { padding-right: 34px; }
 .bt-check { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px; color: var(--body); }
+/* corner radii (Todd, 2026-10-25): the arc, a leader to it and "R100"; corners are clickable */
+.bt-leader { stroke: var(--white); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.bt-rlbl { fill: var(--white); font-weight: 700; pointer-events: none; }
+.bt-chit { fill: transparent; stroke: none; cursor: pointer; }
+.bt-chit:hover { fill: var(--teal-16); }

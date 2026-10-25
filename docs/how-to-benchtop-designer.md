@@ -28,6 +28,10 @@ The plan follows the usual stone-drawing convention: every edge is a thin unbrok
 - **Joins:** click **Place join**, then click along a run (drawn dashed). Adjust the position on the right.
 - **Cut-outs:** select a piece and click **Add cut-out**, then choose what it is (sink, cooktop, tap hole, other). Cut-outs are drawn dashed and labelled; their sizes are not shown. If a cut-out's position matters, tick **Show location**: it is dimensioned from the piece's one reference edge (marked REF). Change the reference edge under the piece, or with **Make this the reference edge** on a selected edge.
 
+## Rounded corners
+
+Click an outside corner on the drawing and type its radius in mm on the right (0 = square). It is drawn rounded with a leader to "R100", on screen and on the plan. Inside corners of an L or U can't be rounded. The limit is half the shorter of the two edges meeting at the corner. Lengths are still measured to the square corner, and the area counts the square outline.
+
 ## Totals
 
 The right panel (and the print) shows the total area in m² (and per material when there is more than one) and the metres of each edge finish and of any thicker edges. Area counts the whole outline: joins and cut-outs don't reduce it. Lengths are added up exactly, then area is rounded to 2 decimals and metres to 1 decimal.

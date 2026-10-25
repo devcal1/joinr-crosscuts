@@ -26,6 +26,7 @@
     sel: -1, // the selected piece (-1: none)
     selEdge: null,
     selCut: null,
+    selCorner: null, // the selected corner (vertex index) of the selected piece
     mode: "select",
     dirty: false,
     readOnly: true,
@@ -161,7 +162,7 @@
     const ch = Math.max(200, box.clientHeight);
     let u = 1;
     for (let k = 0; k < 3; k++) u = 1 / Math.min(cw / (b.w + 140 * u), ch / (b.h + 140 * u));
-    const opts = { finishes: st.finishes, u, pad: 70 * u, selEdge: st.selEdge, selCut: st.selCut };
+    const opts = { finishes: st.finishes, u, pad: 70 * u, selEdge: st.selEdge, selCut: st.selCut, selCorner: st.selCorner };
     let svg;
     if (all) {
       svg = D.renderSet(ps, Object.assign(opts, { sel: st.sel })).svg;
@@ -218,20 +219,29 @@
       editLength(t, Number(t.dataset.piece), t.dataset.len);
       return;
     }
-    if (t.dataset && t.dataset.edge) {
+    if (t.dataset && t.dataset.corner != null) {
+      st.sel = Number(t.dataset.piece);
+      st.selCorner = Number(t.dataset.corner);
+      st.selEdge = null;
+      st.selCut = null;
+    } else if (t.dataset && t.dataset.edge) {
       st.sel = Number(t.dataset.piece);
       st.selEdge = t.dataset.edge;
+      st.selCorner = null;
       st.selCut = null;
     } else if (t.dataset && t.dataset.cut != null) {
       st.sel = Number(t.dataset.piece);
       st.selCut = Number(t.dataset.cut);
       st.selEdge = null;
+      st.selCorner = null;
     } else if (i >= 0) {
       st.sel = i;
       st.selEdge = null;
+      st.selCorner = null;
       st.selCut = null;
     } else {
       st.selEdge = null;
+      st.selCorner = null;
       st.selCut = null;
     }
     renderAll();
@@ -434,6 +444,24 @@
     return section("Selected edge", ...kids);
   }
 
+  // A corner's radius (Todd, 2026-10-25): external corners only, 0 = square, at most half the
+  // shorter of the two edges that meet there.
+  function cornerSection(p, o) {
+    const i = st.selCorner;
+    if (i == null || !o.convex[i]) return null;
+    const a = o.edges[(i - 1 + o.edges.length) % o.edges.length];
+    const b = o.edges[i];
+    const max = Math.floor(Math.min(a.len, b.len) / 2);
+    p.radii = p.radii || {};
+    const cur = p.radii["c" + i] || 0;
+    return section("Selected corner",
+      el("div", { class: "bt-note", text: "Piece " + D.letter(st.sel) + " · between the " + a.name.toLowerCase() + " and the " + b.name.toLowerCase() }),
+      field("Radius (mm, 0 = square, up to " + max + ")", numInput(cur, (v) => {
+        if (v <= 0) delete p.radii["c" + i];
+        else p.radii["c" + i] = Math.min(v, max);
+      })));
+  }
+
   function pieceSection(p, o) {
     const datum = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { p.datum = ev.target.value; changed(); } },
       ...o.edges.map((x) => el("option", { value: x.key, text: x.name, selected: x.key === (p.datum || "e0") })));
@@ -511,7 +539,7 @@
     }
     const o = D.outline(p);
     if (st.selEdge && !o.edges.some((e) => e.key === st.selEdge)) st.selEdge = null;
-    box.replaceChildren(...[edgeSection(p, o), pieceSection(p, o), materialSection(p), cutSection(p, o), joinsSection(p), totalsSection(), legendSection()].filter(Boolean));
+    box.replaceChildren(...[cornerSection(p, o), edgeSection(p, o), pieceSection(p, o), materialSection(p), cutSection(p, o), joinsSection(p), totalsSection(), legendSection()].filter(Boolean));
   }
 
   function renderAll() {
@@ -529,6 +557,7 @@
     if (fromList && st.sel === i) st.view = st.view === "one" ? "all" : "one";
     st.sel = i;
     st.selEdge = null;
+    st.selCorner = null;
     st.selCut = null;
     renderAll();
   }
@@ -550,6 +579,7 @@
     st.view = "all";
     st.sel = ps.length - 1;
     st.selEdge = null;
+    st.selCorner = null;
     st.selCut = null;
     changed();
   }
@@ -561,6 +591,7 @@
     st.sel = -1;
     st.view = "all";
     st.selEdge = null;
+    st.selCorner = null;
     st.selCut = null;
     changed();
   }
@@ -575,6 +606,7 @@
     p.cutouts.push({ kind: "sink", label: "", w: 800, h: 450, edge: p.datum || "e0", located: false, along: 200, in: 75 });
     st.selCut = p.cutouts.length - 1;
     st.selEdge = null;
+    st.selCorner = null;
     setStatus("");
     changed();
   }

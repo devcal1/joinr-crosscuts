@@ -36,6 +36,12 @@ Changed 2026-10-24 (Todd): the Waterfall leg piece was removed (it is now the Wa
 - On paper each piece is filled with a pale tint: light grey when the plan has one material; otherwise one tint per material in order of first use (six tokens `--bt-fill-g` and `--bt-fill-0..5` in tokens.css, paper only), with the matching swatch beside the material in the totals and the schedule. On screen the fill stays neutral (`--raised`): tinted fills on the dark ground would add colours outside the house style, so the screen does not show them.
 - The sheet (A4 landscape), layout D approved by Todd 2026-10-25: a 14 mm header on every sheet (small letterhead, job and revision left; the bold totals, material swatches and edge metres right, in the same spot on every sheet), the drawing full width (the All arrangement at the largest standard scale up to 1:100, steps 1:10, 20, 25, 30, 40, 50, 75, 100, preferring one that keeps the footer band on the first sheet; else pieces in rows), then a short footer band (one-line key, pieces with swatch, material and joins, cut-outs, notes) and the page line (check all sizes on site, Page X of Y). Long notes or many pieces wrap; what doesn't fit goes on to the next sheet under the same header.
 
+## Corner radii (Todd, 2026-10-25)
+
+- `radii: {cN: mm}` on a piece: corner N is the vertex where edge N-1 meets edge N (clockwise from the top-left). External (convex) corners only; the server rejects internal corners of L and U (l: c3, lr: c4, u: c4 and c5). Limit: 1 mm to half the shorter of the two edges meeting there (so two rounded corners on one edge never meet); 0 or null = square.
+- Drawn rounded on screen and on paper, with a leader from the arc to the label "R100" (industry convention). Edge lengths, marks and totals stay to the notional square corner: lengths are measured to where the square corner would be, and the area is the square outline (the corner offcut is not deducted).
+- Click a corner on the drawing (All or single view) to set its radius in the panel. The print's pieces line counts them ("4 × R100").
+
 ## Revisions
 
 Print plan set (`POST /api/benchtop-plans/:id/print`) compares design and notes with the last revision: unchanged returns that letter; changed (or none yet) freezes the next letter. Revisions are read-only and reprint exactly.
