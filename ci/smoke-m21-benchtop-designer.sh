@@ -13,6 +13,11 @@ echo "--- pages and access ---"
 req GET /benchtop.html "$DPM";        expect_status 200 "dpm GET /benchtop.html"
 case $BODY in *'class="bt-shapeicon"'*'L shape (right)'*) ok ;; *) fail "benchtop.html has no shape buttons" ;; esac
 req GET /benchtopprint.html "$DPM";   expect_status 200 "dpm GET /benchtopprint.html"
+req GET /benchtopprint.js "$DPM"
+case $BODY in *'class: "bp-key"'*) ok ;; *) fail "benchtopprint.js has no key" ;; esac
+case $BODY in *'class: "bp-tots"'*) ok ;; *) fail "benchtopprint.js has no totals block" ;; esac
+req GET /tokens.css "$DPM"
+case $BODY in *'--bt-fill-g:'*'--bt-fill-5:'*) ok ;; *) fail "tokens.css has no plan-set fills" ;; esac
 req GET /benchtopadmin.html "$ADMIN"; expect_status 200 "admin GET /benchtopadmin.html"
 req GET /benchtopadmin.html "$DPM";   expect_status 403 "dpm GET /benchtopadmin.html"
 req GET /api/benchtop-lists;          expect_status 401 "logged out GET /api/benchtop-lists"

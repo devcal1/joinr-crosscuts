@@ -118,10 +118,10 @@
       const on = i === st.sel;
       const card = el("div", { class: "bt-pcwrap" },
         el("button", { type: "button", class: "bt-pc" + (on ? " on" : "") + (on && st.view === "one" ? " solo" : ""), onclick: () => selectPiece(i, true) },
-          el("h3", {}, el("span", { class: "bt-disc", text: String(i + 1) }), el("span", { text: p.name || D.SHAPE_NAMES[p.shape] })),
+          el("h3", {}, el("span", { class: "bt-disc", text: D.letter(i) }), el("span", { text: p.name || D.SHAPE_NAMES[p.shape] })),
           el("p", { text: [D.describe(p)].concat(extra).join(" · ") }),
           el("p", { text: matText(p.materialId) })),
-        on && !st.readOnly ? el("button", { type: "button", class: "bt-x", "aria-label": "Delete piece " + (i + 1), title: "Delete piece", text: "×", onclick: deletePiece }) : null);
+        on && !st.readOnly ? el("button", { type: "button", class: "bt-x", "aria-label": "Delete piece " + D.letter(i), title: "Delete piece", text: "×", onclick: deletePiece }) : null);
       cards.push(card);
     });
     $("btPieces").replaceChildren(...cards);
@@ -166,7 +166,7 @@
     if (all) {
       svg = D.renderSet(ps, Object.assign(opts, { sel: st.sel })).svg;
     } else {
-      svg = D.render(piece(), Object.assign(opts, { index: st.sel })).svg;
+      svg = D.render(piece(), Object.assign(opts, { index: st.sel, number: D.letter(st.sel) })).svg;
     }
     st.drawn = { svg, set: all, u };
     svg.addEventListener("click", onCanvasClick);
@@ -408,7 +408,7 @@
         type: "button", class: "hs-btn" + (cur == null ? " on" : ""), disabled: st.readOnly, text: "None",
         onclick: () => { delete p.edges[e.key]; if (p.drops) delete p.drops[e.key]; changed(); },
       }));
-    const kids = [el("div", { class: "bt-note", text: `Piece ${st.sel + 1} · ${e.name} · ${e.len} mm (click the size on the drawing to change it)` }),
+    const kids = [el("div", { class: "bt-note", text: `Piece ${D.letter(st.sel)} · ${e.name} · ${e.len} mm (click the size on the drawing to change it)` }),
       el("div", { class: "bt-f" }, el("span", { class: "hs-label", text: "Edge finish" }), seg)];
     const f = cur != null ? st.finishes[cur] : null;
     if (f && f.waterfall) kids.push(field("Waterfall drop (mm)", numInput((p.drops && p.drops[e.key]) || 870, (v) => { p.drops = p.drops || {}; p.drops[e.key] = v; }, { min: 50 })));
@@ -437,7 +437,7 @@
   function pieceSection(p, o) {
     const datum = el("select", { class: "hs-input", disabled: st.readOnly, onchange: (ev) => { p.datum = ev.target.value; changed(); } },
       ...o.edges.map((x) => el("option", { value: x.key, text: x.name, selected: x.key === (p.datum || "e0") })));
-    return section(`Piece ${st.sel + 1} · ${D.SHAPE_NAMES[p.shape]}`,
+    return section(`Piece ${D.letter(st.sel)} · ${D.SHAPE_NAMES[p.shape]}`,
       field("Name", el("input", {
         class: "hs-input", value: p.name, maxlength: 80, disabled: st.readOnly, placeholder: "e.g. Island",
         onchange: (ev) => { p.name = ev.target.value.trim(); changed(); },
@@ -556,7 +556,7 @@
 
   function deletePiece() {
     const p = piece();
-    if (!p || !confirm(`Delete piece ${st.sel + 1}${p.name ? " (" + p.name + ")" : ""}?`)) return;
+    if (!p || !confirm(`Delete piece ${D.letter(st.sel)}${p.name ? " (" + p.name + ")" : ""}?`)) return;
     st.design.pieces.splice(st.sel, 1);
     st.sel = -1;
     st.view = "all";

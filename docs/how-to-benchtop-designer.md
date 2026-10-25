@@ -36,6 +36,10 @@ Type notes for the supplier on the left, then **Save**.
 
 ## Print
 
-**Print plan set** saves, then opens the plan set: the All arrangement to scale on the first sheet (pieces go across sheets only if it does not fit), the legend, totals, the cut-outs by piece, the material schedule and notes. If anything changed since the last revision, it becomes the next letter (A, B, C...). Use the browser's print to save a PDF (A4 landscape). Older revisions are listed on the left: **Open** shows one read-only, **Print** reprints it.
+Pieces are lettered A, B, C... in the order of the pieces list, on screen and on paper.
+
+
+
+**Print plan set** saves, then opens the plan set on A4 landscape: the arrangement to scale in a frame with a small key underneath, the schedule below it, and a side column with the totals (in bold, in the same place on every sheet), the cut-outs by piece and the notes. Each piece is filled with a pale tint for its material (light grey when there is only one), matched by the swatches in the totals and schedule. If anything changed since the last revision, it becomes the next letter (A, B, C...). Use the browser's print to save a PDF (A4 landscape). Older revisions are listed on the left: **Open** shows one read-only, **Print** reprints it.
 
 **Send to supplier** is coming later.

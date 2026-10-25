@@ -30,6 +30,12 @@ Changed 2026-10-24 (Todd): the Waterfall leg piece was removed (it is now the Wa
 - Cut-outs show only what they are (Sink, Cooktop, Tap hole, Cut-out, plus the label), never their size. `w`/`h` are kept for the drawn outline only. Each piece has one reference edge `datum` (default e0); every cut-out's `edge` is set to it by the server. A cut-out with `located: true` is dimensioned from that edge (along it, and in from it); the reference edge is labelled REF. The print lists cut-outs by piece and type, with no size table.
 - Totals (screen and print): area in m² overall and per material (when more than one), and metres of each edge finish and of each built-up thickness. Area is the outline area (joins and cut-outs don't reduce it). Rounding: summed exactly in mm, then m² to 2 decimals and metres to 1 decimal.
 
+## Letters, fills and the sheet (Todd, 2026-10-25)
+
+- Pieces are lettered A, B, C... in list order (after Z: AA, AB...), on screen (list discs, drawing, panel) and on the print (drawing, schedule, cut-outs).
+- On paper each piece is filled with a pale tint: light grey when the plan has one material; otherwise one tint per material in order of first use (six tokens `--bt-fill-g` and `--bt-fill-0..5` in tokens.css, paper only), with the matching swatch beside the material in the totals and the schedule. On screen the fill stays neutral (`--raised`): tinted fills on the dark ground would add colours outside the house style, so the screen does not show them.
+- The sheet (A4 landscape): a main column (the All arrangement in a frame with a one-line boxed key at its foot, or pieces in rows, then the schedule) and a 74 mm side column that starts on every sheet with the same bold totals block (total m², per material with swatch, edge metres), then on the first sheet the cut-outs by piece and the notes. The scale is the largest standard one (to 1:100) that keeps the schedule on the first sheet, else the largest that fits.
+
 ## Revisions
 
 Print plan set (`POST /api/benchtop-plans/:id/print`) compares design and notes with the last revision: unchanged returns that letter; changed (or none yet) freezes the next letter. Revisions are read-only and reprint exactly.

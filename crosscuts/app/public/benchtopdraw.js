@@ -190,7 +190,7 @@
     const o = outline(p);
     const u = opts.u || 1;
     const pi = opts.index != null ? opts.index : 0;
-    g.append(node("polygon", { points: o.pts.map((q) => q.join(",")).join(" "), class: "bt-shape", "data-piece": pi }));
+    g.append(node("polygon", { points: o.pts.map((q) => q.join(",")).join(" "), class: "bt-shape" + (opts.fill ? " " + opts.fill(p) : ""), "data-piece": pi }));
 
     // Cut-outs: a dashed outline labelled by what it is, never its size (Todd, 2026-10-25). A
     // located one is dimensioned from the piece's one reference edge: along it, and in from it.
@@ -327,7 +327,7 @@
     const groups = pieces.map((p, i) => {
       const g = node("g", { transform: `translate(${p.x || 0} ${p.y || 0})`, class: "bt-pg" + (opts.sel === i ? " on" : ""), "data-group": i });
       const mine = opts.sel === i;
-      drawPiece(g, p, Object.assign({}, opts, { index: i, number: i + 1, selEdge: mine ? opts.selEdge : null, selCut: mine ? opts.selCut : null }));
+      drawPiece(g, p, Object.assign({}, opts, { index: i, number: letter(i), selEdge: mine ? opts.selEdge : null, selCut: mine ? opts.selCut : null }));
       svg.append(g);
       return g;
     });
@@ -371,7 +371,7 @@
     const m = (v) => (v / 1000).toFixed(1);
     const mats = [...byMat.entries()].map(([k, v]) => {
       const mt = k !== "none" && materials ? materials[k] : null;
-      return { name: mt ? [mt.colour, mt.thickness + " mm"].join(" ") : "No material", m2: m2(v) };
+      return { key: k, name: mt ? [mt.colour, mt.thickness + " mm"].join(" ") : "No material", m2: m2(v) };
     });
     const fins = [...byFin.entries()].map(([k, v]) => {
       const f = k !== "none" ? finishes[k] : null;
@@ -379,6 +379,35 @@
     });
     const thick = [...byThick.entries()].map(([t, v]) => ({ name: t + " mm edge", m: m(v) }));
     return { m2: m2(all), mats, fins, thick };
+  }
+
+  // Pieces are lettered A, B, C... in list order (Todd, 2026-10-25); after Z: AA, AB...
+  function letter(i) {
+    let s = "";
+    let n = i + 1;
+    while (n > 0) {
+      const r = (n - 1) % 26;
+      s = String.fromCharCode(65 + r) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  }
+
+  // The fill class of each piece: one material → light grey (bt-fill-g); several → a pale tint per
+  // material in order of first use (bt-fill-0..5, then round again). Returns {of(p), list}.
+  function fills(pieces) {
+    const ids = [];
+    for (const p of pieces) {
+      const k = p.materialId == null ? "none" : String(p.materialId);
+      if (!ids.includes(k)) ids.push(k);
+    }
+    const one = ids.length <= 1;
+    const cls = (k) => (one ? "bt-fill-g" : "bt-fill-" + (ids.indexOf(k) % 6));
+    return {
+      of: (p) => cls(p.materialId == null ? "none" : String(p.materialId)),
+      byMaterial: (k) => cls(k == null ? "none" : String(k)),
+      list: ids,
+    };
   }
 
   function describe(p) {
@@ -389,5 +418,5 @@
     return `U · ${p.runs[1].len} × ${p.runs[0].len} × ${p.runs[2].len}, depths ${p.runs[1].depth} / ${p.runs[0].depth} / ${p.runs[2].depth}`;
   }
 
-  window.BtDraw = { totals, sample, outline, setEdgeLen, cutGeom, joinLine, runAt, render, renderSet, bounds, describe, EDGE_NAMES, END_EDGES, RUN_NAMES, SHAPE_NAMES, KIND_NAMES };
+  window.BtDraw = { letter, fills, totals, sample, outline, setEdgeLen, cutGeom, joinLine, runAt, render, renderSet, bounds, describe, EDGE_NAMES, END_EDGES, RUN_NAMES, SHAPE_NAMES, KIND_NAMES };
 })();

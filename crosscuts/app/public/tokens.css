@@ -50,6 +50,17 @@
      ci/style-check.js enforces that. */
   --paper: #e9e4c9;
 
+  /* Benchtop plan-set paper fills (Todd, 2026-10-25): pale, print-friendly tints, one per material
+     (a light grey when the plan has one material). Used only by benchtopprint.css, on the white
+     paper sheet; black lines print on top. Not screen colours. */
+  --bt-fill-g: #ececec;
+  --bt-fill-0: #dbe8f5;
+  --bt-fill-1: #f6e2cc;
+  --bt-fill-2: #dcefd8;
+  --bt-fill-3: #e8dcf3;
+  --bt-fill-4: #f4eec4;
+  --bt-fill-5: #f3d9dc;
+
   /* 16% fills, for badges, hovers, selected rows and highlights */
   --teal-16: rgba(23, 200, 160, 0.16);
   --orange-16: rgba(249, 115, 22, 0.16);
