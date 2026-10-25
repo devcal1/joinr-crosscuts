@@ -28,6 +28,9 @@ const PAGE_ACCESS = {
   "/benchtop.html": "jobs.view",
   "/benchtopprint.html": "jobs.view",
   "/benchtopadmin.html": "users.admin",
+  // 0.2.1 (docs/plans/m22-project-jobs.md): a job's project page and its printed order list.
+  "/project.html": "jobs.view",
+  "/projectorder.html": "jobs.view",
   "/tasks.html": "tasks.use",
   "/messages.html": "messages.use",
   "/reports.html": "accounts.view",

@@ -132,6 +132,9 @@
     // 0.2.0: the benchtop designer and its print belong to Benchtops.
     "/benchtop.html": "/stone.html",
     "/benchtopprint.html": "/stone.html",
+    // 0.2.1: a job's project page and its printed order list belong to the Pipeline.
+    "/project.html": "/pipeline.html",
+    "/projectorder.html": "/pipeline.html",
   };
 
   var path = location.pathname;

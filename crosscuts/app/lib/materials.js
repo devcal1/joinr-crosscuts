@@ -42,6 +42,10 @@ const LINES_MAX = 500;
 const KEY_MAX = 400;
 const ORDER_IDS_MAX = 200;
 const SUPPLIER_MAX = 200;
+const DETAIL_MAX = 100;
+// The project fields a person may set on any line (m22 section 3). Editing them never marks a Joinr
+// line overridden: a sync doesn't write them, so it can keep refreshing the rest.
+const DETAILS = [["colour", DETAIL_MAX], ["finish", DETAIL_MAX], ["brand", DETAIL_MAX], ["code", DETAIL_MAX], ["supplier", SUPPLIER_MAX]];
 
 const nowIso = () => new Date().toISOString();
 const userId = (req) => (req && req.user && req.user.id != null ? req.user.id : null);
@@ -69,6 +73,12 @@ function present(r) {
     qty: r.qty,
     unit: r.unit,
     notes: r.notes,
+    // 0.2.1 (docs/plans/m22-project-jobs.md section 3): Crosscuts-only fields; a sync never writes them.
+    colour: r.colour || null,
+    finish: r.finish || null,
+    brand: r.brand || null,
+    code: r.code || null,
+    supplier: r.supplier || null,
     source: r.source,
     overridden: !!r.overridden,
     // JOINR (as the quote has it), EDITED (a Joinr line a person changed) or TYPED (added by hand).
@@ -181,21 +191,23 @@ function create(db, req, jobId, body) {
   const qty = qtyOf(body.qty);
   const unit = textOf("unit", body.unit, UNIT_MAX) || null;
   const notes = textOf("notes", body.notes, NOTES_MAX);
+  const det = {};
+  for (const [k, max] of DETAILS) det[k] = textOf(k, body[k], max) || null;
   return db.transaction(() => {
     if (liveCount(db, jobId) >= LINES_MAX) throw bad(`A job's materials list holds at most ${LINES_MAX} lines`);
     const now = nowIso();
     const info = db
       .prepare(
-        `INSERT INTO job_materials (job_id, position, section, name, qty, unit, notes, source, created_at, updated_at, created_by, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?)`
+        `INSERT INTO job_materials (job_id, position, section, name, qty, unit, notes, colour, finish, brand, code, supplier, source, created_at, updated_at, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?)`
       )
-      .run(jobId, nextPosition(db, jobId), section, name, qty, unit, notes, now, now, userId(req), userId(req));
+      .run(jobId, nextPosition(db, jobId), section, name, qty, unit, notes, det.colour, det.finish, det.brand, det.code, det.supplier, now, now, userId(req), userId(req));
     const id = Number(info.lastInsertRowid);
     audit.log(req, {
       action: "material.create",
       entityType: "job_material",
       entityId: id,
-      after: { jobId, ...auditShape({ section, name, qty, unit, notes }) },
+      after: { jobId, ...auditShape({ section, name, qty, unit, notes }), ...det },
     });
     return present(db.prepare(`${SELECT} WHERE m.id = ?`).get(id));
   })();
@@ -215,12 +227,15 @@ function update(db, req, jobId, id, patch) {
   if (has("qty")) next.qty = qtyOf(patch.qty);
   if (has("unit")) next.unit = textOf("unit", patch.unit, UNIT_MAX) || null;
   if (has("notes")) next.notes = textOf("notes", patch.notes, NOTES_MAX);
+  const det = {};
+  for (const [k, max] of DETAILS) if (has(k)) det[k] = textOf(k, patch[k], max) || null;
   const changes = {};
   for (const [k, v] of Object.entries(next)) if (v !== line[k]) changes[k] = v;
+  for (const [k, v] of Object.entries(det)) if (v !== (line[k] || null)) changes[k] = v;
   if (!Object.keys(changes).length) return present(line);
   return db.transaction(() => {
     const sets = Object.keys(changes);
-    const makeOverridden = line.source === "joinr" && !line.overridden;
+    const makeOverridden = line.source === "joinr" && !line.overridden && sets.some((c) => !DETAILS.some(([k]) => k === c));
     const cols = [...sets.map((c) => `${c} = ?`), "updated_at = ?", "updated_by = ?"];
     const args = [...sets.map((c) => changes[c]), nowIso(), userId(req)];
     if (makeOverridden) cols.push("overridden = 1");
@@ -524,6 +539,10 @@ function toOrders(db, req, jobId, body) {
 
 module.exports = {
   SECTIONS,
+  DETAILS,
+  SELECT,
+  present,
+  sortLines,
   list,
   create,
   update,

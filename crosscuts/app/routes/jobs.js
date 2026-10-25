@@ -15,7 +15,10 @@ const r = defineRoutes("/api/job-records");
 // Stage lists and rules live in lib/jobstage.js. on_board / complete / invoiced
 // are derived (board hooks, accounts), so only users.admin may set them by PATCH.
 const { STAGES, STAGE_DATE } = jobstage;
-const MANUAL_STAGES = new Set(jobstage.MANUAL_STAGES);
+// 0.2.1: 'projects' and 'ordering' are the two shown halves of design_ordering (m22 section 2).
+const MANUAL_STAGES = new Set([...jobstage.MANUAL_STAGES, ...jobstage.VIRTUAL_STAGES]);
+const VIRTUAL = new Set(jobstage.VIRTUAL_STAGES);
+const QUERY_STAGES = [...STAGES, ...jobstage.VIRTUAL_STAGES];
 const BENCHTOPS = new Set(["laminate", "stone", "none"]);
 
 // --- field table: body key -> column, kind -------------------------------
@@ -108,7 +111,7 @@ function parseBody(req, body) {
 }
 
 function parseStage(req, v) {
-  if (typeof v !== "string" || !STAGES.includes(v)) throw bad(`stage must be one of ${STAGES.join(", ")}`);
+  if (typeof v !== "string" || !QUERY_STAGES.includes(v)) throw bad(`stage must be one of ${QUERY_STAGES.join(", ")}`);
   if (v === "lead") throw bad(jobstage.RETIRED_STAGE_MSG); // retired 2026-10-17; old rows may still hold it
   if (!MANUAL_STAGES.has(v) && !can(req, "users.admin")) {
     throw bad(`stage '${v}' is set automatically and cannot be changed by hand`);
@@ -134,7 +137,19 @@ function toJob(req, row, boardWeeks, inBacklog, people) {
   out.onBoardWeeks = boardWeeks;
   out.inBacklog = inBacklog;
   out.people = people || [];
+  // 0.2.1 (m22 section 2): the stage as the pipeline shows it, and the project owner.
+  out.pipelineStage = jobstage.pipelineStage(row);
+  out.owner = row.project_owner_id == null ? null : ownerOf(row.project_owner_id);
   return out;
+}
+
+// The project owner as tiles show it: {id, name, hue|null} (hue: the linked board worker's colour).
+const ownerStmt = db.prepare(
+  "SELECT u.id, u.display_name, w.hue FROM users u LEFT JOIN workers w ON w.id = u.worker_id WHERE u.id = ?"
+);
+function ownerOf(id) {
+  const u = ownerStmt.get(id);
+  return u ? { id: u.id, name: u.display_name, hue: u.hue == null ? null : u.hue } : null;
 }
 
 function weeksMap(jobId) {
@@ -206,9 +221,11 @@ r.get("/", "jobs.view", handle((req, res) => {
   const where = [];
   const args = [];
   if (req.query.stage !== undefined && req.query.stage !== "") {
-    if (!STAGES.includes(req.query.stage)) throw bad(`stage must be one of ${STAGES.join(", ")}`);
+    if (!QUERY_STAGES.includes(req.query.stage)) throw bad(`stage must be one of ${QUERY_STAGES.join(", ")}`);
     // A job still at the retired 'lead' stage counts as quoted.
     if (req.query.stage === "quoted") where.push("stage IN ('quoted','lead')");
+    else if (req.query.stage === "projects") where.push("stage = 'design_ordering' AND sent_to_ordering_at IS NULL");
+    else if (req.query.stage === "ordering") where.push("stage = 'design_ordering' AND sent_to_ordering_at IS NOT NULL");
     else {
       where.push("stage = ?");
       args.push(req.query.stage);
@@ -248,7 +265,9 @@ r.post("/", "jobs.edit", handle((req, res) => {
   const body = req.body;
   const values = parseBody(req, body);
   if (!values.name) throw bad("name is required");
-  const stage = body.stage === undefined || body.stage === null ? "quoted" : parseStage(req, body.stage);
+  const asked = body.stage === undefined || body.stage === null ? "quoted" : parseStage(req, body.stage);
+  const stage = VIRTUAL.has(asked) ? "design_ordering" : asked;
+  if (asked === "ordering") values.sent_to_ordering_at = new Date().toISOString();
 
   // Entry effects of a manual stage (the same as a hand move into it): the
   // stage's key date if the body didn't send one, and archived for the

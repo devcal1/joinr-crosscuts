@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="jobs.css">
+<link rel="stylesheet" href="project.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <!-- A job's project page (project.js; docs/plans/m22-project-jobs.md section 5): the owner, the
+       hours, the materials and hardware lists, job notes, and the order list (finalise, print,
+       send to Ordering). ?id=N is the job. -->
+  <main class="jobs-page pj-page">
+    <div class="jobs-head">
+      <h1 id="pjTitle">Project</h1>
+      <a id="pjJob" class="hs-btn hs-btn-quiet" href="/jobs.html">Job page</a>
+    </div>
+    <p id="pjStatus" class="jo-status muted" role="status">Loading...</p>
+    <div id="pjHead" class="jo-summary" hidden></div>
+
+    <section id="pjHours" class="jo-sec" aria-labelledby="pjHours-h" hidden>
+      <div class="hs-sectionbar"><h2 id="pjHours-h">Hours</h2></div>
+      <div id="pjHoursBody"></div>
+    </section>
+
+    <section id="pjMaterials" class="jo-sec" aria-labelledby="pjMaterials-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="pjMaterials-h">Materials</h2>
+        <button id="pjJoinr" class="hs-btn" type="button" hidden>Update from Joinr</button>
+      </div>
+      <p id="pjMatStatus" class="jo-status muted" role="status"></p>
+      <div id="pjMatBody"></div>
+      <form id="pjMatForm" class="pj-add" novalidate hidden></form>
+    </section>
+
+    <section id="pjHardware" class="jo-sec" aria-labelledby="pjHardware-h" hidden>
+      <div class="hs-sectionbar"><h2 id="pjHardware-h">Hardware</h2></div>
+      <p id="pjHwStatus" class="jo-status muted" role="status"></p>
+      <div id="pjHwBody"></div>
+      <form id="pjHwForm" class="pj-add" novalidate hidden></form>
+    </section>
+
+    <section id="pjNotes" class="jo-sec" aria-labelledby="pjNotes-h" hidden>
+      <div class="hs-sectionbar"><h2 id="pjNotes-h">Job notes</h2></div>
+      <textarea id="pjNotesText" class="hs-input pj-notes" maxlength="5000" aria-labelledby="pjNotes-h"></textarea>
+      <div class="pj-actions">
+        <p id="pjNotesStatus" class="jo-status muted" role="status"></p>
+        <button id="pjNotesSave" class="hs-btn hs-btn-primary" type="button">Save notes</button>
+      </div>
+    </section>
+
+    <section id="pjOrder" class="jo-sec" aria-labelledby="pjOrder-h" hidden>
+      <div class="hs-sectionbar"><h2 id="pjOrder-h">Order list</h2></div>
+      <p id="pjOrderStatus" class="jo-status muted" role="status"></p>
+      <div id="pjOrderBody"></div>
+      <div class="pj-actions">
+        <button id="pjFinalise" class="hs-btn hs-btn-primary" type="button" hidden>Finalise order list</button>
+        <a id="pjPrint" class="hs-btn" href="#" hidden>Print order list</a>
+        <button id="pjSend" class="hs-btn hs-btn-primary" type="button" hidden>Send to Ordering</button>
+      </div>
+    </section>
+
+    <datalist id="pjSuppliers"></datalist>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="project.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>

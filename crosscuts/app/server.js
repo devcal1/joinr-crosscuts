@@ -100,6 +100,8 @@ const routers = [
   require("./routes/recurring"),
   // Benchtop designer (0.2.0, docs/plans/m21-benchtop-designer.md).
   require("./routes/benchtop"),
+  // Project jobs (0.2.1, docs/plans/m22-project-jobs.md).
+  require("./routes/projectjobs"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

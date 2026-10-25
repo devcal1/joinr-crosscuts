@@ -184,7 +184,7 @@ function removeFromBacklog(db, jobId) {
 // job's current stage. `override` is the admin's PATCH (contracts section 3).
 // Returns {changed, from, to, toStart}; throws HttpError on a rule break and
 // rethrows anything else, after rolling its own savepoint back.
-function moveStage(db, jobId, { stage, from } = {}, req, { override = false } = {}) {
+function moveStoredStage(db, jobId, { stage, from } = {}, req, { override = false } = {}) {
   if (typeof stage !== "string" || !STAGES.includes(stage)) {
     throw bad(`stage must be one of ${STAGES.join(", ")}`);
   }
@@ -249,7 +249,58 @@ function moveStage(db, jobId, { stage, from } = {}, req, { override = false } = 
   })();
 }
 
+// 0.2.1 (docs/plans/m22-project-jobs.md section 2): the stored stage 'design_ordering' shows as
+// Projects (sent_to_ordering_at NULL) or Ordering (set). These two names are accepted as move
+// targets alongside the stored stages. Both store design_ordering; 'ordering' sets
+// sent_to_ordering_at (when NULL), 'projects' clears it. A plain 'design_ordering' move leaves the
+// column as it is, and leaving design_ordering never touches it.
+const VIRTUAL_STAGES = ["projects", "ordering"];
+
+function pipelineStage(job) {
+  if (!job) return null;
+  if (job.stage !== "design_ordering") return job.stage;
+  return job.sent_to_ordering_at ? "ordering" : "projects";
+}
+
+// Sets or clears sent_to_ordering_at (audited as job.ordering). Returns true when it changed.
+function setSentToOrdering(db, jobId, sent, req, auditExtra) {
+  const job = db.prepare("SELECT sent_to_ordering_at FROM jobs WHERE id = ?").get(jobId);
+  if (!job) throw notFound();
+  if (!!job.sent_to_ordering_at === !!sent) return false;
+  const now = nowIso();
+  const v = sent ? now : null;
+  db.prepare("UPDATE jobs SET sent_to_ordering_at = ?, updated_at = ? WHERE id = ?").run(v, now, jobId);
+  audit.log(req, {
+    action: "job.ordering",
+    entityType: "job",
+    entityId: jobId,
+    before: { sentToOrderingAt: job.sent_to_ordering_at },
+    after: { sentToOrderingAt: v, ...(auditExtra || {}) },
+  });
+  return true;
+}
+
+function moveStage(db, jobId, { stage, from } = {}, req, opts = {}) {
+  return db.transaction(() => {
+    // `from` may be the stored stage or the shown one (projects / ordering).
+    let f = from;
+    if (VIRTUAL_STAGES.includes(f)) {
+      const job = db.prepare("SELECT stage, sent_to_ordering_at FROM jobs WHERE id = ?").get(jobId);
+      if (!job) throw notFound();
+      if (f !== pipelineStage(job)) throw conflict("Someone else has moved this job", { stage: job.stage });
+      f = "design_ordering";
+    }
+    if (!VIRTUAL_STAGES.includes(stage)) return moveStoredStage(db, jobId, { stage, from: f }, req, opts);
+    const r = moveStoredStage(db, jobId, { stage: "design_ordering", from: f }, req, opts);
+    const flag = setSentToOrdering(db, jobId, stage === "ordering", req);
+    return { ...r, to: stage, changed: r.changed || flag };
+  })();
+}
+
 module.exports = {
+  VIRTUAL_STAGES,
+  pipelineStage,
+  setSentToOrdering,
   setStage,
   onScheduled,
   onSentToBacklog,

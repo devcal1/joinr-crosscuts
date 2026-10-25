@@ -1,0 +1,106 @@
+/* A job's printed order list (/projectorder.html; docs/plans/m22-project-jobs.md section 6). On
+   screen: the house-style frame with the sheet as a white A4 box on the ink ground. On paper: only
+   the sheet, A4 portrait, black on white, on its own named page (posheet). Sizes are in mm and pt so
+   the screen box and the printed page match. Page classes are po-. */
+body.po-body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--body);
+  font-family: var(--font);
+}
+.po-page { max-width: 210mm; margin: 0 auto; padding: 20px 16px 48px; }
+.po-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 14px; }
+.po-status { flex: 1 1 260px; margin: 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.po-status:empty { display: none; }
+.po-scroll { overflow-x: auto; }
+
+.po-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  padding: 12mm;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 9.5pt;
+  line-height: 1.35;
+}
+.po-sheet :where(h1, h2, p, dl, dd) { margin: 0; }
+.po-sheet:empty { min-height: 0; padding: 0; }
+
+.po-titlerow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.5mm solid var(--ink);
+}
+.po-brand { font-size: 9pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.po-h1 { margin-top: 1mm; font-size: 17pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.po-sub { margin-top: 1.5mm; font-size: 12pt; font-weight: 700; overflow-wrap: anywhere; }
+.po-meta { display: grid; grid-template-columns: auto auto; gap: 1mm 4mm; flex: none; }
+.po-meta dt { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; align-self: center; }
+.po-meta dd { font-weight: 700; }
+.po-stamp {
+  margin-top: 3mm;
+  padding: 1.5mm 3mm;
+  border: 0.5mm solid var(--ink);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.po-group { margin-top: 6mm; }
+.po-grouph {
+  padding-bottom: 1mm;
+  margin-bottom: 1mm;
+  border-bottom: 0.3mm solid var(--ink);
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.po-table { width: 100%; border-collapse: collapse; }
+.po-table th {
+  padding: 1mm 1.5mm;
+  border-bottom: 0.3mm solid var(--ink);
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.po-table td { padding: 1.2mm 1.5mm; border-bottom: 0.2mm solid var(--ink); vertical-align: top; overflow-wrap: anywhere; }
+.po-table tr { break-inside: avoid; page-break-inside: avoid; }
+.po-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.po-c-sec { width: 24mm; }
+.po-c-qty { width: 22mm; }
+.po-c-tick { width: 9mm; }
+.po-detail { display: block; font-size: 8.5pt; }
+.po-notes { margin-top: 6mm; white-space: pre-line; overflow-wrap: anywhere; }
+.po-foot { margin-top: 8mm; font-size: 8pt; }
+
+@media (max-width: 600px) {
+  .po-page { padding: 12px 8px 32px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+.po-sheet { page: posheet; }
+@page posheet {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html:has(> body.po-body), body.po-body { background: #fff; color: #000; }
+  body.po-body > :not(main) { display: none !important; }
+  body.po-body .po-toolbar { display: none !important; }
+  .po-page { max-width: none; margin: 0; padding: 0; }
+  .po-scroll { overflow: visible; }
+  .po-sheet { width: auto; min-height: 0; padding: 0; background: #fff; color: #000; }
+  .po-sheet * { color: #000; border-color: #000; background: #fff; }
+  .po-table thead { display: table-header-group; }
+}
+/* style-check: print-end */

@@ -70,8 +70,27 @@ r.get("/intake/:id", "design.view", handleB((req, res) => {
   res.json(item);
 }));
 
+// 0.2.1 (docs/plans/m22-project-jobs.md section 4): Accept may name the project owner
+// ({ownerId}); it is checked before anything is written and set in the same transaction. Naming one
+// needs what setting an owner needs (jobs.edit with design.view, or users.admin).
 r.post("/intake/:id/accept", "jobs.edit", handleB((req, res) => {
-  res.json(intake.accept(inboxDb, req, req.params.id));
+  const projectjobs = require("../lib/projectjobs");
+  const b = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+  const ownerId = b.ownerId === undefined || b.ownerId === null || b.ownerId === "" ? null : b.ownerId;
+  if (ownerId !== null) {
+    if (!require("./projectjobs").canSetOwner(req)) {
+      const { HttpError } = require("../lib/httperror");
+      throw new HttpError(403, "Forbidden");
+    }
+    projectjobs.checkOwner(inboxDb, ownerId);
+  }
+  const out = inboxDb.transaction(() => {
+    const r0 = intake.accept(inboxDb, req, req.params.id);
+    if (ownerId !== null && r0.job && r0.job.id) projectjobs.setOwner(inboxDb, req, r0.job.id, ownerId);
+    return r0;
+  })();
+  if (ownerId !== null && out.job) out.job.projectOwnerId = Number(ownerId);
+  res.json(out);
 }));
 
 r.post("/intake/:id/link", "jobs.edit", handleB((req, res) => {

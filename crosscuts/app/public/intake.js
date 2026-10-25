@@ -270,7 +270,14 @@
     if (can("jobs.edit")) {
       const acts = el("div", { class: "in-acts" });
       if (it.state === "new") {
-        acts.append(button("Accept", "hs-btn hs-btn-primary", () => doAccept(it)));
+        // 0.2.1 (docs/plans/m22-project-jobs.md section 4): name the project owner as you accept.
+        let ownerSel = null;
+        if (canSetOwner() && owners.length) {
+          ownerSel = el("select", { class: "hs-input in-owner", "aria-label": "Project owner" }, el("option", { value: "", text: "No owner yet" }));
+          for (const o of owners) ownerSel.append(el("option", { value: String(o.id), text: o.name }));
+          acts.append(ownerSel);
+        }
+        acts.append(button("Accept", "hs-btn hs-btn-primary", () => doAccept(it, ownerSel && ownerSel.value ? Number(ownerSel.value) : null)));
         if (it.matches > 0) {
           acts.append(button("Link to existing job (" + it.matches + ")", "hs-btn", () => openLink(it, card)));
         }
@@ -325,9 +332,23 @@
     await load();
   }
 
-  function doAccept(it) {
-    return act(it, "accept", {}, () => (it.quoteNumber || "Quote") + " accepted. A job was created at Won.");
+  function doAccept(it, ownerId) {
+    const body = ownerId ? { ownerId } : {};
+    return act(it, "accept", body, () => (it.quoteNumber || "Quote") + " accepted. A job was created at Won.");
   }
+
+  // The project owners (GET /api/project-owners), loaded once for the Accept picker.
+  let owners = [];
+  const canSetOwner = () => can("users.admin") || (can("jobs.edit") && can("design.view"));
+  async function loadOwners() {
+    if (!canSetOwner()) return;
+    try {
+      owners = (await api("/api/project-owners")).owners || [];
+      if (owners.length && loaded) render();
+    } catch (e) { /* Accept still works without one */ }
+  }
+  if (window.cc && window.cc.ready) window.cc.ready.then(loadOwners);
+  else document.addEventListener("cc:ready", loadOwners);
 
   async function doIgnore(it) {
     const ok = await confirmDialog(

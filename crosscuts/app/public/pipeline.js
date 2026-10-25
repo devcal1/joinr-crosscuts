@@ -10,7 +10,9 @@
   const COLUMNS = [
     ["quoted", "Quoted"],
     ["won", "Won"],
-    ["design_ordering", "Design / ordering"],
+    // 0.2.1 (docs/plans/m22-project-jobs.md section 2): design_ordering shows as two columns.
+    ["projects", "Projects"],
+    ["ordering", "Ordering"],
     ["ready_to_cut", "Ready to cut"],
     ["on_board", "On board"],
     ["complete", "Complete"],
@@ -19,12 +21,14 @@
     ["archived", "Archived"],
   ];
   const LABEL = Object.fromEntries(COLUMNS);
-  const MANUAL = ["quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+  const MANUAL = ["quoted", "won", "projects", "ordering", "ready_to_cut", "lost", "archived"];
   // The column a stage is shown in: the retired 'lead' reads as Quoted.
   const colKey = (stage) => (stage === "lead" ? "quoted" : stage);
   // Stages where a near promised install date needs attention (not yet on the board).
   // ("lead" is the retired stage; old rows may still hold it.)
-  const PRE_BOARD = new Set(["lead", "quoted", "won", "design_ordering", "ready_to_cut"]);
+  const PRE_BOARD = new Set(["lead", "quoted", "won", "projects", "ordering", "ready_to_cut"]);
+  // Projects and Ordering tiles take their owner's worker colour (the worker-colours exception).
+  const OWNED = new Set(["projects", "ordering"]);
   // Complete and Invoiced show only the last 60 days until "Show all" is pressed.
   const CAPPED = new Set(["complete", "invoiced"]);
   const CAP_MS = 60 * 24 * 60 * 60 * 1000;
@@ -123,6 +127,13 @@
     showLA = localStorage.getItem(STORE_KEY) === "1";
   } catch (e) { /* storage unavailable: default off */ }
 
+  // The page works in shown stages: design_ordering arrives as pipelineStage projects or ordering
+  // (the server takes either as a move target and as `from`).
+  function setJob(id, j) {
+    if (j && j.pipelineStage) j.stage = j.pipelineStage;
+    jobs.set(id, j);
+  }
+
   const canEdit = () => !!(window.cc && window.cc.loaded && window.cc.can("jobs.edit"));
 
   function announce(msg) {
@@ -202,7 +213,7 @@
       takeJoinr(null);
     }
     jobs.clear();
-    for (const j of list) jobs.set(j.id, j);
+    for (const j of list) setJob(j.id, j);
     loaded = true;
     statusEl.textContent = "";
     renderAll();
@@ -437,6 +448,14 @@
       "data-stage": j.stage,
     });
     if (busy.has(j.id)) card.setAttribute("aria-busy", "true");
+    if (OWNED.has(j.stage)) {
+      card.classList.add(j.owner && j.owner.hue != null ? "pl-owned" : "pl-unowned");
+      if (j.owner && j.owner.hue != null && typeof hueColors === "function") {
+        const c = hueColors(j.owner.hue);
+        card.style.background = c.bg;
+        card.style.setProperty("--pl-owner-fg", c.fg);
+      }
+    }
 
     const handle = el("div", { class: "pl-handle", text: j.name });
     if (ctx.editable) handle.title = "Drag to another column";
@@ -455,12 +474,21 @@
     if (j.sheetCount != null) meta.append(el("span", { text: `${j.sheetCount} ${j.sheetCount === 1 ? "sheet" : "sheets"}` }));
     if (j.valueCents != null) meta.append(el("span", { text: money.format(j.valueCents / 100) }));
     if (meta.childNodes.length) card.append(meta);
+    if (OWNED.has(j.stage)) {
+      card.append(el("div", { class: "pl-owner", text: j.owner ? "Owner " + j.owner.name : "No owner" }));
+    }
     const chips = peopleChips(j, 4);
     if (chips) card.append(el("div", { class: "pl-people" }, chips));
 
     const foot = el("div", { class: "pl-foot-row" });
     foot.append(
-      el("div", { class: "pl-foot-left" }, el("a", { class: "hs-btn hs-btn-quiet", href: "/job.html?id=" + j.id, text: "Open" }), peopleButton(j))
+      el(
+        "div",
+        { class: "pl-foot-left" },
+        el("a", { class: "hs-btn hs-btn-quiet", href: "/job.html?id=" + j.id, text: "Open" }),
+        OWNED.has(j.stage) ? el("a", { class: "hs-btn hs-btn-quiet", href: "/project.html?id=" + j.id, text: "Project" }) : null,
+        peopleButton(j)
+      )
     );
     if (ctx.editable) foot.append(moveButton(j));
     card.append(foot);
@@ -562,7 +590,7 @@
     busy.delete(id);
 
     if (res.ok) {
-      jobs.set(id, res.body);
+      setJob(id, res.body);
       renderColumn(from);
       renderColumn(to);
       announce(`${res.body.name} moved to ${LABEL[to]}`);
@@ -573,7 +601,7 @@
       toast(res.body.error || "Someone else has moved this job.", true);
       // Show the card where it really is.
       const fresh = await request("GET", `/api/job-records/${id}`).catch(() => null);
-      if (fresh && fresh.ok) jobs.set(id, fresh.body);
+      if (fresh && fresh.ok) setJob(id, fresh.body);
       else if (fresh && fresh.status === 404) jobs.delete(id);
       else {
         j.stage = res.body.stage || from;

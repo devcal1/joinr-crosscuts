@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order list - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="projectorder.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="po-body">
+  <div id="cc-shell"></div>
+
+  <!-- A job's finalised order list (projectorder.js; docs/plans/m22-project-jobs.md section 6):
+       ?id=N&rev=A, grouped by supplier, A4 portrait, black on white. -->
+  <main class="po-page">
+    <div class="po-toolbar">
+      <button id="poPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print</button>
+      <a id="poBack" class="hs-btn" href="/pipeline.html">Back</a>
+      <p id="poStatus" class="po-status" role="status" aria-live="polite">Loading...</p>
+    </div>
+    <div class="po-scroll">
+      <article id="poSheet" class="po-sheet" aria-label="Order list"></article>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="projectorder.js"></script>
+</body>
+</html>

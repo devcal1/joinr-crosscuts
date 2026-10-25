@@ -3,7 +3,9 @@
   const STAGES = [
     ["quoted", "Quoted"],
     ["won", "Won"],
-    ["design_ordering", "Design / ordering"],
+    // 0.2.1 (docs/plans/m22-project-jobs.md section 2): design_ordering shows as Projects or Ordering.
+    ["projects", "Projects"],
+    ["ordering", "Ordering"],
     ["ready_to_cut", "Ready to cut"],
     ["on_board", "On board"],
     ["complete", "Complete"],
@@ -19,7 +21,8 @@
     lead: "hs-badge-na", // retired stage; old rows read as Quoted
     quoted: "hs-badge-na",
     won: "hs-badge-teal",
-    design_ordering: "hs-badge-teal",
+    projects: "hs-badge-teal",
+    ordering: "hs-badge-teal",
     ready_to_cut: "hs-badge-check",
     on_board: "hs-badge-teal",
     complete: "hs-badge-go",
@@ -112,7 +115,7 @@
         tr.append(
           nameCell,
           el("td", { text: j.clientName || "" }),
-          el("td", {}, el("span", { class: stageClass(j.stage), text: STAGE_LABEL[j.stage] || "No stage" })),
+          el("td", {}, el("span", { class: stageClass(j.pipelineStage || j.stage), text: STAGE_LABEL[j.pipelineStage || j.stage] || "No stage" })),
           el("td", { text: fmtDate(j.promisedInstallDate) }),
           el("td", { class: "num", text: j.sheetCount == null ? "" : String(j.sheetCount) })
         );

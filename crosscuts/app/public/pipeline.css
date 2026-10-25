@@ -298,3 +298,21 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
   .pl-head h1 { font-size: 22px; }
   .pl-cards { max-height: calc(100vh - 260px); }
 }
+
+/* 0.2.1 (docs/plans/m22-project-jobs.md section 5): Projects and Ordering tiles take their owner's
+   worker colour (the background is set inline from hueColors(): the worker-colours exception). A
+   tile with no owner, or an owner with no board worker, stays on the plain surface. */
+.pl-owner {
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.pl-owned .pl-owner { color: var(--pl-owner-fg, var(--body)); }
+.pl-unowned .pl-owner { color: var(--muted); }
+.pl-card.pl-unowned { background: var(--na); }
+/* With the Project link the foot row has three buttons: let it wrap instead of overlapping. */
+.pl-foot-row { flex-wrap: wrap; row-gap: 2px; }
+.pl-foot-left { flex-wrap: wrap; }

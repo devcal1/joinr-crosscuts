@@ -3,7 +3,10 @@
   const STAGES = [
     ["quoted", "Quoted"],
     ["won", "Won"],
-    ["design_ordering", "Design / ordering"],
+    // 0.2.1 (docs/plans/m22-project-jobs.md section 2): design_ordering shows as Projects or Ordering;
+    // the page works in the shown names (job.pipelineStage), which the server takes as move targets.
+    ["projects", "Projects"],
+    ["ordering", "Ordering"],
     ["ready_to_cut", "Ready to cut"],
     ["on_board", "On board"],
     ["complete", "Complete"],
@@ -13,7 +16,8 @@
   ];
   // Set automatically by the board (and later accounts); only users.admin may set them by hand.
   const DERIVED = new Set(["on_board", "complete", "invoiced"]);
-  const MANUAL = ["quoted", "won", "design_ordering", "ready_to_cut", "lost", "archived"];
+  const MANUAL = ["quoted", "won", "projects", "ordering", "ready_to_cut", "lost", "archived"];
+  const shownStage = (j) => (j ? j.pipelineStage || j.stage : null);
   // Mirror of jobstage.allowedTargets (docs/plans/m3-contracts.md section 2); the server stays authoritative.
   function allowedTargets(from) {
     if (from === "on_board") return [];
@@ -317,7 +321,7 @@
         const node = inputs[f.key];
         if (!node) continue;
         // A job still at the retired lead stage reads as Quoted (saving moves it there).
-        let v = job ? job[f.key] : f.key === "stage" ? "quoted" : null;
+        let v = job ? (f.key === "stage" ? shownStage(job) : job[f.key]) : f.key === "stage" ? "quoted" : null;
         if (f.key === "stage" && v === "lead") v = "quoted";
         if (f.type === "materials") fillMaterials(node, v);
         else if (f.type === "archived") node.checked = !!v;
@@ -346,7 +350,7 @@
         inputs.stage.title = "On board, Complete and Invoiced are set automatically.";
       } else {
         // The pipeline rules: only the stages allowedTargets() gives, plus where the job is now.
-        const cur = job ? job.stage : null;
+        const cur = shownStage(job);
         const locked = boardLocked(job);
         const ok = new Set(locked ? [] : allowedTargets(cur));
         for (const opt of inputs.stage.options) opt.disabled = opt.value !== cur && !ok.has(opt.value);
@@ -499,7 +503,7 @@
     const newStage = isNew || !inputs.stage ? null : fromInput({ type: "stage" }, inputs.stage);
     // The stage as this page last saw it, taken before the field PATCH (which returns the
     // current job): a concurrent move then shows up as a 409 instead of being overwritten.
-    const seenStage = isNew ? null : job.stage;
+    const seenStage = isNew ? null : shownStage(job);
     const stageChanged = !isNew && !!newStage && newStage !== seenStage;
     const hasFields = Object.keys(body).length > 0;
     if (!isNew && !hasFields && !stageChanged) {

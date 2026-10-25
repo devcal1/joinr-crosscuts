@@ -77,3 +77,4 @@ a.hs-btn:hover { text-decoration: none; }
   .in-acts .hs-btn, .in-linkbox .hs-btn { flex: 1 1 auto; }
   .in-tab { flex: 1 1 auto; }
 }
+.in-acts .in-owner { width: auto; min-width: 160px; }
