@@ -1,8 +1,10 @@
-/* The benchtop plan set (/benchtopprint.html; docs/plans/m21-benchtop-designer.md). On screen: the
-   house-style frame with each A4 sheet as a white box on the ink ground. On paper: only the sheets,
-   A4 landscape, black on white, one per page. Edge finishes differ by line style and short codes.
-   Colours come from tokens.css, except in the print block. Classes are bp- (and bt- for the
-   drawing, from benchtopdraw.js). */
+/* The benchtop plan set (/benchtopprint.html; docs/plans/m21-benchtop-designer.md), layout D
+   (Todd, 2026-10-25). On screen: the house-style frame with each A4 landscape sheet as a white box
+   on the ink ground. On paper: only the sheets, black on white, one per page. Every sheet: a 14 mm
+   header (letterhead, job, revision; bold totals right), the drawing full width, a short footer
+   band, the page line. Pieces are filled with pale tints per material (--bt-fill-* tokens, paper
+   only). Colours come from tokens.css, except in the print block. Classes are bp- (and bt- for
+   the drawing, from benchtopdraw.js). */
 body.bp-body { margin: 0; background: var(--ink); color: var(--body); font-family: var(--font); }
 .bp-page { max-width: 297mm; margin: 0 auto; padding: 20px 16px 48px; }
 .bp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 14px; }
@@ -16,37 +18,50 @@ body.bp-body { margin: 0; background: var(--ink); color: var(--body); font-famil
   background: var(--white);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 9pt;
-  line-height: 1.35;
+  font-size: 8pt;
+  line-height: 1.3;
 }
-.bp-sheet { position: relative; width: 297mm; height: 210mm; padding: 12mm; overflow: hidden; }
-.bp-measure { position: absolute; left: -10000px; top: 0; width: 273mm; }
+.bp-sheet { position: relative; width: 297mm; height: 210mm; padding: 10mm; overflow: hidden; }
+.bp-measure { position: absolute; left: -10000px; top: 0; width: 277mm; }
 .bp-sheet :where(h1, h2, p), .bp-measure :where(h1, h2, p) { margin: 0; }
 
-.bp-banner { display: block; width: 100%; height: auto; }
-.bp-bizline { margin-top: 2mm; padding-bottom: 2.5mm; border-bottom: 0.5mm solid var(--ink); font-size: 8.5pt; text-align: center; }
-.bp-lab { display: block; font-size: 7pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-.bp-h1 { margin-top: 0 !important; margin-bottom: 2mm !important; font-size: 13pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
-.bp-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2mm 6mm; padding: 1mm 0 3mm; border-bottom: 0.3mm solid var(--ink); }
-.bp-meta > div { overflow-wrap: anywhere; }
-.bp-runhead { padding-bottom: 1.5mm; border-bottom: 0.3mm solid var(--ink); font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
-.bp-h2 { margin-top: 4mm !important; margin-bottom: 1mm !important; font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-.bp-h2 span { font-weight: 400; letter-spacing: 0; text-transform: none; }
-.bp-row { display: flex; gap: 4mm; align-items: flex-end; margin-top: 2mm; }
-.bp-piece { flex: none; }
-.bp-cap { font-size: 8pt; font-weight: 700; }
-.bp-cap span { font-weight: 400; }
-.bp-piece svg { display: block; }
-table.bp-t { width: 100%; border-collapse: collapse; font-size: 8pt; }
-.bp-t th, .bp-t td { text-align: left; vertical-align: top; padding: 1.1mm 1mm; border-bottom: 0.2mm solid var(--ink); }
-.bp-t th { font-size: 6.5pt; letter-spacing: 0.1em; text-transform: uppercase; }
-.bp-pre { white-space: pre-line; overflow-wrap: anywhere; }
-.bp-check { margin-top: 4mm; padding: 2mm 3mm; border: 0.4mm solid var(--ink); font-size: 10pt; font-weight: 700; text-align: center; }
-.bp-foot { position: absolute; left: 12mm; right: 12mm; bottom: 10mm; display: flex; justify-content: space-between; gap: 4mm; padding-top: 1.5mm; border-top: 0.3mm solid var(--ink); font-size: 7.5pt; }
+/* the header: the same on every sheet */
+.bp-top { display: grid; grid-template-columns: 52mm minmax(0, 1fr) auto; gap: 5mm; align-items: center; min-height: 14mm; padding-bottom: 1mm; border-bottom: 0.3mm solid var(--ink); }
+.bp-banner { display: block; width: 52mm; height: auto; }
+.bp-bizline { margin-top: 0.5mm !important; font-size: 5.8pt; }
+.bp-h1 { font-size: 10.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.bp-rev { font-weight: 400; letter-spacing: 0; text-transform: none; }
+.bp-job { font-size: 8.5pt; }
+.bp-tots { text-align: right; font-weight: 700; }
+.bp-totline { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 1mm 4mm; }
+.bp-total { font-size: 12pt; }
+.bp-mat { font-size: 9pt; white-space: nowrap; }
+.bp-edges { margin-top: 0.5mm !important; font-size: 7.5pt; }
+.bp-sw { display: inline-block; width: 4mm; height: 2.8mm; margin-right: 1.2mm; border: 0.2mm solid var(--ink); vertical-align: -0.3mm; }
 
-/* landscape: letterhead left, title and job details right; arrangement left, column right */
-.bp-head { display: grid; grid-template-columns: 125mm minmax(0, 1fr); gap: 8mm; align-items: start; padding-bottom: 2mm; border-bottom: 0.3mm solid var(--ink); }
-.bp-head .bp-meta { border-bottom: 0; padding-bottom: 0; }
+/* the drawing, full width */
+.bp-main { margin-top: 2mm; }
+.bp-draw, .bp-row { display: flex; flex-direction: column; align-items: center; }
+.bp-row { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 4mm; }
+.bp-scale { align-self: flex-start; font-size: 6.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.bp-row .bp-scale { flex-basis: 100%; }
+.bp-draw svg, .bp-piece svg { display: block; }
+
+/* the footer band */
+.bp-bandtop { padding-top: 1mm; border-top: 0.3mm solid var(--ink); }
+.bp-key, .bp-pieces { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6mm 4mm; margin-top: 0.8mm; font-size: 7.2pt; }
+.bp-ki { display: inline-flex; align-items: center; gap: 1mm; white-space: nowrap; }
+.bp-ki svg { width: 8mm; height: 3mm; overflow: visible; }
+.bp-codes { white-space: normal; }
+.bp-pc { display: inline-flex; align-items: center; gap: 1mm; }
+.bp-pc b { margin-right: 0.5mm; }
+.bp-fl { margin-top: 0.8mm !important; font-size: 7.2pt; }
+.bp-lab { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.bp-pre { white-space: pre-line; overflow-wrap: anywhere; }
+
+/* the page line */
+.bp-foot { position: absolute; left: 10mm; right: 10mm; bottom: 6mm; display: flex; justify-content: space-between; gap: 4mm; padding-top: 1mm; border-top: 0.3mm solid var(--ink); font-size: 7pt; }
+.bp-checkline { font-weight: 700; }
 
 /* the drawing on paper */
 .bt-print .bt-edge { stroke: var(--ink); stroke-width: 0.8; fill: none; }
@@ -57,6 +72,15 @@ table.bp-t { width: 100%; border-collapse: collapse; font-size: 8pt; }
 .bt-print .bt-dim { stroke: var(--ink); stroke-width: 0.5; stroke-dasharray: 2 2; }
 .bt-print text { fill: var(--ink); }
 .bt-print .bt-elbl, .bt-print .bt-joinlbl, .bt-print .bt-num, .bt-print .bt-cutlbl { font-weight: 700; }
+.bt-print .bt-shape, .bp-sw { fill: var(--bt-fill-g); background: var(--bt-fill-g); }
+.bt-print .bt-fill-g, .bp-sw.bt-fill-g { fill: var(--bt-fill-g); background: var(--bt-fill-g); }
+.bt-print .bt-fill-0, .bp-sw.bt-fill-0 { fill: var(--bt-fill-0); background: var(--bt-fill-0); }
+.bt-print .bt-fill-1, .bp-sw.bt-fill-1 { fill: var(--bt-fill-1); background: var(--bt-fill-1); }
+.bt-print .bt-fill-2, .bp-sw.bt-fill-2 { fill: var(--bt-fill-2); background: var(--bt-fill-2); }
+.bt-print .bt-fill-3, .bp-sw.bt-fill-3 { fill: var(--bt-fill-3); background: var(--bt-fill-3); }
+.bt-print .bt-fill-4, .bp-sw.bt-fill-4 { fill: var(--bt-fill-4); background: var(--bt-fill-4); }
+.bt-print .bt-fill-5, .bp-sw.bt-fill-5 { fill: var(--bt-fill-5); background: var(--bt-fill-5); }
+.bp-sw, .bp-sheet svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* style-check: print-start (paper colours: pure black on white) */
 @page { size: A4 landscape; margin: 0; }
@@ -74,35 +98,3 @@ table.bp-t { width: 100%; border-collapse: collapse; font-size: 8pt; }
   .bt-print text { fill: #000; }
 }
 /* style-check: print-end */
-
-/* Todd's simpler sheet (2026-10-25): main column (drawing frame with its key, schedule) and a side
-   column whose bold totals block sits in the same place on every sheet. Pieces filled with a pale
-   tint per material (tokens --bt-fill-*, paper only). */
-.bp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 74mm; gap: 6mm; align-items: start; margin-top: 3mm; }
-.bp-main > * + * { margin-top: 3mm; }
-.bp-side { border-left: 0.3mm solid var(--ink); padding-left: 4mm; font-size: 9.5pt; line-height: 1.4; }
-.bp-side p { margin: 0; }
-.bp-tots { font-weight: 700; }
-.bp-total { font-size: 13pt; }
-.bp-mat { display: flex; align-items: center; gap: 2mm; margin-top: 1mm !important; }
-.bp-sh { margin-top: 3mm !important; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-.bp-edge { font-weight: 700; }
-.bp-line { margin-top: 0.8mm !important; }
-.bp-sw { display: inline-block; flex: none; width: 4mm; height: 3mm; margin-right: 1.5mm; border: 0.2mm solid var(--ink); vertical-align: -0.4mm; }
-.bp-frame { border: 0.3mm solid var(--ink); padding: 2mm 3mm; }
-.bp-scale { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
-.bp-frame svg { display: block; margin: 0 auto; }
-.bp-key { display: inline-block; margin-top: 1mm; padding: 1mm 2mm; border: 0.25mm solid var(--ink); font-size: 7.5pt; }
-.bp-keyrow { display: flex; flex-wrap: wrap; gap: 1mm 4mm; align-items: center; }
-.bp-ki { display: inline-flex; align-items: center; gap: 1.2mm; white-space: nowrap; }
-.bp-ki svg { width: 9mm; height: 3mm; overflow: visible; }
-.bp-keycodes { margin-top: 0.6mm; }
-.bt-print .bt-shape, .bp-sw { fill: var(--bt-fill-g); background: var(--bt-fill-g); }
-.bt-print .bt-fill-g, .bp-sw.bt-fill-g { fill: var(--bt-fill-g); background: var(--bt-fill-g); }
-.bt-print .bt-fill-0, .bp-sw.bt-fill-0 { fill: var(--bt-fill-0); background: var(--bt-fill-0); }
-.bt-print .bt-fill-1, .bp-sw.bt-fill-1 { fill: var(--bt-fill-1); background: var(--bt-fill-1); }
-.bt-print .bt-fill-2, .bp-sw.bt-fill-2 { fill: var(--bt-fill-2); background: var(--bt-fill-2); }
-.bt-print .bt-fill-3, .bp-sw.bt-fill-3 { fill: var(--bt-fill-3); background: var(--bt-fill-3); }
-.bt-print .bt-fill-4, .bp-sw.bt-fill-4 { fill: var(--bt-fill-4); background: var(--bt-fill-4); }
-.bt-print .bt-fill-5, .bp-sw.bt-fill-5 { fill: var(--bt-fill-5); background: var(--bt-fill-5); }
-.bp-sw, .bp-sheet svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

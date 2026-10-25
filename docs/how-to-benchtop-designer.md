@@ -40,6 +40,6 @@ Pieces are lettered A, B, C... in the order of the pieces list, on screen and on
 
 
 
-**Print plan set** saves, then opens the plan set on A4 landscape: the arrangement to scale in a frame with a small key underneath, the schedule below it, and a side column with the totals (in bold, in the same place on every sheet), the cut-outs by piece and the notes. Each piece is filled with a pale tint for its material (light grey when there is only one), matched by the swatches in the totals and schedule. If anything changed since the last revision, it becomes the next letter (A, B, C...). Use the browser's print to save a PDF (A4 landscape). Older revisions are listed on the left: **Open** shows one read-only, **Print** reprints it.
+**Print plan set** saves, then opens the plan set on A4 landscape. Every sheet has a slim header (letterhead, job and revision, and on the right the totals in bold with the material swatches and edge metres); the drawing takes the full width, at the largest scale that fits (1:30 or closer when it can); underneath, a short band gives the key, the pieces, the cut-outs and the notes. Long notes carry on to a second sheet with the same header. Each piece is filled with a pale tint for its material (light grey when there is only one).
 
 **Send to supplier** is coming later.
