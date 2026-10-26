@@ -41,7 +41,6 @@ Review notes agreed in planning:
 | **M24 Board placement and money triggers** | 0.2.3 | `m24-plan.md` | Auto-place on the board N weeks out (admin setting), 10% at Send to Ordering, On board (ordering), all-ordered: Ready to cut, schedule manager alert and "Needs install date" list with a confirm dialog, daily missing/late ETA nudge. |
 | **M25 Workshop end-of-shift report** | 0.2.4 | `m25-plan.md` | Phone page for each workshop person: today's jobs, photos, issues. Job issues routed to the project owner and schedule manager, shown on the job, project and dashboard pages. New feature key `shift.report`. |
 | **M26 Morning check and completion** | 0.2.5 | `m26-plan.md` | Schedule manager's daily Morning check (stage + note per job per day), Finish week "complete" becomes installed, project manager Confirm complete, then the 40%; Dashboard "waiting on you" tiles per role. |
-
 | **M27 Workshop manager** | 0.2.6 | `m27-plan.md` | Fortnightly stock count with targets and order amounts filled in (target minus have), the workshop manager keeps the list; Workshop > Maintenance on recurring tasks, confirmed by the workshop manager only. |
 | **M28 Accounts and vehicles** | 0.2.7 | `m28-plan.md` | Vehicles register (rego, insurance, bookings; dates only); To pay list (admin ticks paid); invoices Mark sent with follow-up interval per invoice; Loans maintain access for Accounts. |
 
