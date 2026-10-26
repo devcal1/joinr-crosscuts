@@ -1,6 +1,6 @@
 # Workflow roadmap: Won to final invoice (Todd, 2026-10-26)
 
-This roadmap makes Crosscuts run TH Cabinets' job workflow end to end, with one person clearly responsible at each step. It follows 0.2.1 (Project jobs, `m22-project-jobs.md`). Admin/accounts duties beyond the three invoice triggers are out of scope until Todd expands that role.
+This roadmap makes Crosscuts run TH Cabinets' job workflow end to end, with one person clearly responsible at each step. It follows 0.2.1 (Project jobs, `m22-project-jobs.md`). Todd added the workshop manager and accounts roles the same day; they are M27 and M28.
 
 Each milestone has its own self-contained plan, written so that a fresh session (after `/clear`) can build it from `CLAUDE.md`, `STATUS.md`, this file and that plan alone. Build in order: each milestone assumes the ones before it. Each is one release (0.2.2, 0.2.3, ...), with Todd's look before the push.
 
@@ -42,7 +42,14 @@ Review notes agreed in planning:
 | **M25 Workshop end-of-shift report** | 0.2.4 | `m25-plan.md` | Phone page for each workshop person: today's jobs, photos, issues. Job issues routed to the project owner and schedule manager, shown on the job, project and dashboard pages. New feature key `shift.report`. |
 | **M26 Morning check and completion** | 0.2.5 | `m26-plan.md` | Schedule manager's daily Morning check (stage + note per job per day), Finish week "complete" becomes installed, project manager Confirm complete, then the 40%; Dashboard "waiting on you" tiles per role. |
 
-Later (not planned yet): Accounts and admin widening, when Todd describes that role.
+| **M27 Workshop manager** | 0.2.6 | `m27-plan.md` | Fortnightly stock count with targets and order amounts filled in (target minus have), the workshop manager keeps the list; Workshop > Maintenance on recurring tasks, confirmed by the workshop manager only. |
+| **M28 Accounts and vehicles** | 0.2.7 | `m28-plan.md` | Vehicles register (rego, insurance, bookings; dates only); To pay list (admin ticks paid); invoices Mark sent with follow-up interval per invoice; Loans maintain access for Accounts. |
+
+### Workshop manager and accounts (Todd, 2026-10-26)
+
+- Workshop manager: fortnightly stock count against a kept list of target amounts, which makes the order list for the order manager; the maintenance schedule in the Planner, each item confirmed when actioned; vehicle maintenance bookings.
+- Accounts: sends and follows up all invoices; keeps supplier accounts and non-account invoices for admin to pay; vehicle registrations and insurances; accuracy of the directors' loan balances.
+- Decisions: true fortnightly cycle; maintenance confirmed by the workshop manager only; vehicles dates and bookings only; admin ticks bills paid; Mark sent plus follow-up interval set per invoice (client terms differ); Accounts may record loan payments and interest and tick months checked (changes M13 owner-only; openings, rates, plans stay owner-only); Workshop becomes a sixth department (in M23).
 
 ## Already done, not rebuilt
 

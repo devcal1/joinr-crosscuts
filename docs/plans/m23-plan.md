@@ -16,7 +16,7 @@ The project manager's four steps are recorded on every job, nobody's job sits wi
 4. **Requested install date.** `jobs.requested_install_date` (Sydney date). Edited on the project page and the job page. Send to Ordering requires it (400 "Enter a requested install date before sending to Ordering").
 5. **Order manager alert.** On Send to Ordering, bell holders of orders.mark_ordered: "Order list for X sent: N lines, M suppliers", linking to Orders filtered by the job.
 6. **Pipeline tile marks.** Projects tiles show the step marks (done marks in body text, missing ones muted); Ordering tiles show "n/m ordered". Text only.
-7. **Naming tidy.** Rename the Design/PM messages channel's stored name to Projects (an UPDATE in an additive migration; Todd approves this as a data change before it runs). Add Ordering and Workshop channels.
+7. **Naming tidy.** Rename the Design/PM messages channel's stored name to Projects (an UPDATE in an additive migration; Todd approves this as a data change before it runs). Add Ordering and Workshop channels. **Workshop becomes a sixth department** (Todd, 2026-10-26): a `notes.workshop` key (workshop, workshop_manager, admin) for its notes wall, a Workshop department in `lib/recurring.js` DEPTS on the workshop Planner layer, and a Workshop menu heading (M27 adds Maintenance under it).
 
 ## Deliverables
 
