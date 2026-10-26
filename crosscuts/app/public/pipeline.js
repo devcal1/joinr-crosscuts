@@ -490,6 +490,10 @@
         marks.append(el("span", { class: m.done ? "pl-mark pl-mark-done" : "pl-mark", title: m.label + (m.done ? ": done" : ": not yet"), text: m.mark }));
       }
       card.append(marks);
+    } else if (j.stage === "on_board" && j.boardOrdering) {
+      // M24 (m24-contracts section 4): still ordering while on the board.
+      const p = j.orderingProgress;
+      card.append(el("div", { class: "pl-marks", text: "On board (ordering)" + (p && p.total ? ` · ${p.ordered}/${p.total} ordered` : "") }));
     } else if (j.stage === "ordering" && j.orderingProgress) {
       const p = j.orderingProgress;
       card.append(el("div", { class: "pl-marks", text: p.total ? `${p.ordered}/${p.total} ordered` : "No order lines" }));

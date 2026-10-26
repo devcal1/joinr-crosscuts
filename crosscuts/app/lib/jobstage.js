@@ -300,6 +300,8 @@ function moveStage(db, jobId, { stage, from } = {}, req, opts = {}) {
 }
 
 module.exports = {
+  // M24: used by the automatic board placement (lib/handoffs.js).
+  hasCurrentOrFutureRows,
   VIRTUAL_STAGES,
   pipelineStage,
   setSentToOrdering,

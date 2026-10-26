@@ -115,7 +115,7 @@
         tr.append(
           nameCell,
           el("td", { text: j.clientName || "" }),
-          el("td", {}, el("span", { class: stageClass(j.pipelineStage || j.stage), text: STAGE_LABEL[j.pipelineStage || j.stage] || "No stage" })),
+          el("td", {}, el("span", { class: stageClass(j.pipelineStage || j.stage), text: (STAGE_LABEL[j.pipelineStage || j.stage] || "No stage") + (j.boardOrdering ? " (ordering)" : "") })),
           el("td", { text: fmtDate(j.promisedInstallDate) }),
           el("td", { class: "num", text: j.sheetCount == null ? "" : String(j.sheetCount) })
         );

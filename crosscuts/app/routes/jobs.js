@@ -8,6 +8,7 @@ const jobstage = require("../lib/jobstage");
 const orders = require("../lib/orders");
 const invoices = require("../lib/invoices");
 const projectsteps = require("../lib/projectsteps");
+const handoffs = require("../lib/handoffs");
 const { HttpError, bad, sendError, can } = require("../lib/httperror");
 const { DATE_RE, parseDateUTC, formatDateUTC, sydneyToday } = require("../lib/time");
 
@@ -148,6 +149,9 @@ function toJob(req, row, boardWeeks, inBacklog, people) {
   const facts = projectsteps.tileFacts(db, row);
   out.projectMarks = facts ? facts.marks : null;
   out.orderingProgress = facts ? facts.ordering : null;
+  // M24 (m24-contracts section 4): a job on the board with lines still to order is "On board (ordering)".
+  out.boardOrdering = handoffs.boardOrdering(db, row);
+  if (out.boardOrdering) out.orderingProgress = projectsteps.orderingOf(db, row.id);
   return out;
 }
 

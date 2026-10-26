@@ -149,3 +149,8 @@ body {
 .pj-tile-stat strong { color: var(--white); font-weight: 700; }
 /* Installs in the next 2 weeks: orange, attend to this (M12). */
 .pj-tile-stat.pj-soon { color: var(--orange-tint); font-weight: 700; }
+
+/* 0.2.3: Needs install date (Scheduling). */
+.ni-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.ni-table td:last-child { text-align: right; }
+.ni-err { color: var(--orange-tint); }

@@ -56,6 +56,32 @@
       <div id="wall" class="nt-wall"></div>
     </div>
 
+    <!-- Needs install date (0.2.3, docs/plans/m24-contracts.md section 5): on ?dept=scheduling, for
+         board.edit. Jobs with everything ordered and no promised install date. schedulingdash.js. -->
+    <section id="needsInstall" class="pj-dash" aria-labelledby="niH" hidden>
+      <div class="hs-sectionbar"><h2 id="niH">Needs install date</h2></div>
+      <p id="niStatus" class="pj-tile-stat" role="status"></p>
+      <div class="pj-mine-wrap">
+        <table class="hs-table pj-mine ni-table" hidden>
+          <thead><tr><th scope="col">Job</th><th scope="col">Requested install</th><th scope="col">Latest ETA</th><th scope="col"><span class="ni-sr">Actions</span></th></tr></thead>
+          <tbody id="niRows"></tbody>
+        </table>
+      </div>
+    </section>
+    <dialog id="niDlg" class="cc-dialog" aria-labelledby="niDlgTitle">
+      <form id="niForm" class="cc-dialog-form" method="dialog" novalidate>
+        <h2 class="cc-dialog-title" id="niDlgTitle">Confirm install date</h2>
+        <p id="niDlgJob" class="pj-tile-stat"></p>
+        <label><span class="hs-label">Promised install</span>
+          <input id="niDate" class="hs-input" type="date" required></label>
+        <p id="niDlgErr" class="pj-tile-stat ni-err" role="alert"></p>
+        <div class="cc-dialog-actions">
+          <button id="niCancel" class="hs-btn hs-btn-quiet" type="button">Cancel</button>
+          <button class="hs-btn hs-btn-primary" type="submit">Confirm</button>
+        </div>
+      </form>
+    </dialog>
+
     <!-- My projects (0.2.2, docs/plans/m23-contracts.md section 8): the signed-in user's owned jobs,
          one line each; admins may show every owner's. projectsdash.js fills it. -->
     <section id="pjMine" class="pj-dash" aria-labelledby="pjMineH" hidden>
@@ -98,5 +124,6 @@
   <script src="notes.js"></script>
   <script src="/shell/shell.js"></script>
   <script src="projectsdash.js"></script>
+  <script src="schedulingdash.js"></script>
 </body>
 </html>

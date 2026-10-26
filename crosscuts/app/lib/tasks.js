@@ -548,8 +548,10 @@ function runReminder(db, { now = new Date(), force = false } = {}) {
       });
       sent++;
     }
+    // M24 (docs/plans/m24-contracts.md section 6): the order managers' ETA nudge, same 7:00 run.
+    const etaNudges = require("./handoffs").etaNudge(db, today);
     if (!force) settings.set(db, "tasks.reminder_last_run", today, null, { audit: false });
-    return { sent, date: today };
+    return { sent, date: today, etaNudges };
   })();
 }
 

@@ -33,6 +33,11 @@ const DUE_BODY = {
   completed: "The job is complete.",
   manual: "",
 };
+// M24 (docs/plans/m24-contracts.md section 3): invoices.due_trigger, for reasons the due_reason
+// CHECK can't hold.
+const TRIGGER_BODY = {
+  order_list_sent: "The order list was sent to Ordering.",
+};
 
 // --- small helpers ---------------------------------------------------------
 
@@ -211,25 +216,25 @@ function announceDue(db, invoiceId, req) {
     action: "invoice.due",
     entityType: "invoice",
     entityId: invoiceId,
-    after: { jobId: inv.job_id, kind: inv.kind, status: "due", dueReason: inv.due_reason, amountCents: hasAmount ? total : null },
+    after: { jobId: inv.job_id, kind: inv.kind, status: "due", dueReason: inv.due_reason, dueTrigger: inv.due_trigger || null, amountCents: hasAmount ? total : null },
   });
   notify.toKey(db, "invoices.edit", {
     kind: "invoice.due",
     title: `${KIND_LABEL[inv.kind]} due: ${job ? job.name : "job " + inv.job_id}${hasAmount ? ", " + money(total) : ""}`,
-    body: DUE_BODY[inv.due_reason] || "",
+    body: DUE_BODY[inv.due_reason] || TRIGGER_BODY[inv.due_trigger] || "",
     link: `/accounts.html?invoice=${invoiceId}`,
     entityType: "invoice",
     entityId: invoiceId,
   });
 }
 
-function insertDue(db, jobId, kind, reason) {
+function insertDue(db, jobId, kind, reason, trigger = null) {
   const info = db
     .prepare(
-      `INSERT INTO invoices (job_id, kind, status, became_due_date, due_reason)
-       VALUES (?, ?, 'due', ?, ?)`
+      `INSERT INTO invoices (job_id, kind, status, became_due_date, due_reason, due_trigger)
+       VALUES (?, ?, 'due', ?, ?, ?)`
     )
-    .run(jobId, kind, sydneyToday(), reason);
+    .run(jobId, kind, sydneyToday(), reason, trigger);
   return Number(info.lastInsertRowid);
 }
 
@@ -237,18 +242,18 @@ function insertDue(db, jobId, kind, reason) {
 // for a job with no value is held as 'pending' (its due_reason kept) and falls
 // due in onValueSet when the job gets one; the job's value holders and accounts
 // are told it is waiting. Otherwise it is due now, as before.
-function raise(db, jobId, kind, reason, req) {
+function raise(db, jobId, kind, reason, req, trigger = null) {
   const job = getJob(db, jobId);
   if (job && job.value_cents == null) {
     const info = db
-      .prepare("INSERT INTO invoices (job_id, kind, status, due_reason) VALUES (?, ?, 'pending', ?)")
-      .run(jobId, kind, reason);
+      .prepare("INSERT INTO invoices (job_id, kind, status, due_reason, due_trigger) VALUES (?, ?, 'pending', ?, ?)")
+      .run(jobId, kind, reason, trigger);
     const id = Number(info.lastInsertRowid);
     audit.log(req, {
       action: "invoice.waiting",
       entityType: "invoice",
       entityId: id,
-      after: { jobId, kind, status: "pending", dueReason: reason },
+      after: { jobId, kind, status: "pending", dueReason: reason, ...(trigger ? { dueTrigger: trigger } : {}) },
     });
     const ids = [...notify.usersWithKey(db, "jobs.value"), ...notify.usersWithKey(db, "invoices.edit")];
     notify.toUsers(db, ids, {
@@ -261,9 +266,22 @@ function raise(db, jobId, kind, reason, req) {
     });
     return id;
   }
-  const id = insertDue(db, jobId, kind, reason);
+  const id = insertDue(db, jobId, kind, reason, trigger);
   announceDue(db, id, req);
   return id;
+}
+
+// M24 (docs/plans/m24-contracts.md section 3): Send to Ordering makes the deposit due, once: a job
+// with a deposit in any status gets no second one (a re-send after revision B, or a job already
+// placed on the board). The board-placement trigger (onScheduled) stays as the fallback for jobs
+// that reach the board without a list. Never throws.
+function onOrderListSent(db, jobId, req) {
+  return hook(db, "onOrderListSent", () => {
+    if (!getJob(db, jobId)) return false;
+    if (db.prepare("SELECT 1 AS x FROM invoices WHERE job_id = ? AND kind = 'deposit' LIMIT 1").get(jobId)) return false;
+    raise(db, jobId, "deposit", null, req, "order_list_sent");
+    return true;
+  });
 }
 
 // The job now has a value: its deposit, progress and final invoices that were
@@ -603,6 +621,7 @@ function setMyob(db, id, dateOrNull, req) {
 module.exports = {
   // contract
   onScheduled,
+  onOrderListSent,
   onMaterialsOrdered,
   onCompleted,
   onValueSet,

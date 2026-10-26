@@ -63,6 +63,17 @@ Click **Send to Ordering** (you need to be able to create order lines). It is on
 - moves the job to the **Ordering** column;
 - tells the order managers (the bell): "Order list for X sent: N lines, M suppliers", linking to Orders showing just that job.
 
+It also (0.2.3):
+
+- puts the job on the board, in Manufacturing, two weeks out (the week starting two Mondays from now), with nobody on it, ready for scheduling to add people. Admins set how many weeks on Admin > Users, Business details, **Board lead (weeks)**; 0 turns this off. A job already on the board this week or later isn't placed again.
+- makes the **10% deposit** due (Accounts is told). It is raised once only: sending a later revision doesn't raise another.
+
+While the job is on the board and lines are still to order, it shows as **On board (ordering)**, with how many lines are ordered.
+
+When Ordering orders the last line, the **50%** falls due (as before). A job not yet on the board moves to **Ready to cut**. Scheduling is asked to set the install date: the Scheduling notes page lists **Needs install date** (jobs with everything ordered and no promised install date, with your requested date and the latest delivery date). **Confirm install date** sets the promised install date.
+
+Every weekday at 7:00, Ordering gets one alert if any ordered lines have no expected date, or any lines are past their expected date.
+
 If you add lines after sending, finalise again and send again: only the new lines become order lines. A change to a line that is already ordered doesn't change its order line, so tell Ordering, who can edit it on the Orders page.
 
 A job can also be dragged between Projects and Ordering by hand; that moves it but makes no order lines.

@@ -527,6 +527,7 @@
     $("setNextNumber").value = s.invoice.nextNumber;
     $("setPad").value = s.invoice.pad;
     $("setDefaultDays").value = s.invoice.defaultDays;
+    $("setLeadWeeks").value = s.board ? s.board.leadWeeks : 2;
     numberLocked = !!s.invoice.numberLocked;
     for (const id of NUMBERING) $(id).disabled = numberLocked;
     $("setLockNote").hidden = !numberLocked;
@@ -558,7 +559,8 @@
         invoice.nextNumber = intField("setNextNumber", "Next number");
         invoice.pad = intField("setPad", "Number padding");
       }
-      fillSettings(await api("/api/settings", { method: "PUT", body: JSON.stringify({ business, invoice }) }));
+      const board = { leadWeeks: intField("setLeadWeeks", "Board lead (weeks)") };
+      fillSettings(await api("/api/settings", { method: "PUT", body: JSON.stringify({ business, invoice, board }) }));
       toast("Saved");
     } catch (err) {
       showSettingsError(err.message);

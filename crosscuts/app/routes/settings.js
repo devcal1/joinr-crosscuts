@@ -32,6 +32,8 @@ const BUSINESS_FIELDS = {
   accountNumber: "bank.account_number",
   termsText: "invoice.terms_text",
 };
+// M24: the board group.
+const BOARD_FIELDS = { leadWeeks: "board.lead_weeks" };
 const INVOICE_FIELDS = {
   prefix: "invoice.prefix",
   nextNumber: "invoice.next_number",
@@ -63,6 +65,7 @@ function current() {
       termsText: s["invoice.terms_text"],
       numberLocked: numberLocked(),
     },
+    board: { leadWeeks: Number(s["board.lead_weeks"]) },
   };
 }
 
@@ -127,6 +130,8 @@ function parseField(field, v) {
       return integer("Number padding", v, 1, 10);
     case "defaultDays":
       return integer("Payment days", v, 0, 365);
+    case "leadWeeks":
+      return integer("Board lead weeks", v, 0, 12);
     default:
       throw bad(`Unknown field: ${field}`);
   }
@@ -159,6 +164,7 @@ r.put("/", ACCESS, (req, res) => {
     const changes = {
       ...parseGroup("business", body.business, BUSINESS_FIELDS, []),
       ...parseGroup("invoice", body.invoice, INVOICE_FIELDS, ["numberLocked"]),
+      ...parseGroup("board", body.board, BOARD_FIELDS, []),
     };
     db.transaction(() => {
       // Echoing the stored value back (the panel sends the whole form) is not a change.

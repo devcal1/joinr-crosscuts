@@ -549,7 +549,8 @@ function updateLine(db, orderId, patch, req, opts = {}) {
     }
     // The all-ordered rule: the last to_order line has just been ordered.
     if (transition === "to_order>ordered" && allOrdered(db, line.job_id)) {
-      markMaterialsOrdered(db, line.job_id, req, changes.ordered_date);
+      // M24 (docs/plans/m24-contracts.md section 4): the first time, Ready to cut and the install ask.
+      if (markMaterialsOrdered(db, line.job_id, req, changes.ordered_date)) require("./handoffs").onAllOrdered(db, req, line.job_id);
     }
     // A new non-empty delivery note tells Ordering straight away, every time (M10 section 4.3).
     if (noteChanged && noteIn) {
@@ -599,7 +600,7 @@ function cancelLine(db, orderId, req, opts = {}) {
       after: { status: "cancelled" },
     });
     if (can(req, "orders.mark_ordered") && allOrdered(db, line.job_id)) {
-      markMaterialsOrdered(db, line.job_id, req);
+      if (markMaterialsOrdered(db, line.job_id, req)) require("./handoffs").onAllOrdered(db, req, line.job_id);
     }
     refreshMaterialsIn(db, line.job_id, req);
     return { order: present(loadLine(db, orderId)), job: jobState(db, line.job_id) };

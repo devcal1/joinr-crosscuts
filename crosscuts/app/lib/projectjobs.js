@@ -350,8 +350,9 @@ function send(db, req, jobId) {
   return db.transaction(() => {
     const job = requireJob(db, jobId);
     const shown = jobstage.pipelineStage(job);
-    if (!["won", "projects", "ordering"].includes(shown)) {
-      throw conflict("Only a job at Won, Projects or Ordering can be sent to Ordering");
+    // M24: a job already placed on the board (or at Ready to cut) can still send a later revision.
+    if (!["won", "projects", "ordering", "on_board", "ready_to_cut"].includes(shown)) {
+      throw conflict("Only a job at Won, Projects, Ordering, Ready to cut or On board can be sent to Ordering");
     }
     // 0.2.2 (m23-contracts section 4).
     if (!job.requested_install_date) throw bad("Enter a requested install date before sending to Ordering");
@@ -386,7 +387,9 @@ function send(db, req, jobId) {
       created.push({ id: l.id, orderId: r.order.id, supplier: l.supplier });
     }
     db.prepare("UPDATE project_order_lists SET sent_at = ?, sent_by = ? WHERE id = ?").run(now, userId(req), latest.id);
-    if (shown !== "ordering") jobstage.moveStage(db, jobId, { stage: "ordering", from: job.stage }, req);
+    if (shown === "won" || shown === "projects") jobstage.moveStage(db, jobId, { stage: "ordering", from: job.stage }, req);
+    // M24 (m24-contracts section 2 and 3): the deposit, then the board row N weeks out.
+    const handoff = require("./handoffs").onSent(db, req, jobId);
     const suppliers = [...new Set(created.map((c) => c.supplier))];
     audit.log(req, {
       action: "project.send",
@@ -396,7 +399,15 @@ function send(db, req, jobId) {
     });
     // 0.2.2 (m23-contracts section 5): the order managers are told.
     require("./projectsteps").sentAlert(db, req, jobId, { revision: latest.revision, created: created.length, suppliers });
-    return { revision: latest.revision, created: created.length, skipped: skipped.length, suppliers, ...summary(db, jobId) };
+    return {
+      revision: latest.revision,
+      created: created.length,
+      skipped: skipped.length,
+      suppliers,
+      depositDue: !!handoff.deposit,
+      placed: handoff.placed,
+      ...summary(db, jobId),
+    };
   })();
 }
 

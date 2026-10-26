@@ -41,6 +41,9 @@ const DEFAULTS = {
   "drawers.supplier.edge": "Finista EDGE",
   "drawers.supplier.dtc": "DTC DragonPro",
   "paint.litres_per_kg": "0.85",
+  // M24 (docs/plans/m24-contracts.md section 1): weeks from this Monday to the manufacturing row a
+  // job gets at Send to Ordering; 0 = don't place automatically. PUT /api/settings {board}.
+  "board.lead_weeks": "2",
 };
 const KEYS = Object.keys(DEFAULTS);
 

@@ -212,6 +212,12 @@
           <label for="setDefaultDays">Default days to pay</label>
           <input class="hs-input" id="setDefaultDays" type="number" min="0" max="365" step="1">
         </div>
+        <!-- M24 (docs/plans/m24-contracts.md section 1): Board settings. -->
+        <div class="field">
+          <label for="setLeadWeeks">Board lead (weeks)</label>
+          <input class="hs-input" id="setLeadWeeks" type="number" min="0" max="12" step="1">
+          <div class="hint">Send to Ordering puts the job on the board this many weeks out, in Manufacturing, with nobody on it. 0 turns this off.</div>
+        </div>
       </div>
       <p class="hint settings-lock" id="setLockNote" hidden>Locked: invoices have been issued</p>
 

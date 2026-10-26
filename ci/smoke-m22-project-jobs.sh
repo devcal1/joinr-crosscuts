@@ -32,6 +32,11 @@ expect_eq "$(printf '%s' "$M22_COLS" | jq -r '[.jobs[] | select(. == "project_ow
 expect_eq "$(printf '%s' "$M22_COLS" | jq -r '[.m[] | select(. == "colour" or . == "finish" or . == "brand" or . == "code" or . == "supplier")] | length')" "5" "job_materials has the five new columns"
 expect_eq "$(printf '%s' "$M22_COLS" | jq -r '.l | length > 0')" "true" "project_order_lists exists"
 
+# M24: Send to Ordering also places the job on the board; this suite tests the list, so placement
+# is off here (ci/smoke-m24-board-money.sh turns it back on and tests it).
+req PUT /api/settings "$ADMIN" '{"board":{"leadWeeks":0}}'
+expect_status 200 "board lead 0 for the M22 and M23 suites"
+
 echo "--- pages and access ---"
 req GET /project.html "$DPM";         expect_status 200 "dpm GET /project.html"
 req GET /projectorder.html "$DPM";    expect_status 200 "dpm GET /projectorder.html"

@@ -104,6 +104,8 @@ const routers = [
   require("./routes/projectjobs"),
   // Projects steps and hand-offs (0.2.2, docs/plans/m23-contracts.md).
   require("./routes/projectsteps"),
+  // Board placement and money triggers (0.2.3, docs/plans/m24-contracts.md).
+  require("./routes/handoffs"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

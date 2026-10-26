@@ -131,14 +131,8 @@ r.post("/rows", "board.edit", (req, res) => {
       jobstage.createBoardJob(db, req, {
         name: newJobName, notes: typeof notes === "string" ? notes : "", stage: "on_board",
       });
-    const maxOrder = db
-      .prepare("SELECT MAX(sort_order) AS m FROM week_rows WHERE week_start = ? AND panel = ?")
-      .get(snappedWeekStart, panel).m;
-    const info = db
-      .prepare("INSERT INTO week_rows (job_id, week_start, panel, sort_order) VALUES (?, ?, ?, ?)")
-      .run(rowJobId, snappedWeekStart, panel, (maxOrder ?? -1) + 1);
-    jobstage.onScheduled(db, rowJobId, req, snappedWeekStart);
-    return info.lastInsertRowid;
+    // M24: the shared add (lib/boardrows.js), also used by the automatic placement.
+    return require("../lib/boardrows").addRow(db, req, rowJobId, snappedWeekStart, panel);
   })();
 
   const weekRow = selectRowWithJob.get(newRowId);

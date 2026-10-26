@@ -449,6 +449,11 @@
     if (job.stageChangedAt) bits.push(`Stage changed: ${job.stageChangedAt.slice(0, 10)}`);
     if (job.onBoardWeeks && job.onBoardWeeks.length) bits.push("On board weeks: " + job.onBoardWeeks.map(fmtDate).join(", "));
     if (job.inBacklog) bits.push("In the To start list");
+    // M24 (m24-contracts section 4).
+    if (job.boardOrdering) {
+      const p = job.orderingProgress;
+      bits.push("On board (ordering)" + (p && p.total ? `: ${p.ordered} of ${p.total} ordered` : ""));
+    }
     for (const b of bits) metaEl.append(el("span", { text: b }));
   }
 
