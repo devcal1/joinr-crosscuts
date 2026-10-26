@@ -78,6 +78,7 @@ expect_status 400 "ownerId must be an id"
 req PUT "/api/job-records/$M22_J/owner" "$DPM" "{\"ownerId\":$ORDR_ID}"
 expect_status 200 "dpm sets the owner"
 expect_jq ".job.owner.id == $ORDR_ID and .job.owner.hue == 150" "the owner with their colour"
+expect_jq '.job.pipelineStage == "projects"' "M23: a Won job given an owner moves to Projects"
 req GET "/api/job-records/$M22_J" "$DPM"
 expect_jq ".projectOwnerId == $ORDR_ID and .owner.id == $ORDR_ID and .owner.hue == 150" "the job record carries the owner"
 req GET "/api/audit?action=job.owner&entityId=$M22_J&limit=5" "$ADMIN"
@@ -87,6 +88,9 @@ expect_status 200 "admin clears the owner"
 expect_jq '.job.owner == null' "cleared"
 req PUT "/api/job-records/$M22_J/owner" "$ADMIN" "{\"ownerId\":$ORDR_ID}"
 expect_status 200 "admin sets it again"
+# M23 moved it to Projects with the owner; back to Won for the stage checks below.
+req POST "/api/job-records/$M22_J/stage" "$DPM" '{"stage":"won","from":"projects"}'
+expect_status 200 "Projects -> Won (by hand)"
 
 req POST "/api/job-records/$M22_J/stage" "$DPM" '{"stage":"projects","from":"won"}'
 expect_status 200 "won -> Projects"
@@ -167,6 +171,9 @@ expect_jq '.revision == "A" and (.materials | length) == 1 and (.hardware | leng
 expect_jq '([.hardware[] | select(.brand == "Blum" and .code == "71B3550")] | length) == 1' "brand and code frozen"
 req GET "/api/job-records/$M22_J/project/order-lists/Z" "$DPM"
 expect_status 404 "no revision Z"
+# M23 (m23-contracts section 4): Send to Ordering needs a requested install date.
+req PATCH "/api/job-records/$M22_J" "$DPM" '{"requestedInstallDate":"2030-03-04"}'
+expect_status 200 "a requested install date for sending"
 
 req PATCH "/api/job-records/$M22_J/materials/$M22_L1" "$DPM" '{"colour":"Natural Oak"}'
 expect_status 200 "change a colour after finalising"
@@ -268,7 +275,7 @@ req POST "/api/joinr/intake/$M22_NEW/accept" "$DPM" "{\"ownerId\":$ORDR_ID}"
 expect_status 200 "accept with an owner"
 M22_AJ=$(jqr '.job.id')
 req GET "/api/job-records/$M22_AJ" "$DPM"
-expect_jq ".stage == \"won\" and .owner.id == $ORDR_ID" "the accepted job has its owner"
+expect_jq ".pipelineStage == \"projects\" and .owner.id == $ORDR_ID" "the accepted job has its owner (and M23 moved it to Projects)"
 
 echo "--- unlink the worker again ---"
 req PUT "/api/users/$ORDR_ID/worker" "$ADMIN" '{"workerId":null}'

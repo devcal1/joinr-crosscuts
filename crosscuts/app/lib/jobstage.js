@@ -245,6 +245,8 @@ function moveStoredStage(db, jobId, { stage, from } = {}, req, { override = fals
     if (toStart) after.toStart = toStart;
 
     audit.log(req, { action: "job.stage", entityType: "job", entityId: jobId, before, after });
+    // 0.2.2 (m23-contracts section 3): a Won job with no owner alerts those who may set one.
+    if (stage === "won") require("./projectsteps").soon(db);
     return { changed: true, from: current, to: stage, toStart };
   })();
 }

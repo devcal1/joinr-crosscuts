@@ -38,6 +38,10 @@ const SQL = {
   inspections: `SELECT i.id, i.job_id, j.name, i.date, i.time
       FROM inspections i JOIN jobs j ON j.id = i.job_id
      WHERE i.status IN ('booked','done') AND i.date BETWEEN ? AND ? AND j.archived = 0`,
+  // 0.2.2 (docs/plans/m23-contracts.md section 2): booked and done check measures, Projects layer.
+  checkMeasures: `SELECT c.id, c.job_id, j.name, c.date, c.time
+      FROM check_measures c JOIN jobs j ON j.id = c.job_id
+     WHERE c.status IN ('booked','done') AND c.date BETWEEN ? AND ? AND j.archived = 0`,
   leave: `SELECT l.id, l.date_from, l.date_to, w.name
       FROM leave l JOIN workers w ON w.id = l.worker_id
      WHERE l.removed_at IS NULL AND l.date_to >= ? AND l.date_from <= ? AND w.archived = 0`,
@@ -304,6 +308,17 @@ function listAuto(db, user, { from, to, today, layers } = {}) {
   if (eff.has("install")) {
     weeks = boardWeeks(db, user, from, to);
     installEvents(db, user, from, to, events);
+  }
+  if (eff.has("design_pm")) {
+    const jobs = has(user, "jobs.view");
+    for (const r of stmt(db, "checkMeasures").all(from, to)) {
+      const time = typeof r.time === "string" && r.time ? r.time : null;
+      events.push(item({
+        id: `a:check_measure:${r.id}`, source: "check_measure", sourceLabel: "Projects", layer: "design_pm",
+        title: `Check measure: ${cut(r.name)}`, start: r.date, allDay: !time, startTime: time,
+        job: { id: Number(r.job_id), name: r.name }, link: jobs ? `/project.html?id=${r.job_id}#steps` : null,
+      }));
+    }
   }
   if (eff.has("company")) leaveEvents(db, user, from, to, events);
   if (eff.has("accounts")) accountsEvents(db, user, from, to, day, events);

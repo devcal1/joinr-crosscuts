@@ -7,6 +7,7 @@ const audit = require("../lib/audit");
 const jobstage = require("../lib/jobstage");
 const orders = require("../lib/orders");
 const invoices = require("../lib/invoices");
+const projectsteps = require("../lib/projectsteps");
 const { HttpError, bad, sendError, can } = require("../lib/httperror");
 const { DATE_RE, parseDateUTC, formatDateUTC, sydneyToday } = require("../lib/time");
 
@@ -45,6 +46,8 @@ const FIELDS = {
   designSignedOffDate: { col: "design_signed_off_date", kind: "date" },
   readyToCutDate: { col: "ready_to_cut_date", kind: "date" },
   promisedInstallDate: { col: "promised_install_date", kind: "date" },
+  // 0.2.2 (m23-contracts section 4): the project manager's requested install date.
+  requestedInstallDate: { col: "requested_install_date", kind: "date" },
   completedDate: { col: "completed_date", kind: "date" },
   designFolderUrl: { col: "design_folder_url", kind: "url" },
   joinrQuoteUrl: { col: "joinr_quote_url", kind: "url" },
@@ -140,6 +143,11 @@ function toJob(req, row, boardWeeks, inBacklog, people) {
   // 0.2.1 (m22 section 2): the stage as the pipeline shows it, and the project owner.
   out.pipelineStage = jobstage.pipelineStage(row);
   out.owner = row.project_owner_id == null ? null : ownerOf(row.project_owner_id);
+  // 0.2.2 (m23-contracts section 6): step marks at Won, Projects and Ordering; n of m ordered in
+  // Ordering. null at other stages.
+  const facts = projectsteps.tileFacts(db, row);
+  out.projectMarks = facts ? facts.marks : null;
+  out.orderingProgress = facts ? facts.ordering : null;
   return out;
 }
 
@@ -292,6 +300,8 @@ r.post("/", "jobs.edit", handle((req, res) => {
     // Throws on error, so the whole create rolls back (no silent half-move).
     if (stage === "ready_to_cut" && jobstage.addToBacklog(db, newId)) after.toStart = "added";
     audit.log(req, { action: "job.create", entityType: "job", entityId: newId, after });
+    // 0.2.2 (m23-contracts section 3): a new Won job alerts those who may set its owner.
+    if (stage === "won") projectsteps.soon(db);
     return newId;
   })();
   res.status(201).json(loadOne(req, id));

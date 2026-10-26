@@ -108,10 +108,11 @@ for M15N_J in "$ACCT" "$SCHED" "$DPM" "$ADMIN" "$WSMGR" "$ORDR"; do
 done
 printf '%s' "$BODY" | grep -q 'id="cc-shell"' || fail "notes.html carries no #cc-shell"
 ok
-for M15N_J in "$SHOW" "$WSHOP"; do
-  req GET "/notes.html?dept=accounts" "$M15N_J"
-  expect_status 403 "a login without any department key GET /notes.html"
-done
+req GET "/notes.html?dept=accounts" "$SHOW"
+expect_status 403 "a login without any department key GET /notes.html"
+# M23 (docs/plans/m23-contracts.md section 7): the workshop login holds notes.workshop now.
+req GET "/notes.html?dept=workshop" "$WSHOP"
+expect_status 200 "the workshop login (notes.workshop) GET /notes.html"
 req GET /notes.js "$SHOW"
 expect_status 200 "notes.js is a plain static file"
 
@@ -123,7 +124,8 @@ expect_status 401 "logged out POST /api/notes"
 req PUT /api/notes/1/ack ""
 expect_status 401 "logged out PUT /api/notes/1/ack"
 # Each department has its own key: acct holds notes.accounts only, sched notes.scheduling, dpm
-# notes.design, ordr and wsmgr notes.ordering, admin all five, show and wshop none.
+# notes.design, ordr and wsmgr notes.ordering, admin all five, show and wshop none (of these five;
+# M23's Workshop notes are tested in ci/smoke-m23-project-steps.sh).
 m15n_get "$ACCT" accounts;   expect_status 200 "acct GET accounts notes"
 expect_jq '.dept == "accounts" and .deptLabel == "Accounts" and (.days | length) == 5 and .current == true and .past == false' "the answer's shape: this week as five days"
 for M15N_D in scheduling design ordering admin; do
@@ -173,8 +175,8 @@ m15n_get "$ACCT2" accounts; expect_status 200 "acct2 has accounts notes again"
 req GET /api/users/meta "$ADMIN"
 expect_jq '.keys | (index("notes.scheduling") != null and index("notes.design") != null and index("notes.ordering") != null and index("notes.accounts") != null and index("notes.admin") != null)' "the five notes keys are in the key list"
 expect_jq '.presets.accounts | index("notes.accounts") != null' "the accounts preset has notes.accounts"
-expect_jq '[.presets.accounts, .presets.design_pm, .presets.scheduling, .presets.ordering, .presets.workshop_manager] | map(map(select(startswith("notes.")))) == [["notes.accounts"],["notes.design"],["notes.scheduling"],["notes.ordering"],["notes.ordering"]]' "each role has just its own department's notes key"
-expect_jq '[.presets.showroom, .presets.workshop] | map(map(select(startswith("notes.")))) == [[],[]]' "showroom and workshop have none"
+expect_jq '[.presets.accounts, .presets.design_pm, .presets.scheduling, .presets.ordering, .presets.workshop_manager] | map(map(select(startswith("notes.")))) == [["notes.accounts"],["notes.design"],["notes.scheduling"],["notes.ordering"],["notes.ordering","notes.workshop"]]' "each role has just its own department's notes key (M23: the workshop manager also Workshop's)"
+expect_jq '[.presets.showroom, .presets.workshop] | map(map(select(startswith("notes.")))) == [[],["notes.workshop"]]' "showroom has none; workshop has Workshop's (M23)"
 m15n_get "$ACCT" nowhere; expect_status 400 "an unknown department"
 expect_jq '.error == "Unknown department"' "the unknown-department sentence"
 req GET /api/notes "$ACCT"

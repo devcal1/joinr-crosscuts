@@ -28,6 +28,8 @@ const DEPTS = {
   ordering: { label: "Ordering", layer: "install" },
   accounts: { label: "Accounts", layer: "accounts" },
   admin: { label: "Admin", layer: "company" },
+  // 0.2.2 (docs/plans/m23-contracts.md section 7): recurring_tasks allows 'workshop' since migration 043.
+  workshop: { label: "Workshop", layer: "workshop" },
 };
 const SYSTEM_LABEL = "Recurring task (automatic)";
 const SYSTEM_REQ = Object.freeze({ user: null, ip: null, actorLabel: SYSTEM_LABEL });

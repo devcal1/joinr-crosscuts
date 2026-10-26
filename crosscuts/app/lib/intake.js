@@ -377,6 +377,8 @@ function acceptTx(db, req, id) {
         )
         .run(...cols.map((c) => values[c]), now, now);
       newId = Number(info.lastInsertRowid);
+      // 0.2.2 (m23-contracts section 3): a new Won job; the owner alert runs after this request.
+      require("./projectsteps").soon(db);
     } catch (e) {
       if (/UNIQUE constraint failed: jobs\.external_ref/.test(String(e && e.message))) {
         throw conflict("A job already has this Joinr quote");

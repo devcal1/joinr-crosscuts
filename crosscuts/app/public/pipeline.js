@@ -29,6 +29,8 @@
   const PRE_BOARD = new Set(["lead", "quoted", "won", "projects", "ordering", "ready_to_cut"]);
   // Projects and Ordering tiles take their owner's worker colour (the worker-colours exception).
   const OWNED = new Set(["projects", "ordering"]);
+  // 0.2.2 (m23-contracts section 3): the "No owner" filter narrows these columns to jobs with no owner.
+  const OWNER_FILTERED = new Set(["won", "projects", "ordering"]);
   // Complete and Invoiced show only the last 60 days until "Show all" is pressed.
   const CAPPED = new Set(["complete", "invoiced"]);
   const CAP_MS = 60 * 24 * 60 * 60 * 1000;
@@ -103,6 +105,8 @@
   const boardEl = document.getElementById("plBoard");
   const statusEl = document.getElementById("plStatus");
   const toggleEl = document.getElementById("plToggle");
+  const noOwnerEl = document.getElementById("plNoOwner");
+  let noOwnerOnly = false;
   const newEl = document.getElementById("plNew");
   const liveEl = document.getElementById("plLive");
 
@@ -318,6 +322,7 @@
   // ---- rendering ------------------------------------------------------------
   // On the board: not archived, except jobs in the archived stage (fetched on demand).
   function inColumn(j, stage) {
+    if (noOwnerOnly && OWNER_FILTERED.has(stage) && j.owner) return false;
     return colKey(j.stage) === stage && (stage === "archived" || !j.archived);
   }
 
@@ -474,8 +479,20 @@
     if (j.sheetCount != null) meta.append(el("span", { text: `${j.sheetCount} ${j.sheetCount === 1 ? "sheet" : "sheets"}` }));
     if (j.valueCents != null) meta.append(el("span", { text: money.format(j.valueCents / 100) }));
     if (meta.childNodes.length) card.append(meta);
-    if (OWNED.has(j.stage)) {
+    if (OWNER_FILTERED.has(j.stage)) {
       card.append(el("div", { class: "pl-owner", text: j.owner ? "Owner " + j.owner.name : "No owner" }));
+    }
+    // 0.2.2 (m23-contracts section 6): Projects tiles show the step marks (done in body text,
+    // missing muted); Ordering tiles show how many lines are ordered. Text only.
+    if (j.stage === "projects" && Array.isArray(j.projectMarks)) {
+      const marks = el("div", { class: "pl-marks", "aria-label": "Steps" });
+      for (const m of j.projectMarks) {
+        marks.append(el("span", { class: m.done ? "pl-mark pl-mark-done" : "pl-mark", title: m.label + (m.done ? ": done" : ": not yet"), text: m.mark }));
+      }
+      card.append(marks);
+    } else if (j.stage === "ordering" && j.orderingProgress) {
+      const p = j.orderingProgress;
+      card.append(el("div", { class: "pl-marks", text: p.total ? `${p.ordered}/${p.total} ordered` : "No order lines" }));
     }
     const chips = peopleChips(j, 4);
     if (chips) card.append(el("div", { class: "pl-people" }, chips));
@@ -915,6 +932,12 @@
     toggleEl.setAttribute("aria-pressed", showLA ? "true" : "false");
     toggleEl.classList.toggle("hs-btn-primary", showLA);
   }
+  noOwnerEl.addEventListener("click", () => {
+    noOwnerOnly = !noOwnerOnly;
+    noOwnerEl.setAttribute("aria-pressed", noOwnerOnly ? "true" : "false");
+    noOwnerEl.classList.toggle("hs-btn-primary", noOwnerOnly);
+    renderAll();
+  });
   toggleEl.addEventListener("click", () => {
     showLA = !showLA;
     try { localStorage.setItem(STORE_KEY, showLA ? "1" : "0"); } catch (e) { /* ignore */ }

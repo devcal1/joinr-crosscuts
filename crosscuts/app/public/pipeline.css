@@ -313,6 +313,19 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
 .pl-owned .pl-owner { color: var(--pl-owner-fg, var(--body)); }
 .pl-unowned .pl-owner { color: var(--muted); }
 .pl-card.pl-unowned { background: var(--na); }
+/* 0.2.2: the step marks (D CM N OL) and "n/m ordered", text only. */
+.pl-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--pl-owner-fg, var(--body));
+}
+.pl-mark { opacity: 0.4; }
+.pl-mark-done { opacity: 1; }
 /* With the Project link the foot row has three buttons: let it wrap instead of overlapping. */
 .pl-foot-row { flex-wrap: wrap; row-gap: 2px; }
 .pl-foot-left { flex-wrap: wrap; }

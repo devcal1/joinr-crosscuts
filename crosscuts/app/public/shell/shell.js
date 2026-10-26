@@ -90,6 +90,14 @@
       ],
     },
     {
+      // 0.2.2 (docs/plans/m23-contracts.md section 7): Workshop, the sixth department. Its name opens
+      // the Workshop notes wall; M27 adds Maintenance under it. Plain, like Photos and Admin (no rule).
+      id: "workshop",
+      home: { href: "/notes.html?dept=workshop", key: "notes.workshop" },
+      label: "Workshop",
+      items: [],
+    },
+    {
       id: "photos",
       label: "Photos",
       items: [

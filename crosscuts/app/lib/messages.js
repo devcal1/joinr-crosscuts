@@ -13,7 +13,12 @@ function channelsFor(db, user) {
   return db
     .prepare("SELECT * FROM channels WHERE archived = 0 ORDER BY position, id")
     .all()
-    .filter((c) => c.role == null || roles.has("admin") || roles.has(c.role));
+    // 0.2.2 (m23-contracts section 7): a channel with an access_key (Ordering, Workshop) opens to
+    // whoever holds that key, as role-less channels can't name the new departments.
+    .filter((c) =>
+      roles.has("admin") ||
+      (c.access_key ? can({ user }, c.access_key) : c.role == null || roles.has(c.role))
+    );
 }
 
 // Unread messages by others over the user's channels (id > last_read_id, not removed).

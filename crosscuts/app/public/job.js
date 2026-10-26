@@ -101,6 +101,8 @@
         { key: "designSignedOffDate", label: "Design signed off", type: "date" },
         { key: "materialsOrderedDate", label: "Materials ordered", type: "materials" },
         { key: "readyToCutDate", label: "Ready to cut", type: "date" },
+        // 0.2.2 (m23-contracts section 4): the project manager's date; Promised is the confirmed one.
+        { key: "requestedInstallDate", label: "Requested install", type: "date" },
         { key: "promisedInstallDate", label: "Promised install", type: "date" },
         { key: "completedDate", label: "Completed", type: "date" },
       ],

@@ -24,6 +24,27 @@
     <p id="pjStatus" class="jo-status muted" role="status">Loading...</p>
     <div id="pjHead" class="jo-summary" hidden></div>
 
+    <!-- 0.2.2 (docs/plans/m23-contracts.md section 2): the project manager's steps, the requested
+         install date and check measure bookings. -->
+    <section id="steps" class="jo-sec" aria-labelledby="pjSteps-h" hidden>
+      <div class="hs-sectionbar"><h2 id="pjSteps-h">Steps</h2></div>
+      <p id="pjStepsStatus" class="jo-status muted" role="status"></p>
+      <div id="pjStepsBody"></div>
+      <div class="pj-install">
+        <label class="pj-f" for="pjRequested"><span class="jo-sumlabel">Requested install</span>
+          <input id="pjRequested" class="hs-input" type="date"></label>
+        <p id="pjPromised" class="pj-small muted"></p>
+      </div>
+      <h3 class="pj-subhead">Check measure</h3>
+      <div id="pjCmBody"></div>
+      <form id="pjCmForm" class="pj-add" novalidate hidden>
+        <label class="pj-f"><span class="jo-sumlabel">Date</span><input id="pjCmDate" class="hs-input" type="date" required></label>
+        <label class="pj-f"><span class="jo-sumlabel">Time (optional)</span><input id="pjCmTime" class="hs-input" type="time"></label>
+        <label class="pj-f pj-f-wide"><span class="jo-sumlabel">Notes</span><input id="pjCmNotes" class="hs-input" type="text" maxlength="2000"></label>
+        <div class="pj-f pj-f-go"><button class="hs-btn hs-btn-primary" type="submit">Book check measure</button></div>
+      </form>
+    </section>
+
     <section id="pjHours" class="jo-sec" aria-labelledby="pjHours-h" hidden>
       <div class="hs-sectionbar"><h2 id="pjHours-h">Hours</h2></div>
       <div id="pjHoursBody"></div>

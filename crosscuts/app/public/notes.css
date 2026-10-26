@@ -132,6 +132,14 @@ body {
    House style: hs-sectionbar, hs-card tiles and hs-btn links; no paper. */
 .pj-dash { margin-top: 32px; }
 .pj-dash > .hs-sectionbar { margin-bottom: 12px; }
+/* 0.2.2: My projects. Marks are text: done in body, missing muted. */
+.pj-mine-wrap { overflow-x: auto; }
+.pj-mine { min-width: 860px; }
+.pj-mine a { color: var(--white); font-weight: 700; }
+.pj-mine .pj-mk { margin-right: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); }
+.pj-mine .pj-mk-done { color: var(--body); }
+.pj-mine .pj-wait { color: var(--orange-tint); }
+.pj-mine .pj-sub { display: block; color: var(--label); font-size: 12px; }
 .pj-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
 .pj-tile { display: flex; flex-direction: column; gap: 6px; padding: 18px 18px 16px; }
 .pj-tile-title { margin: 0; color: var(--white); font-size: 17px; font-weight: 700; }

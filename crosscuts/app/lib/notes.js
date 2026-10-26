@@ -14,6 +14,8 @@ const DEPTS = {
   ordering: { label: "Ordering", key: "notes.ordering" },
   accounts: { label: "Accounts", key: "notes.accounts" },
   admin: { label: "Admin", key: "notes.admin" },
+  // 0.2.2 (docs/plans/m23-contracts.md section 7): dept_notes allows 'workshop' since migration 043.
+  workshop: { label: "Workshop", key: "notes.workshop" },
 };
 const DEPT_IDS = Object.keys(DEPTS);
 const DEPT_KEYS = DEPT_IDS.map((id) => DEPTS[id].key);

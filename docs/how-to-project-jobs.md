@@ -9,6 +9,10 @@ A won job comes to Projects with one owner. The owner pins down the colours, fin
 
 Anyone with Projects access can be the owner. Admins can set the owner, and so can anyone who edits jobs and has Projects access.
 
+Giving a **Won** job an owner moves it to **Projects** straight away.
+
+A Won job with no owner sends one alert (the bell) to every admin and to everyone who edits jobs and has Projects access: "X needs a project owner". It links to the project page, where the owner picker is. On the Pipeline, **No owner** narrows the Won, Projects and Ordering columns to the jobs nobody owns yet.
+
 On the Pipeline, tiles in the **Projects** and **Ordering** columns are filled with the owner's worker colour, with their name on the tile. A grey tile reads **No owner**, so you can see which jobs still need one. (The owner's colour comes from the board worker linked to their login: Admin > Users, Board worker. With no worker linked, the tile stays grey but shows the name.)
 
 ## Move a job into Projects
@@ -24,6 +28,27 @@ Click **Project** on the tile, or **Project page** on the job. The page has:
 - **Hardware:** the hardware and handles lines, with **Brand**, **Code** and **Supplier**, so you can name exactly what to buy.
 - **Job notes:** anything else. Click **Save notes**.
 
+## Tick the steps
+
+The **Steps** panel at the top of the project page has the owner's four steps:
+
+- **Drawn**, **Check measured** and **Nested**: click **Tick** when it's done. The page shows who ticked it and when. **Untick** takes a tick back (it is kept in the audit log).
+- **Order list ready**: not a tick. It is done when the order list is finalised and nothing has changed since (see below).
+
+To book a check measure ahead, fill in the date (a time and notes if you like) under **Check measure** and click **Book check measure**. It shows on the Planner on the Projects layer. **Mark done** when it's been done (that ticks Check measured too), or **Cancel booking**.
+
+Ticking and booking need the same rights as setting the owner: an admin, or someone who edits jobs and has Projects access.
+
+On the Pipeline, Projects tiles show the steps as **D CM N OL**: done ones in full text, missing ones faded. Ordering tiles show how many order lines are ordered ("1/3 ordered").
+
+## Requested install date
+
+Under the steps, enter the **Requested install** date: when you'd like it installed. It is also on the job page under Dates. **Promised install** stays the confirmed date, set by scheduling. You can't send to Ordering without a requested install date.
+
+## My projects
+
+Click **Projects** in the menu (the Projects notes wall). **My projects** lists the jobs you own, one line each: the step marks, the requested install date, the current order list revision, how much is ordered (and the latest delivery date expected), and what's waiting on you next. Admins can click **Show all owners** to see everyone's.
+
 ## Finalise the order list
 
 When every line has a supplier and a quantity, click **Finalise order list**. Lines still missing either are outlined in orange and listed under the button. Finalising freezes the list as **revision A**. **Print revision A** gives an A4 sheet grouped by supplier, with a tick box per line.
@@ -32,10 +57,11 @@ If you change anything afterwards (a colour, a quantity, a new line), the page s
 
 ## Send to Ordering
 
-Click **Send to Ordering** (you need to be able to create order lines). It is only offered for a finalised list with no changes since. It:
+Click **Send to Ordering** (you need to be able to create order lines). It is only offered for a finalised list with no changes since, and needs a requested install date. It:
 
 - makes an order line for each line, under its supplier, ready for Ordering to place (Ordering > Orders);
-- moves the job to the **Ordering** column.
+- moves the job to the **Ordering** column;
+- tells the order managers (the bell): "Order list for X sent: N lines, M suppliers", linking to Orders showing just that job.
 
 If you add lines after sending, finalise again and send again: only the new lines become order lines. A change to a line that is already ordered doesn't change its order line, so tell Ordering, who can edit it on the Orders page.
 

@@ -111,12 +111,13 @@
     document.title = j.name + " - Project - Crosscuts";
     $("pjJob").href = "/job.html?id=" + j.id;
     renderHead();
+    renderSteps();
     renderHours();
     renderLines("materials");
     renderLines("hardware");
     renderNotes();
     renderOrder();
-    for (const id of ["pjHead", "pjHours", "pjMaterials", "pjHardware", "pjNotes", "pjOrder"]) $(id).hidden = false;
+    for (const id of ["pjHead", "steps", "pjHours", "pjMaterials", "pjHardware", "pjNotes", "pjOrder"]) $(id).hidden = false;
   }
 
   // ---- head: client, stage, owner ------------------------------------------------------------
@@ -169,6 +170,133 @@
       renderHead();
     }
   }
+
+  // ---- steps (0.2.2, m23-contracts section 2) -------------------------------------------------
+
+  const STEP_ROWS = [
+    ["drawn", "Drawn"],
+    ["check_measured", "Check measured"],
+    ["nested", "Nested"],
+  ];
+  const fmtDay = (s) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+    return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : "";
+  };
+
+  function renderSteps() {
+    const can = !!data.can.steps;
+    const body = el("tbody");
+    for (const [key, label] of STEP_ROWS) {
+      const s = data.steps[key];
+      const facts = s ? `Done ${fmtWhen(s.doneAt)}` + (s.doneBy && s.doneBy.name ? ` by ${s.doneBy.name}` : "") : "Not yet";
+      const btn = can
+        ? el("button", { class: "hs-btn" + (s ? " hs-btn-quiet" : ""), type: "button", "data-step": key, text: s ? "Untick" : "Tick" })
+        : null;
+      if (btn) btn.addEventListener("click", () => saveStep(key, !s, btn));
+      body.append(
+        el("tr", {}, el("th", { scope: "row", text: label }), el("td", { class: s ? "pj-done" : "muted", text: facts }), el("td", { class: "pj-stepbtn" }, btn))
+      );
+    }
+    // Order list ready is not a tick: it is a finalised current revision (the Order list below).
+    const ol = data.marks.find((m) => m.mark === "OL");
+    const cur = data.orderList.current;
+    const olText =
+      ol && ol.done
+        ? `Revision ${cur.revision} finalised` + (cur.sentAt ? ", sent to Ordering" : "")
+        : cur
+          ? `Changed since revision ${cur.revision}`
+          : "Not finalised yet (see Order list below)";
+    body.append(
+      el("tr", {}, el("th", { scope: "row", text: "Order list ready" }), el("td", { class: ol && ol.done ? "pj-done" : "muted", text: olText }), el("td", {}))
+    );
+    $("pjStepsBody").replaceChildren(el("div", { class: "jo-wrap" }, el("table", { class: "hs-table pj-steps" }, body)));
+
+    const req = $("pjRequested");
+    if (document.activeElement !== req) req.value = data.job.requestedInstallDate || "";
+    req.disabled = !data.can.edit;
+    $("pjPromised").textContent = data.job.promisedInstallDate
+      ? "Promised install (confirmed by scheduling): " + fmtDay(data.job.promisedInstallDate)
+      : "No promised install date yet: scheduling confirms it.";
+
+    const cms = data.checkMeasures.filter((c) => c.status !== "cancelled");
+    if (!cms.length) {
+      $("pjCmBody").replaceChildren(el("p", { class: "jo-empty muted", text: "No check measure booked." }));
+    } else {
+      const ul = el("ul", { class: "pj-cms" });
+      for (const c of cms) {
+        const text = `${fmtDay(c.date)}${c.time ? " " + c.time : ""}${c.host ? ", " + c.host : ""}${c.notes ? ": " + c.notes : ""}`;
+        const li = el(
+          "li",
+          {},
+          el("span", { text }),
+          el("span", { class: "hs-badge" + (c.status === "done" ? " hs-badge-teal" : ""), text: c.status === "done" ? "Done" : "Booked" })
+        );
+        if (can && c.status === "booked") {
+          const done = el("button", { class: "hs-btn", type: "button", text: "Mark done" });
+          done.addEventListener("click", () => saveCm(c.id, { status: "done" }, done, "Check measure done, and Check measured ticked."));
+          const cancel = el("button", { class: "hs-btn hs-btn-quiet", type: "button", text: "Cancel booking" });
+          cancel.addEventListener("click", () => saveCm(c.id, { status: "cancelled" }, cancel, "Booking cancelled."));
+          li.append(done, cancel);
+        }
+        ul.append(li);
+      }
+      $("pjCmBody").replaceChildren(ul);
+    }
+    $("pjCmForm").hidden = !can;
+  }
+
+  async function saveStep(step, done, btn) {
+    btn.disabled = true;
+    try {
+      take(await api(`/api/job-records/${jobId}/steps/${step}`, { method: "PUT", body: JSON.stringify({ done }) }));
+      say("pjStepsStatus", done ? "Step ticked." : "Step unticked.", "ok");
+    } catch (e) {
+      say("pjStepsStatus", errText(e), "err");
+      btn.disabled = false;
+    }
+  }
+
+  async function saveCm(id, patch, btn, ok) {
+    btn.disabled = true;
+    try {
+      take(await api(`/api/check-measures/${id}`, { method: "PATCH", body: JSON.stringify(patch) }));
+      say("pjStepsStatus", ok, "ok");
+    } catch (e) {
+      say("pjStepsStatus", errText(e), "err");
+      btn.disabled = false;
+    }
+  }
+
+  $("pjRequested").addEventListener("change", async () => {
+    const v = $("pjRequested").value || null;
+    try {
+      await api(`/api/job-records/${jobId}`, { method: "PATCH", body: JSON.stringify({ requestedInstallDate: v }) });
+      take(await api(`/api/job-records/${jobId}/project`));
+      say("pjStepsStatus", v ? "Requested install date saved." : "Requested install date cleared.", "ok");
+    } catch (e) {
+      say("pjStepsStatus", errText(e), "err");
+    }
+  });
+
+  $("pjCmForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const date = $("pjCmDate").value;
+    if (!date) {
+      say("pjStepsStatus", "Choose a date for the check measure.", "err");
+      return;
+    }
+    try {
+      const r = await api(`/api/job-records/${jobId}/check-measures`, {
+        method: "POST",
+        body: JSON.stringify({ date, time: $("pjCmTime").value || null, notes: $("pjCmNotes").value }),
+      });
+      take(r);
+      $("pjCmForm").reset();
+      say("pjStepsStatus", "Check measure booked. It shows on the Planner (Projects).", "ok");
+    } catch (e) {
+      say("pjStepsStatus", errText(e), "err");
+    }
+  });
 
   // ---- hours ---------------------------------------------------------------------------------
 
@@ -450,8 +578,8 @@
     }
     const send = $("pjSend");
     send.hidden = !data.can.send || !cur || !!cur.sentAt;
-    send.disabled = !!o.changed;
-    send.title = o.changed ? "Finalise the changes first" : "";
+    send.disabled = !!o.changed || !data.job.requestedInstallDate;
+    send.title = o.changed ? "Finalise the changes first" : !data.job.requestedInstallDate ? "Enter a requested install date (Steps) first" : "";
   }
 
   $("pjFinalise").addEventListener("click", async () => {

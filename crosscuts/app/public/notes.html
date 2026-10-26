@@ -56,6 +56,22 @@
       <div id="wall" class="nt-wall"></div>
     </div>
 
+    <!-- My projects (0.2.2, docs/plans/m23-contracts.md section 8): the signed-in user's owned jobs,
+         one line each; admins may show every owner's. projectsdash.js fills it. -->
+    <section id="pjMine" class="pj-dash" aria-labelledby="pjMineH" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="pjMineH">My projects</h2>
+        <button id="pjMineAll" class="hs-btn" type="button" aria-pressed="false" hidden>Show all owners</button>
+      </div>
+      <p id="pjMineStatus" class="pj-tile-stat" role="status"></p>
+      <div class="pj-mine-wrap">
+        <table class="hs-table pj-mine" hidden>
+          <thead><tr><th scope="col">Job</th><th scope="col" class="pj-mine-owner" hidden>Owner</th><th scope="col">Steps</th><th scope="col">Requested install</th><th scope="col">Revision</th><th scope="col">Ordering</th><th scope="col">Waiting on</th></tr></thead>
+          <tbody id="pjMineRows"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- The Projects dashboard (0.2.0, Todd 2026-10-24): only on ?dept=design and only with
          design.view; projectsdash.js shows it. House style, not the notes paper. -->
     <section id="pjDash" class="pj-dash" aria-labelledby="pjNowH" hidden>

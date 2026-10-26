@@ -60,7 +60,7 @@ expect_status 200 "dpm GET /api/messages/channels"
 expect_jq '[.rows[].slug] == ["all","design"]' "dpm sees All and Projects only"
 req GET /api/messages/channels "$ADMIN"
 expect_status 200 "admin GET /api/messages/channels"
-expect_jq '[.rows[].slug] == ["all","accounts","design","scheduling"]' "admin sees all four, in order"
+expect_jq '[.rows[].slug] == ["all","accounts","design","scheduling","ordering","workshop"]' "admin sees all six, in order (M23 adds Ordering and Workshop)"
 expect_jq 'all(.rows[]; has("id") and has("name") and has("unread") and has("lastMessageAt"))' "channel rows carry id, name, unread and lastMessageAt"
 
 m4b_channel "$ADMIN" all

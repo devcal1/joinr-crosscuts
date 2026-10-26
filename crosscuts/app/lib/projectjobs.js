@@ -76,6 +76,15 @@ function setOwner(db, req, jobId, v) {
       before: { ownerId: before, name: prev ? prev.display_name : null },
       after: { ownerId: next, name: owner ? owner.name : null },
     });
+    // 0.2.2 (m23-contracts section 3): a Won job given an owner moves to Projects (an audited stage
+    // move). A job the board holds stays where it is.
+    if (owner && jobstage.pipelineStage(job) === "won") {
+      try {
+        jobstage.moveStage(db, jobId, { stage: "projects", from: "won" }, req);
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+      }
+    }
     return true;
   })();
 }
@@ -181,7 +190,16 @@ function nextRevision(n) {
 
 // ---- the project page ----------------------------------------------------------------------------
 
+// 0.2.2: the latest revision and whether the live lines changed since: {current: rev | null,
+// changed: bool | null}. "Order list ready" is a current revision with no change (lib/projectsteps.js).
+function listState(db, jobId) {
+  const latest = db.prepare(`${LIST_SELECT} WHERE l.job_id = ? ORDER BY l.id DESC LIMIT 1`).get(jobId);
+  if (!latest) return { current: null, changed: null };
+  return { current: presentList(latest), changed: latest.fingerprint !== fingerprint(liveLines(db, jobId)) };
+}
+
 function summary(db, jobId) {
+  const steps = require("./projectsteps");
   const job = requireJob(db, jobId);
   const lines = liveLines(db, jobId);
   const revs = revisions(db, jobId);
@@ -204,9 +222,15 @@ function summary(db, jobId) {
       pipelineStage: jobstage.pipelineStage(job),
       sentToOrderingAt: job.sent_to_ordering_at || null,
       projectNotes: job.project_notes || "",
+      requestedInstallDate: job.requested_install_date || null,
+      promisedInstallDate: job.promised_install_date || null,
       owner: owner ? { id: owner.id, name: owner.name, hue: owner.hue == null ? null : owner.hue } : null,
     },
     hours: hours(db, jobId),
+    // 0.2.2 (m23-contracts section 2): the steps, their marks and the check measures.
+    steps: steps.stepsOf(db, jobId),
+    marks: steps.marksOf(db, jobId).marks,
+    checkMeasures: steps.checkMeasuresOf(db, jobId),
     materials: lines.filter((l) => !HARDWARE_SECTIONS.has(l.section)),
     hardware: lines.filter((l) => HARDWARE_SECTIONS.has(l.section)),
     sections: materials.SECTIONS,
@@ -329,6 +353,8 @@ function send(db, req, jobId) {
     if (!["won", "projects", "ordering"].includes(shown)) {
       throw conflict("Only a job at Won, Projects or Ordering can be sent to Ordering");
     }
+    // 0.2.2 (m23-contracts section 4).
+    if (!job.requested_install_date) throw bad("Enter a requested install date before sending to Ordering");
     const revs = revisions(db, jobId);
     const latest = revs.length ? revs[revs.length - 1] : null;
     if (!latest) throw conflict("Finalise the order list first");
@@ -368,6 +394,8 @@ function send(db, req, jobId) {
       entityId: jobId,
       after: { revision: latest.revision, created, skipped, suppliers },
     });
+    // 0.2.2 (m23-contracts section 5): the order managers are told.
+    require("./projectsteps").sentAlert(db, req, jobId, { revision: latest.revision, created: created.length, suppliers });
     return { revision: latest.revision, created: created.length, skipped: skipped.length, suppliers, ...summary(db, jobId) };
   })();
 }
@@ -379,6 +407,7 @@ module.exports = {
   setOwner,
   bookedDays,
   summary,
+  listState,
   setNotes,
   finalise,
   orderList,

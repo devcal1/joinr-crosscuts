@@ -53,6 +53,9 @@
 
   const statusEl = document.getElementById("status");
   const supplierEl = document.getElementById("supplier");
+  // 0.2.2 (m23-contracts section 5): ?job=N shows one job's lines (the order manager's alert links here).
+  const jobParam = Number(new URLSearchParams(location.search).get("job"));
+  const jobFilter = Number.isInteger(jobParam) && jobParam > 0 ? jobParam : null;
   const countEl = document.getElementById("count");
   const messageEl = document.getElementById("message");
   const rowsEl = document.getElementById("rows");
@@ -188,6 +191,7 @@
     const mine = ++seq;
     const qs = new URLSearchParams({ status: statusEl.value });
     if (supplierEl.value) qs.set("supplier", supplierEl.value);
+    if (jobFilter) qs.set("jobId", String(jobFilter));
     let list;
     try {
       list = await api("/api/orders?" + qs);
@@ -332,4 +336,14 @@
     await ready;
     load();
   })();
+  // The one-job filter: "Showing <job> only" and a way back to every job.
+  if (jobFilter) {
+    const box = document.getElementById("jobFilter");
+    const label = el("span", { text: "Showing one job only " });
+    box.replaceChildren(label, el("a", { class: "hs-btn hs-btn-quiet", href: "/orders.html", text: "Show all jobs" }));
+    box.hidden = false;
+    api("/api/job-records/" + jobFilter)
+      .then((j) => { if (j && j.name) label.textContent = "Showing " + j.name + " only "; })
+      .catch(() => {});
+  }
 })();

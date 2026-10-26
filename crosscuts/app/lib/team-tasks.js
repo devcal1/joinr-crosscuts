@@ -28,6 +28,8 @@ const TEAMS = {
   ordering: { key: "notes.ordering", name: "Ordering team" },
   accounts: { key: "notes.accounts", name: "Accounts team" },
   admin: { key: "notes.admin", name: "Admin team" },
+  // 0.2.2 (docs/plans/m23-contracts.md section 7): dept_tasks allows 'workshop' since migration 043.
+  workshop: { key: "notes.workshop", name: "Workshop team" },
 };
 const COLS = "id, team, title, notes, job_id, due_date, status, done_at, done_by, created_by, created_label, source, created_at, updated_at";
 // Both tables read as one.

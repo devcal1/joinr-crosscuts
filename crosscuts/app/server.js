@@ -102,6 +102,8 @@ const routers = [
   require("./routes/benchtop"),
   // Project jobs (0.2.1, docs/plans/m22-project-jobs.md).
   require("./routes/projectjobs"),
+  // Projects steps and hand-offs (0.2.2, docs/plans/m23-contracts.md).
+  require("./routes/projectsteps"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -126,6 +128,8 @@ app.listen(PORT, () => {
   } catch (e) {
     console.error(`[recurring] failed to start (${safeCode(e)})`);
   }
+  // The "needs a project owner" sweep, at boot and every 5 minutes (OWNER_SWEEP_DISABLED=1 turns it off).
+  require("./lib/projectsteps").start(require("./db"));
   // The Joinr intake pull, every 5 minutes once a key is set (JOINR_SYNC_DISABLED=1 turns it off).
   require("./lib/joinr-sync").start(require("./db"));
   // Joinr's open-quotes list (sent and won quotes for the Pipeline), same schedule (J3, 0.1.20).

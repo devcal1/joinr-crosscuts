@@ -13,6 +13,23 @@
 }
 
 .pj-hours { min-width: 560px; }
+/* 0.2.2: the Steps panel. */
+.pj-steps { min-width: 520px; }
+.pj-steps th[scope="row"] { color: var(--white); width: 180px; }
+.pj-steps .pj-done { color: var(--body); }
+.pj-stepbtn { text-align: right; width: 110px; }
+.pj-install { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; margin-top: 12px; }
+.pj-install .pj-small { margin: 0 0 8px; }
+.pj-subhead {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.pj-cms { list-style: none; margin: 0; padding: 0; }
+.pj-cms li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 0; color: var(--body); }
 .pj-hours th[scope="row"] { color: var(--white); }
 .pj-small { margin: 6px 0 0; font-size: 12px; }
 

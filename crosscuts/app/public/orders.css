@@ -29,6 +29,9 @@ a.hs-btn:hover { text-decoration: none; }
 }
 .or-filter .hs-input { color-scheme: dark; }
 .or-count { margin: 0 0 4px; color: var(--label); }
+/* 0.2.2: the one-job filter line (?job=N). */
+.or-jobfilter { align-self: flex-end; margin: 0; color: var(--white); font-size: 14px; }
+.or-jobfilter .hs-btn { margin-left: 6px; }
 .or-message { min-height: 20px; margin: 0 0 8px; }
 .or-message.err { color: var(--stop-tint); }
 .or-message.ok { color: var(--go-tint); }

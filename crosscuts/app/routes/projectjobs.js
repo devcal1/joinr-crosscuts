@@ -55,6 +55,8 @@ r.get("/job-records/:id/project", "jobs.view", handle((req, res) => {
     edit: can(req, "jobs.edit"),
     setOwner: canSetOwner(req),
     send: can(req, "orders.edit"),
+    // 0.2.2 (m23-contracts section 2): tick steps and book check measures.
+    steps: require("../lib/projectsteps").canWork(req),
   };
   res.json(out);
 }));
