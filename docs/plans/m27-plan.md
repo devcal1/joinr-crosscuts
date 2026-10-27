@@ -36,6 +36,7 @@ Ordering > Stock order (`lib/stock.js`, `routes/stock.js`, `/stock.html`): one r
 
 Migration(s) 047+, contract `m27-contracts.md`, how-tos (`how-to-do-the-stocktake.md` updated, new `how-to-maintenance.md`), smoke `ci/smoke-m27-workshop-manager.sh` (fortnight keys alongside month keys, targets, order fill, maintenance access and ticks), version 0.2.6, STATUS.md.
 
-## Open for Todd
+## Settled by Todd (2026-10-27)
 
-Which Monday starts the first fortnight; whether the board stocktake also goes fortnightly.
+- The first fortnight starts **Monday 26 Oct 2026** (`stock.cycle_start` = 2026-10-26), so a count is due from Thu 29 Oct.
+- The **board stocktake stays monthly**.
