@@ -50,3 +50,7 @@ It works exactly like Supplier accounts: the same monthly lines (statement, tota
 - You add the accounts under **Accounts**, below the list, with **Add account** (for example **BAS**, **Workcover**, **Business insurance**). **Rename** and **Archive** work as they do for suppliers, and archived accounts keep the months they already have lines in.
 - An admin account and a supplier can't share a name.
 - These accounts are never offered as suppliers on Orders, Stock or Paint, and the Friday round-up's "statements still waiting" line counts suppliers only.
+
+## Individual invoices and Paid (0.2.7)
+
+One-off bills (not supplier accounts) are listed under the supplier accounts in each month as **Individual invoices**, and only admins tick **Paid** on Supplier accounts. See [how-to-to-pay.md](how-to-to-pay.md).

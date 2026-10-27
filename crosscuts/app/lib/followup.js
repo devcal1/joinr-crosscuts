@@ -67,6 +67,8 @@ function needsFollowUp(inv, interval, today) {
 function fieldsFor(db, inv, clientName, today = sydneyToday()) {
   const iv = intervalOf(db, inv, clientName);
   return {
+    // the stored per-invoice interval (present() would otherwise name the column followupDays)
+    followUpDays: inv.followup_days == null ? null : Number(inv.followup_days),
     followUpDaysEffective: iv.days,
     followUpDaysFrom: iv.from,
     clientFollowUpDays: clientDays(db, clientName),

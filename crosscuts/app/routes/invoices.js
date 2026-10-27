@@ -19,7 +19,10 @@ function handle(fn) {
     try {
       fn(req, res);
     } catch (e) {
-      if (e instanceof HttpError) return res.status(e.status).json({ error: e.message });
+      // 0.2.7: lib/followup.js throws lib/httperror's HttpError, so match on the status as sendError does.
+      if (e instanceof HttpError || (e && typeof e.status === "number" && e.status >= 400 && e.status <= 499)) {
+        return res.status(e.status).json({ error: e.message });
+      }
       if (e && /UNIQUE constraint failed: invoices\.number/.test(e.message)) {
         return res.status(409).json({ error: "That invoice number is already used" });
       }

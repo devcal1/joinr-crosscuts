@@ -173,6 +173,7 @@ function present(db, inv, today) {
   out.job = presentJob(job);
   out.replacedById = replacedBy ? replacedBy.id : null;
   // 0.2.7 (docs/plans/m28-contracts.md section 3): the follow-up interval in force and needs follow-up.
+  delete out.followupDays;
   Object.assign(out, require("./followup").fieldsFor(db, inv, job ? job.client_name : null, t));
   return out;
 }

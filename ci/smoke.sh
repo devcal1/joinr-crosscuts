@@ -281,7 +281,7 @@ expect_jq '.setupNeeded == false and .loggedIn == true' "auth status after setup
 
 req GET /api/auth/me "$ADMIN"
 expect_status 200 "me as admin"
-expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 38 and .user.isOwner == true' "setup user is the owner, an admin with all 38 keys"
+expect_jq '(.user.roles | index("admin")) != null and (.user.perms | length) == 39 and .user.isOwner == true' "setup user is the owner, an admin with all 39 keys"
 
 # ============================================================================
 step "b. logged out: every routed API is 401, pages redirect"
@@ -942,8 +942,8 @@ expect_status 403 "show GET /schedule.html"
 req GET /api/users/meta "$ADMIN"
 expect_status 200 "admin GET /api/users/meta"
 expect_jq '.roles | index("workshop") != null' "the roles include workshop"
-expect_jq '.keys | length == 38' "38 feature keys (M10 adds orders.view and orders.receive; M11 stock.count and stock.order; M13 bonuses.manage, alarms.manage and loans.manage; department notes add the five notes.* keys; M23 notes.workshop; M25 shift.report; M27 maintenance.manage)"
-expect_jq '.presets.admin | length == 35 and (index("notes.scheduling") != null) and (index("notes.design") != null) and (index("notes.ordering") != null) and (index("notes.accounts") != null) and (index("notes.admin") != null) and (index("notes.workshop") != null) and (index("bonuses.manage") == null) and (index("alarms.manage") == null) and (index("loans.manage") == null)' "the admin preset is the 35 keys (all six notes.* keys) without M13's three owner-only keys"
+expect_jq '.keys | length == 39' "39 feature keys (M10 adds orders.view and orders.receive; M11 stock.count and stock.order; M13 bonuses.manage, alarms.manage and loans.manage; department notes add the five notes.* keys; M23 notes.workshop; M25 shift.report; M27 maintenance.manage; M28 loans.maintain)"
+expect_jq '.presets.admin | length == 35 and (index("notes.scheduling") != null) and (index("notes.design") != null) and (index("notes.ordering") != null) and (index("notes.accounts") != null) and (index("notes.admin") != null) and (index("notes.workshop") != null) and (index("bonuses.manage") == null) and (index("alarms.manage") == null) and (index("loans.manage") == null) and (index("loans.maintain") == null)' "the admin preset is the 35 keys (all six notes.* keys) without M13's three owner-only keys or M28's grant-only loans.maintain"
 expect_jq '.presets.workshop == ["board.view","planner.view","notes.workshop","shift.report"]' "the workshop preset is board.view and planner.view (and M23's notes.workshop, M25's shift.report)"
 # M10 (docs/plans/m10-contracts.md section 10.1): the two new roles and their presets.
 expect_jq '.roles | index("ordering") != null and index("workshop_manager") != null' "the roles include ordering and workshop_manager"
@@ -1273,6 +1273,8 @@ for f in "$(dirname "$0")"/smoke-m25-*.sh; do [ -f "$f" ] && source "$f"; done
 for f in "$(dirname "$0")"/smoke-m26-*.sh; do [ -f "$f" ] && source "$f"; done
 # M27 suites (ci/smoke-m27-*.sh, docs/plans/m27-contracts.md, the workshop manager): same rules.
 for f in "$(dirname "$0")"/smoke-m27-*.sh; do [ -f "$f" ] && source "$f"; done
+# M28 suites (ci/smoke-m28-*.sh, docs/plans/m28-contracts.md, accounts and vehicles): same rules.
+for f in "$(dirname "$0")"/smoke-m28-*.sh; do [ -f "$f" ] && source "$f"; done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

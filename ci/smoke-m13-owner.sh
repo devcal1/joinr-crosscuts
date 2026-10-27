@@ -61,8 +61,8 @@ expect_jq '(.ownerOnlyKeys | index("bonuses.manage")) != null and (.ownerOnlyKey
   "the owner-only keys include M13's three"
 expect_jq ".ownerId == $M13_O_ADMIN_ID" "meta names the admin as the owner"
 expect_jq '. as $m | all(.ownerOnlyKeys[]; . as $k | $m.keys | index($k) != null)' "every owner-only key is in the key list"
-expect_jq '. as $m | (.presets.admin | length) == (.keys | length) - (.ownerOnlyKeys | length) and all(.presets.admin[]; . as $k | $m.keys | index($k) != null) and all(.ownerOnlyKeys[]; . as $k | $m.presets.admin | index($k) == null)' \
-  "the admin preset is every key but the owner-only ones ($M13_O_NADMIN of $M13_O_NKEYS)"
+expect_jq '. as $m | (.presets.admin | length) == (.keys | length) - (.ownerOnlyKeys | length) - ((.grantOnlyKeys // []) | length) and all(.presets.admin[]; . as $k | $m.keys | index($k) != null) and all(.ownerOnlyKeys[]; . as $k | $m.presets.admin | index($k) == null)' \
+  "the admin preset is every key but the owner-only and grant-only ones ($M13_O_NADMIN of $M13_O_NKEYS)"
 req GET /api/auth/me "$ADMIN"
 expect_jq ".user.isOwner == true and (.user.perms | length) == $M13_O_NKEYS" "the owner holds all $M13_O_NKEYS keys"
 req GET /api/users "$ADMIN"

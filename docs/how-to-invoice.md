@@ -65,3 +65,13 @@ Every Friday at 12:00 (Sydney time) everyone in accounts gets one alert listing:
 - what isn't in MYOB yet.
 
 It repeats every Friday until the list is clear. Todd can also send it at any time with **Run round-up now** on the Users page.
+
+## Sent and follow-up (0.2.7)
+
+Crosscuts doesn't send invoices; you send them as before, then record it.
+
+- Open the invoice and click **Mark sent** (today, or change the date first). If the invoice has no follow-up interval yet, it takes the client's payment terms, or the default (7 days).
+- **Follow up every (days)** changes the interval for this invoice. **Use for this client** saves it as that client's terms, so their next invoices start with it.
+- When you chase a payment, type what was said in **Contact note** and click **Contacted today** (on the overdue list it is one click). Each contact goes in the **Contact log**.
+- An overdue invoice with no contact within its interval is marked **Needs follow-up** on the overdue list. On weekdays at 7:00 Accounts gets one alert with the count, and the Dashboard's **Waiting on you** lists invoices to issue, issued but not sent, and needing follow-up.
+- **Follow-up intervals** (above the overdue list) holds the default and the client terms.
