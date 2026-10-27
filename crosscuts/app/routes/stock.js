@@ -6,7 +6,7 @@
 // orders.receive marks a supplier group received.
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
-const { bad, notFound, sendError, can } = require("../lib/httperror");
+const { bad, notFound, sendError } = require("../lib/httperror");
 const Periods = require("../public/periods");
 const stock = require("../lib/stock");
 
@@ -31,9 +31,10 @@ function idOr404(v) {
   return id;
 }
 
-// A :period that isn't 'YYYY-MM' is 400 (section 7); later-than-this-month is lib/stock.js's.
+// A :period that is neither a month (YYYY-MM) nor a fortnight's Monday (YYYY-MM-DD) is 400
+// (section 7, m27-contracts.md section 2); not-yet-started is lib/stock.js's.
 function periodOr400(v) {
-  if (!Periods.validPeriod(v)) throw bad("The month must be YYYY-MM");
+  if (!Periods.validStockPeriod(v)) throw bad("The period must be a month (YYYY-MM) or a fortnight's Monday (YYYY-MM-DD)");
   return v;
 }
 
@@ -47,20 +48,29 @@ r.get("/summary", SEE, handle((req, res) => {
   res.json(stock.summary(db, req.user));
 }));
 
-r.get("/items", SEE, handle((req, res) => {
-  // ?all=1 (inactive items too) is the List tab's, stock.order only.
-  res.json({ items: stock.items(db, { all: req.query.all === "1" && can(req, "stock.order") }) });
+r.get("/settings", SEE, handle((req, res) => {
+  res.json(stock.cycleSettings(db));
 }));
 
-r.post("/items/reorder", "stock.order", handle((req, res) => {
+r.put("/settings", "stock.order", handle((req, res) => {
+  res.json(stock.saveCycle(db, req, body(req)));
+}));
+
+r.get("/items", SEE, handle((req, res) => {
+  // ?all=1 (inactive items too) is the List tab's. 0.2.6: the workshop manager (stock.count) keeps
+  // the list and the targets too (m27-contracts.md section 3).
+  res.json({ items: stock.items(db, { all: req.query.all === "1" }) });
+}));
+
+r.post("/items/reorder", SEE, handle((req, res) => {
   res.json({ items: stock.reorderItems(db, req, body(req).ids) });
 }));
 
-r.post("/items", "stock.order", handle((req, res) => {
+r.post("/items", SEE, handle((req, res) => {
   res.status(201).json(stock.createItem(db, req, body(req)));
 }));
 
-r.patch("/items/:id", "stock.order", handle((req, res) => {
+r.patch("/items/:id", SEE, handle((req, res) => {
   res.json(stock.updateItem(db, req, idOr404(req.params.id), body(req)));
 }));
 

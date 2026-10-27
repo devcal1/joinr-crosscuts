@@ -15,14 +15,14 @@
   <main class="st-page">
     <div class="st-head">
       <h1 id="stTitle" tabindex="-1">Stock order <span id="stMonthLabel" class="st-month"></span></h1>
-      <div class="st-picker" role="group" aria-label="Month">
-        <button id="stPrev" class="hs-btn" type="button">Previous month</button>
-        <label class="st-sr" for="stMonth">Month</label>
+      <div class="st-picker" role="group" aria-label="Count period">
+        <button id="stPrev" class="hs-btn" type="button">Previous</button>
+        <label class="st-sr" for="stMonth">Count period</label>
         <select id="stMonth" class="hs-input st-select"></select>
-        <button id="stNext" class="hs-btn" type="button">Next month</button>
+        <button id="stNext" class="hs-btn" type="button">Next</button>
       </div>
     </div>
-    <p class="st-intro">The Workshop Manager counts what's on the shelf (Have) each month and finishes the count. Ordering then types what to order and marks each supplier ordered. Deliveries are marked received on the Deliveries page.</p>
+    <p class="st-intro">The Workshop Manager counts what's on the shelf (Have) each fortnight against the target for each item and finishes the count; Order fills in as target minus have. Ordering then checks what to order and marks each supplier ordered. Deliveries are marked received on the Deliveries page.</p>
 
     <div id="stState" class="st-state" hidden>
       <span id="stBadge" class="hs-badge"></span>

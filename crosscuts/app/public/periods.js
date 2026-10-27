@@ -132,8 +132,97 @@
     return m[1] ? -cents : cents;
   }
 
+  // ---- stock periods (0.2.6, docs/plans/m27-contracts.md section 2) ----
+  // The stock order is counted per month ('YYYY-MM') or per fortnight ('YYYY-MM-DD', its Monday).
+  // Both keys live in the same stock_orders.period column; month keys already stored stay readable.
+  var DAY_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  var DAY_MS = 86400000;
+
+  function dayMs(s) {
+    return Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)));
+  }
+
+  function msDay(ms) {
+    var d = new Date(ms);
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
+  }
+
+  function addDays(s, n) {
+    return msDay(dayMs(s) + n * DAY_MS);
+  }
+
+  function validDay(s) {
+    if (typeof s !== "string" || !DAY_RE.test(s)) return false;
+    var y = Number(s.slice(0, 4));
+    return y >= 2000 && y <= 2099 && msDay(dayMs(s)) === s;
+  }
+
+  function isMonday(s) {
+    return validDay(s) && new Date(dayMs(s)).getUTCDay() === 1;
+  }
+
+  // A fortnight key: a real Monday.
+  function validFortnight(p) {
+    return isMonday(p);
+  }
+
+  function isFortnight(p) {
+    return typeof p === "string" && p.length === 10;
+  }
+
+  function validStockPeriod(p) {
+    return validPeriod(p) || validFortnight(p);
+  }
+
+  // The Monday starting the fortnight (counted from cycleStart, a Monday) that holds date.
+  function fortnightOf(date, cycleStart) {
+    var diff = Math.round((dayMs(date) - dayMs(cycleStart)) / DAY_MS);
+    return addDays(cycleStart, Math.floor(diff / 14) * 14);
+  }
+
+  // cycle 'monthly' | 'fortnightly'.
+  function currentStockPeriod(today, cycle, cycleStart) {
+    return cycle === "monthly" ? currentPeriod(today) : fortnightOf(today, cycleStart);
+  }
+
+  function addStockPeriods(p, n) {
+    return isFortnight(p) ? addDays(p, 14 * n) : addMonths(p, n);
+  }
+
+  function stockPeriodEnd(p) {
+    return isFortnight(p) ? addDays(p, 13) : lastDay(p);
+  }
+
+  // Started by today: a month no later than this one; a fortnight whose Monday has come.
+  function stockPeriodStarted(p, today) {
+    return isFortnight(p) ? p <= today : p <= currentPeriod(today);
+  }
+
+  function shortDay(s) {
+    return Number(s.slice(8, 10)) + " " + MONTHS[Number(s.slice(5, 7)) - 1];
+  }
+
+  // 'October 2026', or '26 Oct – 8 Nov 2026' (both years when it spans two).
+  function stockLabel(p) {
+    if (!isFortnight(p)) return longLabel(p);
+    var end = addDays(p, 13);
+    if (p.slice(0, 4) !== end.slice(0, 4)) return shortDay(p) + " " + p.slice(0, 4) + " – " + shortDay(end) + " " + end.slice(0, 4);
+    return shortDay(p) + " – " + shortDay(end) + " " + end.slice(0, 4);
+  }
+
   var Periods = {
     PERIOD_RE: PERIOD_RE,
+    validFortnight: validFortnight,
+    isFortnight: isFortnight,
+    isMonday: isMonday,
+    validStockPeriod: validStockPeriod,
+    fortnightOf: fortnightOf,
+    currentStockPeriod: currentStockPeriod,
+    addStockPeriods: addStockPeriods,
+    stockPeriodEnd: stockPeriodEnd,
+    stockPeriodStarted: stockPeriodStarted,
+    stockLabel: stockLabel,
+    addDays: addDays,
     HISTORY_START: HISTORY_START,
     validPeriod: validPeriod,
     periodOf: periodOf,

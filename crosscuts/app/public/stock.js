@@ -1,4 +1,6 @@
-// Stock order (/stock.html[?period=YYYY-MM][#count|#order|#list]): the monthly stock order
+// Stock order (/stock.html[?period=YYYY-MM|YYYY-MM-DD][#count|#order|#list]): the stock order, counted
+// each fortnight since 0.2.6 (a fortnight is keyed by its Monday; month keys stay readable;
+// docs/plans/m27-contracts.md sections 2 and 3). Originally the monthly stock order
 // (docs/plans/m11-contracts.md sections 7 and 11.3). The Workshop Manager types Have and finishes
 // the count (stock.count); Ordering types Order, marks each supplier group ordered, prints the
 // orders and keeps the list (stock.order). Received is on Deliveries; its dates show here
@@ -196,21 +198,28 @@
   let items = null; // GET /api/stock/items[?all=1]
   let tab = "count";
   let seq = 0;
+  let cycle = { cycle: "fortnightly", cycleStart: "2026-10-26" }; // GET /api/stock/settings
 
+  // 0.2.6: the workshop manager (stock.count) keeps the list and the targets too.
   function tabsAllowed() {
     const out = ["count"];
-    if (canOrder()) out.push("order", "list");
+    if (canOrder()) out.push("order");
+    out.push("list");
     return out;
   }
 
   function currentPeriod() {
-    return P.currentPeriod(todayISO());
+    return P.currentStockPeriod(todayISO(), cycle.cycle, cycle.cycleStart);
+  }
+
+  function started(p) {
+    return P.validStockPeriod(p) && P.stockPeriodStarted(p, todayISO());
   }
 
   function readUrl() {
     const q = new URLSearchParams(location.search);
     const p = q.get("period");
-    period = P.validPeriod(p) && p <= currentPeriod() ? p : currentPeriod();
+    period = started(p) ? p : currentPeriod();
     const h = location.hash.replace(/^#/, "");
     tab = ["count", "order", "list"].includes(h) ? h : null;
   }
@@ -224,22 +233,23 @@
 
   function renderPicker() {
     const cur = currentPeriod();
-    const set = new Set([cur, P.addMonths(cur, -1), period, ...months.map((m) => m.period)]);
+    const set = new Set([cur, P.addStockPeriods(cur, -1), period, ...months.map((m) => m.period)]);
     const stateOf = new Map(months.map((m) => [m.period, m.state]));
     const sel = $("stMonth");
     sel.replaceChildren(...[...set].sort().reverse().map((p) => {
       const st = stateOf.get(p);
       const word = st ? STATE[st][0].toLowerCase() : "not started";
-      return el("option", { value: p, text: `${P.longLabel(p)} (${word})` });
+      return el("option", { value: p, text: `${P.stockLabel(p)} (${word})` });
     }));
     sel.value = period;
-    $("stNext").disabled = period >= cur;
-    $("stPrev").setAttribute("aria-label", `Previous month, ${P.longLabel(P.addMonths(period, -1))}`);
-    $("stNext").setAttribute("aria-label", period >= cur ? "Next month" : `Next month, ${P.longLabel(P.addMonths(period, 1))}`);
+    const next = P.addStockPeriods(period, 1);
+    $("stNext").disabled = !started(next);
+    $("stPrev").setAttribute("aria-label", `Previous, ${P.stockLabel(P.addStockPeriods(period, -1))}`);
+    $("stNext").setAttribute("aria-label", !started(next) ? "Next" : `Next, ${P.stockLabel(next)}`);
   }
 
   async function goPeriod(p) {
-    if (!P.validPeriod(p) || p > currentPeriod() || p === period) return;
+    if (!started(p) || p === period) return;
     period = p;
     writeUrl();
     await loadMonth();
@@ -309,8 +319,8 @@
       else if (view.state === "nothing") text += " Nothing to order this month.";
     }
     $("stStateText").textContent = text;
-    $("stMonthLabel").textContent = P.longLabel(period);
-    document.title = `Stock order ${P.longLabel(period)} - Crosscuts`;
+    $("stMonthLabel").textContent = P.stockLabel(period);
+    document.title = `Stock order ${P.stockLabel(period)} - Crosscuts`;
   }
 
   function linkNode(l) {
@@ -332,6 +342,14 @@
     });
     input.value = value == null ? "" : String(value);
     input.dataset.saved = input.value;
+    return input;
+  }
+
+  // Order fills in as target minus have (the server writes it when Have is saved); an empty Order
+  // with a suggestion shows it as the placeholder.
+  function orderInput(l) {
+    const input = qtyInput("order", l, "Order");
+    if (l.order == null && l.suggested != null) input.placeholder = String(l.suggested);
     return input;
   }
 
@@ -371,6 +389,7 @@
         el("td", { class: "st-c-code", text: l.code || "" }),
         itemCell(l),
         el("td", { class: "st-c-link" }, linkNode(l)),
+        el("td", { class: "st-c-qty st-c-have" }, qtyText(l.target)),
         el("td", { class: "st-c-qty" }, edit ? qtyInput("have", l, "Have") : qtyText(l.have))));
       return el("section", { class: "st-group", "aria-labelledby": "st-ch-" + gi },
         groupHead(g, el("span", { class: "st-count", text: `${done}/${g.lines.length}` }), "st-ch-" + gi),
@@ -380,6 +399,7 @@
               el("th", { scope: "col", class: "st-c-code", text: "Code" }),
               el("th", { scope: "col", class: "st-c-item", text: "Item" }),
               el("th", { scope: "col", class: "st-c-link", text: "Link" }),
+              el("th", { scope: "col", class: "st-c-qty st-c-have", text: "Target" }),
               el("th", { scope: "col", class: "st-c-qty", text: "Have" }))),
             el("tbody", null, ...rows))));
     }));
@@ -463,8 +483,9 @@
         el("td", { class: "st-c-code", text: l.code || "" }),
         itemCell(l),
         el("td", { class: "st-c-link" }, linkNode(l)),
+        el("td", { class: "st-c-qty st-c-have" }, qtyText(l.target)),
         el("td", { class: "st-c-qty st-c-have" }, qtyText(l.have)),
-        el("td", { class: "st-c-qty" }, edit && !locked ? qtyInput("order", l, "Order") : qtyText(l.order))));
+        el("td", { class: "st-c-qty" }, edit && !locked ? orderInput(l) : qtyText(l.order))));
       const bar = el("div", { class: "hs-sectionbar st-bar" + (has && !g.ordered ? " hs-sectionbar-orange" : "") },
         el("h2", { id: "st-oh-" + gi, tabindex: "-1" }, g.supplier + " ", groupBadge(g)),
         acts);
@@ -477,6 +498,7 @@
               el("th", { scope: "col", class: "st-c-code", text: "Code" }),
               el("th", { scope: "col", class: "st-c-item", text: "Item" }),
               el("th", { scope: "col", class: "st-c-link", text: "Link" }),
+              el("th", { scope: "col", class: "st-c-qty st-c-have", text: "Target" }),
               el("th", { scope: "col", class: "st-c-qty st-c-have", text: "Have" }),
               el("th", { scope: "col", class: "st-c-qty", text: "Order" }))),
             el("tbody", null, ...rows))));
@@ -683,7 +705,7 @@
     await queue;
     const missing = allLines().filter((l) => l.have == null).length;
     const ok = await dialog({
-      title: `Finish the count for ${P.longLabel(period)}?`,
+      title: `Finish the count for ${P.stockLabel(period)}?`,
       note: (missing ? `${plural(missing, "item has", "items have")} no Have yet. ` : "") +
         "Ordering is told the count is done. Have can't change afterwards unless Ordering reopens the count.",
       submit: "Finish count",
@@ -691,21 +713,21 @@
       run: async () => { view = await send("POST", `/api/stock/orders/${period}/counted`); },
     });
     if (!ok) return;
-    setStatus(`The count for ${P.longLabel(period)} is finished.`, "ok");
+    setStatus(`The count for ${P.stockLabel(period)} is finished.`, "ok");
     await reload();
     $("stTitle").focus({ preventScroll: true });
   }
 
   async function reopenCount() {
     const ok = await dialog({
-      title: `Reopen the count for ${P.longLabel(period)}?`,
+      title: `Reopen the count for ${P.stockLabel(period)}?`,
       note: "The Workshop Manager can change Have again and finish the count again. Lines with no Have and no Order are dropped.",
       submit: "Reopen count",
       focus: "cancel",
       run: async () => { view = await send("POST", `/api/stock/orders/${period}/reopen`); },
     });
     if (!ok) return;
-    setStatus(`The count for ${P.longLabel(period)} is open again.`, "ok");
+    setStatus(`The count for ${P.stockLabel(period)} is open again.`, "ok");
     await reload();
     $("stTitle").focus({ preventScroll: true });
   }
@@ -714,27 +736,27 @@
     await queue;
     if (allLines().some((l) => l.order > 0)) return;
     const ok = await dialog({
-      title: `Nothing to order for ${P.longLabel(period)}?`,
+      title: `Nothing to order for ${P.stockLabel(period)}?`,
       note: "The month is closed and leaves the dashboard. Undo brings it back if that was a mistake.",
       submit: "Nothing to order",
       focus: "cancel",
       run: async () => { view = await send("POST", `/api/stock/orders/${period}/nothing`, {}); },
     });
     if (!ok) return;
-    setStatus(`${P.longLabel(period)} is marked nothing to order.`, "ok");
+    setStatus(`${P.stockLabel(period)} is marked nothing to order.`, "ok");
     await reload();
   }
 
   async function undoNothing() {
     const ok = await dialog({
-      title: `Undo nothing to order for ${P.longLabel(period)}?`,
+      title: `Undo nothing to order for ${P.stockLabel(period)}?`,
       note: "The month goes back to counted, to order.",
       submit: "Undo",
       focus: "cancel",
       run: async () => { view = await send("POST", `/api/stock/orders/${period}/nothing`, { undo: true }); },
     });
     if (!ok) return;
-    setStatus(`${P.longLabel(period)} is no longer marked nothing to order.`, "ok");
+    setStatus(`${P.stockLabel(period)} is no longer marked nothing to order.`, "ok");
     await reload();
   }
 
@@ -754,7 +776,7 @@
     const n = g.lines.filter((l) => l.order > 0).length;
     const ok = await dialog({
       title: `Mark ${g.supplier} ordered`,
-      note: `${plural(n, "item", "items")} on the ${P.longLabel(period)} order. It then shows on Deliveries to be marked received.`,
+      note: `${plural(n, "item", "items")} on the ${P.stockLabel(period)} order. It then shows on Deliveries to be marked received.`,
       fields: [field("Ordered date", od), field("Expected date (optional)", ed)],
       submit: "Mark ordered",
       run: async () => {
@@ -849,6 +871,7 @@
         el("td", { class: "st-c-item" },
           el("span", { class: "st-item", text: it.item }),
           it.active ? null : el("span", { class: "hs-badge hs-badge-na st-off", text: "Inactive" })),
+        el("td", { class: "st-c-qty" }, qtyText(it.target)),
         el("td", { class: "st-c-linkfull" }, it.link ? el("a", { href: it.link, target: "_blank", rel: "noopener noreferrer", text: it.link, "aria-label": `${it.link} (new tab)` }) : null),
         el("td", { class: "st-c-acts" }, el("div", { class: "st-acts" },
           listButton("edit", it.id, "Edit", `Edit ${it.item}`),
@@ -865,6 +888,7 @@
             el("thead", null, el("tr", null,
               el("th", { scope: "col", class: "st-c-code", text: "Code" }),
               el("th", { scope: "col", class: "st-c-item", text: "Item" }),
+              el("th", { scope: "col", class: "st-c-qty", text: "Target" }),
               el("th", { scope: "col", class: "st-c-linkfull", text: "Link" }),
               el("th", { scope: "col", class: "st-c-acts" }, el("span", { class: "st-sr", text: "Actions" })))),
             el("tbody", null, ...rows))));
@@ -878,13 +902,15 @@
     const name = el("input", { class: "hs-input", type: "text", maxlength: "200", autocomplete: "off" });
     const link = el("input", { class: "hs-input", type: "url", maxlength: "500", autocomplete: "off", placeholder: "https://" });
     const active = el("input", { type: "checkbox" });
+    const target = el("input", { class: "hs-input st-qty", type: "number", min: "0", max: String(QTY_MAX), step: "1", inputmode: "numeric" });
+    target.value = it && it.target != null ? String(it.target) : "";
     sup.value = it ? it.supplier : "";
     code.value = it ? it.code : "";
     name.value = it ? it.item : "";
     link.value = it ? it.link : "";
     active.checked = it ? it.active : true;
-    const fields = [field("Supplier", sup, "Items with the same supplier are ordered together."), dl, field("Code (optional)", code), field("Item", name), field("Link (optional)", link)];
-    if (it) fields.push(checkField("Active (on the monthly count)", active));
+    const fields = [field("Supplier", sup, "Items with the same supplier are ordered together."), dl, field("Code (optional)", code), field("Item", name), field("Target (optional)", target, "The total wanted on the shelf. Order fills in as target minus have."), field("Link (optional)", link)];
+    if (it) fields.push(checkField("Active (on the count)", active));
     return dialog({
       title: it ? "Edit stock item" : "Add stock item",
       fields,
@@ -894,6 +920,9 @@
         if (!body.supplier) throw new Error("Give the supplier.");
         if (!body.item) throw new Error("Give the item.");
         if (body.link && !/^https?:\/\/\S+$/i.test(body.link)) throw new Error("The link must start with http:// or https://");
+        const t = target.value.trim();
+        if (t !== "" && (!/^\d+$/.test(t) || Number(t) > QTY_MAX)) throw new Error(`The target must be a whole number from 0 to ${QTY_MAX}, or empty.`);
+        body.target = t === "" ? null : Number(t);
         if (it) {
           body.active = active.checked;
           await send("PATCH", `/api/stock/items/${it.id}`, body);
@@ -980,7 +1009,7 @@
 
   function blankSheet(list) {
     const groups = listGroups(list.filter((i) => i.active));
-    const out = [pHead("Stock count", P.longLabel(period), signLines(["Counted by", "Date"]))];
+    const out = [pHead("Stock count", P.stockLabel(period), signLines(["Counted by", "Date"]))];
     if (!groups.length) out.push(el("p", { class: "st-p-empty", text: "No stock items on the list." }));
     for (const g of groups) {
       out.push(el("section", { class: "st-p-group" },
@@ -1002,7 +1031,7 @@
       el("p", { text: g.ordered ? `Ordered ${fmtDate(g.ordered.date)}` : `Printed ${fmtDate(todayISO())}` }),
       g.expectedDate ? el("p", { text: `Expected ${fmtDate(g.expectedDate)}` }) : null);
     return el("section", { class: "st-p-page" },
-      pHead("Stock order", `${g.supplier} · ${P.longLabel(period)}`, right),
+      pHead("Stock order", `${g.supplier} · ${P.stockLabel(period)}`, right),
       el("table", { class: "st-p-table st-p-order" },
         el("colgroup", null, el("col", { class: "st-pc-code" }), el("col", { class: "st-pc-item" }), el("col", { class: "st-pc-qty" })),
         el("thead", null, el("tr", null, el("th", { scope: "col", text: "Code" }), el("th", { scope: "col", text: "Item" }), el("th", { scope: "col", class: "st-p-num", text: "Quantity" }))),
@@ -1020,14 +1049,14 @@
     if (kind === "blank") {
       const list = (await api("/api/stock/items")).items || [];
       nodes = blankSheet(list);
-      title = `Stock count sheet ${P.longLabel(period)}`;
+      title = `Stock count sheet ${P.stockLabel(period)}`;
     } else if (kind === "order") {
       nodes = [orderPage(g)];
-      title = `Stock order ${g.supplier} ${P.longLabel(period)}`;
+      title = `Stock order ${g.supplier} ${P.stockLabel(period)}`;
     } else {
       const groups = view.groups.filter((x) => x.lines.some((l) => l.order > 0));
-      nodes = groups.length ? groups.map(orderPage) : [pHead("Stock order", P.longLabel(period)), el("p", { class: "st-p-empty", text: "Nothing to order." })];
-      title = `Stock orders ${P.longLabel(period)}`;
+      nodes = groups.length ? groups.map(orderPage) : [pHead("Stock order", P.stockLabel(period)), el("p", { class: "st-p-empty", text: "Nothing to order." })];
+      title = `Stock orders ${P.stockLabel(period)}`;
     }
     sheet.replaceChildren(...nodes);
     return title;
@@ -1053,12 +1082,12 @@
     const sheet = $("stPrint");
     if (tab === "order" && view) {
       const groups = view.groups.filter((x) => x.lines.some((l) => l.order > 0));
-      sheet.replaceChildren(...(groups.length ? groups.map(orderPage) : [pHead("Stock order", P.longLabel(period)), el("p", { class: "st-p-empty", text: "Nothing to order." })]));
-      document.title = `Stock orders ${P.longLabel(period)}`;
+      sheet.replaceChildren(...(groups.length ? groups.map(orderPage) : [pHead("Stock order", P.stockLabel(period)), el("p", { class: "st-p-empty", text: "Nothing to order." })]));
+      document.title = `Stock orders ${P.stockLabel(period)}`;
     } else {
       const list = items ? items : allLines().map((l, i) => ({ id: l.itemId, supplier: (view.groups.find((g) => g.lines.includes(l)) || {}).supplier, code: l.code, item: l.item, active: true, sort: i }));
       sheet.replaceChildren(...blankSheet(list));
-      document.title = `Stock count sheet ${P.longLabel(period)}`;
+      document.title = `Stock count sheet ${P.stockLabel(period)}`;
     }
   });
   window.addEventListener("afterprint", () => {
@@ -1069,8 +1098,8 @@
 
   // ------------------------------------------------------------------ start ---
 
-  $("stPrev").addEventListener("click", () => goPeriod(P.addMonths(period, -1)));
-  $("stNext").addEventListener("click", () => goPeriod(P.addMonths(period, 1)));
+  $("stPrev").addEventListener("click", () => goPeriod(P.addStockPeriods(period, -1)));
+  $("stNext").addEventListener("click", () => goPeriod(P.addStockPeriods(period, 1)));
   $("stMonth").addEventListener("change", (e) => goPeriod(e.target.value));
   $("stFinish").addEventListener("click", once(finishCount));
   $("stReopen").addEventListener("click", once(reopenCount));
@@ -1099,10 +1128,15 @@
     setTab(to, true);
   });
 
-  readUrl();
   (async () => {
     const ready = window.cc && window.cc.ready ? window.cc.ready : Promise.resolve();
     await ready;
+    try {
+      cycle = await api("/api/stock/settings");
+    } catch (_) {
+      // keep the defaults; loadMonth reports any real trouble
+    }
+    readUrl();
     const ok = await loadMonth();
     // Ordering lands on Order once the count is finished, everyone else on Count.
     if (!tab) tab = canOrder() && view && view.state !== "counting" ? "order" : "count";

@@ -51,6 +51,10 @@ const DEFAULTS = {
   // 0.2.5 (docs/plans/m26-contracts.md section 2): the Morning check's Done for today, as JSON
   // {date (the day checked), doneOn (Sydney today), at, by}. Not exposed by /api/settings.
   "board.morning_last_done": null,
+  // 0.2.6 (docs/plans/m27-contracts.md section 2): the stock order's count cycle and the Monday the
+  // fortnights are counted from (Todd 2026-10-27: Mon 26 Oct 2026). PUT /api/stock/settings only.
+  "stock.cycle": "fortnightly",
+  "stock.cycle_start": "2026-10-26",
 };
 const KEYS = Object.keys(DEFAULTS);
 

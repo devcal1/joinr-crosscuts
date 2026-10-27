@@ -17,6 +17,7 @@ const audit = require("./audit");
 const notify = require("./notify");
 const { cutNote } = require("./orders");
 const Periods = require("../public/periods");
+const settings = require("./settings");
 
 const SUPPLIER_MAX = 200;
 const ITEM_MAX = 200;
@@ -102,11 +103,51 @@ function qtyOrNull(label, v) {
   return v;
 }
 
-// The YYYY-MM month, no later than the current one (section 7).
+// A month (YYYY-MM) or a fortnight (YYYY-MM-DD, its Monday) that has started (section 7;
+// m27-contracts.md section 2).
 function periodOk(period, today) {
-  if (!Periods.validPeriod(period)) throw bad("The month must be YYYY-MM");
-  if (period > Periods.currentPeriod(today)) throw bad("That month hasn't started yet");
+  if (!Periods.validStockPeriod(period)) throw bad("The period must be a month (YYYY-MM) or a fortnight's Monday (YYYY-MM-DD)");
+  if (!Periods.stockPeriodStarted(period, today)) throw bad("That period hasn't started yet");
   return period;
+}
+
+// ------------------------------------------------------------- the cycle ---
+
+const CYCLES = ["monthly", "fortnightly"];
+
+// {cycle, cycleStart}: the settings, falling back to the defaults when a stored value is unusable.
+function cycleOf(db) {
+  const c = settings.get(db, "stock.cycle");
+  const st = settings.get(db, "stock.cycle_start");
+  return {
+    cycle: CYCLES.includes(c) ? c : settings.DEFAULTS["stock.cycle"],
+    cycleStart: Periods.isMonday(st) ? st : settings.DEFAULTS["stock.cycle_start"],
+  };
+}
+
+// GET /api/stock/settings.
+function cycleSettings(db, today = sydneyToday()) {
+  const c = cycleOf(db);
+  const current = Periods.currentStockPeriod(today, c.cycle, c.cycleStart);
+  return { ...c, current, currentLabel: Periods.stockLabel(current), today };
+}
+
+// PUT /api/stock/settings {cycle?, cycleStart?} (stock.order).
+function saveCycle(db, req, body) {
+  const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  if (b.cycle !== undefined && !CYCLES.includes(b.cycle)) throw bad("cycle must be monthly or fortnightly");
+  if (b.cycleStart !== undefined && !Periods.isMonday(b.cycleStart)) throw bad("cycleStart must be a Monday (YYYY-MM-DD)");
+  db.transaction(() => {
+    if (b.cycle !== undefined) settings.set(db, "stock.cycle", b.cycle, req);
+    if (b.cycleStart !== undefined) settings.set(db, "stock.cycle_start", b.cycleStart, req);
+  })();
+  return cycleSettings(db);
+}
+
+// The order a target suggests: max(target - have, 0), or null without both.
+function suggestOf(target, have) {
+  if (target == null || have == null) return null;
+  return Math.max(target - have, 0);
 }
 
 // [{itemId, <field>}] -> [{itemId, value}] (400 on any bad entry or a repeated item).
@@ -134,6 +175,7 @@ function toItem(r) {
     link: r.link,
     sort: r.sort,
     active: r.active === 1,
+    target: r.target == null ? null : r.target,
   };
 }
 
@@ -157,6 +199,7 @@ function itemFields(body, { create }) {
   if (create || has("item")) out.item = textField("item", b.item, ITEM_MAX, { required: true });
   if (create || has("code")) out.code = textField("code", b.code, CODE_MAX);
   if (create || has("link")) out.link = linkField(b.link);
+  if (create || has("target")) out.target = qtyOrNull("target", b.target === undefined ? null : b.target);
   if (has("active")) out.active = boolField("active", b.active) ? 1 : 0;
   else if (create) out.active = 1;
   return out;
@@ -170,10 +213,10 @@ function createItem(db, req, body) {
     const sort = max == null ? 1 : max + 1;
     const info = db
       .prepare(
-        `INSERT INTO stock_items (supplier, code, item, link, sort, active, created_at, updated_at, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO stock_items (supplier, code, item, link, target, sort, active, created_at, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(f.supplier, f.code, f.item, f.link, sort, f.active, now, now, userId(req));
+      .run(f.supplier, f.code, f.item, f.link, f.target, sort, f.active, now, now, userId(req));
     const newId = Number(info.lastInsertRowid);
     audit.log(req, { action: "stock_item.create", entityType: "stock_item", entityId: newId, after: { ...f, sort } });
     return newId;
@@ -266,7 +309,7 @@ function monthLines(db, row) {
     ? db
         .prepare(
           `SELECT l.stock_item_id AS item_id, l.supplier, l.code, l.item, l.have, l.order_qty,
-                  i.link, i.sort
+                  i.link, i.sort, i.target
              FROM stock_order_lines l JOIN stock_items i ON i.id = l.stock_item_id
             WHERE l.stock_order_id = ?`
         )
@@ -281,12 +324,13 @@ function monthLines(db, row) {
     have: r.have,
     order: r.order_qty,
     sort: r.sort,
+    target: r.target,
   }));
   if (!row || !row.counted_at) {
     const has = new Set(out.map((l) => l.itemId));
     for (const i of db.prepare("SELECT * FROM stock_items WHERE active = 1").all()) {
       if (has.has(i.id)) continue;
-      out.push({ itemId: i.id, supplier: i.supplier, code: i.code, item: i.item, link: i.link, have: null, order: null, sort: i.sort });
+      out.push({ itemId: i.id, supplier: i.supplier, code: i.code, item: i.item, link: i.link, have: null, order: null, sort: i.sort, target: i.target });
     }
   }
   return out.sort((a, b) => a.sort - b.sort || a.itemId - b.itemId);
@@ -349,10 +393,15 @@ function view(db, period, row) {
       index.set(l.supplier, out);
       groups.push(out);
     }
-    index.get(l.supplier).lines.push({ itemId: l.itemId, code: l.code, item: l.item, link: l.link, have: l.have, order: l.order });
+    index.get(l.supplier).lines.push({
+      itemId: l.itemId, code: l.code, item: l.item, link: l.link, have: l.have, order: l.order,
+      target: l.target == null ? null : l.target, suggested: suggestOf(l.target, l.have),
+    });
   }
   return {
     period,
+    label: Periods.stockLabel(period),
+    kind: Periods.isFortnight(period) ? "fortnight" : "month",
     state: stateOf(row, lines, [...groupsBy.values()]),
     counted: countedOf(db, row),
     nothingToOrder: nothingOf(db, row),
@@ -367,7 +416,7 @@ function months(db) {
     .all()
     .map((row) => {
       const v = view(db, row.period, row);
-      return { period: v.period, state: v.state, counted: v.counted };
+      return { period: v.period, label: v.label, state: v.state, counted: v.counted };
     });
 }
 
@@ -430,8 +479,40 @@ function saveHave(db, req, period, lines, today = sydneyToday()) {
     if (!Object.keys(after).length) return;
     touch(db, row.id);
     audit.log(req, { action: "stock_order.have", entityType: "stock_order", entityId: period, before, after });
+    fillOrders(db, req, row, before);
   })();
   return month(db, period, today);
+}
+
+// Order fills in as max(target - have, 0) (m27-contracts.md section 3), on lines with a target and
+// a Have whose Order is empty or still what the old Have suggested (so an Order someone typed is
+// kept) and whose supplier group isn't ordered. haveBefore: {itemId: old have} for the lines just
+// changed; null: every line (at Finish count). Audited stock_order.order_fill.
+function fillOrders(db, req, row, haveBefore) {
+  const lines = db
+    .prepare(
+      `SELECT l.stock_item_id AS item_id, l.supplier, l.have, l.order_qty, i.target
+         FROM stock_order_lines l JOIN stock_items i ON i.id = l.stock_item_id
+        WHERE l.stock_order_id = ? AND i.target IS NOT NULL AND l.have IS NOT NULL`
+    )
+    .all(row.id);
+  const before = {};
+  const after = {};
+  for (const l of lines) {
+    if (haveBefore && !Object.prototype.hasOwnProperty.call(haveBefore, l.item_id)) continue;
+    if (groupRow(db, row.id, l.supplier)) continue;
+    const was = suggestOf(l.target, haveBefore ? haveBefore[l.item_id] : l.have);
+    if (l.order_qty != null && l.order_qty !== was) continue;
+    const want = suggestOf(l.target, l.have);
+    if (want === l.order_qty) continue;
+    if (row.nothing_at && want > 0) continue;
+    db.prepare("UPDATE stock_order_lines SET order_qty = ? WHERE stock_order_id = ? AND stock_item_id = ?").run(want, row.id, l.item_id);
+    before[l.item_id] = l.order_qty;
+    after[l.item_id] = want;
+  }
+  if (Object.keys(after).length) {
+    audit.log(req, { action: "stock_order.order_fill", entityType: "stock_order", entityId: row.period, before, after });
+  }
 }
 
 function counted(db, req, period, today = sydneyToday()) {
@@ -460,12 +541,22 @@ function counted(db, req, period, today = sydneyToday()) {
       row.id
     );
     audit.log(req, { action: "stock_order.counted", entityType: "stock_order", entityId: period, after: { counted_at: now } });
+    fillOrders(db, req, row, null);
+    // The order list sent to Ordering (m27-contracts.md section 3): how many lines and suppliers.
+    const n = db
+      .prepare("SELECT COUNT(*) AS lines, COUNT(DISTINCT supplier) AS suppliers FROM stock_order_lines WHERE stock_order_id = ? AND order_qty > 0")
+      .get(row.id);
+    const nLines = Number(n.lines) || 0;
+    const nSup = Number(n.suppliers) || 0;
     notify.toKey(
       db,
       "stock.order",
       {
         kind: "stock.counted",
-        title: `Stock counted: ${Periods.longLabel(period)}`,
+        title: `Stock counted: ${Periods.stockLabel(period)}`,
+        body: nLines
+          ? `${nLines} ${nLines === 1 ? "line" : "lines"} to order from ${nSup} ${nSup === 1 ? "supplier" : "suppliers"}.`
+          : "Nothing to order on the count.",
         link: `/stock.html?period=${period}`,
         entityType: "stock_order",
         entityId: period,
@@ -658,7 +749,7 @@ function groupReceived(db, req, period, body, today = sydneyToday()) {
         "orders.mark_ordered",
         {
           kind: "stock.delivery_note",
-          title: `Delivery note: Stock order ${Periods.longLabel(period)}`,
+          title: `Delivery note: Stock order ${Periods.stockLabel(period)}`,
           body: `${supplier}: ${cutNote(deliveryNote)}`,
           link: `/stock.html?period=${period}`,
           entityType: "stock_order",
@@ -690,6 +781,29 @@ function countMonth(today) {
   return null;
 }
 
+// The stock count due (m27-contracts.md section 2): {period, label, overdue} or null. Monthly: as
+// before (countMonth). Fortnightly: the fortnight before while it isn't counted (overdue), else the
+// current fortnight from DUE_FROM days after its Monday (its Thursday; Todd 2026-10-27: the first
+// fortnight, from Mon 26 Oct, is due from Thu 29 Oct) until it is counted.
+const DUE_FROM = 3;
+function stockCountDue(db, today = sydneyToday()) {
+  const { cycle, cycleStart } = cycleOf(db);
+  const done = (p) => {
+    const r = orderRow(db, p);
+    return !!(r && r.counted_at);
+  };
+  if (cycle === "monthly") {
+    const p = countMonth(today);
+    return p && !done(p) ? { period: p, label: Periods.longLabel(p), overdue: false } : null;
+  }
+  if (today < cycleStart) return null;
+  const cur = Periods.fortnightOf(today, cycleStart);
+  const prev = Periods.addStockPeriods(cur, -1);
+  if (prev >= cycleStart && !done(prev)) return { period: prev, label: Periods.stockLabel(prev), overdue: true };
+  if (today >= Periods.addDays(cur, DUE_FROM) && !done(cur)) return { period: cur, label: Periods.stockLabel(cur), overdue: false };
+  return null;
+}
+
 // GET /api/stock/summary: only the parts the user's keys allow (section 11.8). Each part is null
 // (or an empty list) when the dashboard has nothing to say.
 //   stock.count: stockCount, boardCount: {period, label} | null (a count due and not finished).
@@ -698,10 +812,10 @@ function countMonth(today) {
 function summary(db, user, today = sydneyToday()) {
   const out = { date: today };
   if (holds(user, "stock.count")) {
+    // The board stocktake stays monthly (Todd, 2026-10-27).
     const p = countMonth(today);
-    const stockRow = p ? orderRow(db, p) : null;
     const boardRow = p ? db.prepare("SELECT status FROM board_counts WHERE period = ?").get(p) : null;
-    out.stockCount = p && !(stockRow && stockRow.counted_at) ? { period: p, label: Periods.longLabel(p) } : null;
+    out.stockCount = stockCountDue(db, today);
     out.boardCount = p && !(boardRow && boardRow.status !== "open") ? { period: p, label: Periods.longLabel(p) } : null;
   }
   if (holds(user, "stock.order")) {
@@ -711,12 +825,16 @@ function summary(db, user, today = sydneyToday()) {
       .all()
       .map((row) => ({ period: row.period, state: view(db, row.period, row).state }))
       .filter((m) => m.state === "counted" || m.state === "ordering")
-      .map((m) => ({ period: m.period, label: Periods.longLabel(m.period), state: m.state }));
+      .map((m) => ({ period: m.period, label: Periods.stockLabel(m.period), state: m.state }));
   }
   return out;
 }
 
 module.exports = {
+  cycleOf,
+  cycleSettings,
+  saveCycle,
+  stockCountDue,
   items,
   createItem,
   updateItem,
