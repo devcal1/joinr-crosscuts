@@ -2,7 +2,9 @@
 
 Read this right after `CLAUDE.md`. The stages, numbered steps (e.g. M2 · 3.1) and clear points are defined in `docs/plans/roadmap.md`.
 
-## Start here (2026-10-27: 0.2.2 to 0.2.5 built locally, not pushed)
+## Start here (2026-10-27: 0.2.5 released, carrying 0.2.2 to 0.2.5)
+
+- **0.2.5 released 2026-10-27** (joinr-crosscuts `25e0c84`, CI run 40459307738 green on both architectures; image `ghcr.io/devcal1/crosscuts-web:0.2.5@sha256:40803f7e29708a70e0b5c0a4487df034d43e5cd436bc1badfb49aef14daa9bd1`; store `753b39e` pushed; Todd to click Update, then try End of shift on a real phone). 0.2.2 to 0.2.4 were never published on their own; their entries below say "built locally" as written at the time. Next version 0.2.6 (M27).
 
 - **0.2.5 M26 Morning check and completion, built locally, not pushed (2026-10-27).** Contract `docs/plans/m26-contracts.md`, how-to `docs/how-to-morning-check.md`, smoke `ci/smoke-m26-morning-complete.sh` (m2 invoices and m5 stages smokes updated). Migration **047** `morning_check` (additive: `production_days`, `jobs.installed_date`). Morning check on the Scheduling notes wall (previous working day's jobs, stage pick and note per job per day, the attention lists, Done for today in `board.morning_last_done`); the latest of the daily and Finish week stages is the board's stage label. Finish week's Complete is now **Installed** (CLAUDE.md non-negotiable 7, M26 exception): records `installed_date`, alerts the owner (else design.view); **Confirm complete** (owner or admin) on the job and project pages runs the old completion path (final 40% due); Pipeline shows Awaiting PM confirm in Complete. Admin hand-set Complete still immediate. Dashboard **Waiting on you** tile (`GET /api/my-work`). Version **0.2.5**. Next version 0.2.6 (M27).
 
