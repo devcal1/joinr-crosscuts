@@ -48,6 +48,9 @@ const KEYS = [
   "notes.workshop",
   // 0.2.4 (docs/plans/m25-contracts.md section 1): the end-of-shift page, its photos and issues.
   "shift.report",
+  // 0.2.6 (docs/plans/m27-contracts.md section 4): Workshop > Maintenance; only its holders confirm a
+  // maintenance occurrence actioned.
+  "maintenance.manage",
 ];
 
 // M13 (docs/plans/m13-contracts.md section 3): owner-only keys. The admin preset doesn't get them;
@@ -58,7 +61,7 @@ const OWNER_ONLY_SET = new Set(OWNER_ONLY_KEYS);
 const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"];
 
 const PRESETS = {
-  // M13: every key except the owner-only ones (34 keys since 0.2.4 added shift.report).
+  // M13: every key except the owner-only ones (35 keys since 0.2.6 added maintenance.manage).
   admin: KEYS.filter((k) => !OWNER_ONLY_SET.has(k)),
   accounts: [
     "board.view", "jobs.view", "jobs.value", "photos.search", "accounts.view",
@@ -90,6 +93,8 @@ const PRESETS = {
   workshop_manager: [
     "board.view", "orders.view", "orders.receive", "tasks.use", "messages.use",
     "planner.view", "planner.edit", "stock.count", "notes.ordering", "notes.workshop",
+    // 0.2.6 (docs/plans/m27-contracts.md section 4).
+    "maintenance.manage",
   ],
 };
 

@@ -1,0 +1,39 @@
+/* Workshop > Maintenance (maintenance.html, 0.2.6). Tokens from tokens.css, hs- components from
+   components.css, the dialog frame from the shell's cc-dialog. Page classes are prefixed mt-. */
+html, body { margin: 0; background: var(--ink); }
+body { color: var(--body); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+[hidden] { display: none !important; }
+
+.mt-page { max-width: 1100px; margin: 0 auto; padding: 22px 24px 40px; }
+.mt-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.mt-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.mt-intro { margin: 0 0 16px; color: var(--label); max-width: 760px; }
+.mt-status { margin: 0 0 12px; color: var(--label); }
+.mt-status:empty { display: none; }
+.mt-empty { color: var(--label); }
+.mt-wrap { overflow-x: auto; }
+.mt-table td { vertical-align: top; }
+.mt-item { color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.mt-note { display: block; color: var(--label); font-size: 12px; overflow-wrap: anywhere; }
+.mt-sub { display: block; color: var(--muted); font-size: 12px; }
+.mt-paused td { color: var(--muted); }
+.mt-occ { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
+.mt-overdue { color: var(--stop-tint); font-weight: 700; }
+.mt-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.mt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.cc-dialog.mt-dialog { width: min(94vw, 560px); max-height: 92vh; overflow-y: auto; }
+.mt-field { display: flex; flex-direction: column; gap: 4px; }
+.mt-row > .mt-field { flex: 1 1 140px; min-width: 0; }
+.mt-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.mt-num { max-width: 120px; }
+
+@media (max-width: 640px) {
+  .mt-page { padding: 16px 16px 32px; }
+  .mt-table thead { display: none; }
+  .mt-table, .mt-table tbody, .mt-table tr, .mt-table td { display: block; width: 100%; }
+  .mt-table tr { border-bottom: 1px solid var(--hairline); padding: 8px 0; }
+  .mt-table td { border: 0; padding: 2px 0; }
+  .mt-table td[data-label]::before { content: attr(data-label) ": "; color: var(--label); font-size: 12px; }
+  .mt-actions { justify-content: flex-start; padding-top: 6px; }
+}

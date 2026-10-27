@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maintenance - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="maintenance.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="mt-body">
+  <div id="cc-shell"></div>
+
+  <!-- Workshop > Maintenance (0.2.6, docs/plans/m27-contracts.md section 4). maintenance.js talks to
+       /api/maintenance. maintenance.manage only. -->
+  <main class="mt-page">
+    <div class="mt-head">
+      <h1 id="mtTitle" tabindex="-1">Maintenance</h1>
+      <button id="mtAdd" class="hs-btn hs-btn-primary" type="button">Add maintenance item</button>
+    </div>
+    <p class="mt-intro">The workshop's maintenance schedule. Each item repeats and shows on the Workshop Planner layer on its due date. When it is done, confirm it actioned here (with a note if there is something to say). Only the workshop manager confirms. Anything a week or more overdue is sent to admin once a week.</p>
+    <p id="mtStatus" class="mt-status" role="status" aria-live="polite">Loading...</p>
+
+    <div id="mtWrap" class="mt-wrap" hidden>
+      <table class="hs-table mt-table">
+        <thead>
+          <tr>
+            <th scope="col">Item</th>
+            <th scope="col">Repeats</th>
+            <th scope="col">Next due</th>
+            <th scope="col">Last done</th>
+            <th scope="col">Due now</th>
+            <th scope="col"><span class="mt-sr">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="mtRows"></tbody>
+      </table>
+    </div>
+    <p id="mtEmpty" class="mt-empty" hidden>No maintenance items yet. Add the first one.</p>
+  </main>
+
+  <dialog id="mtDlg" class="cc-dialog mt-dialog" aria-labelledby="mtDlgTitle">
+    <form id="mtForm" class="cc-dialog-form" method="dialog" novalidate>
+      <h2 class="cc-dialog-title" id="mtDlgTitle">Add maintenance item</h2>
+      <label class="mt-field"><span class="hs-label">Item</span>
+        <input id="mTitle" class="hs-input" type="text" maxlength="200" required>
+      </label>
+      <label class="mt-field"><span class="hs-label">What to do (optional)</span>
+        <textarea id="mNotes" class="hs-input" rows="2" maxlength="4000"></textarea>
+      </label>
+      <div class="mt-row">
+        <label class="mt-field"><span class="hs-label">Repeats</span>
+          <select id="mRepeat" class="hs-input">
+            <option value="weekly">Every week</option>
+            <option value="fortnightly">Every fortnight</option>
+            <option value="monthly">Every month</option>
+            <option value="annually">Every year</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label class="mt-field mt-custom" hidden><span class="hs-label">Every</span>
+          <input id="mEvery" class="hs-input mt-num" type="number" min="1" max="99" step="1" value="3">
+        </label>
+        <label class="mt-field mt-custom" hidden><span class="hs-label">Unit</span>
+          <select id="mUnit" class="hs-input">
+            <option value="day">Days</option>
+            <option value="week">Weeks</option>
+            <option value="month">Months</option>
+            <option value="year">Years</option>
+          </select>
+        </label>
+      </div>
+      <div class="mt-row">
+        <label class="mt-field"><span class="hs-label">First due date</span>
+          <input id="mStart" class="hs-input" type="date" required>
+        </label>
+        <label class="mt-field"><span class="hs-label">End date (optional)</span>
+          <input id="mEnd" class="hs-input" type="date">
+        </label>
+      </div>
+      <label class="mt-field"><span class="hs-label">Show it this many days before it is due (0 to 60)</span>
+        <input id="mLead" class="hs-input mt-num" type="number" min="0" max="60" step="1" value="0">
+      </label>
+      <p id="mError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="mCancel" class="hs-btn hs-btn-quiet" type="button">Cancel</button>
+        <button id="mSave" class="hs-btn hs-btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="mtDoneDlg" class="cc-dialog mt-dialog" aria-labelledby="mtDoneTitle">
+    <form id="mtDoneForm" class="cc-dialog-form" method="dialog" novalidate>
+      <h2 class="cc-dialog-title" id="mtDoneTitle">Confirm actioned</h2>
+      <p id="mtDoneWhat" class="cc-dialog-note"></p>
+      <label class="mt-field"><span class="hs-label">Note (optional)</span>
+        <textarea id="mtDoneNote" class="hs-input" rows="3" maxlength="1000"></textarea>
+      </label>
+      <p id="mtDoneError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="mtDoneCancel" class="hs-btn hs-btn-quiet" type="button">Cancel</button>
+        <button id="mtDoneSave" class="hs-btn hs-btn-primary" type="submit">Confirm actioned</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/shell/shell.js"></script>
+  <script src="maintenance.js"></script>
+</body>
+</html>

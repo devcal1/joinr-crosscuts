@@ -400,6 +400,9 @@ function update(db, req, id, body) {
 function setStatus(db, req, id, action) {
   const user = req.user;
   if (!["done", "reopen", "cancel"].includes(action)) throw bad("Unknown action");
+  // 0.2.6 (docs/plans/m27-contracts.md section 4): a maintenance occurrence is ticked by
+  // maintenance.manage holders only.
+  require("./maintenance").guardTaskStatus(db, req, Number(id), action);
   if (teamTasks.isTeamId(Number(id))) return teamTasks.setStatus(db, req, Number(id), action);
   db.transaction(() => {
     const row = loadRow(db, id);

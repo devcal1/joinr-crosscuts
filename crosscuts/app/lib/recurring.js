@@ -166,8 +166,18 @@ function readRule(db, body, row) {
 const SELECT = `SELECT r.*, u.display_name AS assignee_name FROM recurring_tasks r
     LEFT JOIN users u ON u.id = r.assignee_id`;
 
-function loadRow(db, id) {
-  const row = db.prepare(`${SELECT} WHERE r.id = ? AND r.deleted_at IS NULL`).get(id);
+// 0.2.6 (docs/plans/m27-contracts.md section 4): a rule's kind. Admin > Tasks keeps the ordinary
+// rules (kind NULL, here ''); Workshop > Maintenance keeps kind 'maintenance'. Each side sees only
+// its own: the other's ids are 404.
+const KINDS = ["", "maintenance"];
+function kindOf(opts) {
+  const k = opts && opts.kind ? opts.kind : "";
+  if (!KINDS.includes(k)) throw new Error(`Unknown recurring kind: ${k}`);
+  return k;
+}
+
+function loadRow(db, id, opts) {
+  const row = db.prepare(`${SELECT} WHERE r.id = ? AND r.deleted_at IS NULL AND COALESCE(r.kind, '') = ?`).get(id, kindOf(opts));
   if (!row) throw notFound();
   return row;
 }
@@ -188,6 +198,7 @@ function present(db, row, today) {
     repeatEvery: row.repeat_every == null ? null : Number(row.repeat_every),
     repeatUnit: row.repeat_unit || null,
     repeatText: repeatWords(row),
+    kind: row.kind || null,
     startDate: row.start_date,
     endDate: row.end_date || null,
     leadDays: Number(row.lead_days),
@@ -201,11 +212,11 @@ function present(db, row, today) {
   };
 }
 
-function list(db) {
+function list(db, opts) {
   const today = sydneyToday();
   const rules = db
-    .prepare(`${SELECT} WHERE r.deleted_at IS NULL ORDER BY r.active DESC, r.title COLLATE NOCASE, r.id`)
-    .all()
+    .prepare(`${SELECT} WHERE r.deleted_at IS NULL AND COALESCE(r.kind, '') = ? ORDER BY r.active DESC, r.title COLLATE NOCASE, r.id`)
+    .all(kindOf(opts))
     .map((row) => present(db, row, today));
   return {
     today,
@@ -215,8 +226,8 @@ function list(db) {
   };
 }
 
-function get(db, id) {
-  return present(db, loadRow(db, id), sydneyToday());
+function get(db, id, opts) {
+  return present(db, loadRow(db, id, opts), sydneyToday());
 }
 
 // ------------------------------------------------------------------- writes ---
@@ -235,7 +246,8 @@ function auditShape(c) {
   };
 }
 
-function create(db, req, body) {
+function create(db, req, body, opts) {
+  const kind = kindOf(opts) || null;
   const c = readRule(db, body, null);
   const today = sydneyToday();
   const id = db.transaction(() => {
@@ -243,27 +255,29 @@ function create(db, req, body) {
     const info = db
       .prepare(
         `INSERT INTO recurring_tasks (title, notes, assignee_id, dept, repeat, repeat_every, repeat_unit, start_date,
-           end_date, lead_days, active, created_from, created_by, updated_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
+           end_date, lead_days, active, created_from, created_by, updated_by, created_at, updated_at, kind)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
       )
       .run(c.title, c.notes, c.assigneeId, c.dept, c.repeat, c.repeatEvery, c.repeatUnit, c.startDate, c.endDate,
-        c.leadDays, today, req.user.id, req.user.id, ts, ts);
+        c.leadDays, today, req.user.id, req.user.id, ts, ts, kind);
     const newId = Number(info.lastInsertRowid);
-    audit.log(req, { action: "recurring_task.create", entityType: "recurring_task", entityId: newId, after: auditShape(c) });
+    const after = auditShape(c);
+    if (kind) after.kind = kind;
+    audit.log(req, { action: "recurring_task.create", entityType: "recurring_task", entityId: newId, after });
     return newId;
   })();
   run(db, { ruleId: id });
-  return get(db, id);
+  return get(db, id, opts);
 }
 
 function staleCheck(db, row, body) {
   if (body && typeof body.updatedAt === "string" && body.updatedAt !== row.updated_at) {
-    throw conflict("Someone else changed this recurring task. Reload to see it.", { rule: get(db, row.id) });
+    throw conflict("Someone else changed this recurring task. Reload to see it.", { rule: get(db, row.id, { kind: row.kind || "" }) });
   }
 }
 
-function update(db, req, id, body) {
-  const row = loadRow(db, id);
+function update(db, req, id, body, opts) {
+  const row = loadRow(db, id, opts);
   staleCheck(db, row, body);
   const c = readRule(db, body, row);
   const before = auditShape({
@@ -279,14 +293,14 @@ function update(db, req, id, body) {
     audit.log(req, { action: "recurring_task.update", entityType: "recurring_task", entityId: id, before, after: auditShape(c) });
   })();
   run(db, { ruleId: id });
-  return get(db, id);
+  return get(db, id, opts);
 }
 
 // Pause or resume. Resuming starts again from today: nothing is made for the paused days.
-function setActive(db, req, id, active, body) {
-  const row = loadRow(db, id);
+function setActive(db, req, id, active, body, opts) {
+  const row = loadRow(db, id, opts);
   staleCheck(db, row, body);
-  if ((Number(row.active) === 1) === active) return get(db, id);
+  if ((Number(row.active) === 1) === active) return get(db, id, opts);
   const today = sydneyToday();
   db.transaction(() => {
     if (active) {
@@ -305,12 +319,12 @@ function setActive(db, req, id, active, body) {
     });
   })();
   if (active) run(db, { ruleId: id });
-  return get(db, id);
+  return get(db, id, opts);
 }
 
 // Delete: no more occurrences; the tasks already made stay as they are.
-function remove(db, req, id) {
-  const row = loadRow(db, id);
+function remove(db, req, id, opts) {
+  const row = loadRow(db, id, opts);
   db.transaction(() => {
     db.prepare("UPDATE recurring_tasks SET deleted_at = ?, active = 0, updated_by = ?, updated_at = ? WHERE id = ?")
       .run(nowIso(), req.user.id, nextStamp(row.updated_at), id);
@@ -386,7 +400,9 @@ function run(db, opts = {}) {
     const dates = dueDates(r, r.created_from, addDays(today, Number(r.lead_days))).slice(0, PER_RULE_MAX);
     for (const due of dates) if (makeOccurrence(db, r, due) != null) made++;
   }
-  return { date: today, made };
+  // 0.2.6: maintenance occurrences 7 or more days overdue bell admin once a week (lib/maintenance.js).
+  const belled = opts.ruleId ? 0 : require("./maintenance").overdueSweep(db, today);
+  return { date: today, made, belled };
 }
 
 let started = false;
@@ -457,11 +473,11 @@ function plannerItems(db, user, { from, to, today, layers, item }) {
       out.push(item({
         id: `a:recurring:${r.id}:${o.taskId != null ? "t" + o.taskId : o.d}`,
         source: "recurring_task",
-        sourceLabel: "Recurring task",
+        sourceLabel: r.kind === "maintenance" ? "Maintenance" : "Recurring task",
         layer,
         title: `${o.status === "done" ? "Done: " : ""}${r.title}`,
         start: o.d,
-        link: o.taskId != null && tasksUse ? `/tasks.html?task=${o.taskId}` : null,
+        link: r.kind === "maintenance" ? "/maintenance.html" : o.taskId != null && tasksUse ? `/tasks.html?task=${o.taskId}` : null,
         overdue: o.status === "open" && o.d < today,
       }));
     }
