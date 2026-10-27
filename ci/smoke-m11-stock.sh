@@ -71,8 +71,9 @@ req GET /api/stock/items "$ACCT"
 expect_status 403 "acct GET /api/stock/items"
 req GET /api/stock/items "$DPM"
 expect_status 403 "dpm GET /api/stock/items"
-req POST /api/stock/items "$WSMGR" "{\"supplier\":\"$M11_ST_SUPA\",\"item\":\"M11 Test Hinge\"}"
-expect_status 403 "wsmgr adds a stock item"
+# 0.2.6 (m27-contracts.md section 3): the workshop manager keeps the list too; a bad item is 400, not 403.
+req POST /api/stock/items "$WSMGR" "{\"supplier\":\"$M11_ST_SUPA\"}"
+expect_status 400 "wsmgr may add stock items (M27): one with no item is refused as bad, not forbidden"
 req GET /api/boards "$WSMGR"
 expect_status 200 "wsmgr GET /api/boards"
 req GET /api/boards "$ACCT"
@@ -285,7 +286,7 @@ req PATCH "/api/stock/items/$M11_ST_IB" "$ORDR" '{"active":false}'
 expect_status 200 "ordr deactivates item B"
 expect_jq '.active == false' "item B is inactive"
 req GET "/api/stock/items?all=1" "$WSMGR"
-expect_jq "[.items[] | select(.id == $M11_ST_IB)] | length == 0" "wsmgr's ?all=1 still lists active items only"
+expect_jq "[.items[] | select(.id == $M11_ST_IB)] | length == 1" "wsmgr's ?all=1 includes it too (M27: the workshop manager keeps the list)"
 req GET "/api/stock/items?all=1" "$ORDR"
 expect_jq "[.items[] | select(.id == $M11_ST_IB)] | length == 1" "ordr's ?all=1 includes it"
 req PATCH "/api/stock/items/$M11_ST_IA" "$ORDR" '{"active":false}'
@@ -305,8 +306,8 @@ req POST /api/boards "$ORDR" '{"supplier":"N","thickness":25,"name":"M11 Test Bo
 expect_status 201 "ordr adds board 3, no price"
 expect_jq '.priceCents == null' "board 3 has no price"
 M11_ST_B3=$(jqr '.id')
-req POST /api/boards "$WSMGR" '{"name":"M11 Test Board Four"}'
-expect_status 403 "wsmgr adds a board"
+req POST /api/boards "$WSMGR" '{"name":"M11 Test Board Four","priceCents":100}'
+expect_status 403 "wsmgr can't set a board price (M27: the list yes, prices no)"
 req POST /api/boards "$ORDR" '{"name":"M11 Test Board Bad","thickness":0}'
 expect_status 400 "a zero thickness"
 req GET /api/boards "$WSMGR"
@@ -385,7 +386,7 @@ done
 
 req GET "/api/boards?all=1" "$WSMGR"
 expect_status 200 "wsmgr GET /api/boards?all=1"
-expect_jq "[.boards[] | select(.id == $M11_ST_B1)] | length == 0" "wsmgr's ?all=1 still lists active boards only"
+expect_jq "[.boards[] | select(.id == $M11_ST_B1)] | length == 1" "wsmgr's ?all=1 includes it too (M27: the workshop manager keeps the list)"
 req GET "/api/boards?all=1" "$ORDR"
 expect_jq "[.boards[] | select(.id == $M11_ST_B1)] | length == 1" "ordr's ?all=1 includes the inactive board"
 

@@ -27,7 +27,7 @@ The steps below describe the screen as it is planned. Button and menu names may 
   - the **Board stocktake** (keeps the board list and its prices, and can reopen a finished count).
 
   Ordering can count too, so it can fill in for the Workshop Manager. It sees board prices. From M12 it also sees the **Benchtops** page and the **Batten calculator**, and reads and prints stone orders, but can't change them.
-- **Workshop Manager:** runs the workshop floor: the board to view, order lines to view and receive (the **Deliveries** page), the Planner (adds to Workshop), tasks and messages. No job pages, so no client details. **From M11 it also does the monthly counts:** it types **Have** on the **Stock order** and the sheet quantities on the **Board stocktake**, and finishes each count. It never sees board prices, and it has no Drawer order page and no Paint orders menu entry. It receives the stock, paint and drawer deliveries on **Deliveries**, and can open a paint order from there to receive it.
+- **Workshop Manager:** runs the workshop floor: the board to view, order lines to view and receive (the **Deliveries** page), the Planner (adds to Workshop), tasks and messages. No job pages, so no client details. **From M11 it also does the monthly counts:** it types **Have** on the **Stock order** and the sheet quantities on the **Board stocktake**, and finishes each count. It never sees board prices, and it has no Drawer order page and no Paint orders menu entry. It receives the stock, paint and drawer deliveries on **Deliveries**, and can open a paint order from there to receive it. **From 0.2.6 (M27)** it counts the stock order every fortnight against targets it keeps, keeps the board and edge tape list (not prices), runs **Workshop > Maintenance** (only it, and admin, confirm maintenance actioned), and labels stock Ordering reserves for jobs and records jobs cut 100% (**Workshop > To reserve**).
 
 The office roles (Admin, Accounts, Projects, Scheduling, Ordering, Workshop Manager) also get the **Planner**, and can add events to the layers their role allows. Showroom has no Planner. Which planner layers a person sees follows their roles, not their overrides; the details are in [auth.md](auth.md).
 
@@ -135,7 +135,7 @@ This is the plan from the brief (section 3.1).
 | Michael | Scheduling | |
 | Showroom | Showroom | One shared account for the showroom device |
 | Ordering | Ordering | Whoever places the orders (M10), and runs the drawer, stock and paint orders and the board stocktake (M11) |
-| Workshop Manager | Workshop Manager | Runs the floor, receives deliveries and does the monthly stock and board counts; not the Scheduler (M10, M11) |
+| Workshop Manager | Workshop Manager | Runs the floor, receives deliveries, does the stock and board counts, maintenance and stock reservations; not the Scheduler (M10, M11, M27) |
 | Floor crew | None (or Workshop) | They watch the TV. A floor login, if wanted, gets Workshop |
 
 **Tip for Sam's Chromebook:** at login, tick **Remember this device**. The login then lasts 30 days and keeps sliding, so the TV device does not log out during daily use. Sam can also set a PIN, so that after pressing **Lock** he can unlock with the PIN instead of the password.

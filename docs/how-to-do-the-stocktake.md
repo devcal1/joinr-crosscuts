@@ -1,44 +1,48 @@
-# How to do the monthly stock order, the board stocktake and paint orders in Crosscuts
+# How to do the stock order, the board stocktake and paint orders in Crosscuts
 
 For Todd, Ordering and the Workshop Manager. Four jobs live under the **Ordering** menu:
 
-- **Stock order:** the monthly hardware order. The Workshop Manager counts what's on the shelf; Ordering decides what to order.
-- **Board stocktake:** the monthly count of sheets. It is finished once it is counted.
+- **Stock order:** the hardware order, counted **every fortnight** since 0.2.6. The Workshop Manager counts what's on the shelf against a **target** for each item; the order fills in as target minus have, and Ordering checks it and orders.
+- **Board stocktake:** the monthly count of sheets and edge tape rolls (it stays monthly). It is finished once it is counted, and it resets each item's **on hand**.
 - **Paint order:** paint, hardener, thinners, primer and sanding discs.
 - **Drawer order:** see [how-to-order-drawers.md](how-to-order-drawers.md).
 
 Who does what:
 - **The Workshop Manager** (and Ordering and admin) counts: types **Have** on the stock order and quantities on the board stocktake. Counting needs the `stock.count` key.
-- **Ordering** (and admin) keeps the lists, types what to order, marks it ordered, sets board prices and can reopen a finished board count. That needs the `stock.order` key.
+- **The Workshop Manager** keeps the stock list and its targets, and the board and edge tape list (not the prices) and its on hand amounts (0.2.6).
+- **Ordering** (and admin) keeps the lists too, types what to order, marks it ordered, sets board prices and can reopen a finished board count. That needs the `stock.order` key.
 - **The Workshop Manager** (and Ordering, Projects and admin) marks deliveries received on **Deliveries**.
 
 The stock order and board stocktake are not order lines on jobs: they have no job and no effect on any invoice. Paint can be (see below).
 
-## Setting up the lists (Ordering, once)
+## Setting up the lists (the Workshop Manager or Ordering, once)
 
 Each page has a **List** tab (the paint page has **Paint list**). Type the lists in by hand; nothing is imported. Orders and counts start empty.
 
-- **Stock items:** supplier, code (optional), item and link (optional). Items with the same supplier are ordered together as one **supplier group**. **Up** and **Down** move an item within its group; **Group up** and **Group down** move a whole group. **Deactivate** takes an item off the count without losing history.
-- **Boards:** supplier, thickness, board, finish and the **price per sheet (ex GST)**. The list's order is the order of the count sheet. Prices are seen by Ordering only.
+- **Stock items:** supplier, code (optional), item, **target** (optional: the total you want on the shelf) and link (optional). Items with the same supplier are ordered together as one **supplier group**. **Up** and **Down** move an item within its group; **Group up** and **Group down** move a whole group. **Deactivate** takes an item off the count without losing history.
+- **Boards and edge tape:** the kind (**Board**, or **Edge tape** counted in whole rolls), supplier, thickness, name, finish, width and colour (edge tape), **on hand**, and the **price per sheet (ex GST)**. The list's order is the order of the count sheet. Prices are seen and set by Ordering only. The list also shows each item's **reserved** amount (held for jobs, see [how-to-maintenance.md](how-to-maintenance.md#reserving-boards-and-edge-tape)) and **free** (on hand less reserved).
 - **Paint items:** name, finish, manufacturer, kind (Colour, Hardener, Thinners, Primer, Abrasive or Other) and unit (kg or each).
 
 A new item or board appears on the month that's still being counted, not on months already finished. Editing a list doesn't change a month that's already counted.
 
-## The monthly stock order
+## The stock order
 
-Open **Ordering**, then **Stock order**. The page opens on the current month; **Previous month**, **Next month** and the month box change it. The month's state shows in words at the top.
+Open **Ordering**, then **Stock order**. The page opens on the current **fortnight** (for example "26 Oct – 8 Nov 2026"); **Previous**, **Next** and the box change it. The fortnight's state shows in words at the top.
+
+- Fortnights are counted from **Monday 26 October 2026** (Todd, 2026-10-27). The count is **due from the Thursday** of each fortnight (the first was due from Thursday 29 October) and shows on the dashboard until it is finished; a fortnight left uncounted shows as overdue in the next.
+- Months counted before 0.2.6 still open from the box, as months. Ordering can change the cycle (monthly or fortnightly) and the Monday it starts from with `PUT /api/stock/settings`; there is no screen for it.
 
 ### 1. Count (Workshop Manager)
 
-1. On the **Count** tab, type the **Have** for each item (a whole number). Each saves when you leave the box.
+1. On the **Count** tab, type the **Have** for each item (a whole number). Each saves when you leave the box. The **Target** shows beside it.
 2. To count on paper first, press **Print blank count sheet**: every active item with an empty Have box and a "Counted by" line.
-3. When every item is done, press **Finish count**. Ordering is told ("Stock counted: <Month>").
+3. When every item is done, press **Finish count**. This sends the order list to Ordering: they are told "Stock counted: <fortnight>" with how many lines and suppliers there are to order.
 
 Once the count is finished, Have can't be changed. Ordering can reopen it (below).
 
 ### 2. Order (Ordering)
 
-1. On the **Order** tab, type the **Order** quantity for each item. You can start before the count is finished.
+1. On the **Order** tab, each item with a target already has its **Order** filled in: the target less the Have, never below nothing. It fills in when Have is saved and again when the count is finished. Change any quantity you want: a number you type is kept even if Have changes later. An empty Order with a target shows the suggestion faintly. You can start before the count is finished.
 2. For each supplier group, press **Mark ordered**. Set the date it was ordered and, if you know it, the expected date. A group can be marked once the count is finished and at least one of its items has an Order above zero.
 3. **Print order** prints one supplier group: only its items with an Order above zero (code, item, quantity). **Print all orders** prints one page per supplier group.
 
@@ -55,13 +59,13 @@ When every ordered group has arrived, the month is **received**.
 
 ## The board stocktake
 
-Open **Ordering**, then **Board stocktake**. It works by month, like the stock order.
+Open **Ordering**, then **Board stocktake**. It works by month (it stays monthly).
 
 ### 1. Count (Workshop Manager)
 
-1. On the **Count** tab, type the **Qty** for each board, in whole or half sheets (0.5). Each saves when you leave the box. No prices are shown to the counter.
+1. On the **Count** tab, type the **Qty** for each board, in whole or half sheets (0.5), and for each edge tape in whole rolls. Each saves when you leave the box. No prices are shown to the counter.
 2. To count on paper first, press **Print blank count sheet** (two columns per A4 page, in the list's order).
-3. Press **Finish count**. The month shows **Counted** and the count is done. There is nothing more to confirm.
+3. Press **Finish count**. The month shows **Counted** and the count is done. There is nothing more to confirm. Each counted item's **on hand** becomes what was counted.
 
 The board stocktake no longer works out or confirms a stock value (removed 2026-10-17, after the Stock value page went on 2026-10-16). Values saved on earlier months stay in the database but are not shown anywhere.
 
