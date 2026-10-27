@@ -1,6 +1,9 @@
 /* The end-of-shift page (shift.html; 0.2.4, docs/plans/m25-contracts.md section 3). Phone first
    (375 px): one column of job cards, full-width buttons, big tap targets. House style: outlined
    uppercase buttons, text only. Page classes are sh-. */
+body { color: var(--body); font-family: var(--font); font-size: 15px; line-height: 1.5; }
+a { color: var(--teal-tint); text-decoration: none; }
+.muted { color: var(--label); }
 .sh-page { max-width: 640px; margin: 0 auto; padding: 16px; }
 .sh-page h1 { margin: 4px 0 2px; font-size: 22px; color: var(--white); }
 .sh-date { margin: 0 0 8px; color: var(--label); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }

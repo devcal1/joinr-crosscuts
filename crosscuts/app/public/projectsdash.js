@@ -28,7 +28,7 @@
   var showAll = false;
   function loadMine() {
     var status = document.getElementById("pjMineStatus");
-    var table = document.querySelector(".pj-mine");
+    var table = document.querySelector("#pjMine .pj-mine");
     get("/api/my-projects" + (showAll ? "?all=1" : "")).then(function (d) {
       if (!d || !Array.isArray(d.jobs)) {
         status.textContent = "My projects could not be loaded.";
@@ -38,7 +38,7 @@
       var allBtn = document.getElementById("pjMineAll");
       allBtn.hidden = !d.canAll;
       document.getElementById("pjMineH").textContent = d.all ? "All projects" : "My projects";
-      document.querySelector(".pj-mine-owner").hidden = !d.all;
+      document.querySelector("#pjMine .pj-mine-owner").hidden = !d.all;
       var rows = document.getElementById("pjMineRows");
       rows.replaceChildren();
       d.jobs.forEach(function (j) {

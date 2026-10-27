@@ -74,7 +74,14 @@
     list.replaceChildren(...d.issues.map(item));
     if (!d.issues.length) list.append(el("li", { class: "muted", text: "No issues raised." }));
     sec.hidden = false;
+    // The bell links to #issues; the section only exists once loaded, so scroll to it now.
+    if (location.hash === "#issues" && !scrolled) {
+      scrolled = true;
+      sec.scrollIntoView({ block: "start" });
+    }
   }
+
+  let scrolled = false;
 
   render();
 })();
