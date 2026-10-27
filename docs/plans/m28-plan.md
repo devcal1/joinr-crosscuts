@@ -29,6 +29,7 @@ Invoice engine (`lib/invoices.js`, 10/50/40, issue/paid/void/waive), Overdue acc
 
 Migration(s) after M27's, contract `m28-contracts.md`, how-tos (`how-to-invoice.md`, `how-to-suppliers.md`, new `how-to-vehicles.md`, `how-to-to-pay.md`, loans how-to), smoke `ci/smoke-m28-accounts-vehicles.sh`, version 0.2.7, STATUS.md. This is the largest milestone: if it runs long, ship the vehicles register first as its own release.
 
-## Open for Todd
+## Settled by Todd (2026-10-28)
 
-The vehicles to enter (two trucks and a van?); whether per-client payment terms should live on the client/job or only per invoice.
+- The vehicles register **starts empty**; Accounts adds the vehicles.
+- Payment terms: each **client has default terms** that pre-fill the follow-up interval; Accounts can change it **per invoice**.
