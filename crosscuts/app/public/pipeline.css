@@ -313,7 +313,7 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
 .pl-owned .pl-owner { color: var(--pl-owner-fg, var(--body)); }
 .pl-unowned .pl-owner { color: var(--muted); }
 .pl-card.pl-unowned { background: var(--na); }
-/* 0.2.2: the step marks (D CM N OL) and "n/m ordered", text only. */
+/* 0.2.2: the step marks (D CM N O) and "n/m ordered", text only. */
 .pl-marks {
   display: flex;
   flex-wrap: wrap;

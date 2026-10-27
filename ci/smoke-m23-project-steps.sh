@@ -70,12 +70,12 @@ req GET /api/auth/me "$DPM"; M23_DPM_ID=$(jqr '.user.id')
 req POST /api/job-records "$DPM" "{\"name\":\"$M23_TAG job\",\"clientName\":\"M23 Test Client\",\"stage\":\"won\"}"
 expect_status 201 "a Won job with no owner"
 M23_J=$(jqr '.id')
-expect_jq '.pipelineStage == "won" and .projectMarks != null and (.projectMarks | map(.mark)) == ["D","CM","N","OL"] and (.projectMarks | all(.done == false))' "a Won job carries four empty marks"
+expect_jq '.pipelineStage == "won" and .projectMarks != null and (.projectMarks | map(.mark)) == ["D","CM","N","O"] and (.projectMarks | all(.done == false))' "a Won job carries four empty marks"
 req GET "/api/notifications?limit=50" "$ADMIN"
 expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")] | length == 1" "admin is told it needs a project owner"
 expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")][0].title == \"$M23_TAG job needs a project owner\"" "the alert's words"
 req GET "/api/notifications?limit=50" "$DPM"
-expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")] | length == 1" "dpm (jobs.edit + design.view) is told too"
+expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")] | length == 0" "dpm (not an admin) is not"
 req GET "/api/notifications?limit=50" "$ORDR"
 expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")] | length == 0" "ordr (no jobs.edit) is not"
 req PATCH "/api/job-records/$M23_J" "$DPM" '{"notes":"another write"}'
@@ -150,7 +150,7 @@ req POST "/api/job-records/$M23_J/materials" "$DPM" '{"section":"boards","name":
 expect_status 201 "a board line"
 req POST "/api/job-records/$M23_J/project/finalise" "$DPM" '{}'
 expect_status 201 "finalised"
-expect_jq '.marks | all(.done)' "all four marks done (OL from the finalised list)"
+expect_jq '.marks | all(.done)' "all four marks done (O from the finalised list)"
 req GET "/api/my-projects" "$DPM"
 expect_jq "[.jobs[] | select(.id == $M23_J)][0] | .waitingOn == \"Enter a requested install date\" and .revision == \"A\" and .requestedInstallDate == null" "My projects: waiting on the requested date"
 req POST "/api/job-records/$M23_J/project/send" "$DPM" '{}'
@@ -183,7 +183,7 @@ expect_jq ".orderingProgress.ordered == 1 and .orderingProgress.total == 2 and .
 echo "--- My projects ---"
 req GET "/api/my-projects" "$DPM"
 expect_status 200 "dpm reads My projects"
-expect_jq "[.jobs[] | select(.id == $M23_J)][0] | .pipelineStage == \"ordering\" and .waitingOn == \"With Ordering\" and .ordering.ordered == 1 and .ordering.total == 2 and (.marks | map(.mark)) == [\"D\",\"CM\",\"N\",\"OL\"]" "one line with the marks, ordering progress and who it's with"
+expect_jq "[.jobs[] | select(.id == $M23_J)][0] | .pipelineStage == \"ordering\" and .waitingOn == \"With Ordering\" and .ordering.ordered == 1 and .ordering.total == 2 and (.marks | map(.mark)) == [\"D\",\"CM\",\"N\",\"O\"]" "one line with the marks, ordering progress and who it's with"
 expect_jq '.all == false and .canAll == false' "not an admin"
 req GET "/api/my-projects?all=1" "$DPM"
 expect_jq '.all == false' "all=1 needs users.admin"

@@ -45,5 +45,5 @@ The weekday 7:00 task reminder (`lib/tasks.js runReminder`) also counts, over li
 
 ## 8. Open for Todd's look
 
-- The default lead of 2 weeks (counted from this Monday, so the row lands in the week starting two Mondays on).
-- A placed job at Ordering moves to On board at once (the board hooks do that); its tile still says it is ordering.
+- The default lead of 2 weeks: confirmed by Todd 2026-10-27.
+- A placed job moves to On board at once, shown as On board (ordering): confirmed by Todd 2026-10-27.

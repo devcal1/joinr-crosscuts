@@ -5,7 +5,7 @@
 // finalised current revision, lib/projectjobs.js). A check measure can be booked ahead
 // (check_measures, like inspections) and shows on the Planner on the Projects layer.
 //
-// Also here: the step marks the Pipeline tiles and My projects show (D, CM, N, OL), ordering
+// Also here: the step marks the Pipeline tiles and My projects show (D, CM, N, O), ordering
 // progress (n of m ordered), the "needs a project owner" alert (ownerSweep), My projects, and the
 // order manager's alert when a list is sent to Ordering.
 //
@@ -19,12 +19,12 @@ const { bad, notFound, conflict, can } = require("./httperror");
 
 const STEPS = ["drawn", "check_measured", "nested"];
 const STEP_LABEL = { drawn: "Drawn", check_measured: "Check measured", nested: "Nested" };
-// The text marks on tiles and My projects, in order. OL (order list ready) is derived.
+// The text marks on tiles and My projects, in order. O (order list ready) is derived.
 const MARKS = [
   { key: "drawn", mark: "D", label: "Drawn" },
   { key: "check_measured", mark: "CM", label: "Check measured" },
   { key: "nested", mark: "N", label: "Nested" },
-  { key: "order_list", mark: "OL", label: "Order list ready" },
+  { key: "order_list", mark: "O", label: "Order list ready" },
 ];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const HOST_MAX = 200;
@@ -237,7 +237,7 @@ function orderingOf(db, jobId) {
   return { ordered: Number(r.ordered) || 0, total: Number(r.total) || 0, latestEta: r.eta || null };
 }
 
-// [{mark, label, done}] in D, CM, N, OL order, plus the raw steps and the order list state.
+// [{mark, label, done}] in D, CM, N, O order, plus the raw steps and the order list state.
 function marksOf(db, jobId) {
   const steps = stepsOf(db, jobId);
   const list = require("./projectjobs").listState(db, jobId);
@@ -334,8 +334,8 @@ function ownerSetterIds(db) {
     .map((u) => u.id);
 }
 
-// Every live Won job with no project owner gets one "needs a project owner" alert per person who
-// may set it, once (a person already sent one for that job, read or not, isn't sent another).
+// Every live Won job with no project owner gets one "needs a project owner" alert per admin
+// (users.admin; Todd 2026-10-27), once (a person already sent one for that job, read or not, isn't sent another).
 // Run just after a job becomes Won (soon) and every few minutes (start).
 // Returns how many alerts were written.
 function ownerSweep(db) {
@@ -343,7 +343,7 @@ function ownerSweep(db) {
     .prepare("SELECT id, name FROM jobs WHERE stage = 'won' AND project_owner_id IS NULL AND archived = 0")
     .all();
   if (!jobs.length) return 0;
-  const ids = ownerSetterIds(db);
+  const ids = notify.usersWithKey(db, "users.admin");
   if (!ids.length) return 0;
   const sent = db.prepare(
     "SELECT 1 FROM notifications WHERE user_id = ? AND kind = ? AND entity_type = 'job' AND entity_id = ? LIMIT 1"

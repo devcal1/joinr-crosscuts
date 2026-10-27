@@ -11,7 +11,7 @@ Anyone with Projects access can be the owner. Admins can set the owner, and so c
 
 Giving a **Won** job an owner moves it to **Projects** straight away.
 
-A Won job with no owner sends one alert (the bell) to every admin and to everyone who edits jobs and has Projects access: "X needs a project owner". It links to the project page, where the owner picker is. On the Pipeline, **No owner** narrows the Won, Projects and Ordering columns to the jobs nobody owns yet.
+A Won job with no owner sends one alert (the bell) to every admin: "X needs a project owner". It links to the project page, where the owner picker is. On the Pipeline, **No owner** narrows the Won, Projects and Ordering columns to the jobs nobody owns yet.
 
 On the Pipeline, tiles in the **Projects** and **Ordering** columns are filled with the owner's worker colour, with their name on the tile. A grey tile reads **No owner**, so you can see which jobs still need one. (The owner's colour comes from the board worker linked to their login: Admin > Users, Board worker. With no worker linked, the tile stays grey but shows the name.)
 
@@ -39,7 +39,7 @@ To book a check measure ahead, fill in the date (a time and notes if you like) u
 
 Ticking and booking need the same rights as setting the owner: an admin, or someone who edits jobs and has Projects access.
 
-On the Pipeline, Projects tiles show the steps as **D CM N OL**: done ones in full text, missing ones faded. Ordering tiles show how many order lines are ordered ("1/3 ordered").
+On the Pipeline, Projects tiles show the steps as **D CM N O**: done ones in full text, missing ones faded. Ordering tiles show how many order lines are ordered ("1/3 ordered").
 
 ## Requested install date
 

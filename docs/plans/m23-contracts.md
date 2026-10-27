@@ -34,7 +34,7 @@ Code: migrations `042_project_steps.sql`, `043_workshop_department.js`, `044_pro
 
 ## 3. Owner on arrival
 
-- **Alert:** every live Won job (`stage = 'won'`, not archived) with no project owner sends one bell alert per person who may set an owner (users.admin, or jobs.edit with design.view): kind `project.owner_needed`, title "<job> needs a project owner", link `/project.html?id=N`, entity job. Once per person per job, read or not. The sweep runs after every non-GET `/api` response, at boot and every 5 minutes (the Joinr pull makes Won jobs by itself). `OWNER_SWEEP_DISABLED=1` turns the timer off.
+- **Alert:** every live Won job (`stage = 'won'`, not archived) with no project owner sends one bell alert per admin (users.admin; Todd 2026-10-27, admins only): kind `project.owner_needed`, title "<job> needs a project owner", link `/project.html?id=N`, entity job. Once per admin per job, read or not. The sweep runs after every non-GET `/api` response, at boot and every 5 minutes (the Joinr pull makes Won jobs by itself). `OWNER_SWEEP_DISABLED=1` turns the timer off.
 - **Move:** setting an owner on a job shown at Won moves it to Projects (an audited `job.stage` move, from `won` to `design_ordering` with `sent_to_ordering_at` NULL). A job the board holds is left where it is. This holds for `PUT /api/job-records/:id/owner` and for Accept with an owner (m22 section 4), so an accepted job with an owner arrives at Projects.
 - **Pipeline:** a **No owner** button narrows the Won, Projects and Ordering columns to jobs with no owner. Won tiles also show "Owner name" / "No owner".
 
@@ -78,6 +78,6 @@ On a successful Send to Ordering, every holder of `orders.mark_ordered` except t
 
 ## 10. Open for Todd's look
 
-- The tile marks wording (D CM N OL; faded when missing).
+- Tile marks: D CM N O (Todd 2026-10-27); faded when missing. Unticking stays open to anyone who can tick (Todd 2026-10-27).
 - Whether unticking a step should need an admin (today anyone who may tick may untick; the audit log keeps it).
 - Who gets the owner alert: admins and anyone with jobs.edit + design.view (the people who can set the owner). Order managers (design.view without jobs.edit) don't.

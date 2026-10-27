@@ -198,7 +198,7 @@
       );
     }
     // Order list ready is not a tick: it is a finalised current revision (the Order list below).
-    const ol = data.marks.find((m) => m.mark === "OL");
+    const ol = data.marks.find((m) => m.mark === "O");
     const cur = data.orderList.current;
     const olText =
       ol && ol.done
