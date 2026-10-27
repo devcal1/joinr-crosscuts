@@ -11,6 +11,6 @@ For Accounts and the admins. Added in 0.2.7 (`docs/plans/m28-contracts.md` secti
 
 ## Admin pays
 
-Only admins tick **Paid**, on a supplier line or an individual invoice. Everyone else sees the box but can't change it. The Dashboard shows admins "To pay this month: N, $X" in **Waiting on you**.
+Only admins tick **Paid**, on a supplier line or an individual invoice. Everyone else sees the box but can't change it. The Dashboard shows admins "To pay this month: N, $X" in **Waiting on you**, with any lines that have no figure yet counted separately, for example "(2 without a figure)".
 
 Admin accounts (BAS, Workcover, insurance payments) is unchanged.

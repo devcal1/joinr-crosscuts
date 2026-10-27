@@ -137,7 +137,7 @@ function toPayLine(db, out, now) {
   if (!t.count) return;
   const a = Math.abs(t.cents);
   const dollars = (t.cents < 0 ? "-" : "") + "$" + String(Math.floor(a / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + String(a % 100).padStart(2, "0");
-  out.push({ key: "toPay", text: `To pay this month: ${t.count}, ${dollars}`, count: t.count, cents: t.cents, href: `/suppliers.html?period=${t.period}` });
+  out.push({ key: "toPay", text: `To pay this month: ${t.count}, ${dollars}${t.noFigure ? ` (${t.noFigure} without a figure)` : ""}`, count: t.count, cents: t.cents, noFigure: t.noFigure, href: `/suppliers.html?period=${t.period}` });
 }
 
 function linesFor(db, req, now = new Date()) {

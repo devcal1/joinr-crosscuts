@@ -241,8 +241,8 @@ r.get("/meta", ACCESS, (req, res) => {
     keys: permissions.KEYS,
     presets: permissions.PRESETS,
     ownerOnlyKeys: permissions.OWNER_ONLY_KEYS,
-    // 0.2.7: keys in no preset, admin included (granted per login).
-    grantOnlyKeys: permissions.GRANT_ONLY_KEYS,
+    // 0.2.7: ordinary keys the admin preset leaves out (lib/permissions.js ADMIN_EXCLUDED_KEYS).
+    adminExcludedKeys: permissions.ADMIN_EXCLUDED_KEYS,
     ownerId: ownerId(),
     // The board workers a login can be linked to (033): name and hue for the picker.
     workers: db

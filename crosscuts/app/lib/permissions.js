@@ -51,8 +51,8 @@ const KEYS = [
   // 0.2.6 (docs/plans/m27-contracts.md section 4): Workshop > Maintenance; only its holders confirm a
   // maintenance occurrence actioned.
   "maintenance.manage",
-  // 0.2.7 (docs/plans/m28-contracts.md section 5): Loans for Accounts (view, payments, interest,
-  // Statement checked). Not owner-only, but in no preset: Todd grants it per login (GRANT_ONLY_KEYS).
+  // 0.2.7 (docs/plans/m28-contracts.md section 4): Loans for Accounts (view, payments, interest,
+  // Statement checked). Not owner-only; in the accounts preset, left out of admin's (ADMIN_EXCLUDED_KEYS).
   "loans.maintain",
 ];
 
@@ -60,20 +60,23 @@ const KEYS = [
 // the owner holds every key; only the owner grants or revokes them.
 const OWNER_ONLY_KEYS = ["bonuses.manage", "alarms.manage", "loans.manage"];
 const OWNER_ONLY_SET = new Set(OWNER_ONLY_KEYS);
-// 0.2.7: keys no role preset carries, admin included (any admin may grant them; the owner holds them).
-const GRANT_ONLY_KEYS = ["loans.maintain"];
-const GRANT_ONLY_SET = new Set(GRANT_ONLY_KEYS);
+// 0.2.7 (Todd 2026-10-28): ordinary keys the admin preset still leaves out, so the other admins
+// don't start seeing the loans. Any admin may grant them; the owner holds every key.
+const ADMIN_EXCLUDED_KEYS = ["loans.maintain"];
+const ADMIN_EXCLUDED_SET = new Set(ADMIN_EXCLUDED_KEYS);
 
 const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"];
 
 const PRESETS = {
   // M13: every key except the owner-only ones (35 keys since 0.2.6 added maintenance.manage).
-  // 0.2.7: and except the grant-only ones (still 35).
-  admin: KEYS.filter((k) => !OWNER_ONLY_SET.has(k) && !GRANT_ONLY_SET.has(k)),
+  // 0.2.7: and except ADMIN_EXCLUDED_KEYS (still 35).
+  admin: KEYS.filter((k) => !OWNER_ONLY_SET.has(k) && !ADMIN_EXCLUDED_SET.has(k)),
   accounts: [
     "board.view", "jobs.view", "jobs.value", "photos.search", "accounts.view",
     "invoices.edit", "reports.upload", "tasks.use", "messages.use",
     "planner.view", "planner.edit", "orders.view", "notes.accounts",
+    // 0.2.7 (Todd 2026-10-28): Loans for Accounts.
+    "loans.maintain",
   ],
   design_pm: [
     "board.view", "jobs.view", "jobs.edit", "jobs.value", "photos.search",
@@ -126,4 +129,4 @@ function computeEffective(roles, overrides, isOwner = false) {
   return effective;
 }
 
-module.exports = { KEYS, ROLES, PRESETS, OWNER_ONLY_KEYS, GRANT_ONLY_KEYS, computeEffective };
+module.exports = { KEYS, ROLES, PRESETS, OWNER_ONLY_KEYS, ADMIN_EXCLUDED_KEYS, computeEffective };

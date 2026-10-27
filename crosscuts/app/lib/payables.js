@@ -284,12 +284,15 @@ function toPayThisMonth(db, today = sydneyToday()) {
   const sup = require("./suppliers").month(db, period, today);
   let n = Number(ind.n) || 0;
   let c = Number(ind.c) || 0;
+  // Todd 2026-10-28: lines without a figure are shown separately.
+  let noFigure = Number(db.prepare("SELECT COUNT(*) AS n FROM payables WHERE period = ? AND removed_at IS NULL AND paid_date IS NULL AND amount_cents IS NULL").get(period).n) || 0;
   for (const l of sup.lines) {
     if (l.paid || l.state === "na") continue;
     n += 1;
     if (l.totalCents != null) c += l.totalCents;
+    else noFigure += 1;
   }
-  return { period, count: n, cents: c };
+  return { period, count: n, cents: c, noFigure };
 }
 
 // Individual invoices without a due date (any month from last month on), for Accounts' Waiting on you.

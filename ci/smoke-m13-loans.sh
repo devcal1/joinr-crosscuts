@@ -23,6 +23,13 @@ m13_l_month() {
   expect_jq "[.months[] | select(.period == \"$1\")] | length == 1 and (.[0] | $2)" "$3"
 }
 
+# 0.2.7 (m28-contracts.md section 4): the accounts preset now holds loans.maintain. This suite tests
+# loans.manage on its own, so acct's loans.maintain is revoked here and the override removed at the end.
+req GET /api/auth/me "$ACCT"
+M13_L_ACCT_ID0=$(jqr '.user.id')
+req PUT "/api/users/$M13_L_ACCT_ID0/overrides/loans.maintain" "$ADMIN" '{"effect":"revoke"}'
+expect_status 200 "acct's loans.maintain revoked for the M13 loans suite"
+
 # --- access: loans.manage (the owner; an Accounts login only by the owner's grant) ---
 req GET /loans.html "$ADMIN"
 expect_status 200 "admin GET /loans.html"
@@ -245,5 +252,8 @@ for M13_L_X in "$M13_L_ID" "$M13_L_ID2"; do
   req PATCH "/api/loans/$M13_L_X" "$ADMIN" '{"archived":true}'
   expect_status 200 "archive loan $M13_L_X"
 done
+
+req DELETE "/api/users/$M13_L_ACCT_ID0/overrides/loans.maintain" "$ADMIN"
+expect_status 200 "acct's loans.maintain back (the override removed)"
 
 echo "M13 loans smoke test passed."

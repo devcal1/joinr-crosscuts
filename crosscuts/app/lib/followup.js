@@ -34,7 +34,14 @@ function days(v, what) {
 }
 // The key a client's terms are stored under: the name trimmed, spaces folded, case-blind.
 function clientKey(name) {
-  return String(name || "").normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en-AU");
+  // Todd 2026-10-28: loose: case-blind, punctuation and extra spaces ignored, so
+  // "Smith Pty Ltd" = "smith pty. ltd". Used for storing and looking up.
+  return String(name || "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLocaleLowerCase("en-AU")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
 }
 
 function defaultDays(db) {

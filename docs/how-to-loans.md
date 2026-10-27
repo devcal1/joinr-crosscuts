@@ -104,6 +104,6 @@ On the loan's page, under **Statement**, choose **From** and **To** and press **
 
 ## Loans for Accounts (0.2.7)
 
-The owner, or any admin on the Users page, can grant an Accounts login **loans.maintain**. It shows **Accounts > Loans** with every loan, and lets that login record payments, type a month's interest to match the lender, and tick **Statement checked** on each month once it is checked against the lender's statement. Opening, editing and archiving a loan, rates, plans and deleting a payment stay with the owner (`loans.manage`). Months up to last month that aren't ticked show in that login's **Waiting on you**.
+Accounts logins have **loans.maintain** (any admin can revoke it per login, or grant it to someone else). It shows **Accounts > Loans** with every loan, and lets that login record payments, type a month's interest to match the lender, and tick **Statement checked** on each month once it is checked against the lender's statement. Opening, editing and archiving a loan, rates, plans and deleting a payment stay with the owner (`loans.manage`). Months up to last month that aren't ticked show in that login's **Waiting on you**.
 
-To remind Accounts each month, set up a monthly Accounts department rule on **Admin > Tasks**, for example "Check loan balances against statements". Crosscuts doesn't add it for you.
+Each month Accounts gets the department task **Check loan balances against statements** (added once by the 0.2.7 upgrade; change or delete it on **Admin > Tasks**; once deleted it stays deleted).

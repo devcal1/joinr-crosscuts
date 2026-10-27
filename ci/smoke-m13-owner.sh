@@ -61,8 +61,8 @@ expect_jq '(.ownerOnlyKeys | index("bonuses.manage")) != null and (.ownerOnlyKey
   "the owner-only keys include M13's three"
 expect_jq ".ownerId == $M13_O_ADMIN_ID" "meta names the admin as the owner"
 expect_jq '. as $m | all(.ownerOnlyKeys[]; . as $k | $m.keys | index($k) != null)' "every owner-only key is in the key list"
-expect_jq '. as $m | (.presets.admin | length) == (.keys | length) - (.ownerOnlyKeys | length) - ((.grantOnlyKeys // []) | length) and all(.presets.admin[]; . as $k | $m.keys | index($k) != null) and all(.ownerOnlyKeys[]; . as $k | $m.presets.admin | index($k) == null)' \
-  "the admin preset is every key but the owner-only and grant-only ones ($M13_O_NADMIN of $M13_O_NKEYS)"
+expect_jq '. as $m | (.presets.admin | length) == (.keys | length) - (.ownerOnlyKeys | length) - ((.adminExcludedKeys // []) | length) and all(.presets.admin[]; . as $k | $m.keys | index($k) != null) and all(.ownerOnlyKeys[]; . as $k | $m.presets.admin | index($k) == null)' \
+  "the admin preset is every key but the owner-only ones and adminExcludedKeys ($M13_O_NADMIN of $M13_O_NKEYS)"
 req GET /api/auth/me "$ADMIN"
 expect_jq ".user.isOwner == true and (.user.perms | length) == $M13_O_NKEYS" "the owner holds all $M13_O_NKEYS keys"
 req GET /api/users "$ADMIN"
@@ -119,6 +119,9 @@ login "$M13_O_FRESH" "$M13_O_ADMIN_USER" "$ADMIN_PW"
 expect_status 200 "the owner's password still works"
 
 echo "--- the owner ---"
+# 0.2.7: acct's preset holds loans.maintain; revoked while this block tests loans.manage alone.
+req PUT "/api/users/$M13_O_ACCT_ID/overrides/loans.maintain" "$ADMIN" '{"effect":"revoke"}'
+expect_status 200 "acct's loans.maintain revoked for this block"
 req PUT "/api/users/$M13_O_ADMIN_ID/overrides/board.edit" "$ADMIN" '{"effect":"revoke"}'
 m13_o_refused 409 "The owner holds every key, so overrides don't apply" "the owner sets an override on themselves"
 req PUT "/api/users/$M13_O_ACCT_ID/overrides/loans.manage" "$ADMIN" '{"effect":"grant"}'
@@ -137,6 +140,8 @@ req DELETE "/api/users/$M13_O_ACCT_ID/overrides/loans.manage" "$ADMIN"
 expect_status 200 "the owner removes acct's loans.manage"
 req GET /api/loans "$ACCT"
 expect_status 403 "acct GET /api/loans after the override is removed"
+req DELETE "/api/users/$M13_O_ACCT_ID/overrides/loans.maintain" "$ADMIN"
+expect_status 200 "acct's loans.maintain back"
 
 echo "--- the audit filter ---"
 M13_O_ACTION="m13.test.$M13_O_TAG"

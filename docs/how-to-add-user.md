@@ -40,7 +40,7 @@ One login is **the owner**: Todd's. The Users page shows an **OWNER** mark by it
 | `bonuses.manage` | Bonuses ([how-to-bonuses.md](how-to-bonuses.md)) | Admin |
 | `alarms.manage` | Alarms ([how-to-alarm-codes.md](how-to-alarm-codes.md)) | Admin |
 | `loans.manage` | Loans ([how-to-loans.md](how-to-loans.md)) | Accounts |
-| `loans.maintain` | Loans for Accounts: see the loans, record payments and interest, tick Statement checked (0.2.7; in no role, granted per login by any admin) | Accounts |
+| `loans.maintain` | Loans for Accounts: see the loans, record payments and interest, tick Statement checked (0.2.7; the Accounts role has it; admins only by a grant) | Accounts |
 
 **Who sees what:**
 - **The owner** sees all three, and their rows in the audit log.
