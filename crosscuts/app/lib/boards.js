@@ -12,6 +12,11 @@
 // its own lines (boards added later appear in the open month only). A line copies the board's text
 // when it's first written; a null qty removes the line. Rows an older version marked 'valued' (with
 // their frozen figures, which stay stored and unused) read as counted.
+// 0.2.6 (docs/plans/m27-contracts.md section 5): edge tape rolls join the list as a second kind
+// ('edge', counted in whole rolls, with width, thickness and colour), every item carries a live
+// on hand (the count sets it; cutting a job takes its confirmed reservations off), reserved and
+// free (on hand - reserved), and the workshop manager (stock.count) may edit the list (prices stay
+// stock.order's, checked in routes/boards.js).
 const { bad, notFound, conflict } = require("./httperror");
 const { sydneyToday } = require("./time");
 const audit = require("./audit");
@@ -23,6 +28,10 @@ const FINISH_MAX = 100;
 const THICKNESS_MAX = 1000; // mm
 const PRICE_MAX = 100000000; // $1,000,000 a sheet
 const QTY_MAX = 9999;
+const WIDTH_MAX = 1000; // mm
+const COLOUR_MAX = 100;
+const KINDS = ["board", "edge"];
+const LIVE = "('reserved', 'confirmed')";
 const REORDER_MAX = 5000;
 
 // ---------------------------------------------------------------- helpers ---
@@ -65,15 +74,30 @@ function periodOk(period, today) {
 
 // ---------------------------------------------------------- the board list ---
 
-function toBoard(r, withPrices) {
+// Reserved per board: the live (reserved or confirmed) reservations.
+function reservedOf(db, id) {
+  const r = db.prepare(`SELECT COALESCE(SUM(qty), 0) AS q FROM stock_reservations WHERE board_id = ? AND status IN ${LIVE}`).get(id);
+  return Number(r.q) || 0;
+}
+
+function toBoard(r, withPrices, db) {
+  const onHand = r.on_hand == null ? null : r.on_hand;
+  const reserved = db ? reservedOf(db, r.id) : 0;
   const out = {
     id: r.id,
+    kind: r.kind || "board",
     supplier: r.supplier,
     thickness: r.thickness,
+    width: r.width == null ? null : r.width,
     name: r.name,
     finish: r.finish,
+    colour: r.colour || "",
     sort: r.sort,
     active: r.active === 1,
+    onHand,
+    onHandAt: r.on_hand_at || null,
+    reserved,
+    free: Math.max((onHand || 0) - reserved, 0),
   };
   if (withPrices) out.priceCents = r.price_cents;
   return out;
@@ -88,7 +112,7 @@ function list(db, { all = false, withPrices = false } = {}) {
   const sql = all
     ? "SELECT * FROM boards ORDER BY sort, id"
     : "SELECT * FROM boards WHERE active = 1 ORDER BY sort, id";
-  return db.prepare(sql).all().map((r) => toBoard(r, withPrices));
+  return db.prepare(sql).all().map((r) => toBoard(r, withPrices, db));
 }
 
 // The fields of a create (every required one) or a patch (only those sent).
@@ -99,6 +123,24 @@ function boardFields(body, { create }) {
   if (create || has("name")) out.name = textField("name", b.name, NAME_MAX, { required: true });
   if (create || has("supplier")) out.supplier = textField("supplier", b.supplier, SUPPLIER_MAX);
   if (create || has("finish")) out.finish = textField("finish", b.finish, FINISH_MAX);
+  if (create || has("kind")) {
+    const k = b.kind === undefined ? "board" : b.kind;
+    if (!KINDS.includes(k)) throw bad("kind must be board or edge");
+    out.kind = k;
+  }
+  if (create || has("colour")) out.colour = textField("colour", b.colour, COLOUR_MAX);
+  if (create || has("width")) {
+    const v = b.width === undefined ? null : b.width;
+    if (v !== null && (!Number.isInteger(v) || v < 1 || v > WIDTH_MAX)) throw bad(`width must be a whole number of mm from 1 to ${WIDTH_MAX}, or empty`);
+    out.width = v;
+  }
+  if (has("onHand")) {
+    const v = b.onHand;
+    if (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > QTY_MAX || !Number.isInteger(v * 2))) {
+      throw bad(`onHand must be from 0 to ${QTY_MAX} in whole or half sheets (whole rolls for edge tape), or empty`);
+    }
+    out.on_hand = v;
+  }
   if (create || has("thickness")) {
     const v = b.thickness === undefined ? null : b.thickness;
     if (v !== null && (!Number.isInteger(v) || v < 1 || v > THICKNESS_MAX)) {
@@ -128,15 +170,17 @@ function create(db, req, body) {
     const sort = max == null ? 1 : max + 1;
     const info = db
       .prepare(
-        `INSERT INTO boards (supplier, thickness, name, finish, price_cents, sort, active, created_at, updated_at, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO boards (supplier, thickness, name, finish, price_cents, sort, active, created_at, updated_at, updated_by,
+                             kind, width, colour, on_hand, on_hand_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(f.supplier, f.thickness, f.name, f.finish, f.price_cents, sort, f.active, now, now, userId(req));
+      .run(f.supplier, f.thickness, f.name, f.finish, f.price_cents, sort, f.active, now, now, userId(req),
+        f.kind, f.width, f.colour, f.on_hand === undefined ? null : f.on_hand, f.on_hand == null ? null : now);
     const newId = Number(info.lastInsertRowid);
     audit.log(req, { action: "board.create", entityType: "board", entityId: newId, after: { ...f, sort } });
     return newId;
   })();
-  return toBoard(boardRow(db, id), true);
+  return toBoard(boardRow(db, id), true, db);
 }
 
 function update(db, req, id, body) {
@@ -144,6 +188,9 @@ function update(db, req, id, body) {
   db.transaction(() => {
     const row = boardRow(db, id);
     if (!row) throw notFound();
+    const kind = f.kind || row.kind;
+    const onHand = f.on_hand !== undefined ? f.on_hand : row.on_hand;
+    if (kind === "edge" && onHand != null && !Number.isInteger(onHand)) throw bad("Edge tape is counted in whole rolls");
     const before = {};
     const after = {};
     for (const [k, v] of Object.entries(f)) {
@@ -157,9 +204,10 @@ function update(db, req, id, body) {
     db.prepare(
       `UPDATE boards SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ?, updated_by = ? WHERE id = ?`
     ).run(...cols.map((c) => after[c]), nowIso(), userId(req), id);
+    if ("on_hand" in after) db.prepare("UPDATE boards SET on_hand_at = ? WHERE id = ?").run(nowIso(), id);
     audit.log(req, { action: "board.update", entityType: "board", entityId: id, before, after });
   })();
-  return toBoard(boardRow(db, id), true);
+  return toBoard(boardRow(db, id), true, db);
 }
 
 // ids: some or all of the boards, in their new order; they take the places they held between
@@ -227,7 +275,7 @@ function monthLines(db, row) {
   const own = row
     ? db
         .prepare(
-          `SELECT l.*, b.sort
+          `SELECT l.*, b.sort, b.kind
              FROM board_count_lines l JOIN boards b ON b.id = l.board_id
             WHERE l.board_count_id = ?`
         )
@@ -235,6 +283,7 @@ function monthLines(db, row) {
     : [];
   const out = own.map((r) => ({
     boardId: r.board_id,
+    kind: r.kind || "board",
     supplier: r.supplier,
     thickness: r.thickness,
     name: r.name,
@@ -248,6 +297,7 @@ function monthLines(db, row) {
       if (has.has(b.id)) continue;
       out.push({
         boardId: b.id,
+        kind: b.kind || "board",
         supplier: b.supplier,
         thickness: b.thickness,
         name: b.name,
@@ -277,6 +327,7 @@ function count(db, period, today = sydneyToday()) {
     counted: countedOf(row),
     lines: monthLines(db, row).map((l) => ({
       boardId: l.boardId,
+      kind: l.kind,
       supplier: l.supplier,
       thickness: l.thickness,
       name: l.name,
@@ -312,8 +363,9 @@ function saveLines(db, req, period, lines, today = sydneyToday()) {
     const lineOf = db.prepare("SELECT * FROM board_count_lines WHERE board_count_id = ? AND board_id = ?");
     for (const { boardId, qty } of list) {
       const line = lineOf.get(row.id, boardId);
+      const b = boardRow(db, boardId);
+      if (b && b.kind === "edge" && qty !== null && !Number.isInteger(qty)) throw bad(`${b.name} is edge tape, counted in whole rolls`);
       if (!line) {
-        const b = boardRow(db, boardId);
         if (!b) throw bad(`There is no board ${boardId}`);
         if (!b.active) throw bad(`${b.name} is no longer on the board list`);
         if (qty === null) continue;
@@ -351,6 +403,20 @@ function counted(db, req, period, today = sydneyToday()) {
       row.id
     );
     audit.log(req, { action: "board_count.counted", entityType: "board_count", entityId: period, after: { status: "counted" } });
+    // 0.2.6: the count resets on hand to what was counted (m27-contracts.md section 5).
+    const lines = db.prepare("SELECT board_id, qty FROM board_count_lines WHERE board_count_id = ?").all(row.id);
+    const before = {};
+    const after = {};
+    for (const l of lines) {
+      const b = boardRow(db, l.board_id);
+      if (!b || b.on_hand === l.qty) continue;
+      db.prepare("UPDATE boards SET on_hand = ?, on_hand_at = ? WHERE id = ?").run(l.qty, now, l.board_id);
+      before[l.board_id] = b.on_hand;
+      after[l.board_id] = l.qty;
+    }
+    if (Object.keys(after).length) {
+      audit.log(req, { action: "board.on_hand", entityType: "board_count", entityId: period, before, after: { ...after, via: "count" } });
+    }
   })();
   return count(db, period, today);
 }
@@ -386,4 +452,4 @@ function reopenCount(db, req, period) {
   return count(db, period, today);
 }
 
-module.exports = { list, create, update, reorder, counts, count, saveLines, counted, reopenCount };
+module.exports = { list, create, update, reorder, counts, count, saveLines, counted, reopenCount, boardRow, reservedOf, toBoard };

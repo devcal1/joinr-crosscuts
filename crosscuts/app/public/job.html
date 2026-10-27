@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="jobquote.css">
 <link rel="stylesheet" href="project.css">
 <link rel="stylesheet" href="jobissues.css">
+<link rel="stylesheet" href="jobreserve.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -134,6 +135,14 @@
       </form>
     </section>
 
+    <!-- 0.2.6 (docs/plans/m27-contracts.md section 5): boards and edging reserved from stock, and cut 100%. -->
+    <section id="reservations" class="jo-sec" aria-labelledby="reservations-h" hidden>
+      <div class="hs-sectionbar"><h2 id="reservations-h">Stock reservations</h2></div>
+      <p id="rsCut" class="jr-cut" hidden></p>
+      <div id="rsBody"></div>
+      <p id="rsStatus" class="jr-status" role="status" aria-live="polite"></p>
+    </section>
+
     <!-- M12: the job's stone orders (jobstone.js; docs/plans/m12-contracts.md section 9.1) -->
     <section id="benchtops" class="jo-sec" aria-labelledby="benchtops-h" hidden>
       <div class="hs-sectionbar">
@@ -250,6 +259,7 @@
   <script src="projectowner.js"></script>
   <script src="jobissues.js"></script>
   <script src="confirmcomplete.js"></script>
+  <script src="jobreserve.js"></script>
   <script src="/shell/shell.js"></script>
 </body>
 </html>

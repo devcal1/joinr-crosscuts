@@ -110,6 +110,9 @@ const routers = [
   require("./routes/shift"),
   // Morning check, Confirm complete and Waiting on you (0.2.5, docs/plans/m26-contracts.md).
   require("./routes/morning"),
+  // Workshop manager: maintenance, board and edge stock, reservations (0.2.6, docs/plans/m27-contracts.md).
+  require("./routes/maintenance"),
+  require("./routes/reservations"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

@@ -1,0 +1,15 @@
+/* Stock reservations on the job page (jobreserve.js, 0.2.6). Page classes are prefixed jr-. */
+.jr-wrap { overflow-x: auto; }
+.jr-table td { vertical-align: top; }
+.jr-name { display: block; color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.jr-sub { display: block; color: var(--muted); font-size: 12px; }
+.jr-list { list-style: none; margin: 0; padding: 0; }
+.jr-res { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
+.jr-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.jr-qty { max-width: 100px; }
+.jr-check { display: inline-flex; align-items: center; gap: 6px; color: var(--body); }
+.jr-cut { margin: 0 0 10px; color: var(--body); }
+.jr-status { margin: 8px 0 0; color: var(--label); }
+.jr-status:empty { display: none; }
+.jr-c-act { text-align: right; }
+.jr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

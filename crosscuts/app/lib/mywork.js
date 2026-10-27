@@ -51,7 +51,8 @@ function projectLines(db, req, out) {
 function orderLines(db, out) {
   const c = db
     .prepare(
-      `SELECT SUM(CASE WHEN o.status = 'to_order' THEN 1 ELSE 0 END) AS toOrder,
+      `SELECT SUM(CASE WHEN o.status = 'to_order' AND NOT EXISTS (SELECT 1 FROM stock_reservations r WHERE r.order_id = o.id
+                     AND r.covers = 1 AND r.status IN ('reserved', 'confirmed', 'cut')) THEN 1 ELSE 0 END) AS toOrder,
               SUM(CASE WHEN o.status = 'ordered' AND o.expected_date IS NULL THEN 1 ELSE 0 END) AS noEta
          FROM orders o JOIN jobs j ON j.id = o.job_id WHERE j.archived = 0`
     )
@@ -89,12 +90,32 @@ function shiftLines(db, req, out, now) {
   if (!sent) out.push({ key: "shiftReport", text: "End-of-shift report not sent today", count: 1, href: "/shift.html" });
 }
 
+// 0.2.6 (docs/plans/m27-contracts.md section 6): the workshop manager's lines, for
+// maintenance.manage holders (the workshop manager and admins). Vehicle bookings come with M28.
+function workshopLines(db, out, now) {
+  const today = sydneyToday(now);
+  const due = require("./stock").stockCountDue(db, today);
+  if (due) {
+    out.push({ key: "stockCount", text: `Stock count ${due.label}${due.overdue ? " overdue" : " due"}`, count: 1, href: `/stock.html?period=${due.period}#count` });
+  }
+  const m = require("./maintenance").dueCounts(db, today);
+  if (m.overdue) out.push({ key: "maintenanceOverdue", text: `${plural(m.overdue, "maintenance item", "maintenance items")} overdue`, count: m.overdue, href: "/maintenance.html" });
+  if (m.due) out.push({ key: "maintenanceDue", text: `${plural(m.due, "maintenance item", "maintenance items")} due today`, count: m.due, href: "/maintenance.html" });
+  const r = require("./reservations").counts(db);
+  if (r.toLabel) out.push({ key: "toLabel", text: `${plural(r.toLabel, "reservation", "reservations")} to label as reserved`, count: r.toLabel, href: "/reserve.html" });
+  if (r.toCut) out.push({ key: "toCut", text: `${plural(r.toCut, "job", "jobs")} to mark cut 100% at end of shift`, count: r.toCut, href: "/reserve.html#cut" });
+  const d = require("./orders").deliveries(db, today);
+  const n = (Number(d.counts.overdue) || 0) + (Number(d.counts.today) || 0);
+  if (n) out.push({ key: "deliveries", text: `${plural(n, "delivery", "deliveries")} to receive`, count: n, href: "/deliveries.html" });
+}
+
 function linesFor(db, req, now = new Date()) {
   const out = [];
   if (can(req, "design.view")) projectLines(db, req, out);
   if (can(req, "orders.mark_ordered")) orderLines(db, out);
   if (can(req, "board.edit")) scheduleLines(db, out, now);
   if (can(req, "shift.report")) shiftLines(db, req, out, now);
+  if (can(req, "maintenance.manage")) workshopLines(db, out, now);
   return { date: sydneyToday(now), items: out };
 }
 

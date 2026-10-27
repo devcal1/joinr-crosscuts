@@ -249,15 +249,32 @@ function cutNote(t) {
 
 // --- the all-ordered and all-in rules ---------------------------------------
 
+// 0.2.6 (docs/plans/m27-contracts.md section 5): a to_order line wholly reserved from stock (a live
+// or cut reservation with covers = 1) counts as ordered, and once that reservation is confirmed (or
+// cut) as received.
+const COVERED_SQL = `EXISTS (SELECT 1 FROM stock_reservations r WHERE r.order_id = orders.id AND r.covers = 1
+  AND r.status IN ('reserved', 'confirmed', 'cut'))`;
+const COVERED_IN_SQL = `EXISTS (SELECT 1 FROM stock_reservations r WHERE r.order_id = orders.id AND r.covers = 1
+  AND r.status IN ('confirmed', 'cut'))`;
+
 // At least one non-cancelled line, and none still to order.
 function allOrdered(db, jobId) {
   const c = db
     .prepare(
-      `SELECT COUNT(*) AS live, SUM(CASE WHEN status = 'to_order' THEN 1 ELSE 0 END) AS open
+      `SELECT COUNT(*) AS live, SUM(CASE WHEN status = 'to_order' AND NOT ${COVERED_SQL} THEN 1 ELSE 0 END) AS open
        FROM orders WHERE job_id = ? AND status <> 'cancelled'`
     )
     .get(jobId);
   return c.live > 0 && !(c.open > 0);
+}
+
+// After a reservation changes (lib/reservations.js): the all-ordered rule (as a mark-ordered) and
+// the materials-in rule.
+function afterReservation(db, req, jobId) {
+  if (allOrdered(db, jobId)) {
+    if (markMaterialsOrdered(db, jobId, req)) require("./handoffs").onAllOrdered(db, req, jobId);
+  }
+  refreshMaterialsIn(db, jobId, req);
 }
 
 // Sets or clears jobs.materials_in_date. Returns 'set', 'cleared' or null.
@@ -266,9 +283,9 @@ function refreshMaterialsIn(db, jobId, req) {
     const job = db.prepare("SELECT id, name, materials_in_date FROM jobs WHERE id = ?").get(jobId);
     if (!job) throw notFound();
     const live = db
-      .prepare("SELECT status, received_date FROM orders WHERE job_id = ? AND status <> 'cancelled'")
+      .prepare(`SELECT status, received_date, ${COVERED_IN_SQL} AS covered FROM orders WHERE job_id = ? AND status <> 'cancelled'`)
       .all(jobId);
-    const allIn = live.length > 0 && live.every((l) => l.status === "received");
+    const allIn = live.length > 0 && live.every((l) => l.status === "received" || (l.status === "to_order" && Number(l.covered) === 1));
     if (allIn && !job.materials_in_date) {
       const latest = live.map((l) => l.received_date).filter(Boolean).sort().pop() || sydneyToday();
       db.prepare("UPDATE jobs SET materials_in_date = ?, updated_at = ? WHERE id = ?").run(latest, nowIso(), jobId);
@@ -669,4 +686,7 @@ module.exports = {
   cancelLine,
   refreshMaterialsIn,
   cutNote,
+  allOrdered,
+  afterReservation,
+  COVERED_SQL,
 };

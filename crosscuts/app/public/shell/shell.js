@@ -96,7 +96,12 @@
       home: { href: "/notes.html?dept=workshop", key: "notes.workshop" },
       label: "Workshop",
       // 0.2.4: the end-of-shift report.
-      items: [{ label: "End of shift", href: "/shift.html", key: "shift.report" }],
+      items: [
+        { label: "End of shift", href: "/shift.html", key: "shift.report" },
+        // 0.2.6 (docs/plans/m27-contracts.md sections 4 and 5).
+        { label: "Maintenance", href: "/maintenance.html", key: "maintenance.manage" },
+        { label: "To reserve", href: "/reserve.html", key: "stock.count" },
+      ],
     },
     {
       id: "photos",

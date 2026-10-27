@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To reserve - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reserve.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="rv-body">
+  <div id="cc-shell"></div>
+
+  <!-- Workshop > To reserve (0.2.6, docs/plans/m27-contracts.md section 5). reserve.js talks to
+       /api/reservations and /api/workshop/cut. -->
+  <main class="rv-page">
+    <h1 id="rvTitle" tabindex="-1">To reserve</h1>
+    <p class="rv-intro">Boards and edge tape Ordering has reserved from stock for a job. Label the stock for the job, then tick Reserved. At the end of each shift, tick the jobs that have been cut 100%: their reserved stock then comes off on hand.</p>
+    <p id="rvStatus" class="rv-status" role="status" aria-live="polite">Loading...</p>
+
+    <section class="rv-sec" aria-labelledby="rvLabelH">
+      <div class="hs-sectionbar hs-sectionbar-orange"><h2 id="rvLabelH">To label as reserved</h2></div>
+      <div id="rvLabel"></div>
+    </section>
+
+    <section class="rv-sec" aria-labelledby="rvHeldH">
+      <div class="hs-sectionbar"><h2 id="rvHeldH">Reserved, waiting to be cut</h2></div>
+      <div id="rvHeld"></div>
+    </section>
+
+    <section id="cut" class="rv-sec" aria-labelledby="rvCutH">
+      <div class="hs-sectionbar"><h2 id="rvCutH">End of shift: jobs cut 100%</h2></div>
+      <div id="rvCut"></div>
+    </section>
+
+    <section class="rv-sec" aria-labelledby="rvStockH">
+      <div class="hs-sectionbar"><h2 id="rvStockH">Board and edge tape stock</h2></div>
+      <p class="rv-note">Change the list and on hand on the <a href="/boards.html#list">board stocktake's List tab</a>.</p>
+      <div id="rvStock"></div>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="reserve.js"></script>
+</body>
+</html>

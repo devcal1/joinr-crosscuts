@@ -1,0 +1,29 @@
+/* Workshop > To reserve (reserve.html, 0.2.6). Tokens from tokens.css, hs- components from
+   components.css. Page classes are prefixed rv-. */
+html, body { margin: 0; background: var(--ink); }
+body { color: var(--body); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+[hidden] { display: none !important; }
+
+.rv-page { max-width: 1100px; margin: 0 auto; padding: 22px 24px 40px; }
+.rv-page h1 { margin: 0 0 8px; font-size: 22px; font-weight: 700; color: var(--white); }
+.rv-intro { margin: 0 0 16px; color: var(--label); max-width: 760px; }
+.rv-status { margin: 0 0 12px; color: var(--label); }
+.rv-status:empty { display: none; }
+.rv-sec { margin: 0 0 24px; }
+.rv-note { margin: 8px 0; color: var(--label); }
+.rv-note a { color: var(--teal-tint); }
+.rv-empty { margin: 8px 0; color: var(--muted); }
+.rv-wrap { overflow-x: auto; }
+.rv-table td { vertical-align: top; }
+.rv-job { display: block; color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.rv-sub { display: block; color: var(--muted); font-size: 12px; }
+.rv-num { text-align: right; white-space: nowrap; }
+.rv-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.rv-pick { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+.rv-pick input { margin-top: 3px; }
+.rv-cutbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+
+@media (max-width: 640px) {
+  .rv-page { padding: 16px 16px 32px; }
+  .rv-acts { justify-content: flex-start; }
+}

@@ -29,6 +29,14 @@
       <ul id="shResults" class="sh-results"></ul>
     </section>
 
+    <!-- 0.2.6 (docs/plans/m27-contracts.md section 5): the workshop manager (stock.count) records the
+         jobs cut 100% this shift; shiftcut.js fills it and leaves it hidden for anyone else. -->
+    <section id="shCut" class="sh-sec" aria-labelledby="shCut-h" hidden>
+      <h2 id="shCut-h" class="sh-h2">Jobs cut 100%</h2>
+      <div id="shCutList"></div>
+      <p id="shCutMsg" class="muted" role="status"></p>
+    </section>
+
     <section class="sh-sec" aria-labelledby="shSend-h">
       <h2 id="shSend-h" class="sh-h2">Report</h2>
       <label for="shNote" class="hs-label">Note for today (optional)</label>
@@ -40,6 +48,7 @@
 
   <script src="shared.js"></script>
   <script src="shift.js"></script>
+  <script src="shiftcut.js"></script>
   <script src="/shell/shell.js"></script>
 </body>
 </html>

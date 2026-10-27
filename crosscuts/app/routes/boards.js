@@ -5,7 +5,7 @@
 // none. A count is finished once it is counted (the value step was removed 2026-10-17).
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
-const { bad, notFound, sendError, can } = require("../lib/httperror");
+const { bad, notFound, forbidden, sendError, can } = require("../lib/httperror");
 const Periods = require("../public/periods");
 const boards = require("../lib/boards");
 
@@ -43,17 +43,28 @@ function body(req) {
 
 const withPrices = (req) => can(req, "stock.order");
 
+// 0.2.6 (docs/plans/m27-contracts.md section 5): the workshop manager (stock.count) keeps the board
+// and edge tape list too; prices stay stock.order's.
+function listBody(req) {
+  const b = body(req);
+  if (b.priceCents !== undefined && !can(req, "stock.order")) throw forbidden();
+  return b;
+}
+
 r.get("/boards", SEE, handle((req, res) => {
   // ?all=1 (inactive boards too) is the List tab's, stock.order only, as for stock items.
-  res.json({ boards: boards.list(db, { all: req.query.all === "1" && can(req, "stock.order"), withPrices: withPrices(req) }) });
+  res.json({ boards: boards.list(db, { all: req.query.all === "1", withPrices: withPrices(req) }) });
 }));
 
-r.post("/boards/reorder", "stock.order", handle((req, res) => {
-  res.json({ boards: boards.reorder(db, req, body(req).ids) });
+r.post("/boards/reorder", SEE, handle((req, res) => {
+  const list = boards.reorder(db, req, body(req).ids);
+  res.json({ boards: withPrices(req) ? list : list.map(({ priceCents, ...b }) => b) });
 }));
 
-r.post("/boards", "stock.order", handle((req, res) => {
-  res.status(201).json(boards.create(db, req, body(req)));
+r.post("/boards", SEE, handle((req, res) => {
+  const b = boards.create(db, req, listBody(req));
+  if (!withPrices(req)) delete b.priceCents;
+  res.status(201).json(b);
 }));
 
 r.get("/boards/counts", SEE, handle((req, res) => {
@@ -76,8 +87,10 @@ r.post("/boards/counts/:period/reopen-count", "stock.order", handle((req, res) =
   res.json(boards.reopenCount(db, req, periodOr400(req.params.period)));
 }));
 
-r.patch("/boards/:id", "stock.order", handle((req, res) => {
-  res.json(boards.update(db, req, idOr404(req.params.id), body(req)));
+r.patch("/boards/:id", SEE, handle((req, res) => {
+  const b = boards.update(db, req, idOr404(req.params.id), listBody(req));
+  if (!withPrices(req)) delete b.priceCents;
+  res.json(b);
 }));
 
 module.exports = r.router;

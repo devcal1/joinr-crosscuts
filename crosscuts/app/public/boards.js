@@ -198,11 +198,13 @@
 
   const currentPeriod = () => P.currentPeriod(todayISO());
 
+  // 0.2.6 (docs/plans/m27-contracts.md section 5): the workshop manager keeps the list too.
   function tabsAllowed() {
-    const out = ["count"];
-    if (canOrder()) out.push("list");
-    return out;
+    return ["count", "list"];
   }
+
+  const isEdge = (b) => b && b.kind === "edge";
+  const unitOf = (b) => (isEdge(b) ? "rolls" : "sheets");
 
   function readUrl() {
     const q = new URLSearchParams(location.search);
@@ -307,8 +309,8 @@
 
   function qtyInput(l) {
     const input = el("input", {
-      class: "hs-input bd-qty", type: "number", min: "0", max: String(QTY_MAX), step: "0.5", inputmode: "decimal",
-      "data-board": String(l.boardId), "aria-label": `Sheets of ${boardName(l)}`,
+      class: "hs-input bd-qty", type: "number", min: "0", max: String(QTY_MAX), step: isEdge(l) ? "1" : "0.5", inputmode: isEdge(l) ? "numeric" : "decimal",
+      "data-board": String(l.boardId), "aria-label": isEdge(l) ? `Rolls of ${boardName(l)}` : `Sheets of ${boardName(l)}`,
     });
     input.value = qtyText(l.qty);
     input.dataset.saved = input.value;
@@ -534,14 +536,19 @@
       host.replaceChildren(el("p", { class: "bd-empty", text: "No boards yet. Add the first one." }));
       return;
     }
+    const num = (v) => el("span", { class: "bd-num", text: v == null ? "–" : qtyText(v) });
     const rows = boards.map((b, i) => el("tr", { class: b.active ? null : "bd-row-off" },
       el("td", { class: "bd-c-sup", text: b.supplier }),
       el("td", { class: "bd-c-thick", text: thick(b.thickness) }),
       el("td", { class: "bd-c-name" },
         el("span", { class: "bd-name", text: b.name }),
+        isEdge(b) ? el("span", { class: "bd-meta", text: ["Edge tape", b.width != null ? b.width + " mm wide" : "", b.colour].filter(Boolean).join(" · ") }) : null,
         b.active ? null : el("span", { class: "hs-badge hs-badge-na bd-off", text: "Inactive" })),
       el("td", { class: "bd-c-finish", text: b.finish }),
-      el("td", { class: "bd-c-price" }, b.priceCents == null ? el("span", { class: "bd-flag", text: "No price" }) : el("span", { class: "bd-num", text: money(b.priceCents) })),
+      el("td", { class: "bd-c-thick" }, num(b.onHand)),
+      el("td", { class: "bd-c-thick" }, num(b.reserved)),
+      el("td", { class: "bd-c-thick" }, num(b.free)),
+      canOrder() ? el("td", { class: "bd-c-price" }, b.priceCents == null ? el("span", { class: "bd-flag", text: "No price" }) : el("span", { class: "bd-num", text: money(b.priceCents) })) : null,
       el("td", { class: "bd-c-acts" }, el("div", { class: "bd-acts" },
         listButton("edit", b.id, "Edit", `Edit ${boardName(b)}`),
         listButton("up", b.id, "Up", `Move ${boardName(b)} up`, i === 0),
@@ -550,7 +557,9 @@
     host.replaceChildren(el("div", { class: "bd-wrap" },
       el("table", { class: "bd-table bd-table-list" },
         el("thead", null, el("tr", null,
-          ...[["Supplier", "bd-c-sup"], ["Thickness", "bd-c-thick"], ["Board", "bd-c-name"], ["Finish", "bd-c-finish"], ["Price per sheet (ex GST)", "bd-c-price"]].map(([t, c]) => el("th", { scope: "col", class: c, text: t })),
+          ...[["Supplier", "bd-c-sup"], ["Thickness", "bd-c-thick"], ["Board or edge tape", "bd-c-name"], ["Finish", "bd-c-finish"], ["On hand", "bd-c-thick"], ["Reserved", "bd-c-thick"], ["Free", "bd-c-thick"]]
+            .concat(canOrder() ? [["Price per sheet (ex GST)", "bd-c-price"]] : [])
+            .map(([t, c]) => el("th", { scope: "col", class: c, text: t })),
           el("th", { scope: "col", class: "bd-c-acts" }, el("span", { class: "bd-sr", text: "Actions" })))),
         el("tbody", null, ...rows))));
   }
@@ -563,14 +572,24 @@
     const fin = el("input", { class: "hs-input", type: "text", maxlength: "100", autocomplete: "off" });
     const price = el("input", { class: "hs-input bd-short", type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "0.00" });
     const active = el("input", { type: "checkbox" });
+    const kind = el("select", { class: "hs-input bd-short" }, el("option", { value: "board", text: "Board" }), el("option", { value: "edge", text: "Edge tape (rolls)" }));
+    const width = el("input", { class: "hs-input bd-short", type: "number", min: "1", max: "1000", step: "1", inputmode: "numeric" });
+    const colour = el("input", { class: "hs-input", type: "text", maxlength: "100", autocomplete: "off" });
+    const onHand = el("input", { class: "hs-input bd-short", type: "number", min: "0", max: String(QTY_MAX), step: "0.5", inputmode: "decimal" });
+    kind.value = b && b.kind ? b.kind : "board";
+    width.value = b && b.width != null ? String(b.width) : "";
+    colour.value = b ? b.colour || "" : "";
+    onHand.value = b && b.onHand != null ? qtyText(b.onHand) : "";
     sup.value = b ? b.supplier : "";
     th.value = b && b.thickness != null ? String(b.thickness) : "";
     name.value = b ? b.name : "";
     fin.value = b ? b.finish : "";
     price.value = b && b.priceCents != null ? P.dollars(b.priceCents).replace("$", "") : "";
     active.checked = b ? b.active : true;
-    const fields = [field("Supplier (optional)", sup), dl, field("Thickness in mm (optional)", th), field("Board", name), field("Finish (optional)", fin),
-      field("Price per sheet, ex GST (optional)", price, "Ordering keeps the prices; the Workshop Manager doesn't see them.")];
+    const fields = [field("Kind", kind), field("Supplier (optional)", sup), dl, field("Thickness in mm (optional)", th), field("Name", name), field("Finish (optional)", fin),
+      field("Width in mm (edge tape, optional)", width), field("Colour (optional)", colour),
+      field("On hand (optional)", onHand, "Sheets (halves allowed) or whole rolls. The monthly count resets it to what was counted.")];
+    if (canOrder()) fields.push(field("Price per sheet, ex GST (optional)", price, "Ordering keeps the prices; the Workshop Manager doesn't see them."));
     if (b) fields.push(checkField("Active (on the monthly count)", active));
     return dialog({
       title: b ? "Edit board" : "Add board",
@@ -583,8 +602,18 @@
         if (Number.isNaN(thickness)) throw new Error("The thickness must be whole millimetres from 1 to 1000, or empty.");
         const priceCents = P.parseDollars(price.value);
         if (Number.isNaN(priceCents) || (priceCents != null && priceCents < 0)) throw new Error("The price must be dollars and cents, such as 84.50, or empty.");
-        const body = { supplier: sup.value.trim(), thickness, name: name.value.trim(), finish: fin.value.trim(), priceCents };
-        if (!body.name) throw new Error("Give the board's name.");
+        const body = { kind: kind.value, supplier: sup.value.trim(), thickness, name: name.value.trim(), finish: fin.value.trim(), colour: colour.value.trim() };
+        if (canOrder()) body.priceCents = priceCents;
+        const w = width.value.trim();
+        body.width = w === "" ? null : /^\d+$/.test(w) && +w >= 1 && +w <= 1000 ? +w : NaN;
+        if (Number.isNaN(body.width)) throw new Error("The width must be whole millimetres from 1 to 1000, or empty.");
+        const oh = onHand.value.trim();
+        const ohN = oh === "" ? null : Number(oh);
+        if (ohN != null && (!Number.isFinite(ohN) || ohN < 0 || ohN > QTY_MAX || !Number.isInteger(ohN * (kind.value === "edge" ? 1 : 2)))) {
+          throw new Error(kind.value === "edge" ? "On hand for edge tape is whole rolls." : "On hand is whole or half sheets.");
+        }
+        if (!b || ohN !== (b.onHand == null ? null : b.onHand)) body.onHand = ohN;
+        if (!body.name) throw new Error("Give the name.");
         if (b) {
           body.active = active.checked;
           await send("PATCH", `/api/boards/${b.id}`, body);
