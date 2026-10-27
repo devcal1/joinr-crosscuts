@@ -47,6 +47,12 @@
         var a = el("a", null, j.name);
         a.href = "/project.html?id=" + j.id;
         name.append(a, el("span", "pj-sub", (STAGE[j.pipelineStage] || j.pipelineStage) + (j.clientName ? " · " + j.clientName : "")));
+        // 0.2.4: open issues raised from the shift page.
+        if (j.openIssues) {
+          var iss = el("a", "pj-issue", j.openIssues + (j.openIssues === 1 ? " open issue" : " open issues"));
+          iss.href = "/job.html?id=" + j.id + "#issues";
+          name.append(iss);
+        }
         tr.append(name);
         if (d.all) tr.append(el("td", null, j.owner ? j.owner.name : ""));
         var marks = el("td");

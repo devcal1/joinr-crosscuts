@@ -33,6 +33,12 @@
         a.href = "/job.html?id=" + j.id;
         name.append(a);
         if (j.clientName) name.append(el("span", "pj-sub", j.clientName));
+        // 0.2.4: open issues raised from the shift page.
+        if (j.openIssues) {
+          var iss = el("a", "pj-issue", j.openIssues + (j.openIssues === 1 ? " open issue" : " open issues"));
+          iss.href = "/job.html?id=" + j.id + "#issues";
+          name.append(iss);
+        }
         tr.append(name, el("td", null, j.requestedInstallDate ? day(j.requestedInstallDate) : "Not given"), el("td", null, j.latestEta ? day(j.latestEta) : "None given"));
         var btn = el("button", "hs-btn hs-btn-primary", "Confirm install date");
         btn.type = "button";

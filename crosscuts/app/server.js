@@ -106,6 +106,8 @@ const routers = [
   require("./routes/projectsteps"),
   // Board placement and money triggers (0.2.3, docs/plans/m24-contracts.md).
   require("./routes/handoffs"),
+  // Workshop end-of-shift report and job issues (0.2.4, docs/plans/m25-contracts.md).
+  require("./routes/shift"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -124,6 +126,8 @@ app.listen(PORT, () => {
   require("./lib/roundup").start(require("./db"));
   // The weekday 7:00 Sydney task reminder (REMINDER_DISABLED=1 turns it off).
   require("./lib/tasks").startReminder(require("./db"));
+  // The weekday end-of-shift reminder (SHIFT_REMINDER_DISABLED=1 turns it off).
+  require("./lib/shift").start(require("./db"));
   // Recurring tasks: make the due occurrences at boot and hourly (RECURRING_DISABLED=1 turns it off).
   try {
     require("./lib/recurring").start(require("./db"));

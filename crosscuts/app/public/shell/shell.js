@@ -95,7 +95,8 @@
       id: "workshop",
       home: { href: "/notes.html?dept=workshop", key: "notes.workshop" },
       label: "Workshop",
-      items: [],
+      // 0.2.4: the end-of-shift report.
+      items: [{ label: "End of shift", href: "/shift.html", key: "shift.report" }],
     },
     {
       id: "photos",

@@ -1,10 +1,8 @@
 const path = require("path");
 const fs = require("fs");
-const crypto = require("crypto");
-const multer = require("multer");
-const sharp = require("sharp");
 const db = require("../db");
 const { UPLOADS_DIR } = require("../lib/config");
+const photostore = require("../lib/photostore");
 const { suggestTagsForImage } = require("../lib/gemini");
 const { defineRoutes } = require("../lib/routes");
 const audit = require("../lib/audit");
@@ -13,49 +11,11 @@ const { normaliseTags, countTags } = require("../lib/tags");
 
 const r = defineRoutes("/api");
 
-// Kept in sync by hand with ALLOWED_EXT/MAX_BULK_FILE_BYTES in public/admin.js —
-// those are a client-side pre-filter for a better UX, this is the real check.
-const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const THUMB_WIDTH = 700;
-
-// The stored extension drives the Content-Type express.static serves from
-// /photos, so it must come from the validated mimetype — never from the
-// client-controlled original filename.
-const EXT_BY_MIME = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-};
-
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-    filename: (req, file, cb) => {
-      cb(null, `${crypto.randomUUID()}${EXT_BY_MIME[file.mimetype] || ".jpg"}`);
-    },
-  }),
-  limits: { fileSize: MAX_FILE_BYTES },
-  fileFilter: (req, file, cb) => {
-    if (!ALLOWED_MIME.has(file.mimetype)) {
-      cb(new Error("Unsupported file type"));
-      return;
-    }
-    cb(null, true);
-  },
-});
-
-const suggestUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_BYTES },
-  fileFilter: (req, file, cb) => {
-    if (!ALLOWED_MIME.has(file.mimetype)) {
-      cb(new Error("Unsupported file type"));
-      return;
-    }
-    cb(null, true);
-  },
-});
+// The upload limits (JPEG, PNG, WebP, 25 MB) and the storing step are in lib/photostore.js. Kept in
+// sync by hand with ALLOWED_EXT/MAX_BULK_FILE_BYTES in public/admin.js — those are a client-side
+// pre-filter for a better UX, this is the real check.
+const upload = photostore.upload;
+const suggestUpload = photostore.memoryUpload;
 
 // Every photo query joins jobs, so toPhoto can name the job without a second query.
 const SELECT_PHOTO = "SELECT p.*, j.name AS job_name FROM photos p LEFT JOIN jobs j ON j.id = p.job_id";
@@ -152,53 +112,9 @@ r.post("/photos", "photos.admin", (req, res) => {
       }
       const tags = normaliseTags(req.body.tags);
 
-      const insert = db.prepare(
-        "INSERT INTO photos (filename, thumb_filename, width, height, tags, job_id) VALUES (?, ?, ?, ?, ?, ?)"
-      );
-
-      const created = [];
-      const failed = [];
-      for (const file of files) {
-        const thumbFilename = `${path.parse(file.filename).name}-thumb.webp`;
-        try {
-          const image = sharp(file.path);
-          const metadata = await image.metadata();
-          // sharp doesn't auto-apply EXIF orientation: .rotate() bakes it
-          // into the thumb, and orientations 5-8 are transposed, so the stored
-          // dimensions must swap to describe the photo as it displays.
-          const transposed = (metadata.orientation || 1) >= 5;
-          await image
-            .rotate()
-            .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
-            .webp({ quality: 80 })
-            .toFile(path.join(UPLOADS_DIR, thumbFilename));
-
-          const id = db.transaction(() => {
-            const info = insert.run(
-              file.filename,
-              thumbFilename,
-              transposed ? metadata.height : metadata.width,
-              transposed ? metadata.width : metadata.height,
-              tags,
-              jobId
-            );
-            const newId = Number(info.lastInsertRowid);
-            audit.log(req, {
-              action: "photo.upload",
-              entityType: "photo",
-              entityId: newId,
-              after: { filename: file.filename, tags, jobId },
-            });
-            return newId;
-          })();
-          created.push(toPhoto(req, selectPhoto(id)));
-        } catch (e) {
-          console.error(`Failed to process ${file.originalname}:`, e);
-          failed.push({ filename: file.originalname, error: e.message });
-          fs.rm(file.path, { force: true }, () => {});
-          fs.rm(path.join(UPLOADS_DIR, thumbFilename), { force: true }, () => {});
-        }
-      }
+      const stored = await photostore.store(db, req, files, { tags, jobId });
+      const created = stored.created.map((id) => toPhoto(req, selectPhoto(id)));
+      const failed = stored.failed;
       res.status(created.length > 0 ? 201 : 500).json({ created, failed });
     } catch (e) {
       discard();

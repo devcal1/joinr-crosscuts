@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="jobmaterials.css">
 <link rel="stylesheet" href="jobquote.css">
 <link rel="stylesheet" href="project.css">
+<link rel="stylesheet" href="jobissues.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -181,6 +182,12 @@
       <div id="plannerBody"></div>
     </section>
 
+    <!-- 0.2.4 (docs/plans/m25-contracts.md section 4): issues raised from the shift page. -->
+    <section id="issues" class="jo-sec" aria-labelledby="issues-h" hidden>
+      <div class="hs-sectionbar hs-sectionbar-orange"><h2 id="issues-h">Issues</h2></div>
+      <ul id="issuesList" class="ji-list"></ul>
+    </section>
+
     <section id="photos" class="jo-sec" aria-labelledby="photos-h" hidden>
       <div class="hs-sectionbar">
         <h2 id="photos-h">Photos</h2>
@@ -239,6 +246,7 @@
   <script src="job.js"></script>
   <script src="jobstone.js"></script>
   <script src="projectowner.js"></script>
+  <script src="jobissues.js"></script>
   <script src="/shell/shell.js"></script>
 </body>
 </html>

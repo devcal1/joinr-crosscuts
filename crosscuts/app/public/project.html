@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="jobs.css">
 <link rel="stylesheet" href="project.css">
+<link rel="stylesheet" href="jobissues.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -23,6 +24,12 @@
     </div>
     <p id="pjStatus" class="jo-status muted" role="status">Loading...</p>
     <div id="pjHead" class="jo-summary" hidden></div>
+
+    <!-- 0.2.4 (docs/plans/m25-contracts.md section 4): issues raised from the shift page. -->
+    <section id="issues" class="jo-sec" aria-labelledby="issues-h" hidden>
+      <div class="hs-sectionbar hs-sectionbar-orange"><h2 id="issues-h">Issues</h2></div>
+      <ul id="issuesList" class="ji-list"></ul>
+    </section>
 
     <!-- 0.2.2 (docs/plans/m23-contracts.md section 2): the project manager's steps, the requested
          install date and check measure bookings. -->
@@ -92,6 +99,7 @@
 
   <script src="shared.js"></script>
   <script src="project.js"></script>
+  <script src="jobissues.js"></script>
   <script src="/shell/shell.js"></script>
 </body>
 </html>

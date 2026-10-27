@@ -218,6 +218,12 @@
           <input class="hs-input" id="setLeadWeeks" type="number" min="0" max="12" step="1">
           <div class="hint">Send to Ordering puts the job on the board this many weeks out, in Manufacturing, with nobody on it. 0 turns this off.</div>
         </div>
+        <!-- 0.2.4 (docs/plans/m25-contracts.md section 5): the end-of-shift reminder. -->
+        <div class="field">
+          <label for="setShiftTime">Shift report reminder</label>
+          <input class="hs-input" id="setShiftTime" type="time" step="60">
+          <div class="hint">On weekdays at this time, workshop people on an install that day who haven't sent their end-of-shift report get a reminder. Clear it to turn the reminder off.</div>
+        </div>
       </div>
       <p class="hint settings-lock" id="setLockNote" hidden>Locked: invoices have been issued</p>
 

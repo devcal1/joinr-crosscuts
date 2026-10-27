@@ -34,6 +34,8 @@ const BUSINESS_FIELDS = {
 };
 // M24: the board group.
 const BOARD_FIELDS = { leadWeeks: "board.lead_weeks" };
+// 0.2.4: the shift group.
+const SHIFT_FIELDS = { reminderTime: "shift.reminder_time" };
 const INVOICE_FIELDS = {
   prefix: "invoice.prefix",
   nextNumber: "invoice.next_number",
@@ -66,6 +68,7 @@ function current() {
       numberLocked: numberLocked(),
     },
     board: { leadWeeks: Number(s["board.lead_weeks"]) },
+    shift: { reminderTime: s["shift.reminder_time"] || "" },
   };
 }
 
@@ -132,6 +135,11 @@ function parseField(field, v) {
       return integer("Payment days", v, 0, 365);
     case "leadWeeks":
       return integer("Board lead weeks", v, 0, 12);
+    case "reminderTime": {
+      if (v === null || v === "") return "";
+      if (typeof v !== "string" || !require("../lib/shift").TIME_RE.test(v.trim())) throw bad("Shift reminder time must be HH:MM, or empty for off");
+      return v.trim();
+    }
     default:
       throw bad(`Unknown field: ${field}`);
   }
@@ -165,6 +173,7 @@ r.put("/", ACCESS, (req, res) => {
       ...parseGroup("business", body.business, BUSINESS_FIELDS, []),
       ...parseGroup("invoice", body.invoice, INVOICE_FIELDS, ["numberLocked"]),
       ...parseGroup("board", body.board, BOARD_FIELDS, []),
+      ...parseGroup("shift", body.shift, SHIFT_FIELDS, []),
     };
     db.transaction(() => {
       // Echoing the stored value back (the panel sends the whole form) is not a change.

@@ -44,6 +44,10 @@ const DEFAULTS = {
   // M24 (docs/plans/m24-contracts.md section 1): weeks from this Monday to the manufacturing row a
   // job gets at Send to Ordering; 0 = don't place automatically. PUT /api/settings {board}.
   "board.lead_weeks": "2",
+  // 0.2.4 (docs/plans/m25-contracts.md section 5): the weekday end-of-shift reminder, Sydney HH:MM
+  // (empty is off; Todd 2026-10-27: 16:00). PUT /api/settings {shift}. The last run is {audit: false}.
+  "shift.reminder_time": "16:00",
+  "shift.reminder_last_run": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 

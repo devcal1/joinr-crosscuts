@@ -46,6 +46,8 @@ const KEYS = [
   "notes.admin",
   // 0.2.2 (docs/plans/m23-contracts.md section 7): Workshop is the sixth department.
   "notes.workshop",
+  // 0.2.4 (docs/plans/m25-contracts.md section 1): the end-of-shift page, its photos and issues.
+  "shift.report",
 ];
 
 // M13 (docs/plans/m13-contracts.md section 3): owner-only keys. The admin preset doesn't get them;
@@ -56,7 +58,7 @@ const OWNER_ONLY_SET = new Set(OWNER_ONLY_KEYS);
 const ROLES = ["admin", "accounts", "design_pm", "scheduling", "showroom", "workshop", "ordering", "workshop_manager"];
 
 const PRESETS = {
-  // M13: every key except the owner-only ones (33 keys since 0.2.2 added notes.workshop).
+  // M13: every key except the owner-only ones (34 keys since 0.2.4 added shift.report).
   admin: KEYS.filter((k) => !OWNER_ONLY_SET.has(k)),
   accounts: [
     "board.view", "jobs.view", "jobs.value", "photos.search", "accounts.view",
@@ -76,8 +78,8 @@ const PRESETS = {
   ],
   showroom: ["photos.search"],
   // M7: the workshop TV and workshop logins (docs/plans/m7-contracts.md section 4).
-  // 0.2.2: and the Workshop notes wall.
-  workshop: ["board.view", "planner.view", "notes.workshop"],
+  // 0.2.2: and the Workshop notes wall. 0.2.4: and the end-of-shift page.
+  workshop: ["board.view", "planner.view", "notes.workshop", "shift.report"],
   // M10 (docs/plans/m10-contracts.md section 3): Ordering places orders (marking a job's last line
   // ordered makes its progress invoice due); the Workshop Manager receives them, without the job pages.
   ordering: [

@@ -60,6 +60,8 @@ const PAGE_ACCESS = {
   "/alarms.html": "alarms.manage",
   "/loans.html": "loans.manage",
   "/loanprint.html": "loans.manage",
+  // 0.2.4 (docs/plans/m25-contracts.md section 3).
+  "/shift.html": "shift.report",
 };
 
 // Department notes (docs/plans/notes-contracts.md): anyone holding any of the five department keys

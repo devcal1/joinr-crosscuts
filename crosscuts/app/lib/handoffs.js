@@ -114,6 +114,8 @@ function needsInstall(db) {
       pipelineStage: jobstage.pipelineStage(r),
       requestedInstallDate: r.requested_install_date || null,
       latestEta: r.eta || null,
+      // 0.2.4 (docs/plans/m25-contracts.md section 4).
+      openIssues: require("./issues").openCount(db, r.id),
     }));
 }
 

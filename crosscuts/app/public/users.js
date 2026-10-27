@@ -528,6 +528,7 @@
     $("setPad").value = s.invoice.pad;
     $("setDefaultDays").value = s.invoice.defaultDays;
     $("setLeadWeeks").value = s.board ? s.board.leadWeeks : 2;
+    $("setShiftTime").value = s.shift ? s.shift.reminderTime : "16:00";
     numberLocked = !!s.invoice.numberLocked;
     for (const id of NUMBERING) $(id).disabled = numberLocked;
     $("setLockNote").hidden = !numberLocked;
@@ -560,7 +561,8 @@
         invoice.pad = intField("setPad", "Number padding");
       }
       const board = { leadWeeks: intField("setLeadWeeks", "Board lead (weeks)") };
-      fillSettings(await api("/api/settings", { method: "PUT", body: JSON.stringify({ business, invoice, board }) }));
+      const shift = { reminderTime: $("setShiftTime").value };
+      fillSettings(await api("/api/settings", { method: "PUT", body: JSON.stringify({ business, invoice, board, shift }) }));
       toast("Saved");
     } catch (err) {
       showSettingsError(err.message);

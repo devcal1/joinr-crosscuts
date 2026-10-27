@@ -1,0 +1,12 @@
+/* A job's Issues section (jobissues.js; 0.2.4, docs/plans/m25-contracts.md section 4), on the job
+   and project pages. Open issues carry an orange edge ("attend to this"). Classes are ji-. */
+.ji-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ji-item { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 10px 12px; background: var(--surface); }
+.ji-open { border-left: 3px solid var(--orange); }
+.ji-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+.ji-body { margin: 6px 0; color: var(--white); white-space: pre-wrap; }
+.ji-photos { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.ji-photos img { width: 88px; height: 88px; object-fit: cover; border-radius: var(--r-badge); display: block; }
+.ji-res { margin: 6px 0 0; font-size: 13px; }
+.ji-resolve { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.ji-resolve .hs-input { flex: 1 1 220px; }

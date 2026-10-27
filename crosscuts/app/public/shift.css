@@ -1,0 +1,26 @@
+/* The end-of-shift page (shift.html; 0.2.4, docs/plans/m25-contracts.md section 3). Phone first
+   (375 px): one column of job cards, full-width buttons, big tap targets. House style: outlined
+   uppercase buttons, text only. Page classes are sh-. */
+.sh-page { max-width: 640px; margin: 0 auto; padding: 16px; }
+.sh-page h1 { margin: 4px 0 2px; font-size: 22px; color: var(--white); }
+.sh-date { margin: 0 0 8px; color: var(--label); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+.sh-jobs { display: grid; gap: 12px; margin: 12px 0; }
+.sh-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 12px; }
+.sh-card h2 { margin: 0; font-size: 17px; color: var(--white); }
+.sh-sub { margin: 2px 0 8px; color: var(--label); font-size: 13px; }
+.sh-panel { display: inline-block; margin-right: 6px; }
+.sh-photos { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.sh-photos img { width: 72px; height: 72px; object-fit: cover; border-radius: var(--r-badge); display: block; }
+.sh-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.sh-wide { width: 100%; justify-content: center; min-height: 44px; }
+.sh-row .hs-btn { flex: 1 1 140px; justify-content: center; min-height: 44px; }
+.sh-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.sh-issue { display: grid; gap: 6px; margin-top: 10px; }
+.sh-issue textarea, .sh-note { width: 100%; box-sizing: border-box; font-family: var(--font); }
+.sh-check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--body); }
+.sh-sec { margin: 18px 0; }
+.sh-h2 { margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label); }
+.sh-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.sh-results button { width: 100%; text-align: left; justify-content: flex-start; min-height: 44px; }
+.sh-msg { color: var(--orange-tint); font-size: 13px; margin: 6px 0 0; }
+#shSearch { width: 100%; box-sizing: border-box; min-height: 44px; }

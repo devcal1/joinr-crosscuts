@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>End of shift - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="jobissues.css">
+<link rel="stylesheet" href="shift.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body>
+  <div id="cc-shell"></div>
+
+  <!-- The end-of-shift report (shift.js; 0.2.4, docs/plans/m25-contracts.md section 3). Phone
+       first: today's jobs from the board, photos, issues, and Send report. -->
+  <main class="sh-page">
+    <h1>End of shift</h1>
+    <p id="shDate" class="sh-date"></p>
+    <p id="shStatus" class="muted" role="status">Loading...</p>
+    <div id="shSent" class="hs-callout" hidden></div>
+
+    <div id="shJobs" class="sh-jobs"></div>
+
+    <section class="sh-sec" aria-labelledby="shAdd-h">
+      <h2 id="shAdd-h" class="sh-h2">Another job</h2>
+      <input id="shSearch" class="hs-input" type="search" placeholder="Search jobs by name or client" aria-label="Search jobs" autocomplete="off">
+      <ul id="shResults" class="sh-results"></ul>
+    </section>
+
+    <section class="sh-sec" aria-labelledby="shSend-h">
+      <h2 id="shSend-h" class="sh-h2">Report</h2>
+      <label for="shNote" class="hs-label">Note for today (optional)</label>
+      <textarea id="shNote" class="hs-input sh-note" rows="3" maxlength="2000"></textarea>
+      <button id="shSendBtn" class="hs-btn hs-btn-primary sh-wide" type="button">Send report</button>
+      <p id="shSendMsg" class="muted" role="status"></p>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="shift.js"></script>
+  <script src="/shell/shell.js"></script>
+</body>
+</html>

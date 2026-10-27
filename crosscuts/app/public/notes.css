@@ -154,3 +154,5 @@ body {
 .ni-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 .ni-table td:last-child { text-align: right; }
 .ni-err { color: var(--orange-tint); }
+/* 0.2.4: "n open issues" under a job's name (My projects, Needs install date). */
+.pj-mine a.pj-issue, .ni-table a.pj-issue { display: block; color: var(--orange-tint); font-size: 12px; font-weight: 700; }

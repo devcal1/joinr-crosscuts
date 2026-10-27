@@ -314,6 +314,8 @@ function myProjects(db, req, { all = false } = {}) {
       revisionChanged: facts.list.current ? !!facts.list.changed : null,
       ordering: shown === "projects" || shown === "won" ? null : orderingOf(db, j.id),
       waitingOn: waitingOn(db, j, facts),
+      // 0.2.4 (docs/plans/m25-contracts.md section 4).
+      openIssues: require("./issues").openCount(db, j.id),
     });
   }
   return { all: everyone, canAll: can(req, "users.admin"), jobs: out };
