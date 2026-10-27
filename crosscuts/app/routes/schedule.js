@@ -16,6 +16,7 @@ const {
 const jobstage = require("../lib/jobstage");
 const audit = require("../lib/audit");
 const production = require("../lib/production");
+const completion = require("../lib/completion");
 
 const r = defineRoutes("/api");
 
@@ -512,6 +513,7 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
   const created = [];
   const skipped = [];
   const completed = [];
+  const installed = [];
   const stages = [];
 
   db.transaction(() => {
@@ -524,8 +526,10 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
 
     for (const { jobId, outcome } of results) {
       if (outcome === "complete") {
-        jobstage.onFinishedComplete(db, jobId, req);
-        completed.push(jobId);
+        // 0.2.5 (docs/plans/m26-contracts.md section 3): "complete" now means installed; the project
+        // manager confirms complete (lib/completion.js), which makes the final due. `completed`
+        // stays in the answer, now always empty.
+        if (completion.markInstalled(db, req, jobId)) installed.push(jobId);
         continue;
       }
 
@@ -584,7 +588,7 @@ r.post("/rows/finish-week", "board.edit", (req, res) => {
     }
   })();
 
-  res.json({ created, skipped, completed, stages });
+  res.json({ created, skipped, completed, installed, stages });
 });
 
 module.exports = r.router;

@@ -10,3 +10,6 @@
 .ji-res { margin: 6px 0 0; font-size: 13px; }
 .ji-resolve { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
 .ji-resolve .hs-input { flex: 1 1 220px; }
+/* 0.2.5: the Confirm complete line (confirmcomplete.js) on the job and project pages. */
+.jo-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 12px; }
+.jo-confirm .jo-confirm-warn { color: var(--orange-tint); font-weight: 700; }

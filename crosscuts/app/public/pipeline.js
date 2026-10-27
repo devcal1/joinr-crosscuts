@@ -84,6 +84,7 @@
   // The server refuses a hand move while the job has week rows this week or later,
   // whatever its stage (m3 review fix 3). onBoardWeeks lists its week starts.
   function boardLocked(j) {
+    if (j.awaitingConfirm) return true;
     if (j.stage === "on_board") return true;
     // Complete and invoiced are exempt (finished rows; archived is their only target).
     if (j.stage === "complete" || j.stage === "invoiced") return false;
@@ -135,6 +136,8 @@
   // (the server takes either as a move target and as `from`).
   function setJob(id, j) {
     if (j && j.pipelineStage) j.stage = j.pipelineStage;
+    // 0.2.5 (m26-contracts section 3): installed but not yet confirmed shows in Complete, locked.
+    if (j && j.awaitingConfirm) j.stage = "complete";
     jobs.set(id, j);
   }
 
@@ -490,6 +493,8 @@
         marks.append(el("span", { class: m.done ? "pl-mark pl-mark-done" : "pl-mark", title: m.label + (m.done ? ": done" : ": not yet"), text: m.mark }));
       }
       card.append(marks);
+    } else if (j.awaitingConfirm) {
+      card.append(el("div", { class: "pl-marks pl-await", text: "Awaiting PM confirm" }));
     } else if (j.stage === "on_board" && j.boardOrdering) {
       // M24 (m24-contracts section 4): still ordering while on the board.
       const p = j.orderingProgress;

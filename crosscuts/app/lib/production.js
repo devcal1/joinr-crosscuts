@@ -35,19 +35,35 @@ function stagesFor(job) {
   return STAGES.filter((s) => s !== "paint" && s !== "return_visit");
 }
 
-// Map jobId -> latest stage key. One query.
+// Map jobId -> latest stage key: the later (by when it was set) of the latest Finish week stage
+// (production_stages) and the latest Morning check stage (production_days, 0.2.5).
 function currentStages(db, jobIds) {
   const out = new Map();
   const ids = [...new Set((jobIds || []).map(Number).filter(Number.isInteger))];
   if (!ids.length) return out;
-  const rows = db
+  const marks = ids.map(() => "?").join(",");
+  const weekly = db
     .prepare(
-      `SELECT p.job_id, p.stage FROM production_stages p
-        WHERE p.job_id IN (${ids.map(() => "?").join(",")})
+      `SELECT p.job_id, p.stage, p.recorded_at AS at FROM production_stages p
+        WHERE p.job_id IN (${marks})
           AND p.week_start = (SELECT MAX(q.week_start) FROM production_stages q WHERE q.job_id = p.job_id)`
     )
     .all(...ids);
-  for (const r of rows) out.set(Number(r.job_id), r.stage);
+  const daily = db
+    .prepare(
+      `SELECT d.job_id, d.stage, d.set_at AS at FROM production_days d
+        WHERE d.job_id IN (${marks}) AND d.stage IS NOT NULL
+          AND d.date = (SELECT MAX(e.date) FROM production_days e WHERE e.job_id = d.job_id AND e.stage IS NOT NULL)`
+    )
+    .all(...ids);
+  const when = new Map();
+  for (const r of [...weekly, ...daily]) {
+    const id = Number(r.job_id);
+    if (!when.has(id) || String(r.at) > when.get(id)) {
+      when.set(id, String(r.at));
+      out.set(id, r.stage);
+    }
+  }
   return out;
 }
 

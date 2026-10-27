@@ -56,6 +56,24 @@
       <div id="wall" class="nt-wall"></div>
     </div>
 
+    <!-- Morning check (0.2.5, docs/plans/m26-contracts.md section 2): on ?dept=scheduling, for
+         board.edit. The previous working day's jobs with a stage pick and a note, what needs
+         attention, and Done for today. morningcheck.js. -->
+    <section id="morningCheck" class="pj-dash mc-sec" aria-labelledby="mcH" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="mcH">Morning check</h2>
+        <button id="mcDone" class="hs-btn hs-btn-primary" type="button">Done for today</button>
+      </div>
+      <p id="mcStatus" class="pj-tile-stat" role="status"></p>
+      <div class="mc-wrap">
+        <table class="hs-table mc-table" hidden>
+          <thead><tr><th scope="col">Job</th><th scope="col">On it</th><th scope="col">Stage</th><th scope="col">Note</th></tr></thead>
+          <tbody id="mcRows"></tbody>
+        </table>
+      </div>
+      <div id="mcAttend" class="mc-attend"></div>
+    </section>
+
     <!-- Needs install date (0.2.3, docs/plans/m24-contracts.md section 5): on ?dept=scheduling, for
          board.edit. Jobs with everything ordered and no promised install date. schedulingdash.js. -->
     <section id="needsInstall" class="pj-dash" aria-labelledby="niH" hidden>
@@ -125,5 +143,6 @@
   <script src="/shell/shell.js"></script>
   <script src="projectsdash.js"></script>
   <script src="schedulingdash.js"></script>
+  <script src="morningcheck.js"></script>
 </body>
 </html>

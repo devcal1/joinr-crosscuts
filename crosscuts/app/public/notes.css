@@ -156,3 +156,16 @@ body {
 .ni-err { color: var(--orange-tint); }
 /* 0.2.4: "n open issues" under a job's name (My projects, Needs install date). */
 .pj-mine a.pj-issue, .ni-table a.pj-issue { display: block; color: var(--orange-tint); font-size: 12px; font-weight: 700; }
+/* 0.2.5: the Morning check (morningcheck.js) on the Scheduling notes wall. Classes are mc-. */
+.mc-wrap { overflow-x: auto; }
+.mc-table { min-width: 760px; }
+.mc-table a, .mc-list a { color: var(--white); font-weight: 700; }
+.mc-table .hs-input { width: 100%; box-sizing: border-box; }
+.mc-table td:nth-child(3) { width: 170px; }
+.mc-sub { display: block; color: var(--label); font-size: 12px; }
+.mc-list .mc-sub { display: inline; }
+.mc-attend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+.mc-group { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 10px 12px; background: var(--surface); }
+.mc-h3 { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--orange-tint); }
+.mc-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
+.mc-issue { color: var(--body); }

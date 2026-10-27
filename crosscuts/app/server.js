@@ -108,6 +108,8 @@ const routers = [
   require("./routes/handoffs"),
   // Workshop end-of-shift report and job issues (0.2.4, docs/plans/m25-contracts.md).
   require("./routes/shift"),
+  // Morning check, Confirm complete and Waiting on you (0.2.5, docs/plans/m26-contracts.md).
+  require("./routes/morning"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 

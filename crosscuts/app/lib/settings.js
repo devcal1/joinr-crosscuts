@@ -48,6 +48,9 @@ const DEFAULTS = {
   // (empty is off; Todd 2026-10-27: 16:00). PUT /api/settings {shift}. The last run is {audit: false}.
   "shift.reminder_time": "16:00",
   "shift.reminder_last_run": null,
+  // 0.2.5 (docs/plans/m26-contracts.md section 2): the Morning check's Done for today, as JSON
+  // {date (the day checked), doneOn (Sydney today), at, by}. Not exposed by /api/settings.
+  "board.morning_last_done": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 

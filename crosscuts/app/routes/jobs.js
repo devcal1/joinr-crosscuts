@@ -152,6 +152,8 @@ function toJob(req, row, boardWeeks, inBacklog, people) {
   // M24 (m24-contracts section 4): a job on the board with lines still to order is "On board (ordering)".
   out.boardOrdering = handoffs.boardOrdering(db, row);
   if (out.boardOrdering) out.orderingProgress = projectsteps.orderingOf(db, row.id);
+  // 0.2.5 (m26-contracts section 3): installed, waiting for the project manager to confirm complete.
+  out.awaitingConfirm = require("../lib/completion").awaitingConfirm(row);
   return out;
 }
 

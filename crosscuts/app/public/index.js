@@ -334,6 +334,28 @@
       });
   }
 
+  // Waiting on you (0.2.5, docs/plans/m26-contracts.md section 4): one line per thing waiting on
+  // this person, each a link. Hidden when there is nothing.
+  function renderWaiting(cc) {
+    var tile = document.getElementById("ix-waiting");
+    var list = document.getElementById("ix-waiting-list");
+    api("/api/my-work")
+      .then(function (d) {
+        if (!d || !d.items || !d.items.length) return;
+        d.items.forEach(function (it) {
+          var a = el("a", "ix-item");
+          a.href = it.href;
+          a.appendChild(el("span", "ix-main", it.text));
+          var li = el("li", "ix-li");
+          li.appendChild(a);
+          list.appendChild(li);
+        });
+        document.getElementById("work-section").hidden = false;
+        tile.hidden = false;
+      })
+      .catch(function () { /* optional; leave it hidden */ });
+  }
+
   function init(cc) {
     renderGreeting(cc);
     renderWeek(cc);
@@ -343,6 +365,7 @@
     renderLeavers(cc);
     renderHint(cc);
     renderAlerts(cc);
+    renderWaiting(cc);
     renderPlanner(cc);
     renderMyTasks(cc);
     renderMessages(cc);

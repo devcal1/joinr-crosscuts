@@ -19,7 +19,7 @@ Crosscuts makes an invoice **due** by itself, and everyone in accounts gets an a
 |---|---|
 | Deposit (10%) | the job is first put on the board |
 | Progress (50%) | Todd presses **Materials ordered** on the job page |
-| Final (40%) and any extras | the job is marked **Complete** in Finish week |
+| Final (40%) and any extras | the project manager presses **Confirm complete** on a job marked **Installed** in Finish week (from 0.2.5; an admin setting the stage to Complete by hand also does it) |
 
 Jobs that were already on the board before invoicing started don't get automatic invoices. Use **New invoice** for those.
 

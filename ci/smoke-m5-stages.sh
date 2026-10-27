@@ -103,7 +103,7 @@ expect_jq '.total == 0' "nothing audited for a rejected call"
 echo "--- valid stages are recorded for the finished week ---"
 m5a_finish "$M5A_WK" "[{\"jobId\":$M5A_J1,\"outcome\":\"manufacturing\",\"stage\":\"assemble\"},{\"jobId\":$M5A_J2,\"outcome\":\"install\",\"stage\":\"kit\"},{\"jobId\":$M5A_J3,\"outcome\":\"complete\",\"stage\":\"install\"}]"
 expect_status 200 "Finish week with stages"
-expect_jq "(.created | length) == 2 and (.completed == [$M5A_J3])" "created and completed as before"
+expect_jq "(.created | length) == 2 and (.completed == []) and (.installed == [$M5A_J3])" "created; the complete one marked installed (0.2.5: the PM confirms)"
 expect_jq "(.stages | sort_by(.jobId)) == ([{jobId:$M5A_J1,stage:\"assemble\"},{jobId:$M5A_J2,stage:\"kit\"},{jobId:$M5A_J3,stage:\"install\"}] | sort_by(.jobId))" \
   "the response lists the stages recorded"
 m5a_rowof "$M5A_J1" "$M5A_NEXT"

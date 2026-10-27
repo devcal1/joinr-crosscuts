@@ -163,7 +163,12 @@ m2a_job_invoices "$J2"
 expect_jq 'length == 0' "no deposit for a job that already had other week rows"
 req POST /api/rows/finish-week "$ADMIN" \
   "{\"weekStart\":\"$M2A_WEEK_NEXT\",\"results\":[{\"jobId\":$J2,\"outcome\":\"complete\"}]}"
-expect_status 200 "complete the legacy job"
+expect_status 200 "finish the legacy job"
+# 0.2.5 (m26-contracts section 3): Finish week marks it installed; the PM (here an admin) confirms.
+req GET "/api/job-records/$J2" "$ADMIN"
+expect_jq ".stage != \"complete\" and .installedDate == \"$M2A_TODAY\" and .awaitingConfirm == true" "the legacy job is installed, awaiting confirm"
+req POST "/api/job-records/$J2/confirm-complete" "$ADMIN" '{}'
+expect_status 200 "an admin confirms it complete"
 req GET "/api/job-records/$J2" "$ADMIN"
 expect_jq '.stage == "complete"' "the legacy job is complete"
 m2a_job_invoices "$J2"
@@ -226,6 +231,11 @@ echo "--- Finish week -> Complete makes the final due ---"
 req POST /api/rows/finish-week "$ADMIN" \
   "{\"weekStart\":\"$M2A_WEEK\",\"results\":[{\"jobId\":$J1,\"outcome\":\"complete\"}]}"
 expect_status 200 "Finish week, complete"
+# 0.2.5 (m26-contracts section 3): installed first; nothing falls due until it is confirmed.
+m2a_job_invoices "$J1"
+expect_jq '[.[] | select(.kind == "final")] | length == 0' "no final until the PM confirms"
+req POST "/api/job-records/$J1/confirm-complete" "$ADMIN" '{}'
+expect_status 200 "confirm complete"
 req GET "/api/job-records/$J1" "$ADMIN"
 expect_jq ".stage == \"complete\" and .completedDate == \"$M2A_TODAY\"" "the job is complete"
 m2a_job_invoices "$J1"

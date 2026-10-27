@@ -314,6 +314,8 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
 .pl-unowned .pl-owner { color: var(--muted); }
 .pl-card.pl-unowned { background: var(--na); }
 /* 0.2.2: the step marks (D CM N O) and "n/m ordered", text only. */
+/* 0.2.5: an installed job waiting for the project manager ("attend to this"). */
+.pl-await { color: var(--orange-tint); font-weight: 700; }
 .pl-marks {
   display: flex;
   flex-wrap: wrap;

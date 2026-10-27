@@ -1050,7 +1050,7 @@
     { value: "not_started", label: "Not started" },
     { value: "manufacturing", label: "Still manufacturing" },
     { value: "install", label: "Ready to install" },
-    { value: "complete", label: "Complete" },
+    { value: "complete", label: "Installed" },
   ];
   // True while the request is in flight: blocks a second Done, and stops Esc or
   // a backdrop click from dismissing the popup mid-save.
@@ -1117,12 +1117,12 @@
     const carried = res.created.filter((c) => c.outcome !== "not_started").length;
     const toStart = res.created.length - carried;
     const already = res.skipped.length;
-    const finished = res.completed.length;
+    const finished = (res.installed || res.completed).length;
     const parts = [];
     if (carried) parts.push(`${carried} carried over`);
     if (toStart) parts.push(`${toStart} to To start`);
     if (already) parts.push(`${already} already there`);
-    if (finished) parts.push(`${finished} finished`);
+    if (finished) parts.push(`${finished} installed (PM to confirm)`);
     return parts.length ? `Next week set up: ${parts.join(", ")}` : "Next week set up: nothing to carry over";
   }
 
