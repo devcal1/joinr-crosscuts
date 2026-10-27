@@ -46,6 +46,6 @@ Settings `shift.reminder_time` (Sydney `HH:MM`, default **16:00**, Todd 2026-10-
 | `PUT /api/settings` `{shift}` | users.admin |
 | `/shift.html` | shift.report |
 
-## 7. Before the push
+## 7. After the release
 
-Check photo upload and the phone camera on a real phone over Tailscale (the plan's ask).
+Check photo upload and the phone camera on a real phone, on the Umbrel install once released (Todd 2026-10-27: after the push, not before).
