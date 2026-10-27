@@ -104,9 +104,40 @@ function workshopLines(db, out, now) {
   const r = require("./reservations").counts(db);
   if (r.toLabel) out.push({ key: "toLabel", text: `${plural(r.toLabel, "reservation", "reservations")} to label as reserved`, count: r.toLabel, href: "/reserve.html" });
   if (r.toCut) out.push({ key: "toCut", text: `${plural(r.toCut, "job", "jobs")} to mark cut 100% at end of shift`, count: r.toCut, href: "/reserve.html#cut" });
+  // 0.2.7 (docs/plans/m28-contracts.md section 1): vehicle bookings due today or overdue.
+  const vb = require("./vehicles").bookingsDueCount(db, today);
+  if (vb) out.push({ key: "vehicleBookings", text: `${plural(vb, "vehicle booking", "vehicle bookings")} due`, count: vb, href: "/vehicles.html" });
   const d = require("./orders").deliveries(db, today);
   const n = (Number(d.counts.overdue) || 0) + (Number(d.counts.today) || 0);
   if (n) out.push({ key: "deliveries", text: `${plural(n, "delivery", "deliveries")} to receive`, count: n, href: "/deliveries.html" });
+}
+
+// 0.2.7 (docs/plans/m28-contracts.md section 5): Accounts' lines, for invoices.edit holders.
+function accountsLines(db, out, now) {
+  const today = sydneyToday(now);
+  const f = require("./followup").counts(db, today);
+  if (f.toIssue) out.push({ key: "toIssue", text: `${plural(f.toIssue, "invoice", "invoices")} to issue`, count: f.toIssue, href: "/accounts.html?filter=due" });
+  if (f.notSent) out.push({ key: "notSent", text: `${plural(f.notSent, "invoice", "invoices")} issued, not sent`, count: f.notSent, href: "/accounts.html?filter=unpaid" });
+  if (f.followUp) out.push({ key: "followUp", text: `${plural(f.followUp, "invoice needs", "invoices need")} follow-up`, count: f.followUp, href: "/accounts.html?view=overdue" });
+  const nd = require("./payables").noDueDateCount(db, today);
+  if (nd) out.push({ key: "payableNoDue", text: `${plural(nd, "individual invoice", "individual invoices")} without a due date`, count: nd, href: "/suppliers.html" });
+  const v = require("./vehicles").dueSoonCount(db, today);
+  if (v) out.push({ key: "vehicleExpiry", text: `${plural(v, "rego or insurance", "regos and insurances")} due within 30 days`, count: v, href: "/vehicles.html" });
+}
+
+// 0.2.7: loan months not checked against the statement, for loans.maintain holders.
+function loanLines(db, out, now) {
+  const n = require("./loans").uncheckedCount(db, sydneyToday(now));
+  if (n) out.push({ key: "loanMonths", text: `${plural(n, "loan month", "loan months")} not checked against the statement`, count: n, href: "/loans.html" });
+}
+
+// 0.2.7 (m28-contracts.md section 2): admin's "To pay this month: N, $X".
+function toPayLine(db, out, now) {
+  const t = require("./payables").toPayThisMonth(db, sydneyToday(now));
+  if (!t.count) return;
+  const a = Math.abs(t.cents);
+  const dollars = (t.cents < 0 ? "-" : "") + "$" + String(Math.floor(a / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + String(a % 100).padStart(2, "0");
+  out.push({ key: "toPay", text: `To pay this month: ${t.count}, ${dollars}`, count: t.count, cents: t.cents, href: `/suppliers.html?period=${t.period}` });
 }
 
 function linesFor(db, req, now = new Date()) {
@@ -116,6 +147,9 @@ function linesFor(db, req, now = new Date()) {
   if (can(req, "board.edit")) scheduleLines(db, out, now);
   if (can(req, "shift.report")) shiftLines(db, req, out, now);
   if (can(req, "maintenance.manage")) workshopLines(db, out, now);
+  if (can(req, "invoices.edit")) accountsLines(db, out, now);
+  if (can(req, "loans.maintain")) loanLines(db, out, now);
+  if (can(req, "users.admin")) toPayLine(db, out, now);
   return { date: sydneyToday(now), items: out };
 }
 

@@ -12,6 +12,10 @@ const loans = require("../lib/loans");
 const r = defineRoutes("/api/loans");
 
 const KEY = "loans.manage";
+// 0.2.7 (docs/plans/m28-contracts.md section 4): loans.maintain (Accounts, granted by Todd) views,
+// records payments and interest, and ticks Statement checked. Openings, rates, plans, archive and
+// deletes stay loans.manage.
+const KEEP = ["loans.manage", "loans.maintain"];
 
 function handle(fn) {
   return (req, res) => {
@@ -42,7 +46,7 @@ function body(req) {
 
 // --- the list ---------------------------------------------------------------------------------
 
-r.get("/", KEY, handle((req, res) => {
+r.get("/", KEEP, handle((req, res) => {
   res.json(loans.list(db, { archived: req.query.archived === "1" }));
 }));
 
@@ -52,7 +56,7 @@ r.post("/", KEY, handle((req, res) => {
 
 // --- one loan ---------------------------------------------------------------------------------
 
-r.get("/:id", KEY, handle((req, res) => {
+r.get("/:id", KEEP, handle((req, res) => {
   res.json(loans.get(db, idOr404(req.params.id)));
 }));
 
@@ -61,19 +65,19 @@ r.patch("/:id", KEY, handle((req, res) => {
   res.json(loans.update(db, req, id, body(req)));
 }));
 
-r.get("/:id/interest", KEY, handle((req, res) => {
+r.get("/:id/interest", KEEP, handle((req, res) => {
   const id = idOr404(req.params.id);
   res.json(loans.interest(db, id, { date: req.query.date, repaymentId: req.query.repaymentId }));
 }));
 
-r.get("/:id/statement", KEY, handle((req, res) => {
+r.get("/:id/statement", KEEP, handle((req, res) => {
   const id = idOr404(req.params.id);
   res.json(loans.statement(db, id, { from: req.query.from, to: req.query.to }));
 }));
 
 // --- the plan and month interest (changed 2026-10-24) ---------------------------------------
 
-r.get("/:id/plan", KEY, handle((req, res) => {
+r.get("/:id/plan", KEEP, handle((req, res) => {
   const id = idOr404(req.params.id);
   res.json(loans.previewPlan(db, id, req.query));
 }));
@@ -83,7 +87,7 @@ r.put("/:id/plan", KEY, handle((req, res) => {
   res.json(loans.setPlan(db, req, id, body(req)));
 }));
 
-r.put("/:id/months/:period", KEY, handle((req, res) => {
+r.put("/:id/months/:period", KEEP, handle((req, res) => {
   const id = idOr404(req.params.id);
   res.json(loans.setMonthInterest(db, req, id, req.params.period, body(req)));
 }));
@@ -109,12 +113,12 @@ r.delete("/:id/rates/:rateId", KEY, handle((req, res) => {
 
 // --- repayments -------------------------------------------------------------------------------
 
-r.post("/:id/repayments", KEY, handle((req, res) => {
+r.post("/:id/repayments", KEEP, handle((req, res) => {
   const id = idOr404(req.params.id);
   res.status(201).json(loans.addRepayment(db, req, id, body(req)));
 }));
 
-r.patch("/:id/repayments/:repId", KEY, handle((req, res) => {
+r.patch("/:id/repayments/:repId", KEEP, handle((req, res) => {
   const id = idOr404(req.params.id);
   const repId = idOr404(req.params.repId);
   res.json(loans.updateRepayment(db, req, id, repId, body(req)));
@@ -124,6 +128,13 @@ r.delete("/:id/repayments/:repId", KEY, handle((req, res) => {
   const id = idOr404(req.params.id);
   const repId = idOr404(req.params.repId);
   res.json(loans.deleteRepayment(db, req, id, repId));
+}));
+
+// --- Statement checked (0.2.7) -------------------------------------------------------------------
+
+r.put("/:id/checked/:period", KEEP, handle((req, res) => {
+  const id = idOr404(req.params.id);
+  res.json(loans.setChecked(db, req, id, req.params.period, body(req)));
 }));
 
 module.exports = r.router;

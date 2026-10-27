@@ -269,6 +269,9 @@ const ANY_FIELDS = {
   lastContactedDate: { col: "last_contacted_date", kind: "date" },
   followUpNotes: { col: "follow_up_notes", kind: "notes" },
   externalId: { col: "external_id", kind: "text" },
+  // 0.2.7 (m28-contracts.md section 3): the follow-up interval for this invoice (null: the client's
+  // terms, else the default).
+  followUpDays: { col: "followup_days", kind: "days" },
 };
 
 function coerceField(key, f, v) {
@@ -280,6 +283,10 @@ function coerceField(key, f, v) {
     return v;
   }
   if (empty) return null;
+  if (f.kind === "days") {
+    if (!Number.isInteger(v) || v < 1 || v > 365) throw bad(`${key} must be a whole number of days from 1 to 365, or null`);
+    return v;
+  }
   if (typeof v !== "string") throw bad(`${key} must be a string`);
   if (f.kind === "date") {
     if (!invoices.validDate(v)) throw bad(`${key} must be a valid YYYY-MM-DD date`);
@@ -396,6 +403,26 @@ r.post("/:id/unwaive", "invoices.edit", handle((req, res) => {
   const inv = load(req);
   const out = db.transaction(() => invoices.unwaive(db, inv.id, req))();
   res.json(invoices.present(db, out));
+}));
+
+// --- sent and follow-up (0.2.7, docs/plans/m28-contracts.md section 3) ---------------------------
+
+const followup = require("../lib/followup");
+
+r.post("/:id/sent", "invoices.edit", handle((req, res) => {
+  const inv = load(req);
+  followup.markSent(db, req, inv.id, body(req));
+  res.json(invoices.present(db, invoices.getInvoice(db, inv.id)));
+}));
+
+r.get("/:id/contacts", "accounts.view", handle((req, res) => {
+  res.json({ contacts: followup.contacts(db, load(req).id) });
+}));
+
+r.post("/:id/contacts", "invoices.edit", handle((req, res) => {
+  const inv = load(req);
+  const list = followup.addContact(db, req, inv.id, body(req));
+  res.status(201).json({ contacts: list, invoice: invoices.present(db, invoices.getInvoice(db, inv.id)) });
 }));
 
 module.exports = r.router;

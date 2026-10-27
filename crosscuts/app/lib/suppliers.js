@@ -8,7 +8,7 @@
 // supplier with from_period <= P and (archived_from null or P < archived_from). A listed supplier
 // with no row is Waiting with blanks (saved: false). Restoring skips the gap (Todd, 2026-10-13):
 // see update().
-const { HttpError, bad, notFound, conflict } = require("./httperror");
+const { HttpError, bad, notFound, conflict, forbidden, can } = require("./httperror");
 const { sydneyToday } = require("./time");
 const audit = require("./audit");
 const files = require("./files");
@@ -432,6 +432,9 @@ function saveLine(db, req, period, supplierId, body) {
       }
     }
     if (!Object.keys(after).length) return line;
+    // 0.2.7 (docs/plans/m28-contracts.md section 2): on Supplier accounts, Paid is ticked by
+    // users.admin holders only. Admin accounts stays as it is.
+    if (KIND === "supplier" && "paid" in after && !can(req, "users.admin")) throw forbidden();
 
     upsertLine(db, req, period, supplierId, line, next, undefined);
     audit.log(req, {

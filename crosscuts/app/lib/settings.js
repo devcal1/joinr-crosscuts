@@ -55,6 +55,11 @@ const DEFAULTS = {
   // fortnights are counted from (Todd 2026-10-27: Mon 26 Oct 2026). PUT /api/stock/settings only.
   "stock.cycle": "fortnightly",
   "stock.cycle_start": "2026-10-26",
+  // 0.2.7 (docs/plans/m28-contracts.md section 3): days between follow-ups of an overdue invoice when
+  // neither the invoice nor its client has its own; PUT /api/followup/default only. The 7:00 weekday
+  // accounts sweep's last run is {audit: false}.
+  "invoices.followup_days_default": "7",
+  "accounts.sweep_last_run": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 

@@ -294,6 +294,44 @@ function taskEvents(db, user, from, to, out) {
   }
 }
 
+// Vehicles (0.2.7): no insurer, policy or notes are selected.
+function vehicleEvents(db, user, from, to, today, eff, out) {
+  const link = has(user, "accounts.view") || has(user, "maintenance.manage") ? "/vehicles.html" : null;
+  if (eff.has("company")) {
+    const rows = db
+      .prepare(
+        `SELECT id, name, rego, 'rego' AS what, rego_expiry AS d FROM vehicles WHERE active = 1 AND rego_expiry BETWEEN ? AND ?
+         UNION ALL
+         SELECT id, name, rego, 'insurance' AS what, insurance_expiry AS d FROM vehicles WHERE active = 1 AND insurance_expiry BETWEEN ? AND ?`
+      )
+      .all(from, to, from, to);
+    for (const r of rows) {
+      out.push(item({
+        id: `a:vehicle_${r.what}:${r.id}:${r.d}`, source: "vehicle_expiry", sourceLabel: "Vehicles", layer: "company",
+        title: `${r.what === "rego" ? "Rego" : "Insurance"} due: ${cut(r.name)}${r.rego ? ` (${r.rego})` : ""}`, start: r.d,
+        link, overdue: r.d < today,
+      }));
+    }
+  }
+  if (eff.has("workshop")) {
+    const rows = db
+      .prepare(
+        `SELECT b.id, b.kind, b.date, b.time, b.done_at, v.name FROM vehicle_bookings b JOIN vehicles v ON v.id = b.vehicle_id
+          WHERE b.cancelled_at IS NULL AND b.date BETWEEN ? AND ?`
+      )
+      .all(from, to);
+    const KIND = { service: "Service", repair: "Repair", inspection: "Inspection", other: "Booking" };
+    for (const r of rows) {
+      const time = typeof r.time === "string" && r.time ? r.time : null;
+      out.push(item({
+        id: `a:vehicle_booking:${r.id}`, source: "vehicle_booking", sourceLabel: "Vehicles", layer: "workshop",
+        title: `${KIND[r.kind] || "Booking"}: ${cut(r.name)}`, start: r.date, allDay: !time, startTime: time,
+        link, overdue: !r.done_at && r.date < today,
+      }));
+    }
+  }
+}
+
 // layers: the effective layer set (visible ∩ requested). today: Sydney date.
 // Returns {events: [automatic item §9.2], weeks: [week band §9.2]} (unsorted; the router sorts).
 // The layer set is narrowed by the viewer's visible layers again here, so a caller can't widen it.
@@ -323,6 +361,9 @@ function listAuto(db, user, { from, to, today, layers } = {}) {
   if (eff.has("company")) leaveEvents(db, user, from, to, events);
   if (eff.has("accounts")) accountsEvents(db, user, from, to, day, events);
   if (eff.has("personal")) taskEvents(db, user, from, to, events);
+  // 0.2.7 (docs/plans/m28-contracts.md section 1): rego and insurance expiries (Company-wide) and
+  // vehicle bookings (Workshop).
+  if (eff.has("company") || eff.has("workshop")) vehicleEvents(db, user, from, to, day, eff, events);
   // 0.2.0: recurring tasks (docs/plans/m20-recurring-tasks.md), on their due dates.
   events.push(...require("../recurring").plannerItems(db, user, { from, to, today: day, layers: [...eff], item }));
   return { events, weeks };

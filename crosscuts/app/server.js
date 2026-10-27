@@ -113,6 +113,10 @@ const routers = [
   // Workshop manager: maintenance, board and edge stock, reservations (0.2.6, docs/plans/m27-contracts.md).
   require("./routes/maintenance"),
   require("./routes/reservations"),
+  // 0.2.7 (docs/plans/m28-contracts.md): vehicles, individual invoices, follow-up.
+  require("./routes/vehicles"),
+  require("./routes/payables"),
+  require("./routes/followup"),
 ];
 for (const router of routers) app.use(router.ccPrefix, router);
 
@@ -138,6 +142,12 @@ app.listen(PORT, () => {
     require("./lib/recurring").start(require("./db"));
   } catch (e) {
     console.error(`[recurring] failed to start (${safeCode(e)})`);
+  }
+  // 0.2.7: the 7:00 weekday accounts sweep (ACCOUNTS_SWEEP_DISABLED=1 turns it off).
+  try {
+    require("./lib/accountsweep").start(require("./db"));
+  } catch (e) {
+    console.error(`[accounts] sweep failed to start (${safeCode(e)})`);
   }
   // The "needs a project owner" sweep, at boot and every 5 minutes (OWNER_SWEEP_DISABLED=1 turns it off).
   require("./lib/projectsteps").start(require("./db"));

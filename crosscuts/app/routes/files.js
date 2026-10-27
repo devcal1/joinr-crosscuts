@@ -21,8 +21,11 @@ r.get("/:id", "login", (req, res) => {
   const task = db.prepare("SELECT task_id FROM task_files WHERE file_id = ?").get(id);
   // A supplier statement (m9-contracts.md section 7.4).
   const statement = db.prepare("SELECT supplier_id FROM supplier_statements WHERE file_id = ?").get(id);
+  // 0.2.7: an individual invoice's file (m28-contracts.md section 2).
+  const payable = db.prepare("SELECT id FROM payables WHERE file_id = ?").get(id);
   const allowed =
-    (report && can(req, "accounts.view")) || (task && can(req, "tasks.use")) || (statement && can(req, "accounts.view"));
+    (report && can(req, "accounts.view")) || (task && can(req, "tasks.use")) || (statement && can(req, "accounts.view")) ||
+    (payable && can(req, "accounts.view"));
   if (!allowed) return notFound(res);
   files.send(res, row);
 });

@@ -58,13 +58,16 @@ const PAGE_ACCESS = {
   "/bonuses.html": "bonuses.manage",
   "/bonusprint.html": "bonuses.manage",
   "/alarms.html": "alarms.manage",
-  "/loans.html": "loans.manage",
-  "/loanprint.html": "loans.manage",
+  // 0.2.7: and loans.maintain (docs/plans/m28-contracts.md section 4).
+  "/loans.html": ["loans.manage", "loans.maintain"],
+  "/loanprint.html": ["loans.manage", "loans.maintain"],
   // 0.2.4 (docs/plans/m25-contracts.md section 3).
   "/shift.html": "shift.report",
   // 0.2.6 (docs/plans/m27-contracts.md sections 4 and 5).
   "/maintenance.html": "maintenance.manage",
   "/reserve.html": ["stock.count", "orders.mark_ordered"],
+  // 0.2.7 (docs/plans/m28-contracts.md section 1).
+  "/vehicles.html": ["accounts.view", "maintenance.manage"],
 };
 
 // Department notes (docs/plans/notes-contracts.md): anyone holding any of the five department keys

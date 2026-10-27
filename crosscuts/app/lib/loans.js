@@ -473,7 +473,21 @@ function shape(row, rates, led, today) {
 
 function shapeRow(db, row, today) {
   const rates = ratesOf(db, row.id);
-  return shape(row, rates, ledgerOf(db, row, today, { rates }), today);
+  const out = shape(row, rates, ledgerOf(db, row, today, { rates }), today);
+  // 0.2.7 (docs/plans/m28-contracts.md section 4): each month's "Statement checked" tick.
+  const checked = new Map(
+    db
+      .prepare(
+        `SELECT m.period, m.checked_at, m.checked_by, u.display_name AS name
+           FROM loan_months m LEFT JOIN users u ON u.id = m.checked_by WHERE m.loan_id = ?`
+      )
+      .all(row.id)
+      .map((r) => [r.period, { at: r.checked_at, by: r.checked_by == null ? null : { id: r.checked_by, name: r.name || null } }])
+  );
+  for (const m of out.months) m.checked = checked.get(m.period) || null;
+  const lastFull = addMonths(today.slice(0, 7), -1);
+  out.uncheckedMonths = out.archived ? 0 : out.months.filter((m) => m.period <= lastFull && !m.checked).length;
+  return out;
 }
 
 function list(db, { archived = false } = {}, today = sydneyToday()) {
@@ -955,6 +969,34 @@ function setMonthInterest(db, req, id, period, body) {
   return get(db, id, today);
 }
 
+// 0.2.7 (docs/plans/m28-contracts.md section 4): PUT {checked: true | false} ticks a month (from the
+// opening month to this month) as checked against the lender's statement.
+function setChecked(db, req, id, period, body) {
+  const today = sydneyToday();
+  const loan = loanRow(db, id);
+  if (typeof period !== "string" || !PERIOD_RE.test(period)) throw notFound();
+  if (!body || typeof body.checked !== "boolean") throw bad("checked must be true or false");
+  if (period < loan.opening_date.slice(0, 7) || period > today.slice(0, 7)) {
+    throw bad(`${periodWords(period)} isn't a month of this loan`);
+  }
+  const was = db.prepare("SELECT checked_at FROM loan_months WHERE loan_id = ? AND period = ?").get(id, period);
+  if (!!was === body.checked) return get(db, id, today);
+  db.transaction(() => {
+    if (body.checked) {
+      db.prepare("INSERT INTO loan_months (loan_id, period, checked_at, checked_by) VALUES (?, ?, ?, ?)").run(id, period, nowIso(), userId(req));
+    } else {
+      db.prepare("DELETE FROM loan_months WHERE loan_id = ? AND period = ?").run(id, period);
+    }
+    audit.log(req, { action: "loan.month_checked", entityType: "loan", entityId: id, before: { period, checked: !!was }, after: { period, checked: body.checked } });
+  })();
+  return get(db, id, today);
+}
+
+// Loan months (up to last month) not ticked as checked, across live loans: for Waiting on you.
+function uncheckedCount(db, today = sydneyToday()) {
+  return list(db, {}, today).loans.reduce((n, l) => n + l.uncheckedMonths, 0);
+}
+
 // ---------------------------------------------------------------- the plan ---
 
 // {kind: 'amount', amountCents} | {kind: 'payoff', payoffPeriod: 'YYYY-MM'} | {kind: null}.
@@ -1086,6 +1128,8 @@ module.exports = {
   setPlan,
   previewPlan,
   statement,
+  setChecked,
+  uncheckedCount,
   // The pure maths, for a node run (not part of the binding exports).
   _maths: { roundDiv, rateOn, ledger, project, evenPayment, firstCharged, addMonths, fyOf },
 };
