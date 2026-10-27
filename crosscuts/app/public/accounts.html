@@ -47,6 +47,11 @@
 
     <section id="overdueView" hidden>
       <p id="overdueSummary" class="ac-totals" role="status" aria-live="polite">Loading...</p>
+      <!-- 0.2.7 (m28-contracts.md section 3): the default follow-up interval and each client's terms. -->
+      <details id="followupBox" class="ac-fubox" hidden>
+        <summary>Follow-up intervals</summary>
+        <div id="followupBody"></div>
+      </details>
       <div class="ac-wrap">
         <table class="hs-table ac-table ac-overdue">
           <thead>

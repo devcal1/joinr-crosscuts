@@ -85,7 +85,10 @@
         { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
         { label: "Admin accounts", href: "/adminaccounts.html", key: "accounts.view" },
         // M13 (docs/plans/m13-contracts.md section 9): owner-only key, grantable to an Accounts login.
-        { label: "Loans", href: "/loans.html", key: "loans.manage" },
+        // 0.2.7 (docs/plans/m28-contracts.md section 4): or loans.maintain (an array: any one will do).
+        { label: "Loans", href: "/loans.html", key: ["loans.manage", "loans.maintain"] },
+        // 0.2.7 (m28-contracts.md section 1): the vehicles register (rego and insurance).
+        { label: "Vehicles", href: "/vehicles.html", key: "accounts.view" },
         { label: "Reports", href: "/reports.html", key: "accounts.view" },
       ],
     },
@@ -101,6 +104,8 @@
         // 0.2.6 (docs/plans/m27-contracts.md sections 4 and 5).
         { label: "Maintenance", href: "/maintenance.html", key: "maintenance.manage" },
         { label: "To reserve", href: "/reserve.html", key: "stock.count" },
+        // 0.2.7 (m28-contracts.md section 1): vehicle bookings, for the workshop manager.
+        { label: "Vehicles", href: "/vehicles.html", key: "maintenance.manage" },
       ],
     },
     {
@@ -892,7 +897,10 @@
       ])
     );
     DEPARTMENTS.forEach(function (d) {
-      var allowed = d.items.filter(function (it) { return cc.can(it.key); });
+      // 0.2.7: an item's key may be a list, of which any one will do.
+      var allowed = d.items.filter(function (it) {
+        return (Array.isArray(it.key) ? it.key : [it.key]).some(function (k) { return cc.can(k); });
+      });
       if (allowed.length || (d.home && canHome(d.home))) depts.appendChild(buildDepartment(d, allowed));
     });
     nav.appendChild(depts);

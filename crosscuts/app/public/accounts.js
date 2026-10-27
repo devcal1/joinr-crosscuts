@@ -235,9 +235,10 @@
       tr.append(el("td", { class: "num", text: fmtMoney(inv.totalCents) }));
       tr.append(el("td", { text: fmtDate(inv.dueDate) }));
       tr.append(el("td", { class: "num ac-days", text: String(daysOverdue) }));
-      tr.append(
-        el("td", {}, inv.lastContactedDate ? document.createTextNode(fmtDate(inv.lastContactedDate)) : el("span", { class: "ac-none", text: "Never" }))
-      );
+      const lastTd = el("td", {}, inv.lastContactedDate ? document.createTextNode(fmtDate(inv.lastContactedDate)) : el("span", { class: "ac-none", text: "Never" }));
+      // 0.2.7 (m28-contracts.md section 3): no contact within the invoice's own interval.
+      if (inv.needsFollowUp) lastTd.append(el("span", { class: "ac-followup", text: "Needs follow-up (every " + inv.followUpDaysEffective + " days)" }));
+      tr.append(lastTd);
       tr.append(el("td", { class: "ac-notes", text: inv.followUpNotes || "" }));
       const act = el("td");
       if (canEdit()) {
@@ -245,7 +246,7 @@
         b.addEventListener("click", async () => {
           b.disabled = true;
           try {
-            await api("/api/invoices/" + inv.id, { method: "PATCH", body: JSON.stringify({ lastContactedDate: todayISO() }) });
+            await api("/api/invoices/" + inv.id + "/contacts", { method: "POST", body: JSON.stringify({ date: todayISO() }) });
             toast("Marked contacted today");
             await loadOverdue();
           } catch (e) {
@@ -266,6 +267,57 @@
     } else {
       s.textContent = "No overdue invoices.";
     }
+  }
+
+  // 0.2.7 (m28-contracts.md section 3): the default interval and the client terms list.
+  async function loadFollowup() {
+    const box = $("followupBox");
+    const body = $("followupBody");
+    let d;
+    try {
+      d = await api("/api/followup");
+    } catch (e) {
+      return;
+    }
+    box.hidden = false;
+    body.replaceChildren();
+    const err = el("p", { class: "cc-dialog-error", role: "alert" });
+    const def = el("input", { id: "fu-default", class: "hs-input ac-days-in", type: "number", min: "1", max: "365", step: "1" });
+    def.value = String(d.defaultDays);
+    const row = el("div", { class: "ac-row" }, el("label", { class: "cc-field-label", for: "fu-default", text: "Default (days)" }), def);
+    if (canEdit()) {
+      const save = el("button", { type: "button", class: "hs-btn", text: "Save default" });
+      save.addEventListener("click", () =>
+        busy(body, err, async () => {
+          await api("/api/followup/default", { method: "PUT", body: JSON.stringify({ days: Number(def.value) }) });
+          toast("Saved");
+          await loadFollowup();
+          await loadOverdue();
+        })
+      );
+      row.append(save);
+    } else {
+      def.disabled = true;
+    }
+    body.append(row);
+    const list = el("ul", { class: "ac-contacts" });
+    if (!d.clients.length) list.append(el("li", { class: "ac-hint", text: "No client terms yet. Set them from an invoice (Use for this client)." }));
+    for (const c of d.clients) {
+      const li = el("li", { text: c.clientName + ": " + c.followUpDays + " days " });
+      if (canEdit()) {
+        const rm = el("button", { type: "button", class: "hs-btn hs-btn-quiet", text: "Remove" });
+        rm.addEventListener("click", () =>
+          busy(body, err, async () => {
+            await api("/api/followup/clients", { method: "PUT", body: JSON.stringify({ clientName: c.clientName, followUpDays: null }) });
+            await loadFollowup();
+            await loadOverdue();
+          })
+        );
+        li.append(rm);
+      }
+      list.append(li);
+    }
+    body.append(el("span", { class: "ac-group-title", text: "Client terms" }), list, err);
   }
 
   function setView(v) {
@@ -624,6 +676,69 @@
     return b;
   }
 
+  // 0.2.7 (m28-contracts.md section 3): Mark sent, the follow-up interval and the client's terms.
+  function sentPanel(inv, root, err) {
+    const panel = el("div", { class: "ac-panel" });
+    const sentOn = el("input", { id: "sent-on", class: "hs-input", type: "date", "aria-label": "Date sent" });
+    sentOn.value = inv.sentDate || todayISO();
+    sentOn.max = todayISO();
+    if (inv.issueDate) sentOn.min = inv.issueDate;
+    const sentBtn = el("button", { type: "button", class: "hs-btn" + (inv.sentDate ? "" : " hs-btn-primary"), text: inv.sentDate ? "Change sent date" : "Mark sent" });
+    sentBtn.addEventListener("click", () =>
+      busy(root, err, async () => {
+        await api("/api/invoices/" + inv.id + "/sent", { method: "POST", body: JSON.stringify({ date: sentOn.value || undefined }) });
+        toast("Marked sent");
+        await refreshOpen(inv.id);
+      })
+    );
+    panel.append(el("div", { class: "ac-row" }, el("label", { class: "cc-field-label", for: "sent-on", text: "Sent on" }), sentOn, sentBtn));
+    const days = el("input", { id: "fu-days", class: "hs-input ac-days-in", type: "number", min: "1", max: "365", step: "1" });
+    days.value = inv.followUpDays != null ? String(inv.followUpDays) : "";
+    days.placeholder = String(inv.followUpDaysEffective);
+    const daysBtn = el("button", { type: "button", class: "hs-btn", text: "Save interval" });
+    daysBtn.addEventListener("click", () =>
+      busy(root, err, async () => {
+        const v = days.value.trim();
+        if (v && !/^\d+$/.test(v)) throw new Error("The interval is a whole number of days");
+        await api("/api/invoices/" + inv.id, { method: "PATCH", body: JSON.stringify({ followUpDays: v ? Number(v) : null }) });
+        toast("Saved");
+        await refreshOpen(inv.id);
+      })
+    );
+    const row = el("div", { class: "ac-row" }, el("label", { class: "cc-field-label", for: "fu-days", text: "Follow up every (days)" }), days, daysBtn);
+    const client = inv.job && inv.job.clientName;
+    if (client) {
+      const termsBtn = el("button", { type: "button", class: "hs-btn hs-btn-quiet", text: "Use for this client" });
+      termsBtn.addEventListener("click", () =>
+        busy(root, err, async () => {
+          const v = Number(days.value.trim() || inv.followUpDaysEffective);
+          await api("/api/followup/clients", { method: "PUT", body: JSON.stringify({ clientName: client, followUpDays: v }) });
+          toast("Saved as the terms for " + client + ": " + v + " days");
+          await refreshOpen(inv.id);
+        })
+      );
+      row.append(termsBtn);
+    }
+    panel.append(row);
+    panel.append(el("p", { class: "ac-hint", text: client && inv.clientFollowUpDays != null ? "Terms for " + client + ": " + inv.clientFollowUpDays + " days." : "Mark sent fills the interval from the client's terms, else the default." }));
+    return panel;
+  }
+
+  function contactLog(inv) {
+    const box = el("div", { class: "cc-field" }, el("span", { class: "ac-group-title", text: "Contact log" }));
+    const list = el("ul", { class: "ac-contacts" });
+    box.append(list);
+    api("/api/invoices/" + inv.id + "/contacts")
+      .then((d) => {
+        if (!d.contacts.length) list.append(el("li", { class: "ac-hint", text: "No contacts logged." }));
+        for (const c of d.contacts) {
+          list.append(el("li", { text: fmtDate(c.date) + (c.by && c.by.name ? " (" + c.by.name + ")" : "") + (c.note ? ": " + c.note : "") }));
+        }
+      })
+      .catch(() => list.append(el("li", { class: "ac-hint", text: "Couldn't load the contact log." })));
+    return box;
+  }
+
   function renderViewer(d) {
     const inv = d.invoice;
     const job = inv.job;
@@ -645,6 +760,12 @@
       rows.push(["Payment due", fmtDate(inv.dueDate) + (inv.overdue ? " (overdue)" : "")]);
     }
     if (inv.paidDate) rows.push(["Paid", fmtDate(inv.paidDate)]);
+    // 0.2.7 (m28-contracts.md section 3): sent and the follow-up interval.
+    if (live) rows.push(["Sent", inv.sentDate ? fmtDate(inv.sentDate) : "Not marked sent"]);
+    if (live) {
+      const from = { invoice: "set on this invoice", client: "the client's terms", default: "the default" }[inv.followUpDaysFrom] || "";
+      rows.push(["Follow up every", inv.followUpDaysEffective + " days (" + from + ")" + (inv.needsFollowUp ? ", needs follow-up now" : "")]);
+    }
     if (live) rows.push(["Entered in MYOB", inv.myobEnteredDate ? fmtDate(inv.myobEnteredDate) : "Not yet"]);
     const billBits = [inv.billToName, inv.billToAbn ? "ABN " + inv.billToAbn : "", inv.billToAddress].filter(Boolean).join(", ");
     if (billBits) rows.push(["Bill to", billBits]);
@@ -678,6 +799,7 @@
       contacted = el("input", { id: "inv-contacted", class: "hs-input", type: "date" });
       contacted.value = inv.lastContactedDate || "";
       const todayBtn = el("button", { type: "button", class: "hs-btn", text: "Contacted today" });
+      const contactNote = el("input", { id: "inv-contact-note", class: "hs-input", type: "text", maxlength: "1000", placeholder: "What was said (optional)" });
       saveDetails = el("button", { type: "button", class: "hs-btn", text: "Save notes" });
       const detailBody = () => ({
         notes: notes.value,
@@ -693,8 +815,8 @@
       );
       todayBtn.addEventListener("click", () =>
         busy(root, err, async () => {
-          contacted.value = todayISO();
-          await api("/api/invoices/" + inv.id, { method: "PATCH", body: JSON.stringify(detailBody()) });
+          await api("/api/invoices/" + inv.id, { method: "PATCH", body: JSON.stringify({ notes: notes.value, followUpNotes: follow.value }) });
+          await api("/api/invoices/" + inv.id + "/contacts", { method: "POST", body: JSON.stringify({ date: todayISO(), note: contactNote.value }) });
           toast("Marked contacted today");
           await refreshOpen(inv.id);
         })
@@ -705,10 +827,12 @@
           { class: "ac-two" },
           field("Notes", notes, "inv-notes", true),
           field("Follow-up notes", follow, "inv-follow", true),
-          field("Last contacted", el("div", { class: "ac-row" }, contacted, todayBtn), "inv-contacted", true)
+          field("Last contacted", el("div", { class: "ac-row" }, contacted, todayBtn), "inv-contacted", true),
+          field("Contact note", contactNote, "inv-contact-note", true)
         ),
         el("div", { class: "ac-row" }, saveDetails)
       );
+      root.append(sentPanel(inv, root, err), contactLog(inv));
     } else if (inv.notes || inv.followUpNotes || inv.lastContactedDate) {
       const more = [];
       if (inv.notes) more.push(["Notes", inv.notes]);
@@ -926,7 +1050,15 @@
     });
 
     const params = new URLSearchParams(location.search);
+    // 0.2.7: Waiting on you links here with ?filter=due or ?filter=unpaid.
+    const f = params.get("filter");
+    if (f && FILTERS.some(([k]) => k === f)) {
+      filter = f;
+      syncFilters();
+      loadTable();
+    }
     setView(params.get("view") === "overdue" ? "overdue" : "table");
+    loadFollowup();
     const id = params.get("invoice");
     if (id && /^\d+$/.test(id)) openInvoice(Number(id));
   }

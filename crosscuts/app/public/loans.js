@@ -46,6 +46,13 @@
     return window.cc && typeof window.cc.can === "function" ? !!window.cc.can(key) : false;
   }
 
+  // 0.2.7 (docs/plans/m28-contracts.md section 4): loans.maintain (Accounts) sees the loans, records
+  // payments and month interest and ticks Statement checked; openings, rates, plans, archive and
+  // deletes stay with loans.manage.
+  function owner() {
+    return can("loans.manage");
+  }
+
   function ui() {
     return window.OrderUI.ui;
   }
@@ -214,10 +221,8 @@
     const acts = el("div", { class: "ln-colacts" });
     const open = (fn) => () => { loan = l; fn(); };
     if (!ro) {
-      acts.append(
-        headButton("Add payment", "hs-btn-primary", open(() => paymentDialog(null))),
-        headButton("Rate", null, open(() => rateDialog(null))),
-        headButton("Plan", null, open(planDialog)));
+      acts.append(headButton("Add payment", "hs-btn-primary", open(() => paymentDialog(null))));
+      if (owner()) acts.append(headButton("Rate", null, open(() => rateDialog(null))), headButton("Plan", null, open(planDialog)));
     }
     acts.append(
       el("a", { class: "hs-btn", href: "/loans.html?id=" + encodeURIComponent(l.id), text: "Details" }),
@@ -312,7 +317,7 @@
     const acts = $("lnHeadActions");
     acts.replaceChildren(
       el("a", { class: "hs-btn hs-btn-quiet", href: "/loans.html", text: "All loans" }),
-      ro ? headButton("Restore", "hs-btn-primary", restoreLoan) : headButton("Archive", null, archiveDialog));
+      !owner() ? null : ro ? headButton("Restore", "hs-btn-primary", restoreLoan) : headButton("Archive", null, archiveDialog));
 
     const sec = $("lnLoan");
     const keep = sec.querySelector("#lnStmtFrom") ? { from: $("lnStmtFrom").value, to: $("lnStmtTo").value } : null;
@@ -333,8 +338,8 @@
     const parts = [];
     if (ro) parts.push(el("p", { class: "ln-archived", text: "This loan is archived, so it can't be changed. Restore it to change it; its statement still prints." }));
     parts.push(summary);
-    parts.push(detailsCard(l, ro));
-    parts.push(ratesCard(l, ro));
+    parts.push(detailsCard(l, ro || !owner()));
+    parts.push(ratesCard(l, ro || !owner()));
     parts.push(monthsCard(l, ro));
     parts.push(statementCard(l, keep));
     sec.replaceChildren(...parts);
@@ -473,6 +478,25 @@
       if (o.edit) {
         const what = !m.charged ? "No interest (opened this month)" : (m.interestOverridden ? "Charged " + money(m.interestCents) + ", typed" : "Charged " + money(m.interestCents));
         td.append(el("span", { class: "ln-msub", text: what }));
+        // 0.2.7: the month ticked as checked against the lender's statement.
+        if (!l.archived) {
+          const box = el("input", { type: "checkbox", "aria-label": "Statement checked, " + periodWords(m.period) });
+          box.checked = !!m.checked;
+          box.addEventListener("change", async () => {
+            box.disabled = true;
+            try {
+              await send("/api/loans/" + l.id + "/checked/" + m.period, "PUT", { checked: box.checked });
+              await loadLoan(l.id, { keepStatus: true });
+            } catch (e) {
+              box.checked = !box.checked;
+              box.disabled = false;
+              setStatus(failText(e), "err");
+            }
+          });
+          td.append(el("label", { class: "ln-checked" }, box, document.createTextNode(" Statement checked")));
+        } else if (m.checked) {
+          td.append(el("span", { class: "ln-msub", text: "Statement checked" }));
+        }
       }
       return td;
     }
@@ -487,9 +511,12 @@
       if (r) {
         const e = headButton("Edit", null, () => paymentDialog(r));
         e.setAttribute("aria-label", "Edit the payment of " + fmtDate(r.paidDate));
-        const d = headButton("Delete", "hs-btn-stop", () => deletePaymentDialog(r));
-        d.setAttribute("aria-label", "Delete the payment of " + fmtDate(r.paidDate));
-        box.append(e, d);
+        box.append(e);
+        if (owner()) {
+          const d = headButton("Delete", "hs-btn-stop", () => deletePaymentDialog(r));
+          d.setAttribute("aria-label", "Delete the payment of " + fmtDate(r.paidDate));
+          box.append(d);
+        }
       }
       return el("td", { class: "ln-c-act" }, box);
     }
@@ -561,9 +588,8 @@
   function monthsCard(l, ro) {
     const head = el("div", { class: "ln-cardtools" });
     if (!ro) {
-      head.append(
-        headButton("Add payment", "hs-btn-primary", () => paymentDialog(null)),
-        headButton("Plan", null, planDialog));
+      head.append(headButton("Add payment", "hs-btn-primary", () => paymentDialog(null)));
+      if (owner()) head.append(headButton("Plan", null, planDialog));
     }
     const pl = planLine(l);
     const c = card("Months", "lnMonthsH",
@@ -1042,7 +1068,7 @@
 
   (async () => {
     await (window.cc && window.cc.ready ? window.cc.ready : Promise.resolve());
-    if (!can("loans.manage")) {
+    if (!can("loans.manage") && !can("loans.maintain")) {
       setStatus("You don't have access to Loans.", "err");
       return;
     }
@@ -1056,7 +1082,7 @@
       loadLoan(id);
     } else {
       listMode = true;
-      $("lnHeadActions").replaceChildren(headButton("New loan", "hs-btn-primary", newLoanDialog));
+      if (owner()) $("lnHeadActions").replaceChildren(headButton("New loan", "hs-btn-primary", newLoanDialog));
       window.addEventListener("hashchange", () => loadList());
       loadList();
     }

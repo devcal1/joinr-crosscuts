@@ -487,3 +487,29 @@ a.hs-btn:hover { text-decoration: none; }
   .su-p-table tfoot { display: table-row-group; } /* totals print once, at the end */
 }
 /* style-check: print-end */
+
+/* 0.2.7 (m28-contracts.md section 2): Individual invoices, below the supplier accounts in each month
+   (their own classes: su-ind on screen, su-p-ind on the print). */
+.su-ind { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+.su-ind-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.su-ind-title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label); }
+.su-ind-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.su-ind-table th, .su-ind-table td { padding: 5px 4px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--hairline); }
+.su-ind-table thead th { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--label); }
+.su-ind-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.su-ind-tick { text-align: center; width: 28px; }
+.su-ind-open { background: none; border: 0; padding: 0; color: var(--white); font: inherit; font-weight: 700; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: var(--hairline); }
+.su-ind-open:hover, .su-ind-open:focus-visible { text-decoration-color: var(--teal); }
+.su-pi-sub { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.su-pi-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.su-pi-row > .cc-field { flex: 1 1 120px; min-width: 0; }
+.su-ind .su-row-missing td:nth-child(3) { color: var(--orange-tint); font-weight: 700; }
+/* style-check: print-start */
+.su-p-h2 { margin: 6mm 0 2mm; font-size: 10pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.su-p-ind { width: 100%; border-collapse: collapse; }
+.su-p-ind th, .su-p-ind td { padding: 1.6mm 1.5mm; text-align: left; vertical-align: top; border-bottom: 0.2mm solid #000; overflow-wrap: anywhere; color: #000; }
+.su-p-ind thead th { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 0.5mm solid #000; }
+.su-p-ind .su-p-num { text-align: right; white-space: nowrap; }
+.su-p-ind .su-p-tick { text-align: center; }
+/* style-check: print-end */
+@media print { .su-ind { display: none; } }

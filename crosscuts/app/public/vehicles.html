@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vehicles - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="vehicles.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="vh-body">
+  <div id="cc-shell"></div>
+
+  <!-- Vehicles register (0.2.7, docs/plans/m28-contracts.md section 1). vehicles.js talks to
+       /api/vehicles. Accounts keeps rego and insurance (invoices.edit); the workshop manager books
+       and confirms services (maintenance.manage). -->
+  <main class="vh-page">
+    <div class="vh-head">
+      <h1 id="vhTitle" tabindex="-1">Vehicles</h1>
+      <div class="vh-head-actions">
+        <label class="vh-check"><input id="vhAll" type="checkbox"> Show inactive</label>
+        <button id="vhAdd" class="hs-btn hs-btn-primary" type="button" hidden>Add vehicle</button>
+      </div>
+    </div>
+    <p class="vh-intro">Rego and insurance dates and service bookings. Accounts keeps the rego and insurance; the workshop manager books services and repairs and confirms them done. Expiries show on the Company-wide Planner layer and send Accounts an alert 30 and 7 days before; bookings show on the Workshop layer.</p>
+    <p id="vhStatus" class="vh-status" role="status" aria-live="polite">Loading...</p>
+
+    <section aria-labelledby="vhListH">
+      <h2 id="vhListH" class="vh-h2">Register</h2>
+      <div id="vhWrap" class="vh-wrap" hidden>
+        <table class="hs-table vh-table">
+          <thead>
+            <tr>
+              <th scope="col">Vehicle</th>
+              <th scope="col">Rego expires</th>
+              <th scope="col">Insurance expires</th>
+              <th scope="col">Insurer and policy</th>
+              <th scope="col">Next booking</th>
+              <th scope="col"><span class="vh-sr">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="vhRows"></tbody>
+        </table>
+      </div>
+      <p id="vhEmpty" class="vh-empty" hidden>No vehicles yet.</p>
+    </section>
+
+    <section aria-labelledby="vhBookH">
+      <h2 id="vhBookH" class="vh-h2">Open bookings</h2>
+      <div id="vhBookWrap" class="vh-wrap" hidden>
+        <table class="hs-table vh-btable">
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Vehicle</th>
+              <th scope="col">Kind</th>
+              <th scope="col">Where</th>
+              <th scope="col">Notes</th>
+              <th scope="col"><span class="vh-sr">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="vhBookRows"></tbody>
+        </table>
+      </div>
+      <p id="vhBookEmpty" class="vh-empty" hidden>No open bookings.</p>
+    </section>
+  </main>
+
+  <dialog id="vhDlg" class="cc-dialog vh-dialog" aria-labelledby="vhDlgTitle">
+    <form id="vhForm" class="cc-dialog-form" method="dialog" novalidate>
+      <h2 class="cc-dialog-title" id="vhDlgTitle">Add vehicle</h2>
+      <div class="vh-row">
+        <label class="vh-field"><span class="hs-label">Name</span>
+          <input id="vName" class="hs-input" type="text" maxlength="100" required>
+        </label>
+        <label class="vh-field"><span class="hs-label">Rego plate</span>
+          <input id="vRego" class="hs-input" type="text" maxlength="20">
+        </label>
+      </div>
+      <label class="vh-field"><span class="hs-label">Make and model</span>
+        <input id="vMake" class="hs-input" type="text" maxlength="100">
+      </label>
+      <div class="vh-row">
+        <label class="vh-field"><span class="hs-label">Rego expires</span>
+          <input id="vRegoExp" class="hs-input" type="date">
+        </label>
+        <label class="vh-field"><span class="hs-label">Insurance expires</span>
+          <input id="vInsExp" class="hs-input" type="date">
+        </label>
+      </div>
+      <div class="vh-row">
+        <label class="vh-field"><span class="hs-label">Insurer</span>
+          <input id="vInsurer" class="hs-input" type="text" maxlength="100">
+        </label>
+        <label class="vh-field"><span class="hs-label">Policy number</span>
+          <input id="vPolicy" class="hs-input" type="text" maxlength="60">
+        </label>
+      </div>
+      <label class="vh-field"><span class="hs-label">Notes (optional)</span>
+        <textarea id="vNotes" class="hs-input" rows="2" maxlength="1000"></textarea>
+      </label>
+      <label class="vh-check" id="vActiveBox"><input id="vActive" type="checkbox" checked> Active</label>
+      <p id="vError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="vCancel" class="hs-btn hs-btn-quiet" type="button">Cancel</button>
+        <button id="vSave" class="hs-btn hs-btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="vbDlg" class="cc-dialog vh-dialog" aria-labelledby="vbDlgTitle">
+    <form id="vbForm" class="cc-dialog-form" method="dialog" novalidate>
+      <h2 class="cc-dialog-title" id="vbDlgTitle">Book</h2>
+      <p id="vbWhat" class="cc-dialog-note"></p>
+      <div class="vh-row">
+        <label class="vh-field"><span class="hs-label">Kind</span>
+          <select id="bKind" class="hs-input">
+            <option value="service">Service</option>
+            <option value="repair">Repair</option>
+            <option value="inspection">Inspection</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="vh-field"><span class="hs-label">Date</span>
+          <input id="bDate" class="hs-input" type="date" required>
+        </label>
+        <label class="vh-field"><span class="hs-label">Time (optional)</span>
+          <input id="bTime" class="hs-input" type="time">
+        </label>
+      </div>
+      <label class="vh-field"><span class="hs-label">Where</span>
+        <input id="bPlace" class="hs-input" type="text" maxlength="200">
+      </label>
+      <label class="vh-field"><span class="hs-label">Notes (optional)</span>
+        <textarea id="bNotes" class="hs-input" rows="2" maxlength="1000"></textarea>
+      </label>
+      <p id="bError" class="cc-dialog-error" role="alert"></p>
+      <div class="cc-dialog-actions">
+        <button id="bCancel" class="hs-btn hs-btn-quiet" type="button">Cancel</button>
+        <button id="bSave" class="hs-btn hs-btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/shell/shell.js"></script>
+  <script src="vehicles.js"></script>
+</body>
+</html>

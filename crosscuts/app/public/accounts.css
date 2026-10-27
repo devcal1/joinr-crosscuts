@@ -138,3 +138,11 @@ a.hs-btn:hover { text-decoration: none; }
   .ac-line { grid-template-columns: minmax(0, 1fr) 100px auto; }
   .ac-head h1 { font-size: 20px; }
 }
+
+/* 0.2.7 (m28-contracts.md section 3): needs follow-up, the interval input and the contact log. */
+.ac-followup { display: block; color: var(--orange-tint); font-size: 12px; font-weight: 700; }
+.ac-days-in { max-width: 90px; }
+.ac-contacts { margin: 0; padding-left: 18px; display: grid; gap: 2px; font-size: 13px; }
+.ac-fubox { margin: 0 0 12px; color: var(--body); }
+.ac-fubox summary { cursor: pointer; color: var(--label); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.ac-fubox > div { display: grid; gap: 8px; padding: 8px 0; }

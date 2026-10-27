@@ -64,6 +64,11 @@
   function can(key) {
     return window.cc && typeof window.cc.can === "function" ? !!window.cc.can(key) : false;
   }
+  // 0.2.7: Paid on a supplier line, and on an individual invoice, is users.admin's (Admin accounts
+  // keeps its own rule: anyone who edits).
+  function canPay() {
+    return K !== KINDS.supplier || can("users.admin");
+  }
   // The audit link is for admins only: the admin role, and the audit page's own key.
   function isAdmin() {
     const me = window.cc && window.cc.me;
@@ -354,6 +359,11 @@
     R.ticks = {};
     for (const [k, label] of TICKS) {
       const input = el("input", { type: "checkbox" });
+      // 0.2.7 (m28-contracts.md section 2): on Supplier accounts only users.admin ticks Paid.
+      if (k === "paid" && !canPay()) {
+        input.disabled = true;
+        input.title = "Admin ticks paid";
+      }
       input.addEventListener("change", () => commit(R));
       R.ticks[k] = input;
       R.tickTds[k].replaceChildren(el("label", { class: "su-tick", title: label }, input));
@@ -966,6 +976,23 @@
         el("span", { class: "su-left-label", text: "Left to pay" }),
         pane.leftValue, pane.leftMissing, pane.leftMeta),
       pane.statusEl, pane.emptyEl, pane.table);
+    // 0.2.7 (m28-contracts.md section 2): Individual invoices, below the supplier accounts.
+    pane.ind = null;
+    if (K === KINDS.supplier && window.Payables) {
+      pane.ind = window.Payables.block(period, {
+        canEdit,
+        canPay: canPay(),
+        onLoad: () => pane.updateSummary(),
+        onChange: (info) => {
+          if (info && info.suppliersChanged) {
+            loadSuppliers();
+            for (const q of panes) if (q && q.refresh) q.refresh().catch(() => {});
+          }
+          for (const q of panes) if (q && q !== pane && q.ind) q.ind.load();
+        },
+      });
+      pane.root.append(pane.ind.root);
+    }
 
     pane.setStatus = (text) => {
       pane.statusEl.textContent = text || "";
@@ -1040,6 +1067,11 @@
         return;
       }
       const c = pane.counts();
+      // 0.2.7: Left to pay and the missing count include the individual invoices.
+      if (pane.ind) {
+        c.leftCents += pane.ind.leftCents();
+        c.missing += pane.ind.missing();
+      }
       pane.leftValue.textContent = P.dollars(c.leftCents);
       pane.leftMissing.textContent = c.missing
         ? `${c.missing} missing ${DASH} total not final`
@@ -1059,6 +1091,7 @@
         pane.setStatus(opts && opts.notice ? opts.notice : "");
         pane.syncRows(m.lines || []);
         pane.renderAfterSync();
+        if (pane.ind) pane.ind.load();
       } catch (e) {
         if (seq !== pane.loadSeq) return;
         pane.month = null;
@@ -1347,6 +1380,32 @@
     table.append(cols, el("thead", null, hr), tb, ft);
     box.append(table);
     box.append(el("p", { class: "su-p-foot", text: `${countsLine(c)}. Total of the statements: ${P.dollars(c.totalCents)}. Left to pay: ${P.dollars(c.leftCents)}. Reconciled ${c.reconciled}, Paid ${c.paid}, Entered in MYOB ${c.myob} of ${c.listed}.` }));
+    printIndividual(box, pane);
+  }
+
+  // 0.2.7 (m28-contracts.md section 2): the month's individual invoices on the print.
+  function printIndividual(box, pane) {
+    const d = pane && pane.ind && pane.ind.data;
+    if (!d || !d.lines.length) return;
+    box.append(el("h2", { class: "su-p-h2", text: "Individual invoices" }));
+    const t = el("table", { class: "su-p-ind" });
+    const hr = el("tr");
+    for (const [x, cls] of [["Payee", ""], ["For", ""], ["Due", ""], ["Amount", "num"], ["MYOB", "tick"], ["Paid", ""]]) {
+      hr.append(el("th", { scope: "col", class: cls ? `su-p-${cls}` : null, text: x }));
+    }
+    const tb = el("tbody");
+    for (const l of d.lines) {
+      tb.append(el("tr", null,
+        el("th", { scope: "row", text: l.payee }),
+        el("td", { text: l.description || "" }),
+        el("td", { text: l.dueDate ? longDate(l.dueDate) : "" }),
+        el("td", { class: "su-p-num", text: l.amountCents == null ? "Missing" : P.dollars(l.amountCents) }),
+        el("td", { class: "su-p-tick", text: l.myob ? CHECK : "" }),
+        el("td", { text: l.paid ? longDate(l.paidDate) : "" })));
+    }
+    t.append(el("thead", null, hr), tb);
+    box.append(t);
+    box.append(el("p", { class: "su-p-foot", text: `${d.counts.listed} individual invoices. Left to pay: ${P.dollars(d.leftCents)}. Paid ${d.counts.paid} of ${d.counts.listed}.` }));
   }
 
   let titleBeforePrint = null;

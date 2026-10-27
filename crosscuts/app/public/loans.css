@@ -292,3 +292,5 @@ a.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
   body.ln-body > .ln-noprint { display: block !important; margin: 20mm; font-size: 12pt; }
 }
 /* style-check: print-end */
+.ln-checked { display: flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--label); font-size: 11px; white-space: nowrap; }
+.ln-checked input { accent-color: var(--teal); margin: 0; }

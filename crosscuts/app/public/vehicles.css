@@ -1,0 +1,48 @@
+/* Vehicles register (vehicles.html, 0.2.7). Tokens from tokens.css, hs- components from
+   components.css, the dialog frame from the shell's cc-dialog. Page classes are prefixed vh-. */
+html, body { margin: 0; background: var(--ink); }
+body { color: var(--body); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+[hidden] { display: none !important; }
+
+.vh-page { max-width: 1100px; margin: 0 auto; padding: 22px 24px 40px; }
+.vh-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.vh-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.vh-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.vh-h2 { margin: 22px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label); }
+.vh-intro { margin: 0 0 16px; color: var(--label); max-width: 760px; }
+.vh-status { margin: 0 0 12px; color: var(--label); }
+.vh-status:empty { display: none; }
+.vh-empty { color: var(--label); }
+.vh-wrap { overflow-x: auto; }
+.vh-table td, .vh-btable td { vertical-align: top; }
+.vh-name { color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.vh-sub { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.vh-inactive td { color: var(--muted); }
+.vh-soon { color: var(--orange-tint); font-weight: 700; }
+.vh-expired { color: var(--stop-tint); font-weight: 700; }
+.vh-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.vh-check { display: inline-flex; align-items: center; gap: 6px; color: var(--body); }
+.vh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.cc-dialog.vh-dialog { width: min(94vw, 560px); max-height: 92vh; overflow-y: auto; }
+.vh-field { display: flex; flex-direction: column; gap: 4px; }
+.vh-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.vh-row > .vh-field { flex: 1 1 140px; min-width: 0; }
+
+@media (max-width: 640px) {
+  .vh-page { padding: 16px 16px 32px; }
+  .vh-table thead, .vh-btable thead { display: none; }
+  .vh-table, .vh-table tbody, .vh-table tr, .vh-table td,
+  .vh-btable, .vh-btable tbody, .vh-btable tr, .vh-btable td { display: block; width: 100%; }
+  .vh-table tr, .vh-btable tr { border-bottom: 1px solid var(--hairline); padding: 8px 0; }
+  .vh-table td, .vh-btable td { border: 0; padding: 2px 0; }
+  .vh-table td[data-label]::before, .vh-btable td[data-label]::before { content: attr(data-label) ": "; color: var(--label); font-size: 12px; }
+  .vh-actions { justify-content: flex-start; padding-top: 6px; }
+}
+
+/* style-check: print-start */
+@media print {
+  html, body { background: #fff; color: #000; }
+  .vh-head-actions, .vh-actions { display: none; }
+}
+/* style-check: print-end */
