@@ -93,8 +93,9 @@ const PRESETS = {
   workshop_manager: [
     "board.view", "orders.view", "orders.receive", "tasks.use", "messages.use",
     "planner.view", "planner.edit", "stock.count", "notes.ordering", "notes.workshop",
-    // 0.2.6 (docs/plans/m27-contracts.md section 4).
-    "maintenance.manage",
+    // 0.2.6 (docs/plans/m27-contracts.md sections 4 and 5; Todd 2026-10-27: shift.report for the
+    // End of shift page's Jobs cut 100% block).
+    "maintenance.manage", "shift.report",
   ],
 };
 

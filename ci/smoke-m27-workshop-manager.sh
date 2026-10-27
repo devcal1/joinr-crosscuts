@@ -214,6 +214,11 @@ req GET /api/boards "$WSMGR"
 expect_jq "[.boards[] | select(.id == $M27_B)][0] | .onHand == 20 and .reserved == 8 and .free == 12" "free is on hand less reserved"
 req GET "/api/notifications?limit=50" "$WSMGR"
 expect_jq "[.rows[] | select(.kind == \"stock.reserve\" and .title == \"Reserve from stock: $M27_TAG kitchen\")] | length == 2" "the workshop manager is belled"
+req GET "/api/orders?jobId=$M27_J" "$ORDR"
+expect_status 200 "Ordering's order lines"
+expect_jq "([.[] | select(.id == $M27_OE)][0] | .reservedFromStock == true and .reservedQty == 4) and ([.[] | select(.id == $M27_OB)][0] | .reservedFromStock == false and .reservedQty == 8)" "marked: tape wholly reserved from stock, board 8 reserved and the rest to order"
+req GET /orders.js "$ORDR"
+case $BODY in *"Reserved from stock"*"reserved from stock, rest to order"*) ok ;; *) fail "orders.js doesn't mark reserved lines" ;; esac
 req GET /api/my-work "$WSMGR"
 expect_jq '[.items[] | select(.key == "toLabel")][0].count == 2' "Waiting on you: two to label"
 req PATCH "/api/orders/$M27_OH" "$ORDR" '{"status":"ordered"}'
@@ -267,7 +272,9 @@ req GET "/job.html?id=$M27_J" "$DPM"
 case $BODY in *'id="reservations"'*'jobreserve.js'*) ok ;; *) fail "the job page has no Stock reservations section" ;; esac
 req GET /reserve.html "$WSMGR"
 case $BODY in *'reserve.js'*) ok ;; *) fail "reserve.html doesn't load reserve.js" ;; esac
-req GET /shift.html "$WSHOP"
+req GET /api/auth/me "$WSMGR"
+expect_jq '.user.perms | index("shift.report") != null' "the workshop manager holds shift.report (Todd 2026-10-27)"
+req GET /shift.html "$WSMGR"
 case $BODY in *'id="shCut"'*'shiftcut.js'*) ok ;; *) fail "the shift page has no cut 100% block" ;; esac
 
 echo "--- the count resets on hand ---"

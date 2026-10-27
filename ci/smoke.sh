@@ -948,7 +948,7 @@ expect_jq '.presets.workshop == ["board.view","planner.view","notes.workshop","s
 # M10 (docs/plans/m10-contracts.md section 10.1): the two new roles and their presets.
 expect_jq '.roles | index("ordering") != null and index("workshop_manager") != null' "the roles include ordering and workshop_manager"
 expect_jq '.presets.ordering == ["board.view","jobs.view","design.view","photos.search","orders.view","orders.edit","orders.mark_ordered","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count","stock.order","notes.ordering"]' "the ordering preset is as M10 section 3 plus M11's stock keys and notes.ordering"
-expect_jq '.presets.workshop_manager == ["board.view","orders.view","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count","notes.ordering","notes.workshop","maintenance.manage"]' "the workshop_manager preset is as M10 section 3 plus stock.count (M11), notes.ordering and notes.workshop (M23) and maintenance.manage (M27)"
+expect_jq '.presets.workshop_manager == ["board.view","orders.view","orders.receive","tasks.use","messages.use","planner.view","planner.edit","stock.count","notes.ordering","notes.workshop","maintenance.manage","shift.report"]' "the workshop_manager preset is as M10 section 3 plus stock.count (M11), notes.ordering and notes.workshop (M23), maintenance.manage and shift.report (M27)"
 
 echo "per-user override (revoke board.edit from sched)..."
 req PUT "/api/users/$SCHED_ID/overrides/board.edit" "$ADMIN" '{"effect":"revoke"}'

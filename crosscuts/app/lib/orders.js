@@ -55,7 +55,9 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 // The names of who created, received and last changed a line (M10 section 4.1).
 const LINE_COLUMNS = `o.*, u.display_name AS created_by_name,
   ur.display_name AS received_by_name, uu.display_name AS updated_by_name,
-  ${links.COLUMNS_SQL}`;
+  ${links.COLUMNS_SQL},
+  (SELECT COALESCE(SUM(sr.qty), 0) FROM stock_reservations sr WHERE sr.order_id = o.id AND sr.status IN ('reserved', 'confirmed', 'cut')) AS reserved_qty,
+  (SELECT COALESCE(MAX(sr.covers), 0) FROM stock_reservations sr WHERE sr.order_id = o.id AND sr.status IN ('reserved', 'confirmed', 'cut')) AS reserved_covers`;
 const LINE_USERS = `LEFT JOIN users u ON u.id = o.created_by
   LEFT JOIN users ur ON ur.id = o.received_by
   LEFT JOIN users uu ON uu.id = o.updated_by
@@ -108,6 +110,10 @@ function present(row, today = sydneyToday()) {
       (row.status === "to_order" || row.status === "ordered") &&
       !!row.expected_date &&
       row.expected_date < today,
+    // 0.2.6 (m27-contracts.md section 5, Todd 2026-10-27): stock reserved for the line. reservedFromStock:
+    // wholly covered, so not to order; else reservedQty is reserved and the rest is still to order.
+    reservedQty: Number(row.reserved_qty) || 0,
+    reservedFromStock: Number(row.reserved_covers) === 1,
     // M11 section 4.2: {kind, drawers, paintOrderId}.
     ...links.presentLink(row),
   };

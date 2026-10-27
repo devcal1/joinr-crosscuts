@@ -129,7 +129,10 @@
     if (!lines.length) emptyEl.textContent = statusEl.value === "open" ? "Nothing to order or waiting on delivery." : "No order lines match.";
     countEl.textContent = lines.length + (lines.length === 1 ? " line" : " lines");
     for (const o of lines) {
-      const [label, badge] = ORDER_STATUS[o.status] || [o.status, "hs-badge-na"];
+      let [label, badge] = ORDER_STATUS[o.status] || [o.status, "hs-badge-na"];
+      // 0.2.6 (Todd 2026-10-27): a line wholly reserved from stock isn't to order; a part-reserved one says how much.
+      if (o.status === "to_order" && o.reservedFromStock) [label, badge] = ["Reserved from stock", "hs-badge-teal"];
+      else if (o.status === "to_order" && o.reservedQty > 0) label = `${o.reservedQty} reserved from stock, rest to order`;
       const expected = el("td", { class: "or-date" + (o.overdue ? " or-overdue" : "") });
       if (o.expectedDate) expected.append(document.createTextNode(fmtDate(o.expectedDate)));
       if (o.overdue) expected.append(el("span", { class: "or-overdue-tag", text: "Overdue" }));

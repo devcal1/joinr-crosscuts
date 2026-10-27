@@ -356,7 +356,7 @@
       note: placed && receive,
       undoReceived: s === "received" && receive,
       edit: live && (edit || (placed && mark) || (s === "received" && receive)),
-      markOrdered: s === "to_order" && mark,
+      markOrdered: s === "to_order" && mark && !line.reservedFromStock, // 0.2.6: not when wholly reserved from stock
       undoOrdered: s === "ordered" && mark,
       cancel: live && edit,
       link: null,

@@ -32,7 +32,7 @@ Settings `stock.cycle` (`monthly` | `fortnightly`, default `fortnightly`) and `s
 
 ## 4. Maintenance
 
-- Key **maintenance.manage**, the 38th (appended to `KEYS`): workshop_manager, admin (preset now 35 keys) and the owner.
+- Key **maintenance.manage**, the 38th (appended to `KEYS`): workshop_manager, admin (preset now 35 keys) and the owner. The workshop_manager preset also gains `shift.report` (section 8).
 - A maintenance item is a recurring task with `kind 'maintenance'`, always given to the Workshop department (`dept 'workshop'`; any assignee sent is ignored). lib/recurring's functions take `{kind}`: Admin > Tasks (`/api/recurring`) lists and opens only ordinary rules (a maintenance id is 404 there); Workshop > Maintenance only maintenance ones. Occurrences are Workshop department tasks as before (alerts to the Workshop team, the workshop Planner layer, where they say "Maintenance" and link to `/maintenance.html`).
 - Routes, all **maintenance.manage**: `GET /api/maintenance` → `{today, items}` (each the recurring rule shape plus `open: [{taskId, dueDate, status, overdue, daysOverdue}]`, `lastDone: {dueDate, at, by, note} | null`, `overdue`); `GET /api/maintenance/:id`; `POST /api/maintenance` (201); `PATCH /api/maintenance/:id`; `POST /api/maintenance/:id/pause|resume`; `DELETE /api/maintenance/:id` (204); `POST /api/maintenance/occurrences/:taskId/done {note?}` (note 1000 characters at most; already done 409; audited `maintenance.done`); `POST /api/maintenance/occurrences/:taskId/reopen` (audited `maintenance.reopen`); `POST /api/maintenance/run {today?}` (never before today) → `{date, made, belled}`.
 - **Only maintenance.manage holders tick an occurrence:** `POST /api/tasks/:id/done` and `/reopen` on a maintenance occurrence are 403 for anyone else.
@@ -71,9 +71,9 @@ For maintenance.manage holders, `GET /api/my-work` adds: `stockCount` (the stock
 | `/maintenance.html` | maintenance.manage |
 | `/reserve.html` | stock.count or orders.mark_ordered |
 
-## 8. Open for Todd's look
+## 8. Settled by Todd (2026-10-27)
 
-- The plan says the count is due "from the second Thursday of the fortnight"; Todd's settled answer says the first fortnight (from Mon 26 Oct) is due from Thu 29 Oct, its first Thursday. Built as the first Thursday (`DUE_FROM = 3` in `lib/stock.js`); one number to change.
-- On hand is reset by the board stocktake, which stays monthly; the plan's "the fortnightly count resets on hand" was read as "the count".
-- A line wholly reserved from stock still shows as To order on Ordering's own order lists (it is left out of the all-ordered rule and the Waiting on you count).
-- The workshop_manager role has no shift.report, so the End of shift page's cut block only helps a workshop manager who also holds it; the To reserve page carries the same list.
+- The count is due from the fortnight's **first** Thursday (3 days after its Monday; `DUE_FROM = 3` in `lib/stock.js`), as built.
+- On hand is reset by the **monthly** board stocktake, as built.
+- On Ordering's own order lists, a line wholly reserved from stock stays visible, marked **Reserved from stock**, and is not shown as to order (no Mark ordered); a part-reserved line shows "N reserved from stock, rest to order". Order lines carry `reservedQty` and `reservedFromStock`.
+- The workshop_manager preset gains `shift.report`, so the workshop manager uses the End of shift page's Jobs cut 100% block.
