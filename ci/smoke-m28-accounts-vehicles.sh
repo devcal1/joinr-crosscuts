@@ -143,7 +143,7 @@ expect_jq "([.lines[] | select(.id == $M28_P)] | length == 1) and .counts.missin
 req GET /api/my-work "$ADMIN"
 expect_jq '[.items[] | select(.key == "toPay")][0] | .noFigure >= 1 and (.text | test("without a figure\\)$"))' "admin: lines without a figure shown separately"
 req GET /api/recurring "$ADMIN"
-expect_jq '[.[]?, .rules[]?, .items[]? | select(type == "object" and .title == "Check loan balances against statements")] | length == 1' "the monthly loan check is seeded once"
+expect_jq '[.rules[] | select(.title == "Check loan balances against statements")] | length == 1' "the monthly loan check is seeded once"
 req PATCH "/api/payables/$M28_P" "$ACCT" "{\"amountCents\":12345,\"dueDate\":\"$M28_TODAY\",\"myob\":true}"
 expect_status 200 "the amount and due date"
 expect_jq '.amountCents == 12345 and .missing == false and .myob == true' "saved"
