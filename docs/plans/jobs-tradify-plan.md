@@ -41,8 +41,8 @@ Todd, 2026-10-30: the projects team is used to Tradify. A job is the container f
 - **Alerts:** a new unassigned job alerts holders of `design.view`. Assigning a PM alerts that person.
 - **Checks:** a new smoke file for auto-created jobs, notes and filters; the existing intake smokes are updated for the new rule; the style check; screenshots on PC and phone.
 
-## Open points for contracts
+## Settled by Todd (2026-10-30)
 
-- Can a person edit or delete someone else's note? Recommended: own notes only; admin can soft-delete.
-- Are note photos also in the job's Photos tab and the photo library? Recommended: yes, in both.
-- Does Invoices show today's job invoices now, with Tradify-style invoicing later? Recommended: yes.
+- **Note edits:** people edit or delete only their own notes. An admin can soft-delete any note, recorded in the audit log.
+- **Note photos:** they show on the note and in the job's Photos tab, but **not** in the photo library. They are stored apart from library photos (`job_note_files`, or a flag that the library excludes), settled at contracts.
+- **Invoices tab:** a read-only list of the invoices already linked to the job (kind, amount, due date, paid), with a link to Accounts. Tradify-style invoicing comes later.
