@@ -129,7 +129,7 @@ function camel(col) {
   return col.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-function toJob(req, row, boardWeeks, inBacklog, people) {
+function toJob(req, row, boardWeeks, inBacklog, people, activity) {
   const showValue = can(req, "jobs.value");
   const out = {};
   for (const [col, v] of Object.entries(row)) {
@@ -154,7 +154,49 @@ function toJob(req, row, boardWeeks, inBacklog, people) {
   if (out.boardOrdering) out.orderingProgress = projectsteps.orderingOf(db, row.id);
   // 0.2.5 (m26-contracts section 3): installed, waiting for the project manager to confirm complete.
   out.awaitingConfirm = require("../lib/completion").awaitingConfirm(row);
+  // jobs-tradify-contracts 4.2: the project manager (the same person as owner) and last activity.
+  out.projectManager = out.owner;
+  out.lastActivityAt = latestIso([row.updated_at, row.created_at, activity && activity.get(row.id)]);
   return out;
+}
+
+// Timestamps are stored ISO ("...T...Z") or SQLite "YYYY-MM-DD HH:MM:SS" (UTC). Normalise to ISO.
+function isoOf(v) {
+  if (!v || typeof v !== "string") return null;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(v)) return v.replace(" ", "T") + (/Z$/.test(v) ? "" : "Z");
+  return v;
+}
+function latestIso(list) {
+  let best = null;
+  let bestT = -Infinity;
+  for (const v of list) {
+    const iso = isoOf(v);
+    if (!iso) continue;
+    const t = Date.parse(iso);
+    if (Number.isFinite(t) && t > bestT) {
+      bestT = t;
+      best = new Date(t).toISOString();
+    }
+  }
+  return best;
+}
+
+// job id -> latest ISO of its non-deleted notes (created/edited) and its photos. One grouped query each.
+function activityMap(jobId) {
+  const one = jobId != null;
+  const a = one ? [jobId] : [];
+  const notes = db.prepare(
+    "SELECT job_id, MAX(created_at) AS c, MAX(edited_at) AS e FROM job_notes WHERE deleted_at IS NULL" +
+      (one ? " AND job_id = ?" : "") + " GROUP BY job_id"
+  ).all(...a);
+  const photos = db.prepare(
+    "SELECT job_id, MAX(created_at) AS c FROM photos WHERE job_id IS NOT NULL" + (one ? " AND job_id = ?" : "") + " GROUP BY job_id"
+  ).all(...a);
+  const m = new Map();
+  const add = (id, v) => m.set(id, latestIso([m.get(id), v]));
+  for (const n of notes) { add(n.job_id, n.c); add(n.job_id, n.e); }
+  for (const p of photos) add(p.job_id, p.c);
+  return m;
 }
 
 // The project owner as tiles show it: {id, name, hue|null} (hue: the linked board worker's colour).
@@ -206,7 +248,7 @@ function peopleMap(jobId) {
 function loadOne(req, id) {
   const row = db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
   if (!row) return null;
-  return toJob(req, row, weeksMap(id).get(id) || [], backlogSet(id).has(id), peopleMap(id).get(id) || []);
+  return toJob(req, row, weeksMap(id).get(id) || [], backlogSet(id).has(id), peopleMap(id).get(id) || [], activityMap(id));
 }
 
 function parseId(req) {
@@ -250,14 +292,32 @@ r.get("/", "jobs.view", handle((req, res) => {
     where.push("archived = ?");
     args.push(Number(req.query.archived));
   }
+  // jobs-tradify-contracts 4.2: mine=1 (caller is the project manager) or unassigned=1 (no PM, live job).
+  const flag = (k) => {
+    const v = req.query[k];
+    if (v === undefined || v === "") return false;
+    if (v !== "1") throw bad(`${k} must be 1`);
+    return true;
+  };
+  const mine = flag("mine");
+  const unassigned = flag("unassigned");
+  if (mine && unassigned) throw bad("mine and unassigned cannot be combined");
+  if (mine) {
+    where.push("project_owner_id = ?");
+    args.push(req.user && Number.isInteger(req.user.id) ? req.user.id : -1);
+  }
+  if (unassigned) {
+    where.push("project_owner_id IS NULL AND archived = 0 AND stage NOT IN ('complete','invoiced','lost','archived')");
+  }
   const text = typeof req.query.q === "string" ? req.query.q.trim() : "";
   if (text) {
     const like = `%${text.replace(/[\\%_]/g, "\\$&")}%`;
     where.push(
       "(name LIKE ? ESCAPE '\\' OR client_name LIKE ? ESCAPE '\\' OR site_address LIKE ? ESCAPE '\\' " +
-        "OR external_ref LIKE ? ESCAPE '\\' OR job_type LIKE ? ESCAPE '\\')"
+        "OR external_ref LIKE ? ESCAPE '\\' OR job_type LIKE ? ESCAPE '\\' " +
+        "OR job_number LIKE ? ESCAPE '\\' OR quote_number LIKE ? ESCAPE '\\')"
     );
-    args.push(like, like, like, like, like);
+    args.push(like, like, like, like, like, like, like);
   }
   const sql =
     "SELECT * FROM jobs" + (where.length ? " WHERE " + where.join(" AND ") : "") + " ORDER BY name COLLATE NOCASE ASC, id ASC";
@@ -265,7 +325,8 @@ r.get("/", "jobs.view", handle((req, res) => {
   const weeks = weeksMap(null);
   const backlog = backlogSet(null);
   const people = peopleMap(null);
-  res.json(rows.map((row) => toJob(req, row, weeks.get(row.id) || [], backlog.has(row.id), people.get(row.id) || [])));
+  const activity = activityMap(null);
+  res.json(rows.map((row) => toJob(req, row, weeks.get(row.id) || [], backlog.has(row.id), people.get(row.id) || [], activity)));
 }));
 
 r.get("/:id", "jobs.view", handle((req, res) => {
