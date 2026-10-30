@@ -81,6 +81,7 @@ body {
 .nt-ack:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .nt-ack[aria-pressed="true"] .nt-ack-count { font-weight: 700; }
 .nt-ack:disabled { cursor: default; opacity: 0.45; background: none; color: var(--ink); }
+.nt-who { display: inline-block; padding: 0 7px; border-radius: 999px; font-weight: 700; line-height: 1.5; }
 .nt-ackers { font-size: 12px; }
 
 .nt-actions { display: flex; gap: 6px; margin-left: auto; }
@@ -125,6 +126,7 @@ body {
   .nt-day-head, .nt-week-head, .nt-head h1, .nt-none { color: #000; border-color: #000; }
   .nt-note { background: #fff; color: #000; border: 1px solid #000; break-inside: avoid; }
   .nt-ack { color: #000; opacity: 1; }
+  .nt-who { background: none !important; color: #000 !important; padding: 0; }
 }
 /* style-check: print-end */
 

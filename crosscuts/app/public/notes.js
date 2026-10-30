@@ -143,15 +143,31 @@
     });
   }
 
+  // A person's name on a colour chip: their board worker colour (or a stable one from their id).
+  function nameChip(name, hue) {
+    var chip = el("span", { class: "nt-who", text: name });
+    if (typeof hue === "number") {
+      var c = hueColors(hue);
+      chip.style.background = c.bg;
+      chip.style.color = c.fg;
+    }
+    return chip;
+  }
+
   function noteItem(n) {
     var li = el("article", { class: "nt-note", "data-id": n.id });
     li.append(el("p", { class: "nt-text", text: n.body }));
-    var sign = el("div", { class: "nt-sign" }, n.author.name + " · " + signedAt(n.createdAt, n.date));
+    var sign = el("div", { class: "nt-sign" });
+    sign.append(nameChip(n.author.name, n.author.hue), " · " + signedAt(n.createdAt, n.date));
     if (n.edited) sign.append(el("span", { class: "nt-edited", text: " (edited)" }));
     li.append(sign);
     var foot = el("div", { class: "nt-foot" });
     foot.append(ackButton(li, n));
-    if (n.acks.names.length) foot.append(el("span", { class: "nt-ackers", text: n.acks.names.join(", ") }));
+    if (n.acks.people && n.acks.people.length) {
+      var ackers = el("span", { class: "nt-ackers" });
+      n.acks.people.forEach(function (p) { ackers.append(nameChip(p.name, p.hue), " "); });
+      foot.append(ackers);
+    }
     if (n.canEdit) {
       var actions = el("div", { class: "nt-actions" });
       var edit = el("button", { type: "button", class: "hs-btn", text: "Edit" });

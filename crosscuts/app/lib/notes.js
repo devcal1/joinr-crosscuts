@@ -77,27 +77,35 @@ function checkNoteDate(v, today) {
 
 // ---------- reading ----------
 
-// ack rows for these notes: Map(noteId -> [{id, name}]) in the order they were given.
+// A stable hue (0-359) for a user: their linked board worker's hue when there is one, otherwise
+// derived from the user id, so a person looks the same every time. Same hue -> colour function as the board.
+function userHue(workerHue, userId) {
+  if (Number.isInteger(workerHue)) return workerHue;
+  return ((Number(userId) || 0) * 137) % 360;
+}
+
+// ack rows for these notes: Map(noteId -> [{id, name, hue}]) in the order they were given.
 function acksFor(db, ids) {
   const map = new Map();
   if (!ids.length) return map;
   const rows = db
     .prepare(
-      `SELECT a.note_id, a.user_id, u.display_name FROM dept_note_acks a
+      `SELECT a.note_id, a.user_id, u.display_name, w.hue AS worker_hue FROM dept_note_acks a
          JOIN users u ON u.id = a.user_id
+         LEFT JOIN workers w ON w.id = u.worker_id
         WHERE a.note_id IN (${ids.map(() => "?").join(",")})
         ORDER BY a.created_at, a.rowid`
     )
     .all(...ids);
   for (const r of rows) {
     if (!map.has(r.note_id)) map.set(r.note_id, []);
-    map.get(r.note_id).push({ id: r.user_id, name: r.display_name || "Unknown" });
+    map.get(r.note_id).push({ id: r.user_id, name: r.display_name || "Unknown", hue: userHue(r.worker_hue, r.user_id) });
   }
   return map;
 }
 
-const SELECT = `SELECT n.*, u.display_name AS author_name
-  FROM dept_notes n LEFT JOIN users u ON u.id = n.author_id`;
+const SELECT = `SELECT n.*, u.display_name AS author_name, w.hue AS author_hue
+  FROM dept_notes n LEFT JOIN users u ON u.id = n.author_id LEFT JOIN workers w ON w.id = u.worker_id`;
 
 function present(row, user, thisWeek, ackList) {
   const list = ackList || [];
@@ -107,13 +115,13 @@ function present(row, user, thisWeek, ackList) {
     date: row.note_date,
     weekStart: row.week_start,
     body: row.body,
-    author: { id: row.author_id, name: row.author_name || "Unknown" },
+    author: { id: row.author_id, name: row.author_name || "Unknown", hue: userHue(row.author_hue, row.author_id) },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     edited: row.updated_at !== row.created_at,
     canEdit: row.author_id === user.id && row.week_start >= thisWeek,
     canAck: row.author_id !== user.id,
-    acks: { count: list.length, names: list.map((a) => a.name), mine: list.some((a) => a.id === user.id) },
+    acks: { count: list.length, names: list.map((a) => a.name), people: list.map((a) => ({ name: a.name, hue: a.hue })), mine: list.some((a) => a.id === user.id) },
   };
 }
 
