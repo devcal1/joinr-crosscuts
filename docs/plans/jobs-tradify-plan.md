@@ -4,7 +4,7 @@ Todd, 2026-10-30: the projects team is used to Tradify. A job is the container f
 
 ## Todd's decisions (2026-10-30)
 
-1. **New quotes:** every new Joinr quote creates its own job straight away, at stage Quoted. Revisions of the same quote update that job. The "New from Joinr" inbox is kept only for clashes, such as a quote number that already matches a job.
+1. **New quotes (revised by Todd 2026-10-30, at contracts):** a job is made only when a quote is **won**, exactly as today's intake does (`lib/intake.js` `autoDecide`): one matching job is linked, none makes a Won job, two or more stay in the "New from Joinr" inbox. No job at Quoted from Joinr. (Reason: Joinr's won-quotes feed carries only won quotes; see `jobs-tradify-contracts.md` section 0.)
 2. **PM:** one project manager per job. This reuses today's `project_owner_id`, renamed "Project manager" in the UI. Other people can still be added as job people.
 3. **Default PM:** Todd chose the quote's author. **But the Joinr feed carries no author** (checked against `ci/fake-joinr.js`), and adding one is a Joinr change (rule 12). So new jobs start **unassigned** and show in an Unassigned filter. The author can come later through a Joinr change, after "THIS WILL TOUCH JOINR" and two yeses.
 4. **Notes:** a running list of dated notes, newest first, each showing who wrote it, each able to carry photos or files. The existing `notes` and `project_notes` boxes become a pinned Job summary.
@@ -30,7 +30,7 @@ Todd, 2026-10-30: the projects team is used to Tradify. A job is the container f
   - a `job_note_files` table, or a `note_id` on `photos`, chosen at contracts;
   - a `job_number` column with a J- sequence. Existing jobs get their number from the migration, as a computed backfill of a new column, not a change to existing data.
   - Todd signs off at contracts.
-- **Intake** (`lib/intake.js` `autoDecide`): auto-create a job at stage Quoted for any new root quote, not only won ones, using the same clash rules as today. When a quote is later won, the stage moves to Won and the existing design team task is created then, as now.
+- **Intake:** unchanged (decision 1 as revised). A new Won job with no project manager alerts design.view holders.
 - **API:**
   - notes: list, add, edit (own notes, within a time limit or always; to settle at contracts), delete (soft); declared with `defineRoutes` and access keys;
   - jobs list: `mine` and `unassigned` filters.
