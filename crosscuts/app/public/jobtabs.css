@@ -38,7 +38,7 @@
 /* ---- tabs ---- */
 .jo-tabs {
   display: flex;
-  gap: 4px;
+  gap: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
@@ -48,7 +48,7 @@
 .jo-tab {
   flex: none;
   margin: 0;
-  padding: 10px 12px;
+  padding: 10px 10px;
   border: 0;
   border-bottom: 2px solid transparent;
   background: none;

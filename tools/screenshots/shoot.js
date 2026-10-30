@@ -163,6 +163,18 @@ const PAGES = [
   ["phone-job-fullquote", c => "/job.html?id=" + c.jobJoinr + "#fullquote", 375, true, undefined, "#fullquote"],
   ["intake-inbox", "/intake.html", 1440, true], ["tasks-team", "/tasks.html", 1440, true, "design_pm"],
   ["dashboard-leavers", "/", 1440, true, undefined, ".dash-lines"], ["phone-dashboard-leavers", "/", 375, true, undefined, ".dash-lines"],
+  // Jobs as containers (docs/plans/jobs-tradify-contracts.md section 5): the jobs table, and each job page tab on PC and phone.
+  ["jt-jobs", "/jobs.html", 1440, true], ["jt-phone-jobs", "/jobs.html", 375, true],
+  ["jt-jobs-all", "/jobs.html", 1440, true, undefined, undefined, { js: "document.querySelector('[data-filter=all]').click()" }],
+  ["jt-job-overview", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-overview').click()" }], ["jt-phone-job-overview", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-overview').click()" }],
+  ["jt-job-quote", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-quote').click()" }], ["jt-phone-job-quote", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-quote').click()" }],
+  ["jt-job-notes", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-notes').click()" }], ["jt-phone-job-notes", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-notes').click()" }],
+  ["jt-job-photos", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-photos').click()" }], ["jt-phone-job-photos", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-photos').click()" }],
+  ["jt-job-invoices", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-invoices').click()" }], ["jt-phone-job-invoices", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-invoices').click()" }],
+  ["jt-job-orders", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-orders').click()" }], ["jt-phone-job-orders", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-orders').click()" }],
+  ["jt-job-planner", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-planner').click()" }], ["jt-phone-job-planner", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-planner').click()" }],
+  ["jt-job-workshop", c => "/job.html?id=" + c.jobJoinr, 1440, true, undefined, undefined, { js: "document.getElementById('tab-workshop').click()" }], ["jt-phone-job-workshop", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('tab-workshop').click()" }],
+  ["jt-phone-job-more", c => "/job.html?id=" + c.jobJoinr, 375, true, undefined, undefined, { js: "document.getElementById('joMoreBtn').click()", viewport: true }],
 ];
 // seed.js's own M13 logins, by the role name an entry gives (made with the throwaway password
 // below; the first use here chooses PW2, as for the m-<role> users).

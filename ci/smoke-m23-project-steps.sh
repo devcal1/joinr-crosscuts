@@ -73,7 +73,7 @@ M23_J=$(jqr '.id')
 expect_jq '.pipelineStage == "won" and .projectMarks != null and (.projectMarks | map(.mark)) == ["D","CM","N","O"] and (.projectMarks | all(.done == false))' "a Won job carries four empty marks"
 req GET "/api/notifications?limit=50" "$ADMIN"
 expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")] | length == 1" "admin is told it needs a project owner"
-expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")][0].title == \"$M23_TAG job needs a project owner\"" "the alert's words"
+expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")][0].title == \"$M23_TAG job needs a project manager\"" "the alert's words"
 req GET "/api/notifications?limit=50" "$DPM"
 expect_jq "[.rows[] | select(.kind == \"project.owner_needed\" and .link == \"/project.html?id=$M23_J\")] | length == 0" "dpm (not an admin) is not"
 req GET "/api/notifications?limit=50" "$ORDR"
