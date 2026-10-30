@@ -241,3 +241,7 @@ None blocking. Todd still signs off the backfill (section 1.4).
 - **Note files have no thumbnails;** a note with many large phone photos loads full images. Capped at 10 files a note.
 - **Note bodies are free text** shown on the page: render with `textContent` only.
 - **Moving sections into tabs** could break a section script that measures its element at load while hidden; the builder checks each tab after the move (screenshots in wave 4).
+
+## Sign-off
+
+Todd signed off migration 051, including the job_number backfill of existing jobs (rule 5), on 2026-10-30. Build approved; local commits only, no push.
