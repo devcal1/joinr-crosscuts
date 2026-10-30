@@ -155,7 +155,7 @@
   let rowSeq = 0;
 
   function lastPeriod() {
-    return P.addMonths(current, 1); // next month is the last there is
+    return P.addMonths(current, P.MAX_AHEAD_MONTHS);
   }
   function defaultPeriod() {
     return current < P.HISTORY_START ? P.HISTORY_START : current;
@@ -1104,6 +1104,7 @@
     };
 
     pane.updateSummary = () => {
+      owingSoon();
       if (!pane.month) {
         pane.leftValue.textContent = DASH;
         pane.leftMissing.textContent = "";
@@ -1171,7 +1172,44 @@
     return pane;
   }
 
-  // A column for a month there is no list for (before the history starts, or after next month).
+  // ---------------------------------------------------- money still owing ---
+  function renderOwe(box, title, list, totalCents, none) {
+    box.replaceChildren(el("h2", { text: title }));
+    if (!list.length) {
+      box.append(el("p", { class: "su-owe-none", text: none }));
+      return;
+    }
+    const ul = el("ul", { class: "su-owe-list" });
+    for (const m of list) {
+      const a = el("a", { href: `${K.page}?period=${m.period}`, title: `${m.count} not paid` },
+        el("span", { text: m.label }), el("span", { class: "su-owe-amt", text: P.dollars(m.cents) }));
+      a.addEventListener("click", (e) => {
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;
+        e.preventDefault();
+        goMonth(m.period);
+      });
+      ul.append(el("li", null, a));
+    }
+    box.append(ul, el("div", { class: "su-owe-total" }, el("span", { text: "Total" }), el("span", { text: P.dollars(totalCents) })));
+  }
+  // The summary changes as lines save; the side panels catch up once things have been quiet a moment.
+  let owingTimer = null;
+  function owingSoon() {
+    clearTimeout(owingTimer);
+    owingTimer = setTimeout(loadOwing, 1500);
+  }
+  async function loadOwing() {
+    try {
+      const d = await call("GET", `${K.api}/outstanding`);
+      renderOwe($("suOweBefore"), "Still unpaid, earlier months", d.before, d.beforeCents, "Nothing unpaid from earlier months.");
+      renderOwe($("suOweAfter"), "Owing, later months", d.after, d.afterCents, "Nothing owing in later months.");
+    } catch (e) {
+      $("suOweBefore").replaceChildren();
+      $("suOweAfter").replaceChildren();
+    }
+  }
+
+  // A column for a month there is no list for (before the history starts, or too far ahead).
   function makeGap(period, slot) {
     const before = period < P.HISTORY_START;
     return el("section", { class: `su-col su-col-gap su-col-${["before", "centre", "after"][slot]}` },
@@ -1180,7 +1218,7 @@
         class: "su-empty",
         text: before
           ? `The lists start in ${P.longLabel(P.HISTORY_START)}.`
-          : "Next month is the furthest ahead the lists go.",
+          : `The lists go up to ${P.longLabel(lastPeriod())}.`,
       }));
   }
 
@@ -1282,7 +1320,7 @@
   // After a change to the suppliers: the list and the three months again.
   async function afterSupplierChange() {
     await settle();
-    await Promise.all([loadSuppliers(), ...panes.map((pn) => pn && pn.refresh())]);
+    await Promise.all([loadSuppliers(), loadOwing(), ...panes.map((pn) => pn && pn.refresh())]);
   }
 
   async function setArchived(s, archived) {
@@ -1614,9 +1652,9 @@
     let p = defaultPeriod();
     if (asked) {
       if (inRange(asked)) p = asked;
-      else notice = `There is no ${K.one} list for that month (they go from ${P.label(P.HISTORY_START)} to next month); showing ${P.longLabel(p)}.`;
+      else notice = `There is no ${K.one} list for that month (they go from ${P.label(P.HISTORY_START)} to ${P.label(lastPeriod())}); showing ${P.longLabel(p)}.`;
     }
-    await Promise.all([showMonths(p, { notice }), loadSuppliers()]);
+    await Promise.all([showMonths(p, { notice }), loadSuppliers(), loadOwing()]);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

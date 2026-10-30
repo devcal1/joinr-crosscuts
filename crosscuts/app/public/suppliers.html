@@ -30,7 +30,11 @@
       <p id="suMeta" class="su-meta"></p>
 
       <!-- Three months side by side: the month before, the centre month, the month after -->
-      <div id="suCols" class="su-cols"></div>
+      <div class="su-layout">
+        <aside id="suOweBefore" class="su-owe su-owe-before" aria-label="Still owing from earlier months"></aside>
+        <div id="suCols" class="su-cols"></div>
+        <aside id="suOweAfter" class="su-owe su-owe-after" aria-label="Owing in later months"></aside>
+      </div>
       <p id="suLive" class="su-sr" role="status" aria-live="polite"></p>
 
       <section id="suManage" class="su-manage" aria-labelledby="suManageTitle" hidden>

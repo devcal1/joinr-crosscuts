@@ -12,6 +12,7 @@
 
   var PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
   var HISTORY_START = "2023-06";
+  var MAX_AHEAD_MONTHS = 36; // account lists go this many months past the current one
   var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   var LONG_MONTHS = [
     "January", "February", "March", "April", "May", "June",
@@ -224,6 +225,7 @@
     stockLabel: stockLabel,
     addDays: addDays,
     HISTORY_START: HISTORY_START,
+    MAX_AHEAD_MONTHS: MAX_AHEAD_MONTHS,
     validPeriod: validPeriod,
     periodOf: periodOf,
     addMonths: addMonths,

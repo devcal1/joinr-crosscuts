@@ -95,9 +95,9 @@ req GET /api/admin-accounts/months/2023-05 "$ACCT"
 expect_status 404 "a month before Jun 2023"
 req GET "/api/admin-accounts/months/$M14A_NEXT" "$ACCT"
 expect_status 200 "next month (approved by Todd 2026-10-24)"
-M14A_NEXT2=$(date -u -d "${M14A_CUR}-15 +2 month" +%Y-%m)
+M14A_NEXT2=$(date -u -d "${M14A_CUR}-15 +37 month" +%Y-%m)
 req GET "/api/admin-accounts/months/$M14A_NEXT2" "$ACCT"
-expect_status 404 "the month after next"
+expect_status 404 "37 months ahead (Todd 2026-10-30)"
 
 echo "--- lines ---"
 m14a_month 2024-05

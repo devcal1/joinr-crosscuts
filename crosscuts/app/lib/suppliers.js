@@ -68,10 +68,10 @@ function supplierName(v) {
   return t;
 }
 
-// A :period outside HISTORY_START .. next month is a 404 (section 7.2; next month allowed, approved
-// by Todd 2026-10-24).
+// A :period outside HISTORY_START .. MAX_AHEAD_MONTHS past the current month is a 404 (section 7.2;
+// was next month only, widened so a supplier can be added to any month, Todd 2026-10-30).
 function lastPeriod(today) {
-  return Periods.addMonths(Periods.currentPeriod(today), 1);
+  return Periods.addMonths(Periods.currentPeriod(today), Periods.MAX_AHEAD_MONTHS);
 }
 function periodOr404(period, today) {
   if (!Periods.validPeriod(period)) throw notFound();
@@ -257,9 +257,9 @@ function create(db, req, { name, fromPeriod } = {}) {
       typeof fromPeriod !== "string" ||
       !Periods.validPeriod(fromPeriod) ||
       fromPeriod < Periods.HISTORY_START ||
-      fromPeriod > Periods.addMonths(current, 1)
+      fromPeriod > lastPeriod(sydneyToday())
     ) {
-      throw bad(`Choose a month from ${Periods.label(Periods.HISTORY_START)} to next month`);
+      throw bad(`Choose a month from ${Periods.label(Periods.HISTORY_START)} to ${Periods.label(lastPeriod(sydneyToday()))}`);
     }
     from = fromPeriod;
   }
@@ -365,6 +365,37 @@ function update(db, req, id, body) {
 }
 
 // ------------------------------------------------------------------ months ---
+
+// What is still owing, by month, either side of the current month: lines with a total, not 'na',
+// not ticked Paid, on a supplier of this kind, and not removed from that month. Months with nothing
+// owing are left out.
+function outstanding(db, today = sydneyToday()) {
+  const current = Periods.currentPeriod(today);
+  const rows = db
+    .prepare(
+      `SELECT st.period AS period, SUM(st.total_cents) AS cents, COUNT(*) AS n
+         FROM supplier_statements st
+         JOIN suppliers s ON s.id = st.supplier_id
+        WHERE s.kind = @kind AND st.period <> @current
+          AND st.total_cents > 0 AND st.state <> 'na' AND st.paid = 0
+          AND NOT EXISTS (SELECT 1 FROM supplier_month_removed rm WHERE rm.supplier_id = s.id AND rm.period = st.period)
+        GROUP BY st.period
+        ORDER BY st.period`
+    )
+    .all({ kind: KIND, current });
+  const out = { current, before: [], after: [], beforeCents: 0, afterCents: 0 };
+  for (const r of rows) {
+    const e = { period: r.period, label: Periods.longLabel(r.period), cents: Number(r.cents), count: Number(r.n) };
+    if (r.period < current) {
+      out.before.push(e);
+      out.beforeCents += e.cents;
+    } else {
+      out.after.push(e);
+      out.afterCents += e.cents;
+    }
+  }
+  return out;
+}
 
 function month(db, period, today = sydneyToday()) {
   periodOr404(period, today);
@@ -539,7 +570,7 @@ function waitingCount(db, period) {
   return Number(row.n);
 }
 
-return { list, create, update, month, saveLine, removeLine, attach, detach, waitingCount };
+return { list, create, update, month, outstanding, saveLine, removeLine, attach, detach, waitingCount };
 }
 
 // The suppliers (the default export, as before) and the admin accounts (.admin). Only suppliers

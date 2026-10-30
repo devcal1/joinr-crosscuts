@@ -55,6 +55,56 @@ a.hs-btn:hover { text-decoration: none; }
 }
 .su-none { color: var(--muted); font-size: 13px; }
 
+/* ---------- money owing, either side of the months ---------- */
+.su-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 190px;
+  gap: 14px;
+  align-items: start;
+}
+.su-owe {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 10px;
+}
+.su-owe h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.su-owe-list { list-style: none; margin: 0; padding: 0; }
+.su-owe-list li { border-top: 1px solid var(--hairline); }
+.su-owe-list a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--body);
+}
+.su-owe-list a:hover { color: var(--teal-tint); }
+.su-owe-amt { color: var(--white); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.su-owe-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--teal);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+.su-owe-none { margin: 0; font-size: 12px; color: var(--muted); }
+@media print { .su-owe { display: none; } }
+
 /* ---------- three months side by side (one column each; stacked, centre first, below 1100px) ---------- */
 .su-cols {
   display: grid;
@@ -353,6 +403,9 @@ a.hs-btn:hover { text-decoration: none; }
 
 /* ---------- narrower screens ---------- */
 @media (max-width: 1100px) {
+  .su-layout { grid-template-columns: minmax(0, 1fr); }
+  .su-owe-before { order: 2; }
+  .su-owe-after { order: 3; }
   .su-cols { grid-template-columns: minmax(0, 1fr); }
   .su-col-centre { order: -1; }
 }

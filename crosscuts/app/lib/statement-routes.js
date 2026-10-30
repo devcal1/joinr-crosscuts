@@ -23,7 +23,7 @@ function idOr404(v) {
   return id;
 }
 
-// A :period that isn't 'YYYY-MM' is a 404. (The range check, HISTORY_START to next month,
+// A :period that isn't 'YYYY-MM' is a 404. (The range check, HISTORY_START to MAX_AHEAD_MONTHS ahead,
 // is lib/suppliers.js's, section 7.2.)
 function periodOr404(v) {
   if (!Periods.validPeriod(v)) throw notFound();
@@ -56,6 +56,11 @@ function build(prefix, suppliers, tag) {
 
   r.post("/", EDIT, handle((req, res) => {
     res.status(201).json(suppliers.create(db, req, body(req)));
+  }));
+
+  // Money still owing in the months either side of the current one (the side panels).
+  r.get("/outstanding", VIEW, handle((req, res) => {
+    res.json(suppliers.outstanding(db));
   }));
 
   r.get("/months/:period", VIEW, handle((req, res) => {
