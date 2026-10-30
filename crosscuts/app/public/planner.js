@@ -1,6 +1,6 @@
-// Planner page (docs/plans/m7-contracts.md section 12): this week and next as the hero (two rows of
-// seven tall day tiles), the Monday-to-Sunday month grid at the side, layer buttons, event detail
-// and edit dialogs, the phone layout and print.
+// Planner page (docs/plans/m7-contracts.md section 12; look and phone: docs/plans/planner-look-plan.md):
+// on a PC a Fortnight | Month switch (bars across multi-day items, one-line chips); on a phone an
+// agenda from today with a date strip, a fold-out month picker and a bottom sheet; dialogs and print.
 // Talks to /api/planner (section 9) and /api/job-records (the job picker, as taskui.js does).
 // Every date and time is Sydney calendar text from the server ("YYYY-MM-DD", "HH:MM"); the page
 // never reads the browser's clock or zone, and "today" is always the server's.
@@ -50,6 +50,7 @@
   var UNIT_DEFAULT = "week";
   var SCREEN_LANES = 3; // items a day in the month grid on screen, then "+N more"
   var PRINT_LANES = 4; // and on paper, so a busy month still fits one A4 landscape page (M7 · 4.3)
+  var FORT_LANES = 6; // items a day in a fortnight row on screen, then "+N more"
   var TILE_CAP = 6; // items in a day tile of the two weeks on screen, then "+N more" (all on paper)
   var CHANGE_LATER_NOTE = "Change these for this and all later.";
   var WARN_SERIES = "One-off changes to this event will be replaced.";
@@ -233,8 +234,14 @@
     gridFrom: null,
     monthData: null,
     weekData: null,
-    selected: null, // the day listed under the compact month (phone)
+    view: "fort", // the PC view: "fort" (two weeks of bars and chips) or "month"
+    fortFrom: null, // the Monday the fortnight view starts on
+    fortData: null,
+    agendaFrom: null, // the first day of the phone agenda (today unless a date was picked)
+    agendaData: null,
     monthSeq: 0,
+    fortSeq: 0,
+    agendaSeq: 0,
   };
 
   function storeKey(name) {
@@ -266,6 +273,21 @@
   function writeLastLayer(id) {
     try {
       localStorage.setItem(storeKey("lastLayer"), id);
+    } catch (e) {
+      /* not remembered */
+    }
+  }
+
+  function readView() {
+    try {
+      return localStorage.getItem(storeKey("view")) === "month" ? "month" : "fort";
+    } catch (e) {
+      return "fort";
+    }
+  }
+  function writeView(v) {
+    try {
+      localStorage.setItem(storeKey("view"), v);
     } catch (e) {
       /* not remembered */
     }
@@ -310,11 +332,15 @@
   }
   // The loaded events that cover a day: the two weeks' for those days (the month may have moved).
   function itemsFor(d) {
-    var data = inFortnight(d) && state.weekData ? state.weekData : state.monthData;
+    var data = state.monthData;
+    if (inFortnight(d) && state.weekData) data = state.weekData;
+    else if (state.fortData && state.fortFrom && d >= state.fortFrom && d <= addDays(state.fortFrom, 13)) data = state.fortData;
+    else if (state.agendaData && state.agendaFrom && d >= state.agendaFrom && d <= addDays(state.agendaFrom, 13)) data = state.agendaData;
+    else if (!(state.gridFrom && d >= state.gridFrom && d <= addDays(state.gridFrom, 41))) data = null;
     return data ? shown(data.events) : [];
   }
   function findItem(id) {
-    var lists = [state.monthData, state.weekData];
+    var lists = [state.monthData, state.weekData, state.fortData, state.agendaData];
     for (var i = 0; i < lists.length; i++) {
       var d = lists[i];
       if (!d) continue;
@@ -341,11 +367,16 @@
     if (o.compact) cls += " pl-chip-sm";
     if (o.bar) cls += " pl-bar";
     if (item.overdue) cls += " pl-overdue";
-    var full = (timeText(item) ? timeText(item) + " " : "") + item.title + (item.overdue ? " (overdue)" : "");
+    var multi = endOf(item) !== item.start;
+    // On hover: when, the title, then the layer and (automatic items) the source.
+    var full = (timeText(item) ? timeText(item) + " " : multi ? fmtRange(item.start, endOf(item)) + " " : "") + item.title +
+      (item.overdue ? " (overdue)" : "") + " · " + layerLabel(item.layer) + (item.sourceLabel ? " · " + item.sourceLabel : "");
     var b = el("button", { type: "button", class: cls, title: full });
     b.append(el("span", { class: "pl-pre", text: "[" + layerLabel(item.layer) + "] " }));
     if (!item.allDay && item.startTime) {
       b.append(el("span", { class: "pl-time", text: o.compact ? fmtTime(item.startTime) : timeText(item) }), " ");
+    } else if (o.agenda && multi) {
+      b.append(el("span", { class: "pl-time", text: fmtRange(item.start, endOf(item)) }), " ");
     }
     b.append(el("span", { class: "pl-title", text: item.title }));
     if (item.overdue) b.append(" ", el("span", { class: "pl-flag", text: "overdue" }));
@@ -388,46 +419,20 @@
     return lane < SCREEN_LANES ? 3 + lane : 4 + lane;
   }
 
-  function weekRow(monday, items, band) {
+  // Lane-packs a week's items: multi-day items first (earliest, then longest) as one bar each across
+  // their days in the week, then the single days. Returns [{it, a, b, l}] (columns a..b, lane l).
+  function packWeek(monday, items, ordered) {
     var sunday = addDays(monday, 6);
-    var row = el("div", { class: "pl-wk" });
-    if (band) row.append(placeAt(bandBlock(band, "pl-band"), 1, 8, 1));
-    for (var c = 0; c < 7; c++) {
-      (function (d, col) {
-        var out = d.slice(0, 7) !== state.month.slice(0, 7);
-        var cell = el("div", { class: "pl-cell" + (col === 0 ? " pl-first" : "") + (out ? " pl-out" : "") + (d === state.today ? " pl-today" : "") });
-        cell.style.gridColumn = String(col + 1);
-        cell.style.gridRow = "2 / -1";
-        if (canCreate()) {
-          cell.classList.add("pl-cell-add");
-          cell.addEventListener("click", function () { openForm({ date: d }); });
-        }
-        row.append(cell);
-        var num = el("button", {
-          type: "button",
-          class: "pl-num" + (out ? " pl-out" : "") + (d === state.today ? " pl-num-today" : ""),
-          text: dayNum(d),
-          "aria-label": fmtDay(d) + (d === state.today ? ", today" : "") + (inFortnight(d) ? ": show it in the two weeks" : ": list the day"),
-        });
-        // A day in the two weeks is shown there (scrolled to and highlighted); any other day is listed.
-        num.addEventListener("click", function (e) {
-          e.stopPropagation();
-          if (!showTile(d)) openDay(d);
-        });
-        row.append(placeAt(num, col + 1, col + 2, 2));
-      })(addDays(monday, c), c);
-    }
-
     var inWeek = items.filter(function (it) { return it.start <= sunday && endOf(it) >= monday; });
     var multi = inWeek.filter(function (it) { return endOf(it) !== it.start; });
     var single = inWeek.filter(function (it) { return endOf(it) === it.start; });
+    if (ordered) single = dayOrder(single);
     multi.sort(function (a, b) {
       if (a.start !== b.start) return a.start < b.start ? -1 : 1;
       return daysBetween(b.start, endOf(b)) - daysBetween(a.start, endOf(a));
     });
     var lanes = [];
-    var hiddenScreen = [0, 0, 0, 0, 0, 0, 0];
-    var hiddenPrint = [0, 0, 0, 0, 0, 0, 0];
+    var out = [];
     function free(l, a, b) {
       for (var i = a; i <= b; i++) if (lanes[l] && lanes[l][i]) return false;
       return true;
@@ -436,17 +441,8 @@
       var l = 0;
       while (!free(l, a, b)) l++;
       lanes[l] = lanes[l] || [];
-      for (var i = a; i <= b; i++) {
-        lanes[l][i] = true;
-        if (l >= SCREEN_LANES) hiddenScreen[i]++;
-        if (l >= PRINT_LANES) hiddenPrint[i]++;
-      }
-      if (l >= PRINT_LANES) return;
-      var node = chip(it, { compact: true, bar: a !== b });
-      if (it.start < monday) node.classList.add("pl-cont-l");
-      if (endOf(it) > sunday) node.classList.add("pl-cont-r");
-      if (l >= SCREEN_LANES) node.classList.add("pl-printonly");
-      row.append(placeAt(node, a + 1, b + 2, laneRow(l)));
+      for (var i = a; i <= b; i++) lanes[l][i] = true;
+      out.push({ it: it, a: a, b: b, l: l });
     }
     multi.forEach(function (it) {
       place(it, Math.max(0, daysBetween(monday, it.start)), Math.min(6, daysBetween(monday, endOf(it))));
@@ -455,25 +451,103 @@
       var col = daysBetween(monday, it.start);
       place(it, col, col);
     });
-    for (var k = 0; k < 7; k++) {
-      (function (col, d) {
-        if (hiddenScreen[col] > 0) {
-          var more = el("button", {
-            type: "button",
-            class: "pl-more pl-screenonly",
-            text: "+" + hiddenScreen[col] + " more",
-            "aria-label": hiddenScreen[col] + " more on " + fmtDay(d),
-          });
-          more.addEventListener("click", function (e) {
+    return out;
+  }
+  // Per column, how many placed items sit in lane cap or beyond.
+  function hiddenFrom(placed, cap) {
+    var n = [0, 0, 0, 0, 0, 0, 0];
+    placed.forEach(function (p) {
+      if (p.l < cap) return;
+      for (var i = p.a; i <= p.b; i++) n[i]++;
+    });
+    return n;
+  }
+  function barChip(p, monday) {
+    var node = chip(p.it, { compact: true, bar: p.a !== p.b });
+    if (p.it.start < monday) node.classList.add("pl-cont-l");
+    if (endOf(p.it) > addDays(monday, 6)) node.classList.add("pl-cont-r");
+    return node;
+  }
+
+  // The seven day cells of a week row, each with its date button and (for those who may post) an
+  // add link that shows on hover or focus; double-clicking a day's empty area starts a new event too.
+  function dayCells(row, monday, o) {
+    var adds = [];
+    for (var c = 0; c < 7; c++) {
+      (function (d, col) {
+        var out = o.out(d);
+        var cell = el("div", { class: "pl-cell" + (col === 0 ? " pl-first" : "") + (out ? " pl-out" : "") + (d === state.today ? " pl-today" : "") });
+        cell.style.gridColumn = String(col + 1);
+        cell.style.gridRow = "2 / -1";
+        row.append(cell);
+        var num = el("button", {
+          type: "button",
+          class: "pl-num" + (out ? " pl-out" : "") + (d === state.today ? " pl-num-today" : ""),
+          text: o.label(d),
+          "aria-label": fmtDay(d) + (d === state.today ? ", today" : "") + ": list the day",
+        });
+        num.addEventListener("click", function (e) {
+          e.stopPropagation();
+          openDay(d);
+        });
+        row.append(placeAt(num, col + 1, col + 2, 2));
+        if (canCreate()) {
+          cell.classList.add("pl-cell-add");
+          cell.addEventListener("dblclick", function () { openForm({ date: d }); });
+          var add = el("button", { type: "button", class: "pl-addlink pl-screenonly", text: "Add", "aria-label": "New event on " + fmtDay(d) });
+          add.addEventListener("click", function (e) {
             e.stopPropagation();
-            openDay(d);
+            openForm({ date: d });
           });
-          row.append(placeAt(more, col + 1, col + 2, 3 + SCREEN_LANES));
+          adds.push(add);
+          row.append(placeAt(add, col + 1, col + 2, 2));
         }
-        if (hiddenPrint[col] > 0) {
-          row.append(placeAt(el("span", { class: "pl-more pl-printonly", text: "+" + hiddenPrint[col] + " more" }), col + 1, col + 2, 10));
-        }
-      })(k, addDays(monday, k));
+      })(addDays(monday, c), c);
+    }
+    // Show the add link of the day column under the mouse.
+    if (adds.length) {
+      row.addEventListener("mousemove", function (e) {
+        var r = row.getBoundingClientRect();
+        var col = Math.max(0, Math.min(6, Math.floor(((e.clientX - r.left) / r.width) * 7)));
+        adds.forEach(function (a, i) { a.classList.toggle("pl-show", i === col); });
+      });
+      row.addEventListener("mouseleave", function () {
+        adds.forEach(function (a) { a.classList.remove("pl-show"); });
+      });
+    }
+  }
+
+  function moreButton(n, d) {
+    var more = el("button", { type: "button", class: "pl-more pl-screenonly", text: "+" + n + " more", "aria-label": n + " more on " + fmtDay(d) });
+    more.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openDay(d);
+    });
+    return more;
+  }
+
+  function weekRow(monday, items, band) {
+    var row = el("div", { class: "pl-wk" });
+    if (band) row.append(placeAt(bandBlock(band, "pl-band"), 1, 8, 1));
+    dayCells(row, monday, {
+      out: function (d) { return d.slice(0, 7) !== state.month.slice(0, 7); },
+      label: dayNum,
+    });
+    var placed = packWeek(monday, items, false);
+    placed.forEach(function (p) {
+      if (p.l >= PRINT_LANES) return;
+      var node = barChip(p, monday);
+      if (p.l >= SCREEN_LANES) node.classList.add("pl-printonly");
+      row.append(placeAt(node, p.a + 1, p.b + 2, laneRow(p.l)));
+    });
+    var hiddenScreen = hiddenFrom(placed, SCREEN_LANES);
+    var hiddenPrint = hiddenFrom(placed, PRINT_LANES);
+    for (var k = 0; k < 7; k++) {
+      var d = addDays(monday, k);
+      if (hiddenScreen[k] > 0) row.append(placeAt(moreButton(hiddenScreen[k], d), k + 1, k + 2, 3 + SCREEN_LANES));
+      if (hiddenPrint[k] > 0) {
+        row.append(placeAt(el("span", { class: "pl-more pl-printonly", text: "+" + hiddenPrint[k] + " more" }), k + 1, k + 2, 10));
+      }
     }
     return row;
   }
@@ -491,7 +565,46 @@
     grid.replaceChildren.apply(grid, kids);
   }
 
-  // ---------- the compact month (phone) ----------
+  // ---------- the fortnight view (PC, screen only) ----------
+
+  // Two week rows like the month's, taller: each multi-day item one bar across its days, single
+  // items one-line chips (time then title), FORT_LANES a day then "+N more".
+  function fortRow(monday, items, band) {
+    var row = el("div", { class: "pl-wk pl-fwk" });
+    if (band) row.append(placeAt(bandBlock(band, "pl-band"), 1, 8, 1));
+    dayCells(row, monday, {
+      out: function () { return false; },
+      label: function (d) {
+        return d === monday || d.slice(8) === "01" ? dayNum(d) + " " + MONTHS[Number(d.slice(5, 7)) - 1] : dayNum(d);
+      },
+    });
+    var placed = packWeek(monday, items, true);
+    placed.forEach(function (p) {
+      if (p.l >= FORT_LANES) return;
+      row.append(placeAt(barChip(p, monday), p.a + 1, p.b + 2, 3 + p.l));
+    });
+    var hidden = hiddenFrom(placed, FORT_LANES);
+    for (var k = 0; k < 7; k++) {
+      if (hidden[k] > 0) row.append(placeAt(moreButton(hidden[k], addDays(monday, k)), k + 1, k + 2, 3 + FORT_LANES));
+    }
+    return row;
+  }
+
+  function renderFort() {
+    var box = $("plFort");
+    if (!state.fortData) return;
+    var items = shown(state.fortData.events);
+    var head = el("div", { class: "pl-dow", "aria-hidden": "true" });
+    DAY_NAMES.forEach(function (n) { head.append(el("span", { text: n })); });
+    var grid = el("div", { class: "pl-grid pl-fgrid" }, head);
+    for (var w = 0; w < 2; w++) {
+      var monday = addDays(state.fortFrom, 7 * w);
+      grid.append(fortRow(monday, items, bandFor(state.fortData, monday)));
+    }
+    box.replaceChildren(grid);
+  }
+
+  // ---------- the compact month: the phone's date picker ----------
 
   function renderCompact() {
     var box = $("plCompact");
@@ -506,43 +619,95 @@
         var b = el("button", {
           type: "button",
           class: "pl-cday" + (out ? " pl-out" : "") + (d === state.today ? " pl-today" : ""),
-          "aria-pressed": String(d === state.selected),
+          "aria-pressed": String(d === state.agendaFrom),
           "aria-label": fmtDay(d) + (list.length ? ", " + list.length + (list.length === 1 ? " item" : " items") : ", nothing on"),
         });
         b.append(el("span", { class: "pl-cnum", text: dayNum(d) }));
         var dots = el("span", { class: "pl-dots", "aria-hidden": "true" });
         list.slice(0, 3).forEach(function (it) { dots.append(el("span", { class: "pl-dot pl-l-" + it.layer })); });
         b.append(dots);
-        if (list.length) b.append(el("span", { class: "pl-count", "aria-hidden": "true", text: String(list.length) }));
         b.addEventListener("click", function () {
-          state.selected = d;
-          renderCompact();
-          renderDayList();
+          togglePicker(false);
+          moveAgenda(d, true);
         });
         days.append(b);
       })(addDays(state.gridFrom, i));
     }
     box.replaceChildren(head, days);
+    $("plPickTitle").textContent = fmtMonth(state.month);
   }
 
-  function renderDayList() {
-    var box = $("plDayList");
-    var d = state.selected;
-    if (!d) {
-      box.replaceChildren();
-      return;
-    }
-    var items = dayOrder(onDay(state.monthData ? shown(state.monthData.events) : [], d));
-    var head = el("div", { class: "pl-daylist-head" }, el("h3", { class: "pl-h3", text: fmtDay(d) }));
-    if (canCreate()) {
-      var add = el("button", { type: "button", class: "hs-btn", text: "Add" , "aria-label": "New event on " + fmtDay(d) });
-      add.addEventListener("click", function () { openForm({ date: d }); });
-      head.append(add);
-    }
+  function togglePicker(open) {
+    var pick = $("plPick");
+    var want = open === undefined ? pick.getAttribute("aria-expanded") !== "true" : open;
+    pick.setAttribute("aria-expanded", String(want));
+    $("plPicker").hidden = !want;
+    if (want && state.agendaFrom && firstOfMonth(state.agendaFrom) !== state.month) moveMonth(firstOfMonth(state.agendaFrom));
+  }
+
+  // ---------- the agenda (phone, screen only) ----------
+
+  // A day of the agenda: its events, then "Installing: job" on the job's board days.
+  function agendaDay(d, items) {
+    var today = d === state.today;
+    var sec = el("section", { class: "pl-aday" + (today ? " pl-today" : ""), id: "plA-" + d, tabindex: "-1", "aria-label": fmtDay(d) + (today ? ", today" : "") });
+    var h = el("h3", { class: "pl-aday-h" }, el("span", { class: "pl-tile-dow", text: DAY_NAMES[dayIndex(d)] }), el("span", { class: "pl-tile-date", text: fmtShort(d) }));
+    if (today) h.append(el("span", { class: "pl-tag", text: "Today" }));
+    sec.append(h);
     var list = el("div", { class: "pl-list" });
-    items.forEach(function (it) { list.append(chip(it)); });
-    if (!items.length) list.append(el("p", { class: "pl-none", text: "Nothing on." }));
-    box.replaceChildren(head, list);
+    dayOrder(onDay(items, d)).forEach(function (it) { list.append(chip(it, { agenda: true })); });
+    var band = bandFor(state.agendaData, mondayOf(d));
+    if (band) {
+      (band.installing || []).forEach(function (j) {
+        if (!(j.days || []).includes(d)) return;
+        list.append(el(j.link ? "a" : "span", { class: "pl-chip pl-chip-static pl-l-install", href: j.link || null, title: "Board · " + layerLabel("install"), text: "Installing: " + j.name }));
+      });
+    }
+    if (!list.children.length) list.append(el("p", { class: "pl-none", text: "Nothing on." }));
+    sec.append(list);
+    return sec;
+  }
+
+  function renderAgenda() {
+    if (!state.agendaData) return;
+    var items = shown(state.agendaData.events);
+    var strip = $("plStrip");
+    var list = $("plAList");
+    var days = [];
+    var sdays = [];
+    for (var i = 0; i < 14; i++) {
+      (function (d) {
+        var n = onDay(items, d).length;
+        var b = el("button", {
+          type: "button",
+          class: "pl-sday" + (d === state.today ? " pl-today" : ""),
+          "aria-label": fmtDay(d) + (d === state.today ? ", today" : "") + (n ? ", " + n + (n === 1 ? " item" : " items") : ", nothing on"),
+        });
+        b.append(
+          el("span", { class: "pl-sday-dow", text: DAY_NAMES[dayIndex(d)] }),
+          el("span", { class: "pl-sday-num", text: dayNum(d) }),
+          el("span", { class: "pl-sday-dot" + (n ? " pl-has" : ""), "aria-hidden": "true" })
+        );
+        b.addEventListener("click", function () { scrollToDay(d, b); });
+        sdays.push(b);
+        days.push(agendaDay(d, items));
+      })(addDays(state.agendaFrom, i));
+    }
+    var shell = document.getElementById("cc-shell");
+    if (shell) document.documentElement.style.setProperty("--pl-top", Math.round(shell.getBoundingClientRect().height) + "px");
+    strip.replaceChildren.apply(strip, sdays);
+    list.replaceChildren.apply(list, days);
+    $("plPick").textContent = fmtMonth(firstOfMonth(state.agendaFrom));
+    $("plPick").setAttribute("aria-label", "Pick a date (the list starts " + fmtDay(state.agendaFrom) + ")");
+  }
+
+  function scrollToDay(d, btn) {
+    var target = $("plA-" + d);
+    if (!target) return;
+    $("plStrip").querySelectorAll(".pl-sday").forEach(function (b) { b.removeAttribute("aria-current"); });
+    if (btn) btn.setAttribute("aria-current", "date");
+    target.scrollIntoView({ block: "start", behavior: "smooth" });
+    target.focus({ preventScroll: true });
   }
 
   // ---------- this week and next ----------
@@ -666,39 +831,27 @@
     box.replaceChildren.apply(box, kids);
   }
 
-  // From the month: bring a day of the two weeks into view and highlight it. False when the day
-  // isn't in the two weeks (or the tile isn't on screen), so the caller lists it instead.
-  var hitTimer = null;
-  function showTile(d) {
-    if (!inFortnight(d)) return false;
-    var tile = document.querySelector('.pl-tile[data-date="' + d + '"]');
-    if (!tile || !tile.getClientRects().length) return false;
-    document.querySelectorAll(".pl-tile-hit").forEach(function (t) { t.classList.remove("pl-tile-hit"); });
-    tile.classList.add("pl-tile-hit");
-    tile.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    tile.focus({ preventScroll: true });
-    clearTimeout(hitTimer);
-    hitTimer = setTimeout(function () { tile.classList.remove("pl-tile-hit"); }, 1800);
-    return true;
-  }
-
-  // ---------- layer buttons ----------
+  // ---------- layer toggles (on the page, and in the phone's bottom sheet) ----------
 
   function renderLayers() {
-    var box = $("plLayers");
-    var kids = state.layers.map(function (l) {
-      var b = el("button", { type: "button", class: "hs-btn pl-layer pl-l-" + l.id, "aria-pressed": String(isOn(l.id)) });
-      b.append(el("span", { class: "pl-mark", "aria-hidden": "true" }), el("span", { text: l.label }));
-      b.addEventListener("click", function () {
-        if (state.off.has(l.id)) state.off.delete(l.id);
-        else state.off.add(l.id);
-        writeOff();
-        renderLayers();
-        renderAll();
+    ["plLayers", "plSheetLayers"].forEach(function (id) {
+      var box = $(id);
+      var kids = state.layers.map(function (l) {
+        var b = el("button", { type: "button", class: "pl-layer pl-l-" + l.id, "aria-pressed": String(isOn(l.id)) });
+        b.append(el("span", { class: "pl-mark", "aria-hidden": "true" }), el("span", { text: l.label }));
+        b.addEventListener("click", function () {
+          if (state.off.has(l.id)) state.off.delete(l.id);
+          else state.off.add(l.id);
+          writeOff();
+          renderLayers();
+          renderAll();
+          var again = $(id).querySelector(".pl-l-" + l.id);
+          if (again) again.focus();
+        });
+        return b;
       });
-      return b;
+      box.replaceChildren.apply(box, kids);
     });
-    box.replaceChildren.apply(box, kids);
   }
 
   function renderFoot() {
@@ -707,15 +860,30 @@
       "Layers: " + (on.length ? on.join(", ") : "none") + ". Printed " + fmtLong(state.today) + ".";
   }
 
+  // The switch, the title and the Prev/Next labels for the PC view showing.
+  function renderView() {
+    var month = state.view === "month";
+    document.querySelector(".pl-page").setAttribute("data-view", state.view);
+    $("plViewFort").setAttribute("aria-pressed", String(!month));
+    $("plViewMonth").setAttribute("aria-pressed", String(month));
+    $("plPrev").setAttribute("aria-label", month ? "Previous month" : "Previous fortnight");
+    $("plNext").setAttribute("aria-label", month ? "Next month" : "Next fortnight");
+    if (state.month && state.fortFrom) {
+      $("plViewTitle").textContent = month ? fmtMonth(state.month) : fmtRange(state.fortFrom, addDays(state.fortFrom, 13));
+    }
+  }
+
   function renderAll() {
     if (!state.month) return;
     $("plMonthTitle").textContent = fmtMonth(state.month);
     if (state.monthData) {
       renderGrid();
       renderCompact();
-      renderDayList();
     }
     renderWeeks();
+    renderFort();
+    renderAgenda();
+    renderView();
     renderFoot();
   }
 
@@ -732,20 +900,42 @@
     if (seq !== state.monthSeq) return false; // a later move won
     state.gridFrom = from;
     state.monthData = data;
-    if (!state.selected || state.selected < from || state.selected > addDays(from, 41)) {
-      state.selected = state.today.slice(0, 7) === state.month.slice(0, 7) ? state.today : state.month;
-    }
     return true;
   }
 
+  // This week and next (printed as "two weeks", and the fortnight view when it shows them).
   async function loadWeeks() {
     var from = mondayOf(state.today);
     state.weekData = await call("GET", eventsUrl(from, addDays(from, 13)));
   }
 
+  // The fortnight view: this week and next share loadWeeks's data; another fortnight loads its own.
+  async function loadFort() {
+    var seq = ++state.fortSeq;
+    if (state.fortFrom === mondayOf(state.today)) {
+      if (!state.weekData) await loadWeeks();
+      if (seq !== state.fortSeq) return false;
+      state.fortData = state.weekData;
+      return true;
+    }
+    var data = await call("GET", eventsUrl(state.fortFrom, addDays(state.fortFrom, 13)));
+    if (seq !== state.fortSeq) return false;
+    state.fortData = data;
+    return true;
+  }
+
+  async function loadAgenda() {
+    var seq = ++state.agendaSeq;
+    var data = await call("GET", eventsUrl(state.agendaFrom, addDays(state.agendaFrom, 13)));
+    if (seq !== state.agendaSeq) return false;
+    state.agendaData = data;
+    return true;
+  }
+
   async function reload() {
     try {
-      await Promise.all([loadMonth(), loadWeeks()]);
+      await Promise.all([loadMonth(), loadWeeks(), loadAgenda()]);
+      await loadFort();
       renderAll();
       return true;
     } catch (e) {
@@ -757,11 +947,47 @@
   async function moveMonth(first) {
     state.month = first;
     $("plMonthTitle").textContent = fmtMonth(first);
+    renderView();
     try {
       if (await loadMonth()) renderAll();
     } catch (e) {
       say(e.message, "err");
     }
+  }
+
+  async function moveFort(monday) {
+    state.fortFrom = monday;
+    renderView();
+    try {
+      if (await loadFort()) renderAll();
+    } catch (e) {
+      say(e.message, "err");
+    }
+  }
+
+  // The phone agenda from a day; with jump, the page scrolls to the top of the list.
+  async function moveAgenda(d, jump) {
+    state.agendaFrom = d;
+    try {
+      if (await loadAgenda()) {
+        renderAll();
+        if (jump) {
+          var first = $("plA-" + d);
+          if (first) {
+            $("plAgenda").scrollIntoView({ block: "start" });
+            first.focus({ preventScroll: true });
+          }
+        }
+      }
+    } catch (e) {
+      say(e.message, "err");
+    }
+  }
+
+  function setView(v) {
+    state.view = v;
+    writeView(v);
+    renderView();
   }
 
   // ---------- dialogs ----------
@@ -1403,15 +1629,35 @@
     state.userId = cc.me && cc.me.id != null ? cc.me.id : 0;
     state.canJobs = typeof cc.can === "function" && cc.can("jobs.view");
 
-    $("plPrev").addEventListener("click", function () { moveMonth(addMonths(state.month, -1)); });
-    $("plNext").addEventListener("click", function () { moveMonth(addMonths(state.month, 1)); });
-    $("plToday").addEventListener("click", function () { moveMonth(firstOfMonth(state.today)); });
+    // Prev, Today and Next move whichever view is showing.
+    $("plPrev").addEventListener("click", function () {
+      if (state.view === "month") moveMonth(addMonths(state.month, -1));
+      else moveFort(addDays(state.fortFrom, -14));
+    });
+    $("plNext").addEventListener("click", function () {
+      if (state.view === "month") moveMonth(addMonths(state.month, 1));
+      else moveFort(addDays(state.fortFrom, 14));
+    });
+    $("plToday").addEventListener("click", function () {
+      if (state.view === "month") moveMonth(firstOfMonth(state.today));
+      else moveFort(mondayOf(state.today));
+    });
+    $("plViewFort").addEventListener("click", function () { setView("fort"); });
+    $("plViewMonth").addEventListener("click", function () { setView("month"); });
     $("plPrint").addEventListener("click", startPrint);
-    $("plNew").addEventListener("click", function () { openForm({ date: state.selected || state.today }); });
-    $("plLayersToggle").addEventListener("click", function () {
-      var open = this.getAttribute("aria-expanded") !== "true";
-      this.setAttribute("aria-expanded", String(open));
-      $("plLayers").classList.toggle("pl-layers-open", open);
+    $("plNew").addEventListener("click", function () { openForm({ date: state.today }); });
+    // Phone: the month picker under the heading, and the bottom sheet (layers and New event).
+    $("plPick").addEventListener("click", function () { togglePicker(); });
+    $("plPickPrev").addEventListener("click", function () { moveMonth(addMonths(state.month, -1)); });
+    $("plPickNext").addEventListener("click", function () { moveMonth(addMonths(state.month, 1)); });
+    $("plLayersToggle").addEventListener("click", function () { $("plSheet").showModal(); });
+    $("plSheetClose").addEventListener("click", function () { $("plSheet").close(); });
+    $("plSheet").addEventListener("click", function (e) {
+      if (e.target === this) this.close(); // a tap on the backdrop
+    });
+    $("plSheetNew").addEventListener("click", function () {
+      $("plSheet").close();
+      openForm({ date: state.agendaFrom || state.today });
     });
 
     var meta;
@@ -1432,13 +1678,17 @@
     state.canEdit = !!meta.canEdit;
     state.off = readOff();
     $("plNew").hidden = !canCreate();
+    $("plSheetNew").hidden = !canCreate();
+    state.view = readView();
 
     var params = new URLSearchParams(location.search);
     var date = params.get("date");
     var wanted = params.get("event");
     state.month = firstOfMonth(isDate(date) ? date : state.today);
-    if (isDate(date)) state.selected = date;
+    state.fortFrom = mondayOf(isDate(date) ? date : state.today);
+    state.agendaFrom = isDate(date) ? date : state.today;
     $("plMonthTitle").textContent = fmtMonth(state.month);
+    renderView();
     renderLayers();
 
     if (!(await reload())) return;

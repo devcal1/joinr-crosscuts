@@ -17,16 +17,46 @@
   <main class="dash pl-page">
     <header class="pl-head">
       <h1>Planner</h1>
+      <button type="button" id="plPick" class="pl-pick pl-screenonly" aria-expanded="false" aria-controls="plPicker">Pick a date</button>
       <div class="pl-tools" role="group" aria-label="Planner actions">
         <button type="button" id="plNew" class="hs-btn hs-btn-primary" hidden>New event</button>
         <button type="button" id="plPrint" class="hs-btn">Print</button>
-        <button type="button" id="plLayersToggle" class="hs-btn pl-layers-toggle" aria-expanded="false" aria-controls="plLayers">Layers</button>
+        <button type="button" id="plLayersToggle" class="hs-btn pl-layers-toggle" aria-haspopup="dialog">Layers</button>
       </div>
     </header>
+
+    <div class="pl-viewbar pl-screenonly">
+      <div class="pl-switch" role="group" aria-label="View">
+        <button type="button" id="plViewFort" class="pl-switch-btn" aria-pressed="true">Fortnight</button>
+        <button type="button" id="plViewMonth" class="pl-switch-btn" aria-pressed="false">Month</button>
+      </div>
+      <div class="pl-nav" role="group" aria-label="Move the view">
+        <button type="button" id="plPrev" class="hs-btn" aria-label="Previous">Prev</button>
+        <button type="button" id="plToday" class="hs-btn">Today</button>
+        <button type="button" id="plNext" class="hs-btn" aria-label="Next">Next</button>
+      </div>
+      <h2 class="pl-view-title" id="plViewTitle" aria-live="polite">Loading...</h2>
+    </div>
 
     <div id="plLayers" class="pl-layers" role="group" aria-label="Layers to show"></div>
 
     <p id="plStatus" class="pl-status" role="status" aria-live="polite"></p>
+
+    <div id="plPicker" class="pl-picker pl-screenonly" hidden>
+      <div class="pl-picker-bar">
+        <button type="button" id="plPickPrev" class="hs-btn" aria-label="Previous month">Prev</button>
+        <span class="pl-picker-title" id="plPickTitle"></span>
+        <button type="button" id="plPickNext" class="hs-btn" aria-label="Next month">Next</button>
+      </div>
+      <div class="pl-compact" id="plCompact"></div>
+    </div>
+
+    <section class="pl-agenda pl-screenonly" id="plAgenda" aria-label="Agenda">
+      <div class="pl-strip" id="plStrip" role="group" aria-label="Jump to a day"></div>
+      <div class="pl-alist" id="plAList"></div>
+    </section>
+
+    <section class="pl-fort pl-screenonly" id="plFort" aria-label="Fortnight"></section>
 
     <div class="pl-cols">
       <section class="pl-weeks" id="plWeeksView" aria-label="This week and next">
@@ -36,20 +66,24 @@
       <section class="pl-month" id="plMonthView" aria-labelledby="plMonthTitle">
         <div class="pl-monthbar">
           <h2 class="pl-month-title" id="plMonthTitle">Loading...</h2>
-          <div class="pl-nav" role="group" aria-label="Move the month">
-            <button type="button" id="plPrev" class="hs-btn" aria-label="Previous month">Prev</button>
-            <button type="button" id="plToday" class="hs-btn">Today</button>
-            <button type="button" id="plNext" class="hs-btn" aria-label="Next month">Next</button>
-          </div>
         </div>
         <div class="pl-grid" id="plGrid"></div>
-        <div class="pl-compact" id="plCompact"></div>
-        <div class="pl-daylist" id="plDayList" aria-live="polite"></div>
       </section>
     </div>
 
     <p class="pl-print-foot" id="plPrintFoot"></p>
   </main>
+
+  <dialog id="plSheet" class="cc-dialog pl-sheet" aria-label="Layers and new event">
+    <div class="cc-dialog-form">
+      <h2 class="cc-dialog-title">Layers</h2>
+      <div id="plSheetLayers" class="pl-layers pl-sheet-layers" role="group" aria-label="Layers to show"></div>
+      <div class="cc-dialog-actions">
+        <button type="button" id="plSheetClose" class="hs-btn hs-btn-quiet">Close</button>
+        <button type="button" id="plSheetNew" class="hs-btn hs-btn-primary" hidden>New event</button>
+      </div>
+    </div>
+  </dialog>
 
   <script src="shared.js"></script>
   <script src="planner.js"></script>

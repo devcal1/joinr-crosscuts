@@ -1,6 +1,6 @@
-/* Planner (planner.html): this week and next as two rows of day tiles (the hero) with the month
-   grid at the side, layer buttons, dialogs,
-   the phone layout and print (docs/plans/m7-contracts.md section 12). Page layout, hs- components
+/* Planner (planner.html): on screen a Fortnight | Month switch (PC) or the agenda (phone, below
+   720 px); for print the two-week tiles and the month grid as before; layer toggles, dialogs.
+   Page layout, hs- components
    and tokens come from index.css; the dialog frame is the shell's cc-dialog. Classes here are pl-.
 
    The layer markers are the planner's named exception in CLAUDE.md "Look and feel" (Todd,
@@ -29,7 +29,7 @@
 .pl-mark.pl-l-personal,
 .pl-l-personal .pl-mark { background: transparent; border: 1px solid var(--layer-personal); }
 
-/* ---------- head, tools and layer buttons ---------- */
+/* ---------- head, view switch and layer toggles ---------- */
 .pl-head {
   display: flex;
   flex-wrap: wrap;
@@ -41,12 +41,49 @@
 .pl-head h1 { margin: 0; color: var(--white); font-size: 28px; font-weight: 700; }
 .pl-tools { display: flex; flex-wrap: wrap; gap: 8px; }
 .hs-btn.pl-layers-toggle { display: none; }
+.pl-pick { display: none; }
 
-.pl-layers { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
-.hs-btn.pl-layer { gap: 8px; }
-.pl-layer[aria-pressed="true"] { border-color: var(--teal); color: var(--white); }
-.pl-layer[aria-pressed="false"] { color: var(--muted); }
-.pl-layer[aria-pressed="false"] .pl-mark { opacity: 0.35; }
+.pl-viewbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 12px; }
+.pl-switch { display: inline-flex; border: 1px solid var(--na); border-radius: var(--r-badge); overflow: hidden; }
+.pl-switch-btn {
+  padding: 7px 14px;
+  color: var(--label);
+  background: none;
+  border: 0;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.pl-switch-btn + .pl-switch-btn { border-left: 1px solid var(--na); }
+.pl-switch-btn:hover { color: var(--white); }
+.pl-switch-btn[aria-pressed="true"] { color: var(--teal-tint); background: var(--teal-8); }
+.pl-switch-btn:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.pl-view-title { margin: 0; color: var(--white); font-size: 20px; font-weight: 700; }
+.pl-nav { display: flex; gap: 6px; }
+
+/* Layer filters: thin text toggles, each keeping its marker dot. */
+.pl-layers { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0 0 14px; }
+.pl-layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px;
+  color: var(--body);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-badge);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.pl-layer:hover { border-color: var(--na); }
+.pl-layer:focus-visible { outline: 2px solid var(--teal); outline-offset: 0; }
+.pl-layer[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; }
+.pl-layer[aria-pressed="false"] .pl-mark { opacity: 0.3; }
 
 .pl-status { margin: 0 0 12px; color: var(--label); font-size: 14px; }
 .pl-status:empty { display: none; }
@@ -54,37 +91,21 @@
 .pl-empty { margin: 0; padding: 12px 14px; color: var(--label); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
 .pl-none { margin: 0; color: var(--muted); font-size: 13px; }
 
-/* ---------- columns ----------
-   The two weeks are the hero (Todd, 2026-10-11): from 1280 px they take about two thirds of the
-   width on the left, the month (compact) the third on the right, both in view at once. From 641 to
-   1279 px the two weeks go full width on top (still seven tiles a row) and the month underneath at
-   full size. Phone (640 px and below): the two weeks as a list of days, then the compact month. */
-.pl-cols { display: flex; flex-direction: column; gap: 28px; }
-.pl-month, .pl-weeks { min-width: 0; }
-@media screen and (min-width: 1280px) {
-  .pl-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
-  /* The month at the side: smaller type and chips, no source labels (the tiles carry them). */
-  .pl-month .pl-monthbar { margin-bottom: 8px; }
-  .pl-month .pl-month-title { font-size: 17px; }
-  .pl-month .pl-dow span { padding: 5px 6px; font-size: 9px; }
-  .pl-month .pl-wk { min-height: 92px; }
-  .pl-month .pl-num { margin: 2px 2px 1px; padding: 1px 5px; font-size: 11px; }
-  .pl-month .pl-chip-sm { padding: 1px 4px 1px 4px; font-size: 11px; line-height: 1.3; }
-  .pl-month .pl-chip-sm.pl-l-personal { padding-left: 6px; }
-  .pl-month .pl-wk > .pl-chip { margin: 0 2px 2px; }
-  .pl-month .pl-grid .pl-src { display: none; }
-  .pl-month .pl-band { padding: 3px 5px 1px; }
-  .pl-month .pl-band-line { font-size: 10px; }
-  .pl-month .pl-more { margin: 0 2px 3px; padding: 0 4px; font-size: 10px; }
-}
-/* Narrow side month (cells under about 80 px): the title is worth more than the start time. */
-@media screen and (min-width: 1280px) and (max-width: 1679.98px) {
-  .pl-month .pl-chip-sm .pl-time { display: none; }
-}
-
+/* ---------- which view shows ----------
+   On screen (720 px and wider) one PC view at a time, full width: the fortnight (#plFort) or the
+   month (#plMonthView), chosen by the switch. The two-week tiles (#plWeeksView) are print only now;
+   print picks its part with body.pl-print-* as before, so paper is unchanged. Below 720 px the
+   agenda shows instead. */
 .pl-monthbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 10px; }
 .pl-month-title { margin: 0; color: var(--white); font-size: 20px; font-weight: 700; }
-.pl-nav { display: flex; gap: 6px; }
+.pl-cols { display: block; }
+.pl-month, .pl-weeks, .pl-fort { min-width: 0; }
+@media screen {
+  .pl-weeks, .pl-monthbar, .pl-agenda, .pl-picker { display: none; }
+  .pl-page[data-view="month"] .pl-fort { display: none; }
+  .pl-page:not([data-view="month"]) .pl-month { display: none; }
+  .pl-grid .pl-src, .pl-fgrid .pl-src, .pl-alist .pl-src { display: none; }
+}
 
 /* ---------- item chips ---------- */
 .pl-chip {
@@ -229,7 +250,7 @@ a.pl-chip-static { cursor: pointer; }
 }
 .pl-more:hover { text-decoration: underline; }
 
-/* ---------- the compact month and its day list (phone) ---------- */
+/* ---------- the compact month: the phone date picker ---------- */
 .pl-compact, .pl-daylist { display: none; }
 .pl-cdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .pl-cday {
@@ -356,31 +377,134 @@ a.pl-chip-static { cursor: pointer; }
 .pl-warn { margin: 0; color: var(--orange-tint); font-size: 13px; }
 .pl-warn[hidden] { display: none; }
 
-/* Seven tiles at tablet width: a little less padding so the titles keep their room. */
-@media screen and (min-width: 641px) and (max-width: 899.98px) {
-  .pl-tiles { gap: 4px; }
-  .pl-tile { padding: 6px 4px; }
-  .pl-item { padding: 4px 4px 4px 5px; font-size: 12px; }
-}
+/* ---------- the fortnight view: two week rows like the month's, taller ---------- */
+.pl-fwk { min-height: 200px; }
+.pl-fgrid .pl-chip-sm { padding: 3px 8px 3px 6px; font-size: 13px; line-height: 1.35; }
+.pl-fgrid .pl-chip-sm.pl-l-personal { padding-left: 8px; }
+.pl-fgrid .pl-num { font-size: 13px; }
+.pl-fwk > .pl-chip { margin: 0 4px 4px; }
 
-/* ---------- phone ---------- */
-@media screen and (max-width: 640px) {
-  /* The two weeks as a list of days, every day shown. */
-  .pl-tiles { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .pl-tile { min-height: 0; padding: 8px 8px 10px; }
-  .pl-tile-add { margin-top: 0; }
+/* The add link of a day: shown under the mouse (planner.js) or on keyboard focus. */
+.pl-addlink {
+  justify-self: end;
+  margin: 3px 4px 2px;
+  padding: 1px 6px;
+  color: var(--teal-tint);
+  background: none;
+  border: 0;
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0;
 }
-@media (max-width: 640px) {
+.pl-addlink.pl-show, .pl-addlink:focus-visible { opacity: 1; }
+.pl-addlink:hover { text-decoration: underline; }
+.pl-addlink:focus-visible { outline: 2px solid var(--teal); outline-offset: 0; }
+.pl-cell-add { cursor: default; }
+
+/* ---------- the phone agenda (below 720 px) ---------- */
+.pl-strip {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  background: var(--ink);
+  -webkit-overflow-scrolling: touch;
+}
+.pl-sday {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 50px;
+  min-height: 62px;
+  padding: 6px 0;
+  color: var(--white);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  font-family: var(--font);
+  scroll-snap-align: start;
+  cursor: pointer;
+}
+.pl-sday.pl-today { border-color: var(--teal); }
+.pl-sday[aria-current="date"] { background: var(--teal-16); }
+.pl-sday:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.pl-sday-dow { color: var(--label); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.pl-sday-num { font-size: 17px; font-weight: 700; line-height: 1.1; }
+.pl-sday-dot { width: 6px; height: 6px; border-radius: 50%; }
+.pl-sday-dot.pl-has { background: var(--teal); }
+
+.pl-aday { padding: 12px 0 14px; border-top: 1px solid var(--hairline); scroll-margin-top: calc(var(--pl-top, 52px) + 86px); }
+.pl-aday:focus { outline: 0; }
+.pl-aday-h { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; }
+.pl-aday.pl-today .pl-tile-date { color: var(--teal-tint); }
+.pl-alist .pl-chip {
+  display: flex;
+  align-items: center;
+  gap: 0 6px;
+  flex-wrap: wrap;
+  min-height: 44px;
+  padding: 8px 10px 8px 9px;
+  font-size: 15px;
+}
+.pl-alist .pl-chip.pl-l-personal { padding-left: 11px; }
+.pl-alist .pl-time { font-size: 13px; }
+
+.pl-picker { margin: 0 0 12px; padding: 8px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.pl-picker-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.pl-picker-title { color: var(--white); font-size: 15px; font-weight: 700; }
+
+/* The bottom sheet: layer toggles and New event (phone). */
+.cc-dialog.pl-sheet {
+  width: 100%;
+  max-width: 100%;
+  max-height: 85vh;
+  margin: auto 0 0;
+  overflow-y: auto;
+  border-radius: var(--r-card) var(--r-card) 0 0;
+  border-bottom: 0;
+}
+.pl-sheet-layers { flex-direction: column; margin: 0; }
+.pl-sheet-layers .pl-layer { min-height: 44px; font-size: 15px; }
+
+@media screen and (max-width: 719.98px) {
   .dash.pl-page { padding-left: 16px; padding-right: 16px; }
+  .pl-head { gap: 8px 10px; margin-bottom: 10px; }
   .pl-head h1 { font-size: 24px; }
+  .pl-viewbar, .pl-fort, .pl-month, .pl-page > .pl-layers, #plNew, #plPrint { display: none !important; }
   .hs-btn.pl-layers-toggle { display: inline-flex; }
-  .pl-layers { display: none; }
-  .pl-layers.pl-layers-open { display: flex; }
-  .pl-grid { display: none; }
-  .pl-compact, .pl-daylist { display: block; }
-  .pl-compact { border-bottom: 1px solid var(--hairline); }
+  .pl-head .hs-btn, .pl-picker .hs-btn, .pl-dialog .hs-btn, .pl-sheet .hs-btn { min-height: 44px; }
+  .pl-pick {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-right: auto;
+    padding: 0 12px;
+    color: var(--white);
+    background: none;
+    border: 1px solid var(--na);
+    border-radius: var(--r-badge);
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .pl-pick[aria-expanded="true"] { border-color: var(--teal); }
+  .pl-pick:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+  .pl-picker:not([hidden]) { display: block; }
+  .pl-picker .pl-compact { display: block; }
+  .pl-agenda { display: block; }
+  .pl-strip { position: sticky; top: var(--pl-top, 52px); z-index: 5; }
+  .cc-dialog.pl-dialog, .cc-dialog.pl-formdlg { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
   .pl-fields { grid-template-columns: minmax(0, 1fr); }
-  .pl-checkrow-field { min-height: 0; }
+  .pl-checkrow-field { min-height: 44px; }
+  .pl-dialog .pl-list .pl-chip { min-height: 44px; }
 }
 
 .pl-print-foot { display: none; }
