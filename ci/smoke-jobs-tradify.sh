@@ -30,14 +30,12 @@ jt_upload() {
 
 # jt_alerts JAR KIND LINK -> how many alerts of KIND with LINK the login has
 jt_alerts() {
-  req GET "/api/notifications?limit=200" "$1"
+  req GET "/api/notifications?limit=100" "$1"
   expect_status 200 "notifications"
   jqr "[.rows[] | select(.kind == \"$2\" and .link == \"$3\")] | length"
 }
-jt_kind_count() { # JAR KIND -> how many alerts of KIND the login has
-  req GET "/api/notifications?limit=200" "$1"
-  expect_status 200 "notifications"
-  jqr "[.rows[] | select(.kind == \"$2\")] | length"
+jt_kind_count() { # KIND -> how many alerts of KIND exist for anyone (read from the database)
+  jt_sql "SELECT COUNT(*) AS n FROM notifications WHERE kind = '$1'" | jq -r ".[0].n"
 }
 
 req GET /api/auth/me "$ADMIN"; JT_ADMIN_ID=$(jqr '.user.id')
@@ -83,7 +81,7 @@ expect_status 200 "admin points Crosscuts at the stand-in again"
 m6_sync "$DPM" "the first sync after set-up"
 JT_ROOT1=a7000000-0000-4000-8000-000000000001
 JT_ROOT2=a7000000-0000-4000-8000-000000000002
-JT_UNASSIGNED_ADMIN_BEFORE=$(jt_kind_count "$ADMIN" job.unassigned)
+JT_UNASSIGNED_ADMIN_BEFORE=$(jt_kind_count job.unassigned)
 m6_event "$JT_ROOT1" "$JT_ROOT1" won won "{\"quoteNumber\":\"$JT_TAG-W1\",\"siteAddress\":\"1 Made-up St\",\"clientName\":\"JT Client One\"}"
 m6_sync "$DPM" "sync the won quote"
 JT_W1=$(jt_sql "SELECT job_id AS v FROM joinr_intake WHERE root_quote_id = '$JT_ROOT1'" | jq -r '.[0].v // "null"')
@@ -95,7 +93,7 @@ expect_jq ".stage == \"won\" and .jobNumber == \"$JT_TAG-W1\" and .projectOwnerI
 for jar in "$ADMIN" "$DPM" "$ORDR"; do
   expect_eq "$(jt_alerts "$jar" job.unassigned "/job.html?id=$JT_W1")" "1" "each design.view holder gets one job.unassigned"
 done
-req GET "/api/notifications?limit=200" "$DPM"
+req GET "/api/notifications?limit=100" "$DPM"
 expect_jq "[.rows[] | select(.kind == \"job.unassigned\" and .link == \"/job.html?id=$JT_W1\")][0].title | startswith(\"New job from Joinr: \")" "the alert title"
 expect_jq "[.rows[] | select(.kind == \"job.unassigned\" and .link == \"/job.html?id=$JT_W1\")][0].body == \"$JT_TAG-W1 · JT Client One. No project manager yet.\"" "the alert's body"
 expect_eq "$(jt_alerts "$ACCT" job.unassigned "/job.html?id=$JT_W1")" "0" "accounts (no design.view) is not told"
@@ -104,12 +102,12 @@ req POST /api/job-records "$DPM" "{\"name\":\"$JT_TAG clash 1\",\"quoteNumber\":
 expect_status 201 "clash job 1"
 req POST /api/job-records "$DPM" "{\"name\":\"$JT_TAG clash 2\",\"quoteNumber\":\"$JT_TAG-W2\"}"
 expect_status 201 "clash job 2"
-JT_UNASSIGNED_ADMIN_MID=$(jt_kind_count "$ADMIN" job.unassigned)
+JT_UNASSIGNED_ADMIN_MID=$(jt_kind_count job.unassigned)
 m6_event "$JT_ROOT2" "$JT_ROOT2" won won "{\"quoteNumber\":\"$JT_TAG-W2\",\"siteAddress\":\"2 Made-up St\",\"clientName\":\"JT Client Two\"}"
 m6_sync "$DPM" "sync the clashing won quote"
 expect_eq "$(jt_sql "SELECT state AS v FROM joinr_intake WHERE root_quote_id = '$JT_ROOT2'" | jq -r '.[0].v // "null"')" "new" \
   "a won quote matching two jobs stays in the inbox"
-expect_eq "$(jt_kind_count "$ADMIN" job.unassigned)" "$JT_UNASSIGNED_ADMIN_MID" "and sends no job.unassigned"
+expect_eq "$(jt_kind_count job.unassigned)" "$JT_UNASSIGNED_ADMIN_MID" "and sends no job.unassigned"
 [ "$JT_UNASSIGNED_ADMIN_MID" -gt "$JT_UNASSIGNED_ADMIN_BEFORE" ] || fail "the first won quote's alert reached the admin"
 ok
 m6_fake POST /_control/stop
@@ -126,7 +124,7 @@ expect_eq "$(jt_alerts "$DPM" job.pm_assigned "/job.html?id=$JT_W1")" "0" "self-
 req PUT "/api/job-records/$JT_QA/owner" "$DPM" "{\"ownerId\":$JT_ADMIN_ID}"
 expect_status 200 "dpm makes admin project manager of another job"
 expect_eq "$(jt_alerts "$ADMIN" job.pm_assigned "/job.html?id=$JT_QA")" "1" "the new project manager gets one job.pm_assigned"
-req GET "/api/notifications?limit=200" "$ADMIN"
+req GET "/api/notifications?limit=100" "$ADMIN"
 expect_jq "[.rows[] | select(.kind == \"job.pm_assigned\" and .link == \"/job.html?id=$JT_QA\")][0].title == \"You are project manager for $JT_TAG quoted A\"" "its title"
 req PUT "/api/job-records/$JT_QA/owner" "$DPM" "{\"ownerId\":$JT_ADMIN_ID}"
 expect_status 200 "the same project manager again"
