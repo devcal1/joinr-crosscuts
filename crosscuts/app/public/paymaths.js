@@ -193,6 +193,9 @@
   function dayProblem(day) {
     var hasStart = day.startMin != null;
     var hasFinish = day.finishMin != null;
+    if ((day.pholMin || 0) > 0 && (hasStart || hasFinish || day.lunchMin != null)) {
+      return "A public holiday takes no start, finish or lunch";
+    }
     if (hasStart !== hasFinish) return "Give both a start and a finish";
     if (hasStart && day.finishMin <= day.startMin) return "Finish must be after start";
     if (day.lunchMin != null && !hasStart) return "Lunch needs a start and a finish";

@@ -42,6 +42,7 @@
   };
   // Which cells a dayProblem sentence outlines.
   const PROBLEM_CELLS = {
+    "A public holiday takes no start, finish or lunch": ["start", "finish", "lunch", "phol"],
     "Give both a start and a finish": ["start", "finish"],
     "Finish must be after start": ["start", "finish"],
     "Lunch needs a start and a finish": ["start", "finish", "lunch"],
@@ -415,6 +416,7 @@
     row.totalTd.textContent = sp && hasTimes ? PM.hours(sp.workedMin) : "";
     row.otTd.textContent = sp && sp.otMin ? PM.hours(sp.otMin) : "";
     row.dtTd.textContent = sp && sp.dtMin ? PM.hours(sp.dtMin) : "";
+    markDay(row, sp ? Object.assign({}, st.day, sp) : null);
     renderHint(row, st.sentence);
     return st;
   }
@@ -444,6 +446,7 @@
         row.totalTd.textContent = hasTimes ? PM.hours(d.workedMin) : "";
         row.otTd.textContent = d.otMin ? PM.hours(d.otMin) : "";
         row.dtTd.textContent = d.dtMin ? PM.hours(d.dtMin) : "";
+        markDay(row, d);
         renderHint(row, null);
       });
       tot = sheet.totals || PM.totals(sheet.days);
@@ -454,6 +457,29 @@
     $("fillBtn").hidden = !(editable() && sheet.saved && fillable().length);
   }
 
+  // Hours a day pays for: worked plus public holiday, sick and annual leave.
+  function paidMin(d) {
+    return (d.workedMin || 0) + (d.pholMin || 0) + (d.sickMin || 0) + (d.arlMin || 0);
+  }
+  function expectedMin(key) {
+    return rules ? PM.ordinaryFor(key, rules) || 0 : 0;
+  }
+  // Teal when the day's paid hours match the ordinary day (8 h Mon–Thu, 6 h Fri), orange when not.
+  // A blank day, or one with a problem, is left plain.
+  function markDay(row, d) {
+    const td = row.totalTd;
+    td.classList.remove("pr-ok", "pr-off");
+    td.removeAttribute("title");
+    if (!d || !rules) return;
+    const paid = paidMin(d);
+    if (!paid) return;
+    const want = expectedMin(row.key);
+    const ok = paid === want;
+    td.classList.add(ok ? "pr-ok" : "pr-off");
+    if (!td.textContent) td.textContent = PM.hours(paid);
+    td.title = ok ? `${PM.hours(paid)} h: the usual day` : `${PM.hours(paid)} h paid; the usual day is ${PM.hours(want)} h`;
+  }
+
   function renderTotals(t) {
     const tr = $("totalsRow");
     tr.replaceChildren();
@@ -462,6 +488,14 @@
     for (const k of ["pholMin", "sickMin", "arlMin", "onsiteMin"]) tr.append(el("td", { class: "num", text: PM.hours(t[k]) }));
     tr.append(el("td"));
     for (const k of ["workedMin", "otMin", "dtMin"]) tr.append(el("td", { class: "num pr-tot-strong", text: PM.hours(t[k]) }));
+    // The fortnight's paid hours against the usual fortnight (every day at its ordinary hours).
+    if (rules && rows.length) {
+      const want = rows.reduce((n, r) => n + expectedMin(r.key), 0);
+      const paid = paidMin(t);
+      const td = tr.children[10];
+      td.classList.add(paid === want ? "pr-ok" : "pr-off");
+      td.title = `${PM.hours(paid)} h paid (worked and leave); the usual fortnight is ${PM.hours(want)} h`;
+    }
     tr.append(el("td"));
     $("sNormal").textContent = PM.hours(t.normalMin);
     $("sOt").textContent = PM.hours(t.otMin);
