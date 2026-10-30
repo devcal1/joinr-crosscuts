@@ -1,0 +1,176 @@
+/* Jobs layout D (docs/plans/jobs-tradify-plan.md, "Layout change"): a breadcrumb trail with Jump to job,
+   the job list on the left (300 px, scrolls on its own) and the open job on the right. jobs.js drives it.
+   House style: ink ground, teal accent, outlined uppercase text, no icons or shadows. Page classes jd-. */
+
+:root { --jd-bc-h: 44px; }
+
+/* ---- breadcrumb ---- */
+.jd-bc {
+  position: sticky;
+  top: var(--shell-h, 54px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 6px 22px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--hairline);
+}
+.jd-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.jd-trail li { min-width: 0; overflow-wrap: anywhere; }
+.jd-trail li + li::before { content: "\203A"; color: var(--muted); margin: 0 10px; }
+.jd-trail a { color: var(--teal-tint); }
+.jd-trail a[aria-current] { color: var(--white); }
+.jd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.jd-jump { position: relative; flex: none; }
+.jd-jumpin {
+  width: 260px;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--white);
+  font: inherit;
+  font-size: 14px;
+  color-scheme: dark;
+  caret-color: var(--teal);
+}
+.jd-jumpin::placeholder { color: var(--muted); }
+.jd-jumpin:focus { outline: none; border-color: var(--teal); }
+.jd-jumplist {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+.jd-jumplist li { padding: 8px 12px; border-bottom: 1px solid var(--hairline); cursor: pointer; font-size: 14px; color: var(--body); }
+.jd-jumplist li:last-child { border-bottom: 0; }
+.jd-jumplist li[aria-selected="true"], .jd-jumplist li:hover { background: var(--raised); }
+.jd-jumplist .jd-jno { color: var(--teal-tint); font-weight: 700; margin-right: 6px; }
+.jd-jumplist .jd-jname { color: var(--white); font-weight: 700; }
+.jd-jumplist .jd-jclient { display: block; font-size: 12px; color: var(--label); }
+.jd-jumplist .jd-jnone { cursor: default; color: var(--label); }
+
+/* ---- list + detail ---- */
+.jd { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - var(--shell-h, 54px) - var(--jd-bc-h)); }
+.jd-list {
+  position: sticky;
+  top: calc(var(--shell-h, 54px) + var(--jd-bc-h));
+  align-self: start;
+  height: calc(100vh - var(--shell-h, 54px) - var(--jd-bc-h));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--hairline);
+}
+.jd-listtools { display: grid; gap: 10px; margin-bottom: 8px; }
+.jd-listtools .hs-input { width: 100%; box-sizing: border-box; color-scheme: dark; caret-color: var(--teal); }
+.jd-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.jd-seg button {
+  margin: 0;
+  padding: 5px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  background: none;
+  color: var(--label);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.jd-seg button:hover { color: var(--white); }
+.jd-seg button[aria-pressed="true"] { border-color: var(--teal); color: var(--teal-tint); }
+.jd-seg button:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.jd-listrow { display: flex; align-items: center; gap: 10px; }
+.jd-listrow .hs-input { flex: 1 1 auto; min-width: 0; width: auto; }
+.jd-check { flex: none; display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--label); }
+.jd-new { justify-self: start; }
+
+.jd-rows { list-style: none; margin: 0; padding: 0; }
+.jd-row { border-bottom: 1px solid var(--hairline); }
+.jd-row a {
+  display: block;
+  padding: 10px;
+  border-left: 3px solid transparent;
+  color: var(--body);
+  text-decoration: none;
+}
+.jd-row a:hover { background: var(--raised); text-decoration: none; }
+.jd-row a:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.jd-row.is-open a { background: var(--raised); border-left-color: var(--teal); }
+.jd-row.is-archived a { opacity: 0.6; }
+.jd-rowtop { display: block; overflow-wrap: anywhere; }
+.jd-rowno { color: var(--teal-tint); font-weight: 700; margin-right: 6px; }
+.jd-rowname { color: var(--white); font-weight: 700; }
+.jd-rowstage {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.jd-rowstage.is-attend { color: var(--orange); }
+.jd-empty-row { padding: 10px; color: var(--label); font-size: 14px; }
+.jd-count { font-size: 13px; margin: 10px 0 0; }
+
+/* The job on the right: left-aligned, wider than the old centred column. */
+.jd > main.jobs-page { margin: 0; width: 100%; max-width: 1100px; box-sizing: border-box; padding: 20px 26px 48px; min-width: 0; }
+.jo-tabbed .jd .jo-head { top: calc(var(--shell-h, 54px) + var(--jd-bc-h)); margin: -20px -26px 16px; padding: 14px 26px 0; }
+.jd .jo-tabs { margin: 4px -26px 0; padding: 0 26px; }
+.jo-tabbed .jd .jo-panel > * { scroll-margin-top: calc(var(--shell-h, 54px) + var(--jd-bc-h) + var(--jo-head-h, 160px) + 8px); }
+.jd .jo-head .jobs-head > a.hs-btn[href="/jobs.html"] { display: none; }
+
+/* ---- phone: the list first; a job opens full screen; the breadcrumb is the way back ---- */
+@media (max-width: 719px) {
+  .jd-bc { padding: 6px 16px; }
+  .jd-jump { display: none; }
+  .jd { display: block; min-height: 0; }
+  .jd-list { position: static; height: auto; overflow: visible; border-right: 0; background: none; padding: 16px; }
+  .jd-row a { padding: 12px 10px; min-height: 44px; box-sizing: border-box; }
+  .jd-seg button { min-height: 44px; padding: 5px 12px; }
+  .jd-jobpage.jd-hasjob .jd-list { display: none; }
+  .jd-listpage .jd > main { display: none; }
+  .jd > main.jobs-page { padding: 20px 16px 48px; }
+  .jo-tabbed .jd .jo-head { margin: -20px -16px 16px; padding: 10px 16px 0; }
+  .jd .jo-tabs { margin: 4px -16px 0; padding: 0 16px; }
+}
+
+/* style-check: print-start */
+@media print {
+  .jd-bc, .jd-list { display: none !important; }
+  .jd { display: block; }
+  .jd > main.jobs-page { max-width: none; padding: 0; }
+}
+/* style-check: print-end */

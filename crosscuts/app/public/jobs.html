@@ -6,39 +6,46 @@
 <title>Jobs - Crosscuts</title>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="jobs.css">
+<link rel="stylesheet" href="jobsplit.css">
   <script src="/shell/busy.js"></script>
 </head>
-<body>
+<body class="jd-listpage">
   <div id="cc-shell"></div>
 
-  <main class="jobs-page">
-    <div class="jobs-head">
-      <h1>Jobs</h1>
-      <a id="newJob" class="hs-btn hs-btn-primary" href="/job.html" hidden>New job</a>
+  <!-- Layout D (docs/plans/jobs-tradify-plan.md, "Layout change"): breadcrumb trail and Jump to job (jobs.js). -->
+  <nav id="jdCrumbs" class="jd-bc" aria-label="Breadcrumb">
+    <ol id="jdTrail" class="jd-trail"><li><a href="/jobs.html">Jobs</a></li></ol>
+    <div class="jd-jump" role="search">
+      <label for="jdJump" class="jd-sr">Jump to job</label>
+      <input id="jdJump" class="jd-jumpin" type="search" placeholder="Jump to job..." autocomplete="off" role="combobox" aria-expanded="false" aria-controls="jdJumpList" aria-autocomplete="list">
+      <ul id="jdJumpList" class="jd-jumplist" role="listbox" aria-label="Matching jobs" hidden></ul>
     </div>
-
-    <!-- Jobs as containers (docs/plans/jobs-tradify-contracts.md section 5.2): filters, then the table. -->
-    <div id="joFilters" class="jo-filters" role="group" aria-label="Show jobs">
-      <button class="hs-btn" type="button" data-filter="mine" aria-pressed="false">My jobs</button>
-      <button class="hs-btn" type="button" data-filter="unassigned" aria-pressed="false">Unassigned</button>
-      <button class="hs-btn" type="button" data-filter="all" aria-pressed="false">All</button>
-    </div>
-    <div class="jobs-tools">
-      <input id="q" class="hs-input grow" type="search" placeholder="Search job no., name, client, address" autocomplete="off">
-      <select id="stage" class="hs-input" aria-label="Filter by stage">
-        <option value="">All stages</option>
-      </select>
-      <label class="jobs-check"><input id="showArchived" type="checkbox"> Show archived</label>
-    </div>
-
-    <div class="jobs-tablewrap">
-      <table class="jobs-table hs-table jo-list">
-        <thead id="head"></thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-    <p id="count" class="muted" style="margin-top:10px"></p>
-  </main>
+  </nav>
+  <div class="jd">
+    <!-- The job list (jobs.js): search, My jobs / Unassigned / All, stage, then one row per job. -->
+    <aside id="jdList" class="jd-list" aria-label="Jobs">
+      <div class="jd-listtools">
+        <input id="q" class="hs-input" type="search" placeholder="Search jobs..." aria-label="Search job no., name, client, address" autocomplete="off">
+        <div id="joFilters" class="jd-seg" role="group" aria-label="Show jobs">
+          <button type="button" data-filter="mine" aria-pressed="false">My jobs</button>
+          <button type="button" data-filter="unassigned" aria-pressed="false">Unassigned</button>
+          <button type="button" data-filter="all" aria-pressed="false">All</button>
+        </div>
+        <div class="jd-listrow">
+          <select id="stage" class="hs-input" aria-label="Filter by stage">
+            <option value="">All stages</option>
+          </select>
+          <label class="jd-check"><input id="showArchived" type="checkbox"> Archived</label>
+        </div>
+        <a id="newJob" class="hs-btn jd-new" href="/job.html" hidden>New job</a>
+      </div>
+      <ul id="rows" class="jd-rows"></ul>
+      <p id="count" class="jd-count muted"></p>
+    </aside>
+    <main class="jobs-page jd-empty">
+      <p id="jdPick" class="muted">Choose a job from the list.</p>
+    </main>
+  </div>
 
   <script src="shared.js"></script>
   <script src="jobs.js"></script>

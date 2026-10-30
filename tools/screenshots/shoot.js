@@ -143,6 +143,11 @@ const PAGES = [
   ["accounts-menu-0118", "/", 1440, true, undefined, undefined, { js: ACCOUNTS_MENU, viewport: true }],
   // 0.1.19: the Scheduling and Admin menus open (Notes first), and the Design/PM Notes page (seed-notes.js).
   ["scheduling-menu-0119", "/", 1440, true, undefined, undefined, { js: DEPT_MENU("Scheduling"), viewport: true }],
+  // 2026-10-30: Jobs layout D (list + detail, breadcrumb, Jump to job).
+  ["jd-job", "/job.html?id=6#tab-notes", 1440, true, undefined, undefined, { js: "0", viewport: true }],
+  ["jd-quote", "/job.html?id=6#tab-quote", 1440, true, undefined, undefined, { js: "0", viewport: true }],
+  ["jd-jump", "/job.html?id=6#tab-notes", 1440, true, undefined, undefined, { js: "(function(){var j=document.getElementById('jdJump');j.focus();j.value='m1';j.dispatchEvent(new Event('input',{bubbles:true}))})()", viewport: true }],
+  ["jd-phone-list", "/jobs.html", 375, true], ["jd-phone-job", "/job.html?id=6#tab-notes", 375, true],
   ["admin-menu-0119", "/", 1440, true, undefined, undefined, { js: DEPT_MENU("Admin"), viewport: true }],
   // 0.1.19 (week wall): the Design/PM Notes page this week, with the add form open, last week (read-only), and on a phone.
   ["design-notes-this-wall", "/notes.html?dept=design", 1440, true],
