@@ -483,7 +483,7 @@
     if (j.valueCents != null) meta.append(el("span", { text: money.format(j.valueCents / 100) }));
     if (meta.childNodes.length) card.append(meta);
     if (OWNER_FILTERED.has(j.stage)) {
-      card.append(el("div", { class: "pl-owner", text: j.owner ? "Owner " + j.owner.name : "No owner" }));
+      card.append(el("div", { class: "pl-owner", text: j.owner ? "Project manager " + j.owner.name : "No project manager" }));
     }
     // 0.2.2 (m23-contracts section 6): Projects tiles show the step marks (done in body text,
     // missing muted); Ordering tiles show how many lines are ordered. Text only.

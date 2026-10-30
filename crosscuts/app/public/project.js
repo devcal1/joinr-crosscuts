@@ -134,17 +134,17 @@
     if (j.quoteNumber) box.append(item("Quote", el("span", { class: "jo-sumval", text: j.quoteNumber })));
     box.append(item("Stage", el("span", { class: "hs-badge hs-badge-teal", text: STAGE_LABEL[j.pipelineStage] || j.pipelineStage || "No stage" })));
     if (data.can.setOwner && owners.length) {
-      const sel = el("select", { class: "hs-input", id: "pjOwnerSel", "aria-label": "Project owner" });
-      sel.append(el("option", { value: "", text: "No owner" }));
+      const sel = el("select", { class: "hs-input", id: "pjOwnerSel", "aria-label": "Project manager" });
+      sel.append(el("option", { value: "", text: "No project manager" }));
       const ids = new Set(owners.map((o) => o.id));
       for (const o of owners) sel.append(el("option", { value: String(o.id), text: o.name }));
       // An owner who has since lost Projects access still shows, so the page doesn't drop them.
       if (j.owner && !ids.has(j.owner.id)) sel.append(el("option", { value: String(j.owner.id), text: j.owner.name }));
       sel.value = j.owner ? String(j.owner.id) : "";
       sel.addEventListener("change", () => saveOwner(sel));
-      box.append(item("Owner", sel, ownerSwatch(j.owner)));
+      box.append(item("Project manager", sel, ownerSwatch(j.owner)));
     } else {
-      box.append(item("Owner", el("span", { class: "jo-sumval", text: j.owner ? j.owner.name : "No owner" }), ownerSwatch(j.owner)));
+      box.append(item("Project manager", el("span", { class: "jo-sumval", text: j.owner ? j.owner.name : "No project manager" }), ownerSwatch(j.owner)));
     }
   }
 

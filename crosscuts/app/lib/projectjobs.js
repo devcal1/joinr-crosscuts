@@ -76,6 +76,17 @@ function setOwner(db, req, jobId, v) {
       before: { ownerId: before, name: prev ? prev.display_name : null },
       after: { ownerId: next, name: owner ? owner.name : null },
     });
+    // jobs-tradify-contracts section 3: the new project manager is told, unless they assigned themselves.
+    if (next != null && !(req && req.user && Number(req.user.id) === Number(next))) {
+      require("./notify").toUser(db, next, {
+        kind: "job.pm_assigned",
+        title: `You are project manager for ${job.name}`,
+        body: `${job.job_number || ""} · ${job.client_name || ""}`,
+        link: `/job.html?id=${jobId}`,
+        entityType: "job",
+        entityId: jobId,
+      });
+    }
     // 0.2.2 (m23-contracts section 3): a Won job given an owner moves to Projects (an audited stage
     // move). A job the board holds stays where it is.
     if (owner && jobstage.pipelineStage(job) === "won") {

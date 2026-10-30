@@ -357,7 +357,7 @@ function ownerSweep(db) {
         if (sent.get(uid, OWNER_NEEDED, String(j.id))) continue;
         notify.toUser(db, uid, {
           kind: OWNER_NEEDED,
-          title: `${j.name} needs a project owner`,
+          title: `${j.name} needs a project manager`,
           link: `/project.html?id=${j.id}`,
           entityType: "job",
           entityId: j.id,

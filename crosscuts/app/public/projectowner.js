@@ -38,13 +38,13 @@
       return; // the job page shows its own errors
     }
     const status = el("span", { class: "muted", role: "status" });
-    const parts = [el("span", { class: "hs-label", text: "Project owner" })];
+    const parts = [el("span", { class: "hs-label", text: "Project manager" })];
     if (p.can.setOwner) {
       let owners = [];
       try {
         owners = (await api("/api/project-owners")).owners;
       } catch (e) { /* falls back to text */ }
-      const sel = el("select", { class: "hs-input", "aria-label": "Project owner" }, el("option", { value: "", text: "No owner" }));
+      const sel = el("select", { class: "hs-input", "aria-label": "Project manager" }, el("option", { value: "", text: "No project manager" }));
       for (const o of owners) sel.append(el("option", { value: String(o.id), text: o.name }));
       if (p.job.owner && !owners.some((o) => o.id === p.job.owner.id)) {
         sel.append(el("option", { value: String(p.job.owner.id), text: p.job.owner.name }));
@@ -65,7 +65,7 @@
       });
       parts.push(sel, chip(p.job.owner));
     } else {
-      parts.push(el("span", { text: p.job.owner ? p.job.owner.name : "No owner" }), chip(p.job.owner));
+      parts.push(el("span", { text: p.job.owner ? p.job.owner.name : "No project manager" }), chip(p.job.owner));
     }
     parts.push(el("a", { class: "hs-btn hs-btn-quiet", href: "/project.html?id=" + jobId, text: "Project page" }), status);
     box.replaceChildren(...parts.filter(Boolean));

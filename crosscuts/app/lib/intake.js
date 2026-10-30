@@ -544,7 +544,18 @@ function autoDecide(db, id) {
       jobId = acceptTx(db, req, row.id);
       state = "accepted";
     }
-    const job = db.prepare("SELECT name FROM jobs WHERE id = ?").get(jobId);
+    const job = db.prepare("SELECT name, job_number, client_name, project_owner_id FROM jobs WHERE id = ?").get(jobId);
+    // jobs-tradify-contracts section 2: a job with no project manager alerts every design.view holder.
+    if (job && job.project_owner_id == null) {
+      require("./notify").toKey(db, "design.view", {
+        kind: "job.unassigned",
+        title: `New job from Joinr: ${job.name}`,
+        body: `${job.job_number || ""} · ${job.client_name || ""}. No project manager yet.`,
+        link: `/job.html?id=${jobId}`,
+        entityType: "job",
+        entityId: jobId,
+      });
+    }
     teamTasks.createFromJoinr(db, req, {
       jobId,
       jobName: job && job.name,

@@ -5,6 +5,7 @@ const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const files = require("../lib/files");
 const { can } = require("../lib/httperror");
+const jobnotes = require("../lib/jobnotes");
 
 const r = defineRoutes("/api/files");
 
@@ -25,7 +26,9 @@ r.get("/:id", "login", (req, res) => {
   const payable = db.prepare("SELECT id FROM payables WHERE file_id = ?").get(id);
   const allowed =
     (report && can(req, "accounts.view")) || (task && can(req, "tasks.use")) || (statement && can(req, "accounts.view")) ||
-    (payable && can(req, "accounts.view"));
+    (payable && can(req, "accounts.view")) ||
+    // jobs-tradify-contracts 4.1: a file on a live job note.
+    (can(req, "jobs.view") && jobnotes.fileOnLiveNote(db, id));
   if (!allowed) return notFound(res);
   files.send(res, row);
 });

@@ -56,6 +56,7 @@ const routers = [
   require("./routes/auth"),
   require("./routes/users"),
   require("./routes/jobs"),
+  require("./routes/jobnotes"), // jobs-tradify-contracts 4.1
   require("./routes/audit"),
   require("./routes/dashboard"),
   require("./routes/meta"),
