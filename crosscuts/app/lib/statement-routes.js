@@ -36,6 +36,24 @@ function body(req) {
   return b && typeof b === "object" && !Array.isArray(b) ? b : {};
 }
 
+// Folds unpaid individual invoices ([{period, cents, count}]) into an outstanding() result.
+function addInvoices(out, rows) {
+  for (const r of rows) {
+    if (r.period === out.current) continue;
+    const side = r.period < out.current ? "before" : "after";
+    let e = out[side].find((x) => x.period === r.period);
+    if (!e) {
+      e = { period: r.period, label: Periods.longLabel(r.period), cents: 0, count: 0 };
+      out[side].push(e);
+    }
+    e.cents += r.cents;
+    e.count += r.count;
+    out[side + "Cents"] += r.cents;
+  }
+  out.before.sort((a, b) => (a.period < b.period ? -1 : 1));
+  out.after.sort((a, b) => (a.period < b.period ? -1 : 1));
+}
+
 // `suppliers` is lib/suppliers.js (suppliers) or its .admin (admin accounts); `tag` prefixes log lines.
 function build(prefix, suppliers, tag) {
   const r = defineRoutes(prefix);
@@ -60,7 +78,10 @@ function build(prefix, suppliers, tag) {
 
   // Money still owing in the months either side of the current one (the side panels).
   r.get("/outstanding", VIEW, handle((req, res) => {
-    res.json(suppliers.outstanding(db));
+    const out = suppliers.outstanding(db);
+    // Supplier accounts also counts the unpaid individual invoices (Todd 2026-10-30).
+    if (prefix === "/api/suppliers") addInvoices(out, require("./payables").unpaidByPeriod(db));
+    res.json(out);
   }));
 
   r.get("/months/:period", VIEW, handle((req, res) => {
