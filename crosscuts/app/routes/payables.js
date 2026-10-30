@@ -39,6 +39,12 @@ r.post("/", EDIT, handle((req, res) => {
   res.status(201).json(payables.create(db, req, body(req)));
 }));
 
+// Stops future occurrences of a recurring invoice (lines already listed stay).
+r.post("/recurrences/:id/stop", EDIT, handle((req, res) => {
+  payables.stopRecurrence(db, req, idOr404(req.params.id));
+  res.status(204).end();
+}));
+
 r.get("/:id", VIEW, handle((req, res) => {
   res.json(payables.get(db, idOr404(req.params.id)));
 }));

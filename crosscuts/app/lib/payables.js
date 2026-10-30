@@ -5,7 +5,7 @@
 // Every function takes db first; nothing here requires ../db. Every write runs in one transaction
 // with its audit row.
 const { HttpError, bad, notFound, conflict, forbidden, can } = require("./httperror");
-const { sydneyToday, parseDateUTC, formatDateUTC } = require("./time");
+const { sydneyToday, parseDateUTC, formatDateUTC, addDays } = require("./time");
 const audit = require("./audit");
 const files = require("./files");
 const Periods = require("../public/periods");
@@ -26,7 +26,7 @@ function validDate(s) {
   return typeof s === "string" && DATE_RE.test(s) && formatDateUTC(parseDateUTC(s)) === s;
 }
 function lastPeriod(today) {
-  return Periods.addMonths(Periods.currentPeriod(today), 1);
+  return Periods.addMonths(Periods.currentPeriod(today), Periods.MAX_AHEAD_MONTHS);
 }
 function periodOk(p, today) {
   return Periods.validPeriod(p) && p >= Periods.HISTORY_START && p <= lastPeriod(today);
@@ -39,8 +39,10 @@ function periodOr404(p, today = sydneyToday()) {
 const SELECT = `SELECT p.*, au.display_name AS added_by_name, pu.display_name AS paid_by_name,
          f.id AS f_id, f.original_name AS f_original_name, f.size AS f_size, f.mime AS f_mime,
          f.uploaded_at AS f_uploaded_at, f.uploaded_by AS f_uploaded_by, fu.display_name AS f_uploaded_by_name,
-         s.name AS supplier_name
+         s.name AS supplier_name,
+         rc.unit AS r_unit, rc.every AS r_every, rc.end_date AS r_end, rc.stopped_at AS r_stopped
     FROM payables p
+    LEFT JOIN payable_recurrences rc ON rc.id = p.recurrence_id
     LEFT JOIN users au ON au.id = p.added_by
     LEFT JOIN users pu ON pu.id = p.paid_by
     LEFT JOIN files f ON f.id = p.file_id AND f.removed_at IS NULL
@@ -72,6 +74,10 @@ function toPayable(r) {
             uploaded_by: r.f_uploaded_by,
             uploaded_by_name: r.f_uploaded_by_name,
           }),
+    recurrence:
+      r.recurrence_id == null
+        ? null
+        : { id: r.recurrence_id, unit: r.r_unit, every: r.r_every, endDate: r.r_end || null, active: r.r_stopped == null },
     supplier: r.supplier_id == null ? null : { id: r.supplier_id, name: r.supplier_name },
     addedBy: r.added_by == null ? null : { id: r.added_by, name: r.added_by_name || null },
     updatedAt: r.updated_at,
@@ -129,6 +135,7 @@ function parse(b, { create }, today) {
 // missing-figure count.
 function month(db, period, today = sydneyToday()) {
   periodOr404(period, today);
+  generate(db, period);
   const lines = db
     .prepare(`${SELECT} WHERE p.period = ? AND p.removed_at IS NULL ORDER BY p.due_date IS NULL, p.due_date, p.id`)
     .all(period)
@@ -146,16 +153,97 @@ function month(db, period, today = sydneyToday()) {
   return { period, lines, counts: { listed: lines.length, missing, paid }, totalCents, leftCents };
 }
 
+// ---- recurring invoices -------------------------------------------------------------------
+function daysIn(y, m) {
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+// The k-th due date of a rule (k = 0 is the anchor). Months count from the anchor's own day and
+// clamp to the month's end (31st -> 30th/28th), so one short month doesn't shift later ones.
+function occurrence(rule, k) {
+  if (rule.unit === "weeks") return addDays(rule.anchor_date, 7 * rule.every * k);
+  const [y, m, d] = rule.anchor_date.split("-").map(Number);
+  const i = y * 12 + (m - 1) + rule.every * k;
+  const yy = Math.floor(i / 12);
+  const mm = (i % 12) + 1;
+  return `${yy}-${String(mm).padStart(2, "0")}-${String(Math.min(d, daysIn(yy, mm))).padStart(2, "0")}`;
+}
+// Lists every active rule's occurrences that fall in `period`. Idempotent: the unique index on
+// (recurrence_id, recurrence_due) means a date is listed once, even if its line was later removed.
+function generate(db, period) {
+  const rules = db.prepare("SELECT * FROM payable_recurrences WHERE stopped_at IS NULL AND anchor_date <= ?").all(period + "-31");
+  if (!rules.length) return 0;
+  const now = nowIso();
+  const ins = db.prepare(
+    `INSERT OR IGNORE INTO payables (period, payee, description, amount_cents, due_date, myob, recurrence_id, recurrence_due, added_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  let n = 0;
+  db.transaction(() => {
+    for (const r of rules) {
+      for (let k = 0; k < 5000; k++) {
+        const d = occurrence(r, k);
+        if (d.slice(0, 7) > period || (r.end_date && d > r.end_date)) break;
+        if (d.slice(0, 7) < period) continue;
+        const info = ins.run(period, r.payee, r.description, r.amount_cents, d, r.myob, r.id, d, r.created_by, now, now);
+        if (info.changes) {
+          n += 1;
+          audit.log(null, { action: "payable.generate", entityType: "payable", entityId: Number(info.lastInsertRowid), actorLabel: "recurrence", after: { recurrenceId: r.id, dueDate: d, period } });
+        }
+      }
+    }
+  })();
+  return n;
+}
+
+// Stops future occurrences; lines already listed stay.
+function stopRecurrence(db, req, id) {
+  db.transaction(() => {
+    const r = db.prepare("SELECT * FROM payable_recurrences WHERE id = ?").get(id);
+    if (!r) throw notFound();
+    if (r.stopped_at) throw conflict("This recurrence is already stopped");
+    db.prepare("UPDATE payable_recurrences SET stopped_at = ?, stopped_by = ? WHERE id = ?").run(nowIso(), userId(req), id);
+    audit.log(req, { action: "payable.recurrence.stop", entityType: "payable_recurrence", entityId: id, before: { payee: r.payee, unit: r.unit, every: r.every } });
+  })();
+}
+
+function parseRepeat(rep, due) {
+  if (rep == null || rep === false) return null;
+  if (typeof rep !== "object" || Array.isArray(rep)) throw bad("repeat must be an object");
+  if (rep.unit == null || rep.unit === "never") return null;
+  if (rep.unit !== "weeks" && rep.unit !== "months") throw bad("Repeat every weeks or months");
+  if (!Number.isInteger(rep.every) || rep.every < 1 || rep.every > 52) throw bad("Repeat every 1 to 52 weeks or months");
+  if (!due) throw bad("A repeating invoice needs a due date");
+  let end = null;
+  if (rep.endDate) {
+    if (!validDate(rep.endDate)) throw bad("The end date must be a valid YYYY-MM-DD date");
+    if (rep.endDate < due) throw bad("The end date can't be before the first due date");
+    end = rep.endDate;
+  }
+  return { unit: rep.unit, every: rep.every, endDate: end };
+}
+
 function create(db, req, body) {
   const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
   const today = sydneyToday();
   const v = parse(b, { create: true }, today);
+  const rep = parseRepeat(b.repeat, v.due_date);
   if (!v.period) {
     const fromDue = v.due_date ? v.due_date.slice(0, 7) : null;
     v.period = fromDue && periodOk(fromDue, today) ? fromDue : Periods.currentPeriod(today);
   }
   return db.transaction(() => {
     const now = nowIso();
+    if (rep) {
+      const ri = db
+        .prepare(
+          `INSERT INTO payable_recurrences (payee, description, amount_cents, myob, unit, every, anchor_date, end_date, created_by, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(v.payee, v.description || "", v.amount_cents == null ? null : v.amount_cents, v.myob || 0, rep.unit, rep.every, v.due_date, rep.endDate, userId(req), now);
+      v.recurrence_id = Number(ri.lastInsertRowid);
+      v.recurrence_due = v.due_date;
+      audit.log(req, { action: "payable.recurrence.create", entityType: "payable_recurrence", entityId: v.recurrence_id, after: { payee: v.payee, ...rep, firstDue: v.due_date } });
+    }
     const cols = Object.keys(v);
     const info = db
       .prepare(
@@ -278,6 +366,7 @@ function convert(db, req, id, suppliers) {
 // not paid (and not N/A) in the current month. {count, cents}.
 function toPayThisMonth(db, today = sydneyToday()) {
   const period = Periods.currentPeriod(today);
+  generate(db, period);
   const ind = db
     .prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS c FROM payables WHERE period = ? AND removed_at IS NULL AND paid_date IS NULL")
     .get(period);
@@ -307,6 +396,9 @@ module.exports = {
   HttpError,
   PAY_KEY,
   month,
+  generate,
+  occurrence,
+  stopRecurrence,
   get,
   create,
   update,

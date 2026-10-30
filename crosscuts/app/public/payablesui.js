@@ -80,6 +80,15 @@
     month.value = line ? line.period : period;
     const myob = el("input", { id: "piMyob", type: "checkbox" });
     myob.checked = !!(line && line.myob);
+    // Repeats (add only): Never, or every N weeks / months from the due date, with an optional end date.
+    const repUnit = el("select", { id: "piRepUnit", class: "hs-input" },
+      el("option", { value: "never", text: "Never" }), el("option", { value: "weeks", text: "Every N weeks" }), el("option", { value: "months", text: "Every N months" }));
+    const repEvery = el("input", { id: "piRepEvery", class: "hs-input", type: "number", min: "1", max: "52", value: "1", "aria-label": "Repeat every N" });
+    const repEnd = el("input", { id: "piRepEnd", class: "hs-input", type: "date", "aria-label": "Stop repeating after" });
+    const repRow = el("div", { class: "su-pi-row" }, field("Repeats", repUnit, "piRepUnit"), field("N", repEvery, "piRepEvery"), field("Last due date (optional)", repEnd, "piRepEnd"));
+    const syncRep = () => { repEvery.disabled = repEnd.disabled = repUnit.value === "never"; };
+    repUnit.addEventListener("change", syncRep);
+    syncRep();
     const save = el("button", { type: "submit", class: "hs-btn hs-btn-primary", text: "Save" });
     const cancel = el("button", { type: "button", class: "hs-btn hs-btn-quiet", text: "Cancel" });
     cancel.addEventListener("click", () => d.close());
@@ -92,6 +101,27 @@
       el("div", { class: "su-pi-row" }, field("Amount", amount, "piAmount"), field("Due date", due, "piDue"), field("Month", month, "piMonth")),
       el("label", { class: "su-check", for: "piMyob" }, myob, document.createTextNode(" Entered in MYOB")));
 
+    if (!line) form.append(repRow);
+    else if (line.recurrence) {
+      const r = line.recurrence;
+      const row = el("div", { class: "su-pi-row" },
+        el("span", { class: "su-pi-sub", text: `Repeats every ${r.every} ${r.unit === "weeks" ? (r.every === 1 ? "week" : "weeks") : (r.every === 1 ? "month" : "months")}${r.endDate ? ` until ${r.endDate}` : ""}${r.active ? "" : " (stopped)"}` }));
+      if (r.active) {
+        const stop = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Stop repeating" });
+        stop.addEventListener("click", async () => {
+          if (!confirm(`Stop future repeats for ${line.payee}? Invoices already listed stay.`)) return;
+          try {
+            await call("POST", `/api/payables/recurrences/${r.id}/stop`);
+            d.close();
+            done();
+          } catch (e) {
+            err.textContent = e.message;
+          }
+        });
+        row.append(stop);
+      }
+      form.append(row);
+    }
     if (line) {
       // the file
       const fileRow = el("div", { class: "su-pi-row" });
@@ -172,6 +202,10 @@
       }
       const body = { payee: payee.value, description: desc.value, amountCents: cents, dueDate: due.value || null, myob: myob.checked };
       if (month.value) body.period = month.value;
+      if (!line && repUnit.value !== "never") {
+        body.repeat = { unit: repUnit.value, every: Number(repEvery.value), endDate: repEnd.value || null };
+        if (!due.value) { err.textContent = "A repeating invoice needs a due date"; return; }
+      }
       save.disabled = true;
       try {
         if (line) await call("PATCH", `/api/payables/${line.id}`, body);
@@ -232,6 +266,7 @@
         if (o.canEdit) name.addEventListener("click", () => openEditor(period, l, o, after));
         const nameTd = el("td", null, name);
         if (l.description) nameTd.append(el("span", { class: "su-pi-sub", text: l.description }));
+        if (l.recurrence) nameTd.append(el("span", { class: "su-pi-sub", text: "Repeats" }));
         if (l.file) nameTd.append(el("a", { class: "su-pi-sub", href: `/api/files/${l.file.id}`, target: "_blank", rel: "noopener", text: "File" }));
         tr.append(nameTd);
         tr.append(el("td", { text: l.dueDate ? fmtDate(l.dueDate) : "No date" }));
