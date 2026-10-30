@@ -206,7 +206,7 @@ Untouched. `joinr_intake` rows in state `new` stay there for a person (decision 
 
 ## 3. Project manager
 
-- `jobs.project_owner_id`, unchanged in the database and the API (`ownerId`, `GET /api/project-owners`, `PUT /api/job-records/:id/owner`, `routes/projectjobs.js:39-50`). Every UI label that says "Project owner" / "Owner" for it reads **"Project manager"** (`public/projectowner.js`, `public/job.js`, `public/project.html|js`, `public/pipeline.js`, the jobs table). Alert text in `lib/projectsteps.js` "needs a project owner" (`lib/projectsteps.js:360`) becomes "needs a project manager"; the kind `project.owner_needed` stays (no smoke asserts the title; check with `grep -n "needs a project" ci/` at build).
+- `jobs.project_owner_id`, unchanged in the database and the API (`ownerId`, `GET /api/project-owners`, `PUT /api/job-records/:id/owner`, `routes/projectjobs.js:39-50`). Every UI label that says "Project owner" / "Owner" for it reads **"Project manager"** (`public/projectowner.js`, `public/job.js`, `public/project.html|js`, `public/pipeline.js`, the jobs table). Alert text in `lib/projectsteps.js` "needs a project owner" (`lib/projectsteps.js:360`) becomes "needs a project manager"; the kind `project.owner_needed` stays. `ci/smoke-m23-project-steps.sh:76` asserts the title "... job needs a project owner" and changes with it (section 6.2; Q8).
 - **Who may assign:** unchanged: `users.admin`, or `jobs.edit` together with `design.view` (`canSetOwner`, `routes/projectjobs.js:35-37`). The PM must be an active user with `design.view` (`checkOwner`, `lib/projectjobs.js:54-61`).
 - Assigning at Quoted leaves the job at Quoted (`setOwner` moves only Won to Projects, `lib/projectjobs.js:81`).
 - **New alert:** `setOwner` (`lib/projectjobs.js:63-90`), when it sets a new non-null PM who is not the person assigning: `notify.toUser(pm, {kind: "job.pm_assigned", title: "You are project manager for <name>", body: "<job number> · <client>", link: "/job.html?id=N", entityType: "job", entityId: N})`. Clearing or re-setting the same PM sends nothing.
@@ -324,7 +324,7 @@ Because only the open-quotes list makes Quoted jobs, and the baseline is taken o
 
 **Order risk:** if any smoke sourced before m16 (`smoke-m2-*` to `smoke-m15-*`) or the background timer (first tick 40 s, `joinr-open-quotes.js:30`) makes a good open-quotes fetch first, the baseline is taken there and m16 is still unaffected (its roots are then new, and `:201` would make jobs for M16-S1, S2 and the won lines' roots stay won-only). Today no earlier smoke serves the open-quotes list (the fake answers 404 until `/_control/openquotes`), so this does not happen; the new smoke 6.1 step 2 copes either way. **To add to m16** (so the order risk is visible, not silent): after `:210`, `expect_eq "$(m16_val "SELECT baseline_at IS NOT NULL AS v FROM joinr_quote_seen_meta")" "1"` and `SELECT COUNT(*) FROM jobs WHERE source='joinr' AND stage='quoted'` unchanged from before `:201`.
 
-Text-only changes from section 3 (label "Project manager", "needs a project manager"): grep `ci/` for "project owner" titles at build; none found in assertions on alert titles today (`grep -n "needs a project" ci/` empty when this was written; recheck).
+Text-only change from section 3: **`ci/smoke-m23-project-steps.sh:76`** expects the title `"$M23_TAG job needs a project owner"`; it becomes `"... needs a project manager"` (unless Todd keeps the old words, Q8). No other assertion reads "project owner" text.
 
 ## 7. Build waves
 
@@ -345,7 +345,7 @@ Disjoint files per piece, so each wave's pieces can run in parallel (one full sm
 
 ## 8. Version
 
-Stays **0.2.8**. The CI guard (`.github/workflows/publish.yml:71-83`) compares `crosscuts/app/package.json` at the push's `before` commit with the pushed one and fails only if app code changed and the version is the same. `origin/main` holds 0.2.7 (checked: `git show origin/main:crosscuts/app/package.json`), local holds 0.2.8, so one push carrying 0.2.8 and this feature passes, however many local commits it holds. `package-lock.json` root version is already in step with 0.2.8 (bumped with the Planner work). The merge job's "tag must not exist" check (`publish.yml:180-183` area) passes because 0.2.8 was never published.
+Stays **0.2.8**. The CI guard (`.github/workflows/publish.yml:71-83`) compares `crosscuts/app/package.json` at the push's `before` commit with the pushed one and fails only if app code changed and the version is the same. `origin/main` holds 0.2.7 (checked: `git show origin/main:crosscuts/app/package.json`), local holds 0.2.8, so one push carrying 0.2.8 and this feature passes, however many local commits it holds. `crosscuts/app/package-lock.json` root version is already 0.2.8, in step. The merge job's "tag must not exist" check (`publish.yml:180-183` area) passes because 0.2.8 was never published.
 
 ## 9. Open questions for Todd
 
@@ -356,6 +356,7 @@ Stays **0.2.8**. The CI guard (`.github/workflows/publish.yml:71-83`) compares `
 5. **Two jobs already carry a sent quote's number.** No job is made and design.view is alerted, but there is no inbox entry for a sent quote (the inbox is the won feed). OK?
 6. **Invoices tab** is shown only to holders of `accounts.view` (Todd, Tracey, admins). PMs on the design_pm preset don't have it, so they won't see the tab. Give design_pm read-only invoices (a new key, the 40th), or leave it?
 7. **Who may add notes:** this contract lets anyone who can see the job (`jobs.view`, which includes Accounts and Scheduling) add notes. OK, or `jobs.edit` only?
+8. **Alert words:** rename "needs a project owner" to "needs a project manager" (one smoke line changes), or keep the old words?
 
 ## 10. Risks
 
