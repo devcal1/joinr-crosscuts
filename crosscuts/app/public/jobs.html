@@ -17,8 +17,14 @@
       <a id="newJob" class="hs-btn hs-btn-primary" href="/job.html" hidden>New job</a>
     </div>
 
+    <!-- Jobs as containers (docs/plans/jobs-tradify-contracts.md section 5.2): filters, then the table. -->
+    <div id="joFilters" class="jo-filters" role="group" aria-label="Show jobs">
+      <button class="hs-btn" type="button" data-filter="mine" aria-pressed="false">My jobs</button>
+      <button class="hs-btn" type="button" data-filter="unassigned" aria-pressed="false">Unassigned</button>
+      <button class="hs-btn" type="button" data-filter="all" aria-pressed="false">All</button>
+    </div>
     <div class="jobs-tools">
-      <input id="q" class="hs-input grow" type="search" placeholder="Search name, client, address, reference" autocomplete="off">
+      <input id="q" class="hs-input grow" type="search" placeholder="Search job no., name, client, address" autocomplete="off">
       <select id="stage" class="hs-input" aria-label="Filter by stage">
         <option value="">All stages</option>
       </select>
@@ -26,7 +32,7 @@
     </div>
 
     <div class="jobs-tablewrap">
-      <table class="jobs-table hs-table">
+      <table class="jobs-table hs-table jo-list">
         <thead id="head"></thead>
         <tbody id="rows"></tbody>
       </table>

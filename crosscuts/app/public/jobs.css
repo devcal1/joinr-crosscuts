@@ -259,3 +259,28 @@ a.hs-btn:hover { text-decoration: none; }
 .jo-planner td.jo-open { width: 1%; white-space: nowrap; text-align: right; }
 .jo-planner td.jo-open .hs-btn { padding: 6px 10px; }
 .jo-more { margin: 8px 0 0; font-size: 14px; }
+
+/* Jobs list as a table (docs/plans/jobs-tradify-contracts.md section 5.2): filters, sortable headings,
+   and stacked rows on a phone. */
+.jo-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.jo-filters .hs-btn[aria-pressed="true"] { border-color: var(--teal); color: var(--white); background: var(--teal-16); }
+.jo-list th.jo-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.jo-list th.jo-sortable:hover { color: var(--white); }
+.jo-list th .jo-sortbtn { margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.jo-list th .jo-sortbtn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.jo-list td.jo-jobno { white-space: nowrap; font-weight: 700; color: var(--teal-tint); }
+.jo-list td.jo-jobno a { color: inherit; }
+.jo-list td.jo-when { white-space: nowrap; color: var(--label); }
+.jo-list .jo-unassigned { color: var(--orange-tint); }
+@media (max-width: 719px) {
+  .jobs-tablewrap { overflow-x: visible; border: 0; background: none; }
+  .jo-list { min-width: 0; }
+  .jo-list thead { display: none; }
+  .jo-list, .jo-list tbody, .jo-list tr, .jo-list td { display: block; width: auto; }
+  .jo-list tr { border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); margin-bottom: 8px; padding: 8px 12px; }
+  .jo-list td { padding: 2px 0; border: 0; overflow-wrap: anywhere; }
+  .jo-list td[data-label]::before { content: attr(data-label) " "; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); margin-right: 6px; }
+  .jo-list td.name a { display: inline-block; min-height: 44px; line-height: 44px; }
+  .jo-filters .hs-btn, .jobs-tools .hs-input { min-height: 44px; }
+  .jo-list td.jobs-empty { text-align: center; }
+}

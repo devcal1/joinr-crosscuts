@@ -16,24 +16,53 @@
 <link rel="stylesheet" href="project.css">
 <link rel="stylesheet" href="jobissues.css">
 <link rel="stylesheet" href="jobreserve.css">
+<link rel="stylesheet" href="jobtabs.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
   <div id="cc-shell"></div>
 
   <main class="jobs-page narrow">
-    <div class="jobs-head">
-      <h1 id="title">Job</h1>
-      <a class="hs-btn" href="/jobs.html">All jobs</a>
-    </div>
-    <div id="banner"></div>
+    <!-- Jobs as containers (docs/plans/jobs-tradify-contracts.md section 5.1): a fixed header, then tabs.
+         jobtabs.js moves the sections below into tab panels at load; every section and id stays in this file. -->
+    <header id="joHead" class="jo-head">
+      <div class="jobs-head">
+        <span id="joNumber" class="jo-number"></span>
+        <h1 id="title">Job</h1>
+        <span id="joStage"></span>
+        <button id="joMoreBtn" class="hs-btn hs-btn-quiet jo-morebtn" type="button" aria-expanded="false" aria-controls="joMore">More</button>
+        <a class="hs-btn" href="/jobs.html">All jobs</a>
+      </div>
+      <div id="joMore" class="jo-more">
+        <p id="joFacts" class="jo-facts"></p>
+        <!-- 0.2.1: the project manager and the link to the project page (projectowner.js; m22 section 4) -->
+        <div id="pjOwner" class="pj-owner" hidden></div>
+      </div>
+      <div id="banner"></div>
+      <!-- 0.2.5 (docs/plans/m26-contracts.md section 3): installed, waiting to be confirmed complete. -->
+      <div id="confirmComplete" class="hs-callout hs-callout-orange jo-confirm" role="region" aria-label="Confirm complete" hidden></div>
+      <div id="joTabs" class="jo-tabs" role="tablist" aria-label="Job sections" hidden></div>
+    </header>
     <div id="people" class="jp-job" hidden></div>
-    <!-- 0.2.1: the project owner and the link to the project page (projectowner.js; m22 section 4) -->
-    <div id="pjOwner" class="pj-owner" hidden></div>
-    <!-- 0.2.5 (docs/plans/m26-contracts.md section 3): installed, waiting to be confirmed complete. -->
-    <div id="confirmComplete" class="hs-callout hs-callout-orange jo-confirm" role="region" aria-label="Confirm complete" hidden></div>
     <div id="meta" class="metaline muted"></div>
     <form id="form" class="jobform" novalidate></form>
+
+    <!-- Notes: the pinned Job summary, then dated notes, newest first (jobnotes.js; contracts section 4.1). -->
+    <section id="jobNotes" class="jo-sec" aria-labelledby="jobNotes-h" hidden>
+      <div class="hs-sectionbar"><h2 id="jobNotes-h">Notes</h2></div>
+      <div id="jnSummary" class="jn-summary"></div>
+      <form id="jnForm" class="jn-form" novalidate>
+        <label for="jnBody" class="jn-label">Add a note</label>
+        <textarea id="jnBody" class="hs-input" rows="3" maxlength="5000"></textarea>
+        <div class="jn-formrow">
+          <label for="jnFile" class="jn-label">Photos or files (optional, up to 10)</label>
+          <input id="jnFile" class="hs-input" type="file" multiple accept="image/png,image/jpeg,application/pdf,.pdf,.png,.jpg,.jpeg,.xlsx,.xls,.docx,.csv">
+        </div>
+        <div class="jo-actions"><button id="jnAdd" class="hs-btn hs-btn-primary" type="submit">Add note</button></div>
+        <p id="jnStatus" class="jo-status muted" role="status"></p>
+      </form>
+      <ul id="jnList" class="jn-list"></ul>
+    </section>
 
     <section id="joinr" class="jo-sec" aria-labelledby="joinr-h" hidden>
       <div class="hs-sectionbar">
@@ -221,6 +250,12 @@
       </form>
     </section>
 
+    <!-- Photos and files on job notes: shown here and on the note, never in the photo library. -->
+    <section id="jnPhotos" class="jo-sec" aria-labelledby="jnPhotos-h" hidden>
+      <div class="hs-sectionbar"><h2 id="jnPhotos-h">Photos on notes</h2></div>
+      <div id="jnPhotosBody" class="jn-photos"></div>
+    </section>
+
     <section id="tasks" class="jo-sec" aria-labelledby="tasks-h" hidden>
       <div class="hs-sectionbar">
         <h2 id="tasks-h">Tasks</h2>
@@ -260,6 +295,8 @@
   <script src="jobissues.js"></script>
   <script src="confirmcomplete.js"></script>
   <script src="jobreserve.js"></script>
+  <script src="jobnotes.js"></script>
+  <script src="jobtabs.js"></script>
   <script src="/shell/shell.js"></script>
 </body>
 </html>

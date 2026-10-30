@@ -1,0 +1,127 @@
+/* The job page as a container (docs/plans/jobs-tradify-contracts.md section 5.1): the fixed header,
+   the tab strip and panels (jobtabs.js), and the notes (jobnotes.js). House style: ink ground, teal
+   accent, outlined uppercase text buttons, no icons or shadows. Page classes jo- / jn-; cc- is the shell's. */
+
+/* ---- header ---- */
+.jo-tabbed .jo-head {
+  position: sticky;
+  top: var(--shell-h, 54px);
+  z-index: 20;
+  background: var(--ink);
+  margin: -20px -16px 16px;
+  padding: 14px 16px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.jo-head .jobs-head { margin-bottom: 6px; gap: 8px 12px; }
+.jo-head .jobs-head h1 { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.jo-head .jobs-head > .hs-btn:last-child { margin-left: auto; }
+.jo-number:empty { display: none; }
+.jo-number {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal-tint);
+  white-space: nowrap;
+}
+.jo-stage { white-space: nowrap; }
+#joStage:empty { display: none; }
+.jo-morebtn { display: none; }
+.jo-more { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; }
+.jo-facts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 8px; font-size: 14px; min-width: 0; }
+.jo-fact { overflow-wrap: anywhere; min-width: 0; }
+.jo-fact .hs-label { margin-right: 4px; }
+.jo-head .pj-owner { margin-bottom: 8px; }
+.jo-head #banner:empty { display: none; }
+.jo-head .jo-confirm { margin-bottom: 8px; }
+
+/* ---- tabs ---- */
+.jo-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  margin: 4px -16px 0;
+  padding: 0 16px;
+}
+.jo-tab {
+  flex: none;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--label);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.jo-tab:hover { color: var(--white); }
+.jo-tab.is-on { color: var(--white); border-bottom-color: var(--teal); }
+.jo-tab:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.jo-panel { min-width: 0; }
+.jo-tabbed .jo-panel > * { scroll-margin-top: calc(var(--shell-h, 54px) + var(--jo-head-h, 160px) + 8px); }
+
+/* ---- notes ---- */
+.jn-summary { display: grid; gap: 10px; margin-bottom: 18px; }
+.jn-pin { border: 1px solid var(--hairline); border-left: 2px solid var(--teal); border-radius: var(--r-card); background: var(--surface); padding: 10px 12px; }
+.jn-pinhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.jn-pinh { flex: 1 1 auto; margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label); }
+.jn-pintext { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.jn-form { display: grid; gap: 8px; margin-bottom: 18px; }
+.jn-form textarea.hs-input { width: 100%; box-sizing: border-box; min-height: 84px; }
+.jn-formrow { display: grid; gap: 4px; }
+.jn-formrow .hs-input { width: 100%; box-sizing: border-box; }
+.jn-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label); }
+.jn-err { color: var(--orange-tint); }
+.jn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.jn-note { border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); padding: 10px 12px; min-width: 0; }
+.jn-meta { margin: 0 0 4px; font-size: 13px; }
+.jn-author { color: var(--white); font-weight: 700; }
+.jn-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--body); }
+.jn-files { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.jn-file { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.jn-thumb { display: block; border: 1px solid var(--hairline); border-radius: var(--r-card); overflow: hidden; background: var(--ink); }
+.jn-thumb:hover { border-color: var(--teal); }
+.jn-file .jn-thumb img { display: block; width: 96px; height: 96px; object-fit: cover; }
+.jn-size { font-size: 12px; }
+.jn-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; justify-content: flex-end; }
+.jn-hidden { display: none; }
+.jn-editbox { display: grid; gap: 6px; }
+.jn-edit { width: 100%; box-sizing: border-box; }
+.jn-empty { padding: 6px 0; }
+.jn-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.jn-photo { margin: 0; min-width: 0; }
+.jn-photo img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; }
+.jn-photo figcaption { margin-top: 3px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ---- phone ---- */
+@media (max-width: 719px) {
+  .jo-tabbed .jo-head { padding-top: 10px; }
+  .jo-head .jobs-head h1 { font-size: 20px; flex: 1 1 100%; order: 5; }
+  .jo-head .jobs-head > .hs-btn:last-child { margin-left: 0; }
+  .jo-morebtn { margin-left: auto; }
+  .jo-morebtn { display: inline-flex; }
+  .jo-head .jo-more { display: none; }
+  .jo-head.is-open .jo-more { display: block; }
+  .jo-tab, .jo-head .hs-btn, .jn-note .hs-btn, .jn-form .hs-btn { min-height: 44px; }
+  .jo-tab { padding: 12px 12px; }
+  .jn-acts { justify-content: flex-start; }
+}
+
+/* ---- print: every panel in order, black on white, no tabs ---- */
+/* style-check: print-start */
+@media print {
+  .jo-tabbed .jo-head { position: static; margin: 0 0 12px; padding: 0; border: 0; background: none; }
+  .jo-tabs, .jo-morebtn, .jn-form, .jn-acts, .jn-rm { display: none !important; }
+  .jo-head .jo-more { display: flex !important; }
+  .jo-panel[hidden] { display: block !important; }
+  .jn-note, .jn-pin { background: none; border-color: #000; color: #000; }
+  .jn-body, .jn-pintext, .jn-author, .jo-number, .jo-tab { color: #000; }
+}
+/* style-check: print-end */
