@@ -143,7 +143,8 @@ const LISTED_SQL = `
     LEFT JOIN users fu ON fu.id = f.uploaded_by
    WHERE s.kind = @kind
      AND (st.supplier_id IS NOT NULL
-          OR (s.from_period <= @period AND (s.archived_from IS NULL OR @period < s.archived_from)))`;
+          OR (s.from_period <= @period AND (s.archived_from IS NULL OR @period < s.archived_from)))
+     AND NOT EXISTS (SELECT 1 FROM supplier_month_removed rm WHERE rm.supplier_id = s.id AND rm.period = @period)`;
 
 function listedRows(db, period) {
   return db.prepare(`${LISTED_SQL} ORDER BY s.name, s.id`).all({ period, kind: KIND });
@@ -494,6 +495,31 @@ function detach(db, req, period, supplierId, fileId) {
   })();
 }
 
+// Takes the supplier off one month's list (Todd 2026-10-30). Nothing is deleted: the line and its
+// file stay in supplier_statements and a supplier_month_removed row hides them. 404 when the
+// supplier isn't listed in that month.
+function removeLine(db, req, period, supplierId) {
+  const userId = req && req.user ? req.user.id : null;
+  db.transaction(() => {
+    periodOr404(period, sydneyToday());
+    const line = lineOr404(db, period, supplierId);
+    db.prepare("INSERT INTO supplier_month_removed (supplier_id, period, removed_by, removed_at) VALUES (?, ?, ?, ?)").run(
+      supplierId,
+      period,
+      userId,
+      nowIso()
+    );
+    audit.log(req, {
+      action: `${cfg.statement}.remove`,
+      entityType: cfg.statement,
+      entityId: `${supplierId}:${period}`,
+      before: { name: line.supplier.name, ...fieldsOf(line), fileId: line.file ? line.file.id : null },
+      after: null,
+    });
+  })();
+  return { ok: true };
+}
+
 // How many suppliers listed in `period` are still Waiting (a listed supplier with no row is
 // Waiting). For the Friday round-up.
 function waitingCount(db, period) {
@@ -506,13 +532,14 @@ function waitingCount(db, period) {
         WHERE s.kind = @kind
           AND (st.supplier_id IS NOT NULL
                OR (s.from_period <= @period AND (s.archived_from IS NULL OR @period < s.archived_from)))
+          AND NOT EXISTS (SELECT 1 FROM supplier_month_removed rm WHERE rm.supplier_id = s.id AND rm.period = @period)
           AND COALESCE(st.state, 'waiting') = 'waiting'`
     )
     .get({ period, kind: KIND });
   return Number(row.n);
 }
 
-return { list, create, update, month, saveLine, attach, detach, waitingCount };
+return { list, create, update, month, saveLine, removeLine, attach, detach, waitingCount };
 }
 
 // The suppliers (the default export, as before) and the admin accounts (.admin). Only suppliers

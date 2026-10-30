@@ -67,6 +67,12 @@ function build(prefix, suppliers, tag) {
     res.json(suppliers.saveLine(db, req, period, idOr404(req.params.supplierId), body(req)));
   }));
 
+  // Takes the supplier off this month's list (the line is kept, hidden).
+  r.delete("/months/:period/:supplierId", EDIT, handle((req, res) => {
+    const period = periodOr404(req.params.period);
+    res.json(suppliers.removeLine(db, req, period, idOr404(req.params.supplierId)));
+  }));
+
   // files.single has stored the upload as <uuid>.part; every way out of the handler either
   // renames it (files.accept) or removes it.
   r.post("/months/:period/:supplierId/file", EDIT, files.single("file"), async (req, res) => {

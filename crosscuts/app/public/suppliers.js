@@ -264,6 +264,14 @@
       el("td", { colspan: "6" }, el("div", { class: "su-det" },
         el("span", { class: "su-det-label", text: "Note" }), R.noteBox,
         el("span", { class: "su-det-label", text: "Statement file" }), R.fileBox)));
+    if (canEdit) {
+      const del = el("button", {
+        type: "button", class: "hs-btn hs-btn-stop su-mini", text: "Delete from this month",
+        "aria-label": `Delete ${R.name} from ${P.longLabel(pane.period)}`,
+      });
+      del.addEventListener("click", () => removeLine(R));
+      R.detailTr.firstChild.firstChild.append(el("span", { class: "su-det-label" }), el("div", { class: "su-det-del" }, del));
+    }
     R.detailTr.hidden = true;
 
     R.msgId = `su-msg-${key}`;
@@ -898,6 +906,42 @@
         R.busyText = "";
       }
     }).then(() => focusFileTool(R));
+  }
+
+  // Deletes the supplier's line from this month (the server keeps it hidden, with an audit row).
+  function removeLine(R) {
+    if (R.dead) return;
+    const month = P.longLabel(R.pane.period);
+    if (!confirm(`Delete ${R.name} from ${month}? It will no longer be listed in ${month}.`)) return;
+    enqueue(R, async () => {
+      if (R.dead) return;
+      R.busyText = "Deleting...";
+      renderMsg(R);
+      try {
+        await call("DELETE", `${K.api}/months/${R.pane.period}/${R.id}`);
+      } catch (e) {
+        if (e.status !== 404) {
+          R.busyText = "";
+          R.error = `Not deleted. ${e.message}`;
+          renderMsg(R);
+          say(R.error);
+          return;
+        }
+      }
+      R.busyText = "";
+      const pane = R.pane;
+      try {
+        const m = await call("GET", `${K.api}/months/${pane.period}`);
+        pane.month = m;
+        pane.syncRows(m.lines || []);
+        pane.renderAfterSync();
+      } catch (e) {
+        toast(`Error: ${e.message}`);
+      }
+      const s = `Deleted ${R.name} from ${month}.`;
+      pane.setStatus(s);
+      say(s);
+    });
   }
 
   function focusFileTool(R) {
