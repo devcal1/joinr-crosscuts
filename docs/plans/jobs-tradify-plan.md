@@ -46,3 +46,12 @@ Todd, 2026-10-30: the projects team is used to Tradify. A job is the container f
 - **Note edits:** people edit or delete only their own notes. An admin can soft-delete any note, recorded in the audit log.
 - **Note photos:** they show on the note and in the job's Photos tab, but **not** in the photo library. They are stored apart from library photos (`job_note_files`, or a flag that the library excludes), settled at contracts.
 - **Invoices tab:** a read-only list of the invoices already linked to the job (kind, amount, due date, paid), with a link to Accounts. Tradify-style invoicing comes later.
+
+## Layout change (Todd, 2026-10-30, after the build): layout D
+
+Todd compared six mockups (`.dev/mock/`; the chosen one is copied to `docs/plans/jobs-layout-d.png`) and chose **D, job list + detail**, with the Jobs list page merged into it.
+
+- **One page for Jobs.** A list on the left (300 px): search, My jobs / Unassigned / All, a stage filter, and rows showing job number, name and stage, with the open job highlighted. The open job is on the right: the header (number, name, stage, client, site, PM, value) and the same tabs as now. Switching jobs updates the right side in place and the URL (`job.html?id=N`), so Back and links still work. `jobs.html` opens the same page with your most recent job, or the first in the list.
+- **Breadcrumb trail** under the menu bar on every jobs view: `Jobs › My jobs › JQ321 Ashmore kitchen`, and one level deeper for an item (`› JQ5411 Ashmore quote`, `› Notes`). Each part is a link. A **Jump to job** box on the right searches by job number, name or client.
+- **Phone (below 720 px):** the list first; tapping a job opens it full screen; the breadcrumb is the way back.
+- **Unchanged:** every tab, its content and the element ids the smokes use; data, API and migration 051; print.
