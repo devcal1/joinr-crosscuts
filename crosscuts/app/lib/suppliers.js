@@ -376,14 +376,14 @@ function outstanding(db, today = sydneyToday()) {
       `SELECT st.period AS period, SUM(st.total_cents) AS cents, COUNT(*) AS n
          FROM supplier_statements st
          JOIN suppliers s ON s.id = st.supplier_id
-        WHERE s.kind = @kind AND st.period <> @current
+        WHERE s.kind = @kind AND st.period <> @current AND st.period <= @aheadEnd
           AND st.total_cents > 0 AND st.state <> 'na' AND st.paid = 0
           AND NOT EXISTS (SELECT 1 FROM supplier_month_removed rm WHERE rm.supplier_id = s.id AND rm.period = st.period)
         GROUP BY st.period
         ORDER BY st.period`
     )
-    .all({ kind: KIND, current });
-  const out = { current, before: [], after: [], beforeCents: 0, afterCents: 0 };
+    .all({ kind: KIND, current, aheadEnd: Periods.addMonths(current, Periods.OWE_AHEAD_MONTHS) });
+  const out = { current, aheadMonths: Periods.OWE_AHEAD_MONTHS, before: [], after: [], beforeCents: 0, afterCents: 0 };
   for (const r of rows) {
     const e = { period: r.period, label: Periods.longLabel(r.period), cents: Number(r.cents), count: Number(r.n) };
     if (r.period < current) {

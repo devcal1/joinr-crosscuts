@@ -1173,7 +1173,7 @@
   }
 
   // ---------------------------------------------------- money still owing ---
-  function renderOwe(box, title, list, totalCents, none) {
+  function renderOwe(box, title, list, totalCents, none, totalLabel) {
     box.replaceChildren(el("h2", { text: title }));
     if (!list.length) {
       box.append(el("p", { class: "su-owe-none", text: none }));
@@ -1190,7 +1190,7 @@
       });
       ul.append(el("li", null, a));
     }
-    box.append(ul, el("div", { class: "su-owe-total" }, el("span", { text: "Total" }), el("span", { text: P.dollars(totalCents) })));
+    box.append(ul, el("div", { class: "su-owe-total" }, el("span", { text: totalLabel || "Total" }), el("span", { text: P.dollars(totalCents) })));
   }
   // The summary changes as lines save; the side panels catch up once things have been quiet a moment.
   let owingTimer = null;
@@ -1202,7 +1202,7 @@
     try {
       const d = await call("GET", `${K.api}/outstanding`);
       renderOwe($("suOweBefore"), "Still unpaid, earlier months", d.before, d.beforeCents, "Nothing unpaid from earlier months.");
-      renderOwe($("suOweAfter"), "Owing, later months", d.after, d.afterCents, "Nothing owing in later months.");
+      renderOwe($("suOweAfter"), `Owing, next ${d.aheadMonths} months`, d.after, d.afterCents, `Nothing owing in the next ${d.aheadMonths} months.`, `Total, next ${d.aheadMonths} months`);
     } catch (e) {
       $("suOweBefore").replaceChildren();
       $("suOweAfter").replaceChildren();

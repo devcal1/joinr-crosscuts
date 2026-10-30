@@ -393,18 +393,18 @@ function noDueDateCount(db, today = sydneyToday()) {
 }
 
 // Unpaid individual invoices with an amount, by month, for the Supplier accounts side panels
-// (Todd 2026-10-30). Repeats are generated first for every month ahead up to lastPeriod, so the
-// months ahead count invoices nobody has opened yet. [{period, cents, count}] by month.
+// (Todd 2026-10-30). Repeats are generated first for the owing window (Periods.OWE_AHEAD_MONTHS), so
+// those months count invoices nobody has opened yet. [{period, cents, count}] by month.
 function unpaidByPeriod(db, today = sydneyToday()) {
-  const last = lastPeriod(today);
+  const last = Periods.addMonths(Periods.currentPeriod(today), Periods.OWE_AHEAD_MONTHS);
   for (let p = Periods.currentPeriod(today); p <= last; p = Periods.addMonths(p, 1)) generate(db, p);
   return db
     .prepare(
       `SELECT period, SUM(amount_cents) AS cents, COUNT(*) AS n FROM payables
-        WHERE removed_at IS NULL AND paid_date IS NULL AND amount_cents > 0
+        WHERE removed_at IS NULL AND paid_date IS NULL AND amount_cents > 0 AND period <= ?
         GROUP BY period ORDER BY period`
     )
-    .all()
+    .all(last)
     .map((r) => ({ period: r.period, cents: Number(r.cents), count: Number(r.n) }));
 }
 
