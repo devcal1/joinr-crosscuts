@@ -198,6 +198,8 @@
 @media (min-width: 1280px) {
   .jd .jo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .jd .jo-grid .jo-wide { grid-column: 1 / -1; }
+  /* The Overview form (job, client, site fields) three across too. */
+  .jd .jobform .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 14px; }
 }
 @media (max-width: 719px) {
   .jd > main.jobs-page { padding-top: 14px; }

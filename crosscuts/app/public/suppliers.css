@@ -220,11 +220,11 @@ a.hs-btn:hover { text-decoration: none; }
 }
 .su-warn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--orange); font-size: 11px; font-weight: 400; }
 .su-warn:empty { display: none; }
-.su-warn-short { display: none; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 9px; }
-@container (max-width: 560px) {
-  .su-warn-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .su-warn-short { display: inline; }
-}
+/* One line per account (Todd 2026-10-31): the row always shows the short MISSING mark; the full
+   sentence is read by screen readers and shown on hover (title). */
+.su-warn { flex: none; }
+.su-warn-short { display: inline; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 9px; }
+.su-warn-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .su-rowstate { flex: none; font-size: 11px; font-weight: 400; color: var(--muted); }
 .su-rowstate:empty { display: none; }
 .su-rowstate-bad { color: var(--orange-tint); }
