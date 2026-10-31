@@ -162,8 +162,8 @@ a.hs-btn:hover { text-decoration: none; }
 .pr-grid .num { text-align: right; padding-right: 10px; font-variant-numeric: tabular-nums; }
 .pr-calc { color: var(--white); }
 /* Day and fortnight totals: teal when the paid hours match the usual day, orange when they differ. */
-.pr-grid td.pr-ok, .pr-grid tfoot td.pr-ok { color: var(--teal-tint); border-bottom: 2px solid var(--teal); }
-.pr-grid td.pr-off, .pr-grid tfoot td.pr-off { color: var(--orange); border-bottom: 2px solid var(--orange); }
+.pr-grid td.pr-ok, .pr-grid tfoot td.pr-tot-strong.pr-ok { color: var(--teal-tint); border-bottom: 2px solid var(--teal); }
+.pr-grid td.pr-off, .pr-grid tfoot td.pr-tot-strong.pr-off { color: var(--orange); border-bottom: 2px solid var(--orange); }
 .pr-ro { text-align: center; color: var(--white); font-variant-numeric: tabular-nums; }
 td.pr-col-job.pr-ro { text-align: left; padding-left: 8px; color: var(--body); overflow-wrap: anywhere; }
 
