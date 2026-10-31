@@ -72,11 +72,13 @@ if [ "$M25_DOW" -le 5 ]; then
 else
   echo "(weekend: the board parts are skipped)"
 fi
+# On a weekend the install job is not on the board, so the shift page is asked to add it too.
+if [ "$M25_DOW" -le 5 ]; then M25_ADD=$M25_K; else M25_ADD=$M25_K,$M25_J; fi
 
 echo "--- search and add a job ---"
 req GET "/api/shift/jobs?q=$M25_TAG" "$WSHOP"
 expect_jq "[.jobs[].id] | index($M25_K) != null" "search finds the other job"
-req GET "/api/shift/today?add=$M25_K" "$WSHOP"
+req GET "/api/shift/today?add=$M25_ADD" "$WSHOP"
 expect_jq "[.jobs[] | select(.id == $M25_K)][0].panels == []" "an added job, not on the board"
 
 echo "--- shift photos ---"
@@ -94,7 +96,7 @@ if [ "$M25_DOW" -le 5 ]; then
   expect_jq 'all(.created[]; .tags == "install")' "tagged install"
 fi
 expect_eq "$(m25_q "SELECT COUNT(*) AS n FROM photos WHERE job_id = ?" "$M25_J" | jq -r '.[0].n')" "2" "stored against the job"
-req GET "/api/shift/today?add=$M25_K" "$WSHOP"
+req GET "/api/shift/today?add=$M25_ADD" "$WSHOP"
 expect_jq "([.jobs[] | select(.id == $M25_J)][0].photosToday | length) == 2" "today's photos on the card"
 
 echo "--- raise an issue ---"
@@ -132,7 +134,7 @@ req GET /project.html "$DPM"
 case $BODY in *'id="issues"'*'jobissues.js'*) ok ;; *) fail "the project page has no Issues section" ;; esac
 req GET /api/my-projects "$DPM"
 expect_jq "[.jobs[] | select(.id == $M25_J)][0].openIssues == 1" "My projects counts it"
-req GET "/api/shift/today?add=$M25_K" "$WSHOP"
+req GET "/api/shift/today?add=$M25_ADD" "$WSHOP"
 expect_jq "([.jobs[] | select(.id == $M25_J)][0].issues | length) == 1" "the shift card shows it"
 
 echo "--- resolve ---"
@@ -155,7 +157,7 @@ expect_jq ".date == \"$M25_TODAY\" and .note == \"$M25_TAG all fitted\" and .job
 req POST /api/shift/report "$WSHOP" "{\"note\":\"$M25_TAG updated\",\"jobIds\":[$M25_J]}"
 expect_status 200 "sent again"
 expect_eq "$(m25_q "SELECT COUNT(*) AS n FROM shift_reports WHERE user_id = ? AND date = ?" "$WSHOP_ID" "$M25_TODAY" | jq -r '.[0].n')" "1" "one report a day, replaced"
-req GET /api/shift/today "$WSHOP"
+req GET "/api/shift/today?add=$M25_ADD" "$WSHOP"
 expect_jq ".report.note == \"$M25_TAG updated\" and ([.jobs[].id] | index($M25_J)) != null" "the page knows it was sent"
 req POST /api/shift/report "$WSHOP" '{"jobIds":[999999]}'
 expect_status 400 "unknown job"
