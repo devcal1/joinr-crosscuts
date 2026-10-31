@@ -120,7 +120,7 @@ function parse(b, { create }, today) {
   }
   if (b.period !== undefined) {
     if (typeof b.period !== "string" || !periodOk(b.period, today)) {
-      throw bad(`Choose a month from ${Periods.label(Periods.HISTORY_START)} to next month`);
+      throw bad(`Choose a month from ${Periods.label(Periods.HISTORY_START)} to ${Periods.label(lastPeriod(today))}`);
     }
     out.period = b.period;
   }
@@ -185,24 +185,39 @@ function generate(db, period) {
         if (d.slice(0, 7) > period || (r.end_date && d > r.end_date)) break;
         if (d.slice(0, 7) < period) continue;
         const info = ins.run(period, r.payee, r.description, r.amount_cents, d, r.myob, r.id, d, r.created_by, now, now);
-        if (info.changes) {
-          n += 1;
-          audit.log(null, { action: "payable.generate", entityType: "payable", entityId: Number(info.lastInsertRowid), actorLabel: "recurrence", after: { recurrenceId: r.id, dueDate: d, period } });
-        }
+        // Not audited (Todd 2026-11-01): the rule's own create/stop rows say where these came from.
+        if (info.changes) n += 1;
       }
     }
   })();
   return n;
 }
+// Generates every month from the earliest active rule's anchor up to `last`, so a month nobody
+// opened still lists its repeats (Todd 2026-11-01).
+function generateThrough(db, last) {
+  const first = db.prepare("SELECT MIN(substr(anchor_date, 1, 7)) AS p FROM payable_recurrences WHERE stopped_at IS NULL").get().p;
+  if (!first) return 0;
+  let n = 0;
+  for (let p = first < Periods.HISTORY_START ? Periods.HISTORY_START : first; p <= last; p = Periods.addMonths(p, 1)) n += generate(db, p);
+  return n;
+}
 
-// Stops future occurrences; lines already listed stay.
+// Stops future occurrences. Lines already listed that fall due after today, unpaid and never edited,
+// are removed too (Todd 2026-11-01); paid, edited or past ones stay.
 function stopRecurrence(db, req, id) {
   db.transaction(() => {
     const r = db.prepare("SELECT * FROM payable_recurrences WHERE id = ?").get(id);
     if (!r) throw notFound();
     if (r.stopped_at) throw conflict("This recurrence is already stopped");
-    db.prepare("UPDATE payable_recurrences SET stopped_at = ?, stopped_by = ? WHERE id = ?").run(nowIso(), userId(req), id);
-    audit.log(req, { action: "payable.recurrence.stop", entityType: "payable_recurrence", entityId: id, before: { payee: r.payee, unit: r.unit, every: r.every } });
+    const now = nowIso();
+    db.prepare("UPDATE payable_recurrences SET stopped_at = ?, stopped_by = ? WHERE id = ?").run(now, userId(req), id);
+    const gone = db
+      .prepare(
+        `UPDATE payables SET removed_at = ?, removed_by = ?, updated_at = ?
+          WHERE recurrence_id = ? AND removed_at IS NULL AND paid_date IS NULL AND updated_at = created_at AND due_date > ?`
+      )
+      .run(now, userId(req), now, id, sydneyToday()).changes;
+    audit.log(req, { action: "payable.recurrence.stop", entityType: "payable_recurrence", entityId: id, before: { payee: r.payee, unit: r.unit, every: r.every }, after: { futureRemoved: gone } });
   })();
 }
 
@@ -366,7 +381,7 @@ function convert(db, req, id, suppliers) {
 // not paid (and not N/A) in the current month. {count, cents}.
 function toPayThisMonth(db, today = sydneyToday()) {
   const period = Periods.currentPeriod(today);
-  generate(db, period);
+  generateThrough(db, period);
   const ind = db
     .prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS c FROM payables WHERE period = ? AND removed_at IS NULL AND paid_date IS NULL")
     .get(period);
@@ -393,11 +408,11 @@ function noDueDateCount(db, today = sydneyToday()) {
 }
 
 // Unpaid individual invoices with an amount, by month, for the Supplier accounts side panels
-// (Todd 2026-10-30). Repeats are generated first for the owing window (Periods.OWE_AHEAD_MONTHS), so
+// (Todd 2026-10-30). Repeats are generated first from each rule's start through the owing window, so
 // those months count invoices nobody has opened yet. [{period, cents, count}] by month.
 function unpaidByPeriod(db, today = sydneyToday()) {
   const last = Periods.addMonths(Periods.currentPeriod(today), Periods.OWE_AHEAD_MONTHS);
-  for (let p = Periods.currentPeriod(today); p <= last; p = Periods.addMonths(p, 1)) generate(db, p);
+  generateThrough(db, last);
   return db
     .prepare(
       `SELECT period, SUM(amount_cents) AS cents, COUNT(*) AS n FROM payables
@@ -414,6 +429,7 @@ module.exports = {
   PAY_KEY,
   month,
   generate,
+  generateThrough,
   occurrence,
   stopRecurrence,
   get,

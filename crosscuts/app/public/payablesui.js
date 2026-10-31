@@ -109,7 +109,7 @@
       if (r.active) {
         const stop = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Stop repeating" });
         stop.addEventListener("click", async () => {
-          if (!confirm(`Stop future repeats for ${line.payee}? Invoices already listed stay.`)) return;
+          if (!confirm(`Stop future repeats for ${line.payee}? Future invoices not yet paid or changed are removed; the rest stay.`)) return;
           try {
             await call("POST", `/api/payables/recurrences/${r.id}/stop`);
             d.close();
