@@ -466,7 +466,7 @@
     }
 
     const handle = el("div", { class: "pl-handle", text: j.name });
-    if (ctx.editable) handle.title = "Drag to another column";
+    handle.title = j.name + (j.clientName ? " · " + j.clientName : "") + (ctx.editable ? " (drag to another column)" : "");
     card.append(handle);
     if (j.clientName) card.append(el("div", { class: "pl-client", text: j.clientName }));
 

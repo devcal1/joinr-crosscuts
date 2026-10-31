@@ -23,7 +23,7 @@ a.hs-btn:hover { text-decoration: none; }
 .pl-page {
   max-width: 100%;
   margin: 0 auto;
-  padding: 20px 16px 32px;
+  padding: 12px 10px 24px;
 }
 
 .pl-head {
@@ -54,7 +54,7 @@ a.hs-btn:hover { text-decoration: none; }
 .pl-board {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 6px;
   overflow-x: auto;
   padding-bottom: 8px;
   scroll-snap-type: x proximity;
@@ -63,12 +63,13 @@ a.hs-btn:hover { text-decoration: none; }
 .pl-board.pl-dragging { scroll-snap-type: none; }
 
 .pl-col {
-  flex: 0 0 264px;
-  min-width: 260px;
+  flex: 1 1 150px;
+  min-width: 140px;
+  max-width: 230px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 4px;
+  padding: 5px;
   background: var(--ink);
   border: 1px solid var(--hairline);
   border-radius: var(--r-card);
@@ -93,9 +94,9 @@ a.hs-btn:hover { text-decoration: none; }
 .pl-cards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 120px;
-  max-height: calc(100vh - 230px);
+  gap: 4px;
+  min-height: 80px;
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
   padding: 2px;
 }
@@ -113,7 +114,7 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
 .pl-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
   padding: 0;
   flex: none;
   background: var(--surface);
@@ -123,10 +124,14 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
 .pl-lifted { opacity: 0.35; }
 
 .pl-handle {
-  padding: 10px 12px 2px;
+  padding: 5px 7px 0;
+  font-size: 13px;
+  line-height: 1.3;
   font-weight: 700;
   color: var(--white);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
@@ -136,25 +141,30 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
   touch-action: none;
   -webkit-touch-callout: none;
 }
-.pl-client { padding: 0 12px; font-size: 13px; color: var(--label); overflow-wrap: anywhere; }
+.pl-client { padding: 0 7px; font-size: 11px; line-height: 1.3; color: var(--label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pl-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 12px;
-  padding: 0 12px;
-  font-size: 13px;
+  gap: 0 8px;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 1.3;
   color: var(--body);
 }
 .pl-install-attend { color: var(--orange-tint); font-weight: 700; }
-.pl-people { padding: 0 12px; }
-.pl-foot-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.pl-people { padding: 0 7px; }
+.pl-people .jp-chips { gap: 2px; }
+.pl-people .jp-chip { max-width: 6.5em; padding: 0 5px; font-size: 10px; line-height: 1.4; }
+.pl-foot-left { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .pl-foot-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px 8px;
+  gap: 4px;
+  padding: 3px 5px 5px;
 }
+.pl-foot-row .hs-btn { padding: 2px 5px; font-size: 10px; letter-spacing: 0.04em; }
+.pl-foot-row .hs-btn.jp-me { padding: 2px 5px; font-size: 10px; }
 
 /* The ghost follows the pointer. It is a clone of the card, so it needs no card rules
    of its own beyond these. */
@@ -219,15 +229,15 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
 
 /* Quoted: one compact line per job or Joinr quote (Todd, 2026-10-17). The column is a little
    wider than the others so the number, client, site and value fit on a line. */
-.pl-col[data-stage="quoted"] { flex-basis: 520px; min-width: 460px; }
+.pl-col[data-stage="quoted"] { flex: 2.4 1 340px; min-width: 300px; max-width: 460px; }
 .pl-line {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  padding-right: 8px;
-  min-height: 38px;
+  padding-right: 6px;
+  min-height: 28px;
 }
-.pl-line .pl-handle { padding: 8px 0 8px 12px; flex: 1 1 auto; min-width: 0; font-size: 13px; }
+.pl-line .pl-handle { padding: 4px 0 4px 8px; flex: 1 1 auto; min-width: 0; font-size: 12px; }
 /* The line is almost all handle, so on a touch screen it must still scroll the list: a finger
    pans up and down as usual, and a drag starts only after a long press (pipeline.js). A mouse
    drags as before. */
@@ -244,15 +254,15 @@ body.pl-noselect { user-select: none; -webkit-user-select: none; cursor: grabbin
 }
 .pl-line-val {
   flex: none;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--body);
   font-variant-numeric: tabular-nums;
 }
-.pl-line .hs-btn { flex: none; padding: 4px 8px; }
+.pl-line .hs-btn { flex: none; padding: 2px 6px; font-size: 10px; }
 /* A Joinr quote: the whole line is the link (new tab). */
 .pl-joinr {
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 4px 8px;
+  font-size: 12px;
   color: var(--body);
   text-decoration: none;
 }
@@ -293,7 +303,7 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
   .pl-line { flex-wrap: wrap; row-gap: 4px; }
   /* Wrapped buttons and names must not sit flush with the line's edge: the line carries the left and
      bottom padding, and the handle's own left padding moves to the line. */
-  .pl-line:not(.pl-joinr) { padding: 0 8px 8px 12px; }
+  .pl-line:not(.pl-joinr) { padding: 0 8px 6px 12px; }
   .pl-line .pl-handle { flex-basis: 100%; padding-left: 0; }
   .pl-head h1 { font-size: 22px; }
   .pl-cards { max-height: calc(100vh - 260px); }
@@ -303,11 +313,15 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
    worker colour (the background is set inline from hueColors(): the worker-colours exception). A
    tile with no owner, or an owner with no board worker, stays on the plain surface. */
 .pl-owner {
-  padding: 0 12px;
-  font-size: 12px;
+  padding: 0 7px;
+  font-size: 10px;
+  line-height: 1.3;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--label);
 }
 .pl-owned .pl-owner { color: var(--pl-owner-fg, var(--body)); }
@@ -319,11 +333,12 @@ a.pl-joinr:hover { background: var(--raised); color: var(--white); text-decorati
 .pl-marks {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 10px;
-  padding: 0 12px;
-  font-size: 12px;
+  gap: 0 6px;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 1.3;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--pl-owner-fg, var(--body));
 }
 .pl-mark { opacity: 0.4; }
