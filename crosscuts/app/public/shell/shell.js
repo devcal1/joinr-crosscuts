@@ -79,11 +79,10 @@
       label: "Accounts",
       dept: "accounts",
       items: [
-        { label: "Overdue accounts", href: "/accounts.html", key: "accounts.view" },
+        { label: "Overdue client invoices", href: "/accounts.html", key: "accounts.view" },
         { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
         { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
         { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
-        { label: "Admin accounts", href: "/adminaccounts.html", key: "accounts.view" },
         // M13 (docs/plans/m13-contracts.md section 9): owner-only key, grantable to an Accounts login.
         // 0.2.7 (docs/plans/m28-contracts.md section 4): or loans.maintain (an array: any one will do).
         { label: "Loans", href: "/loans.html", key: ["loans.manage", "loans.maintain"] },

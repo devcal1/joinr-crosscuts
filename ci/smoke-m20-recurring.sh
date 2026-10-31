@@ -1,5 +1,5 @@
 # M20 smoke: recurring tasks, Admin > Tasks (0.2.0, docs/plans/m20-recurring-tasks.md), plus the
-# 0.2.0 menu and page renames (Projects, Benchtops, Overdue accounts, the Projects dashboard on the
+# 0.2.0 menu and page renames (Projects, Benchtops, Overdue client invoices, the Projects dashboard on the
 # Projects notes page).
 # Sourced by ci/smoke.sh after the M19 suites, so it shares that script's helpers (step, req,
 # expect_status, expect_jq, expect_eq, jqr, fail, ok) and the cookie jars ($ADMIN $SCHED $ACCT $DPM
@@ -35,7 +35,7 @@ case $M20_SHELL in *'label: "Projects",'*) ok ;; *) fail "shell.js: no Projects 
 case $M20_SHELL in *'Design/PM'*) fail "shell.js still says Design/PM" ;; *) ok ;; esac
 case $M20_SHELL in *'href: "/design.html"'*) fail "shell.js still lists the Design/PM page" ;; *) ok ;; esac
 case $M20_SHELL in *'{ label: "Benchtops", href: "/stone.html", key: "design.view" }'*) ok ;; *) fail "shell.js: no Benchtops item" ;; esac
-case $M20_SHELL in *'{ label: "Overdue accounts", href: "/accounts.html", key: "accounts.view" }'*) ok ;; *) fail "shell.js: no Overdue accounts item" ;; esac
+case $M20_SHELL in *'{ label: "Overdue client invoices", href: "/accounts.html", key: "accounts.view" }'*) ok ;; *) fail "shell.js: no Overdue client invoices item" ;; esac
 case $M20_SHELL in *'{ label: "Tasks", href: "/admintasks.html", key: "users.admin" }'*) ok ;; *) fail "shell.js: no Admin > Tasks item" ;; esac
 req GET /design.html "$DPM"
 expect_status 302 "dpm GET /design.html redirects"
@@ -50,7 +50,7 @@ expect_status 200 "ordr (design.view, no notes.design) GET the Projects page for
 req GET /stone.html "$DPM"
 case $BODY in *'<title>Benchtops - Crosscuts</title>'*'>Benchtops</h1>'*) ok ;; *) fail "stone.html is not titled Benchtops" ;; esac
 req GET /accounts.html "$ACCT"
-case $BODY in *'<h1>Overdue accounts</h1>'*) ok ;; *) fail "accounts.html is not titled Overdue accounts" ;; esac
+case $BODY in *'<h1>Overdue client invoices</h1>'*) ok ;; *) fail "accounts.html is not titled Overdue client invoices" ;; esac
 req GET "/api/notes?dept=design" "$DPM"
 expect_jq '.deptLabel == "Projects"' "the Projects notes wall's title"
 req GET /api/planner/layers "$DPM"

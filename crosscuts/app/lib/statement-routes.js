@@ -1,5 +1,5 @@
 // The routes of an account kind's monthly statements (docs/plans/m9-contracts.md section 7.2;
-// admin accounts, section 13). routes/suppliers.js and routes/adminaccounts.js each call build()
+// admin accounts, section 13). routes/suppliers.js calls build()
 // with their prefix and the matching lib/suppliers.js kind, so the two APIs cannot drift apart.
 // Every route is declared with its access. Literal paths (/months) are registered before /:id.
 //

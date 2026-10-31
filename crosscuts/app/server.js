@@ -79,7 +79,6 @@ const routers = [
   require("./routes/payruns"),
   require("./routes/bas"),
   require("./routes/suppliers"),
-  require("./routes/adminaccounts"),
   // M11 (docs/plans/m11-contracts.md sections 6-8).
   require("./routes/drawers"),
   require("./routes/stock"),

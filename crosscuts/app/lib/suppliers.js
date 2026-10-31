@@ -19,21 +19,14 @@ const NOTE_MAX = 500;
 const TOTAL_LIMIT = 1000000000;
 const STATES = ["have", "waiting", "na"];
 const TICKS = ["reconciled", "paid", "myob"];
-// Supplier accounts and Admin accounts (m9-contracts.md section 13) share these tables and this
-// code; `kind` tells them apart and every query below filters by it. Names stay unique across both
-// kinds (the column is UNIQUE). Each kind has its own audit names.
+// Supplier accounts (the old Admin accounts became suppliers in migration 054). `kind` is kept
+// and every query below filters by it. Old admin_account_* audit entries stay readable.
 const KINDS = {
   supplier: {
     kind: "supplier",
     clash: "A supplier with that name already exists",
     entity: "supplier",
     statement: "supplier_statement",
-  },
-  admin: {
-    kind: "admin",
-    clash: "An account with that name already exists",
-    entity: "admin_account",
-    statement: "admin_account_statement",
   },
 };
 const STALE = "Someone else changed this line; reload it";
@@ -573,6 +566,5 @@ function waitingCount(db, period) {
 return { list, create, update, month, outstanding, saveLine, removeLine, attach, detach, waitingCount };
 }
 
-// The suppliers (the default export, as before) and the admin accounts (.admin). Only suppliers
-// feed the Friday round-up.
-module.exports = { ...make(KINDS.supplier), admin: make(KINDS.admin) };
+// The suppliers. Admin accounts were folded into Supplier accounts by migration 054 (2026-10-31).
+module.exports = make(KINDS.supplier);

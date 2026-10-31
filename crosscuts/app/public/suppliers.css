@@ -175,10 +175,12 @@ a.hs-btn:hover { text-decoration: none; }
 .su-table thead abbr { text-decoration: none; cursor: help; }
 .su-table th.su-c-name { width: auto; }
 .su-table th.su-c-state { width: 146px; }
-.su-table th.su-c-total { width: 96px; }
-.su-table th.su-c-tick { width: 24px; }
+.su-table th.su-c-total { width: 112px; }
+.su-table th.su-c-tick { width: 38px; }
+.su-table th.su-c-paid { width: 58px; text-align: center; }
 .su-ro .su-table th.su-c-state { width: 84px; }
-.su-ro .su-table th.su-c-total { width: 92px; }
+.su-ro .su-table th.su-c-total { width: 104px; }
+.su-key { margin: 6px 0 2px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 
 .su-row > th, .su-row > td {
   height: 27px;
@@ -227,7 +229,7 @@ a.hs-btn:hover { text-decoration: none; }
 .su-rowstate:empty { display: none; }
 .su-rowstate-bad { color: var(--orange-tint); }
 .su-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-.su-row > td.num { color: var(--white); }
+.su-row > td.num { color: var(--white); font-size: 15px; font-weight: 700; }
 .su-c-tick { text-align: center; }
 .su-badge { font-size: 9px; padding: 1px 5px; }
 
@@ -277,7 +279,7 @@ a.hs-btn:hover { text-decoration: none; }
   padding: 1px 6px;
 }
 .su-in::placeholder { color: var(--muted); }
-.su-in-total { text-align: right; font-variant-numeric: tabular-nums; }
+.su-in-total { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700; height: 24px; }
 .su-in:hover { border-color: var(--label); }
 .su-in:focus { outline: none; border-color: var(--teal); }
 .su-in:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
@@ -287,6 +289,27 @@ a.hs-btn:hover { text-decoration: none; }
 
 .su-tick { display: inline-flex; align-items: center; justify-content: center; padding: 2px; cursor: pointer; }
 .su-tick input { accent-color: var(--teal); width: 14px; height: 14px; margin: 0; cursor: pointer; }
+/* PAID: the other hero. A real checkbox (hidden), shown as outlined uppercase text */
+.su-paid { display: inline-flex; cursor: pointer; }
+.su-paid input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.su-paid-word, .su-paid-ro {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.su-paid:hover .su-paid-word { color: var(--white); border-color: var(--label); }
+.su-paid:has(input:focus-visible) .su-paid-word { outline: 2px solid var(--teal); outline-offset: 1px; }
+.su-paid:has(input:checked) .su-paid-word, .su-paid-on { font-weight: 700; color: var(--teal-tint); border-color: var(--teal); background: var(--teal-16); }
+.su-paid:has(input:disabled) { cursor: default; }
+.su-paid:has(input:disabled):not(:has(input:checked)) .su-paid-word { opacity: 0.6; }
+.su-paid:has(input:disabled):hover .su-paid-word { color: var(--muted); border-color: var(--na); }
+.su-paid:has(input:disabled):has(input:checked):hover .su-paid-word { color: var(--teal-tint); border-color: var(--teal); }
 .su-tick-ro { color: var(--teal-tint); font-size: 13px; font-weight: 700; }
 
 /* the detail line: note and statement file */
@@ -331,14 +354,15 @@ a.hs-btn:hover { text-decoration: none; }
 /* a narrower column (three across on a laptop): tighter controls, still one line */
 @container (max-width: 600px) {
   .su-table th.su-c-state { width: 124px; }
-  .su-table th.su-c-total { width: 80px; }
+  .su-table th.su-c-total { width: 92px; }
+  .su-table th.su-c-tick { width: 34px; }
   .su-seg-opt { padding: 3px 4px; letter-spacing: 0.04em; }
 }
 /* a phone-width column: the name takes its own line above the controls */
 @container (max-width: 400px) {
   .su-table thead { display: none; }
   .su-table, .su-table tbody { display: block; }
-  .su-row { display: grid; grid-template-columns: auto minmax(0, 1fr) 26px 26px 26px; align-items: center; border-top: 1px solid var(--hairline); }
+  .su-row { display: grid; grid-template-columns: auto 30px 34px minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--hairline); }
   .su-row > th, .su-row > td { display: block; height: auto; border-top: 0; padding: 2px 4px; }
   .su-row > th.su-c-name { grid-column: 1 / -1; padding-top: 4px; }
   .su-detail, .su-msgrow { display: block; }

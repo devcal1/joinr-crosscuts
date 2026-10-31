@@ -23,19 +23,13 @@
   const P = window.Periods;
   const $ = (id) => document.getElementById(id);
 
-  // One page, two kinds of account: Supplier accounts (/suppliers.html) and Admin accounts
-  // (/adminaccounts.html, body data-kind="admin"; docs/plans/m9-contracts.md section 13). Same
-  // machinery, so only the API base, the page path, the audit entity and the words differ.
+  // Supplier accounts only now (Admin accounts were folded in by migration 054, 2026-10-31). The
+  // KINDS table stays so the words and API base live in one place.
   const KINDS = {
     supplier: {
       api: "/api/suppliers", page: "/suppliers.html", title: "Supplier accounts",
       one: "supplier", many: "suppliers", One: "Supplier", Many: "Suppliers",
       form: "Supplier statements form", entity: "supplier_statement",
-    },
-    admin: {
-      api: "/api/admin-accounts", page: "/adminaccounts.html", title: "Admin accounts",
-      one: "account", many: "accounts", One: "Account", Many: "Accounts",
-      form: "Admin accounts form", entity: "admin_account_statement",
     },
   };
   const K = KINDS[document.body.dataset.kind] || KINDS.supplier;
@@ -67,7 +61,7 @@
   // 0.2.7: Paid on a supplier line, and on an individual invoice, is users.admin's (Admin accounts
   // keeps its own rule: anyone who edits).
   function canPay() {
-    return K !== KINDS.supplier || can("users.admin");
+    return can("users.admin");
   }
   // The audit link is for admins only: the admin role, and the audit page's own key.
   function isAdmin() {
@@ -255,7 +249,8 @@
     R.totalTd = el("td", { class: "su-c-total num" });
     R.tickTds = {};
     for (const [k] of TICKS) R.tickTds[k] = el("td", { class: "su-c-tick" });
-    R.tr.append(R.nameTd, R.stateTd, R.totalTd, R.tickTds.reconciled, R.tickTds.paid, R.tickTds.myob);
+    // One line: name, statement, REC, MYOB, then the heroes: Total and Paid (Todd 2026-10-31).
+    R.tr.append(R.nameTd, R.stateTd, R.tickTds.reconciled, R.tickTds.myob, R.totalTd, R.tickTds.paid);
 
     // The detail line: the note and the statement file.
     R.noteBox = el("div", { class: "su-det-note" });
@@ -306,7 +301,8 @@
     R.stateTd.replaceChildren(el("span", { class: `hs-badge su-badge ${cls}`, text: l.state === "have" ? "Have" : STATE_WORD[l.state] || l.state }));
     R.totalTd.textContent = l.state === "na" && l.totalCents == null ? DASH : P.dollars(l.totalCents || 0);
     for (const [k, label] of TICKS) {
-      R.tickTds[k].replaceChildren(l[k] ? el("span", { class: "su-tick-ro", text: CHECK, "aria-label": label, role: "img" }) : "");
+      if (k === "paid") R.tickTds[k].replaceChildren(el("span", { class: "su-paid su-paid-ro" + (l[k] ? " su-paid-on" : ""), text: "Paid", "aria-label": l[k] ? "Paid" : "Not paid" }));
+      else R.tickTds[k].replaceChildren(l[k] ? el("span", { class: "su-tick-ro", text: CHECK, "aria-label": label, role: "img" }) : "");
     }
     R.noteBox.replaceChildren(el("span", { class: "su-note-ro", text: l.note || "No note." }));
   }
@@ -374,7 +370,8 @@
       }
       input.addEventListener("change", () => commit(R));
       R.ticks[k] = input;
-      R.tickTds[k].replaceChildren(el("label", { class: "su-tick", title: label }, input));
+      if (k === "paid") R.tickTds[k].replaceChildren(el("label", { class: "su-paid", title: input.title || label }, input, el("span", { class: "su-paid-word", text: "Paid" })));
+      else R.tickTds[k].replaceChildren(el("label", { class: "su-tick", title: label }, input));
     }
 
     R.noteIn = el("input", {
@@ -1004,9 +1001,10 @@
     const headRow = el("tr", null,
       el("th", { scope: "col", class: "su-c-name", text: K.One }),
       el("th", { scope: "col", class: "su-c-state", text: "Statement" }),
+      ...[["reconciled", "REC"], ["myob", "MYOB"]].map(([k, t]) => el("th", { scope: "col", class: "su-c-tick" },
+        el("abbr", { title: TICKS.find((x) => x[0] === k)[1], "aria-label": TICKS.find((x) => x[0] === k)[1], text: t }))),
       el("th", { scope: "col", class: "su-c-total num", text: "Total" }),
-      ...TICKS.map(([, word, letter]) => el("th", { scope: "col", class: "su-c-tick" },
-        el("abbr", { title: word, "aria-label": word, text: letter }))));
+      el("th", { scope: "col", class: "su-c-paid", text: "Paid" }));
     pane.table = el("table", { class: "su-table", "aria-labelledby": headId }, el("thead", null, headRow), pane.tbody);
     pane.table.hidden = true;
     pane.root = el("section", {
@@ -1019,7 +1017,8 @@
       el("div", { class: "su-left" },
         el("span", { class: "su-left-label", text: "Left to pay" }),
         pane.leftValue, pane.leftMissing, pane.leftMeta),
-      pane.statusEl, pane.emptyEl, pane.table);
+      pane.statusEl, pane.emptyEl,
+      el("p", { class: "su-key", text: "REC = Reconciled · MYOB = Entered in MYOB" }), pane.table);
     // 0.2.7 (m28-contracts.md section 2): Individual invoices, below the supplier accounts.
     pane.ind = null;
     if (K === KINDS.supplier && window.Payables) {

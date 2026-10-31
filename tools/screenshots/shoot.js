@@ -139,7 +139,6 @@ const PAGES = [
   ["planner-custom-repeat", "/planner.html", 1440, true, undefined, undefined, { js: PLANNER_CUSTOM, viewport: true }],
   ["bas-year-0118", "/bas.html", 1440, true],
   ["bas-month-0118", c => "/bas.html#" + c.basOpen, 1440, true],
-  ["adminaccounts-0118", c => "/adminaccounts.html#" + c.lastMonth, 1440, true],
   ["accounts-menu-0118", "/", 1440, true, undefined, undefined, { js: ACCOUNTS_MENU, viewport: true }],
   // 0.1.19: the Scheduling and Admin menus open (Notes first), and the Design/PM Notes page (seed-notes.js).
   ["scheduling-menu-0119", "/", 1440, true, undefined, undefined, { js: DEPT_MENU("Scheduling"), viewport: true }],

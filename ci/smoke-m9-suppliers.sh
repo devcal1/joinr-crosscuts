@@ -94,6 +94,8 @@ req GET /suppliers.html "$SCHED"
 expect_status 403 "sched GET /suppliers.html"
 
 echo "--- suppliers ---"
+req GET /api/admin-accounts "$ACCT"
+expect_status 404 "the old Admin accounts API is gone (folded into suppliers by migration 054)"
 req POST /api/suppliers "$ACCT" "$(jq -nc --arg n "$M9S_NAME_A" '{name:$n, fromPeriod:"2024-03"}')"
 expect_status 201 "create supplier A from 2024-03"
 expect_jq ".name == \"$M9S_NAME_A\" and .fromPeriod == \"2024-03\" and .archivedFrom == null and .archived == false and (.id | type == \"number\")" "supplier A's shape"
