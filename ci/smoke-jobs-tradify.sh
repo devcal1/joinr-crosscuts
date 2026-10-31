@@ -133,7 +133,7 @@ expect_eq "$(jt_alerts "$ADMIN" job.pm_assigned "/job.html?id=$JT_QA")" "1" "set
 echo "--- 4. the jobs list ---"
 req GET "/api/job-records?mine=1" "$DPM"
 expect_status 200 "mine=1"
-expect_jq "(map(.id) | index($JT_W1)) != null and (map(.id) | index($JT_QA)) == null and all(.projectOwnerId == $JT_DPM_ID)" "mine: only the caller's jobs"
+expect_jq "(map(.id) | index($JT_W1)) != null and (map(.id) | index($JT_QA)) == null and all(.projectOwnerId == $JT_DPM_ID or ([.people[]?.userId] | index($JT_DPM_ID)) != null)" "mine: the caller's jobs (PM or named on the tile)"
 expect_jq "[.[] | select(.id == $JT_W1)][0].projectManager.id == $JT_DPM_ID" "projectManager on a row"
 req GET "/api/job-records?unassigned=1" "$DPM"
 expect_status 200 "unassigned=1"

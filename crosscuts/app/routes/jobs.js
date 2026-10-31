@@ -192,8 +192,16 @@ function activityMap(jobId) {
   const photos = db.prepare(
     "SELECT job_id, MAX(created_at) AS c FROM photos WHERE job_id IS NOT NULL" + (one ? " AND job_id = ?" : "") + " GROUP BY job_id"
   ).all(...a);
+  const issues = db.prepare(
+    "SELECT job_id, MAX(raised_at) AS c, MAX(resolved_at) AS e FROM job_issues" + (one ? " WHERE job_id = ?" : "") + " GROUP BY job_id"
+  ).all(...a);
+  const orders = db.prepare(
+    "SELECT job_id, MAX(updated_at) AS c FROM orders" + (one ? " WHERE job_id = ?" : "") + " GROUP BY job_id"
+  ).all(...a);
   const m = new Map();
   const add = (id, v) => m.set(id, latestIso([m.get(id), v]));
+  for (const i of issues) { add(i.job_id, i.c); add(i.job_id, i.e); }
+  for (const o of orders) add(o.job_id, o.c);
   for (const n of notes) { add(n.job_id, n.c); add(n.job_id, n.e); }
   for (const p of photos) add(p.job_id, p.c);
   return m;
@@ -303,8 +311,10 @@ r.get("/", "jobs.view", handle((req, res) => {
   const unassigned = flag("unassigned");
   if (mine && unassigned) throw bad("mine and unassigned cannot be combined");
   if (mine) {
-    where.push("project_owner_id = ?");
-    args.push(req.user && Number.isInteger(req.user.id) ? req.user.id : -1);
+    // Assigned = project manager, or a name on the job's Pipeline tile (job_people).
+    const uid = req.user && Number.isInteger(req.user.id) ? req.user.id : -1;
+    where.push("(project_owner_id = ? OR id IN (SELECT job_id FROM job_people WHERE user_id = ?))");
+    args.push(uid, uid);
   }
   if (unassigned) {
     where.push("project_owner_id IS NULL AND archived = 0 AND stage NOT IN ('complete','invoiced','lost','archived')");

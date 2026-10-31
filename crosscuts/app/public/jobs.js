@@ -165,8 +165,14 @@
   function render() {
     const jobs = lastJobs;
     if (jobs.length === 0) {
-      const msg = filter === "mine" ? "You are not project manager on any job that matches." : filter === "unassigned" ? "Every live job has a project manager." : "No jobs match.";
-      rowsEl.replaceChildren(el("li", { class: "jd-empty-row", text: msg }));
+      const msg = filter === "mine" ? "No jobs are assigned to you here (as project manager or named on a Pipeline tile)." : filter === "unassigned" ? "Every live job has a project manager." : "No jobs match.";
+      const kids = [el("li", { class: "jd-empty-row", text: msg })];
+      if (filter === "mine") {
+        const b = el("button", { type: "button", class: "jd-allbtn", text: "Show all jobs" });
+        b.addEventListener("click", () => { setFilter("all", true); load(); });
+        kids.push(el("li", { class: "jd-empty-row" }, b));
+      }
+      rowsEl.replaceChildren(...kids);
       countEl.textContent = "";
       return;
     }
