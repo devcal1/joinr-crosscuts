@@ -161,6 +161,11 @@ r.put("/:id/timesheets/:tsId", EDIT, handle((req, res) => {
   res.json(payroll.saveTimesheet(db, req, idOr404(req.params.id), idOr404(req.params.tsId), body(req)));
 }));
 
+// 0.2.11: an admin's review tick, {reviewed: bool}.
+r.post("/:id/timesheets/:tsId/review", ADMIN, handle((req, res) => {
+  res.json(payroll.setReviewed(db, req, idOr404(req.params.id), idOr404(req.params.tsId), body(req).reviewed));
+}));
+
 r.delete("/:id/timesheets/:tsId", EDIT, handle((req, res) => {
   payroll.removeTimesheet(db, req, idOr404(req.params.id), idOr404(req.params.tsId));
   res.status(204).end();

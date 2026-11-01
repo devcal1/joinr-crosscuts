@@ -373,10 +373,11 @@ function sheetsOf(db, runId) {
   return db
     .prepare(
       `SELECT t.*, p.id AS p_id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived AS p_archived,
-              w.name AS worker_name, w.archived AS worker_archived
+              w.name AS worker_name, w.archived AS worker_archived, ru.display_name AS reviewer_name
          FROM pay_timesheets t
          JOIN pay_people p ON p.id = t.person_id
          LEFT JOIN workers w ON w.id = p.worker_id
+         LEFT JOIN users ru ON ru.id = t.reviewed_by
         WHERE t.pay_run_id = ?
         ORDER BY t.name COLLATE NOCASE, t.id`
     )
@@ -393,6 +394,16 @@ function sheetPerson(t) {
     worker_name: t.worker_name,
     worker_archived: t.worker_archived,
   });
+}
+
+// The admin review tick (0.2.11): {reviewed, reviewedBy, reviewedAt}.
+function reviewOut(t) {
+  const on = bool(t.admin_reviewed);
+  return {
+    reviewed: on,
+    reviewedBy: on && t.reviewed_by != null ? { id: t.reviewed_by, name: t.reviewer_name || "" } : null,
+    reviewedAt: on ? t.reviewed_at || null : null,
+  };
 }
 
 function getRun(db, id) {
@@ -421,6 +432,7 @@ function getRun(db, id) {
       name: t.name,
       entered: bool(t.entered),
       signed: bool(t.signed),
+      ...reviewOut(t),
       saved: t.saved_at != null,
       totals: PayMaths.totals(tenDays(run.start_date, stored[t.id], r)),
     })),
@@ -570,10 +582,11 @@ function sheetRow(db, runId, tsId) {
     db
       .prepare(
         `SELECT t.*, p.id AS p_id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived AS p_archived,
-                w.name AS worker_name, w.archived AS worker_archived
+                w.name AS worker_name, w.archived AS worker_archived, ru.display_name AS reviewer_name
            FROM pay_timesheets t
            JOIN pay_people p ON p.id = t.person_id
            LEFT JOIN workers w ON w.id = p.worker_id
+           LEFT JOIN users ru ON ru.id = t.reviewed_by
           WHERE t.id = ? AND t.pay_run_id = ?`
       )
       .get(tsId, runId) || null
@@ -596,6 +609,7 @@ function getTimesheet(db, runId, tsId) {
     notes: t.notes || "",
     signed: bool(t.signed),
     entered: bool(t.entered),
+    ...reviewOut(t),
     saved: t.saved_at != null,
     updatedAt: t.updated_at,
     days,
@@ -764,6 +778,12 @@ function saveTimesheet(db, req, runId, tsId, body) {
       `UPDATE pay_timesheets SET notes = ?, signed = ?, entered = ?, saved_at = COALESCE(saved_at, ?),
               updated_at = ? WHERE id = ?`
     ).run(notes, signed ? 1 : 0, entered ? 1 : 0, stamp, stamp, tsId);
+    // Changed hours need a fresh admin review (Todd 2026-11-01); notes and ticks don't.
+    if (bool(t.admin_reviewed) && Object.keys(before.days).length) {
+      db.prepare("UPDATE pay_timesheets SET admin_reviewed = 0, reviewed_by = NULL, reviewed_at = NULL WHERE id = ?").run(tsId);
+      before.reviewed = true;
+      after.reviewed = false;
+    }
     audit.log(req, {
       action: "timesheet.update",
       entityType: "timesheet",
@@ -771,6 +791,27 @@ function saveTimesheet(db, req, runId, tsId, body) {
       before,
       after,
     });
+  })();
+  return getTimesheet(db, runId, tsId);
+}
+
+// An admin's review tick on one sheet (0.2.11). Open runs only. Doesn't touch updated_at, so
+// someone typing in the sheet isn't told it was saved meanwhile.
+function setReviewed(db, req, runId, tsId, reviewed) {
+  const value = boolField("reviewed", reviewed);
+  db.transaction(() => {
+    const run = runOr404(db, runId);
+    const t = db.prepare("SELECT * FROM pay_timesheets WHERE id = ? AND pay_run_id = ?").get(tsId, runId);
+    if (!t) throw notFound();
+    if (run.status !== "open") throw conflict("This pay run is finalised");
+    if (value === bool(t.admin_reviewed)) return;
+    db.prepare("UPDATE pay_timesheets SET admin_reviewed = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?").run(
+      value ? 1 : 0,
+      value ? userId(req) : null,
+      value ? nowIso() : null,
+      tsId
+    );
+    audit.log(req, { action: "timesheet.review", entityType: "timesheet", entityId: tsId, before: { reviewed: !value }, after: { reviewed: value } });
   })();
   return getTimesheet(db, runId, tsId);
 }
@@ -1013,6 +1054,7 @@ module.exports = {
   removeTimesheet,
   getTimesheet,
   saveTimesheet,
+  setReviewed,
   suggestionsFor,
   summary,
   listHolidays,

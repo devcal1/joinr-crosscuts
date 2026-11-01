@@ -149,6 +149,12 @@ app.listen(PORT, () => {
   } catch (e) {
     console.error(`[accounts] sweep failed to start (${safeCode(e)})`);
   }
+  // 0.2.11: the 2pm pay-run review ping on a fortnight's last Friday (PAYRUN_PING_DISABLED=1 turns it off).
+  try {
+    require("./lib/payrunping").start(require("./db"));
+  } catch (e) {
+    console.error(`[payrun] review ping failed to start (${safeCode(e)})`);
+  }
   // The "needs a project owner" sweep, at boot and every 5 minutes (OWNER_SWEEP_DISABLED=1 turns it off).
   require("./lib/projectsteps").start(require("./db"));
   // The Joinr intake pull, every 5 minutes once a key is set (JOINR_SYNC_DISABLED=1 turns it off).

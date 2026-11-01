@@ -198,10 +198,40 @@
       const hrs = el("span", { class: "pr-item-hrs", text: PM.hours((t.totals && t.totals.workedMin) || 0) + " h" });
       b.append(el("span", { class: "pr-item-sub" }, state, hrs));
       b.addEventListener("click", () => selectSheet(t.id));
-      list.append(el("li", null, b));
+      list.append(el("li", { class: "pr-li" }, reviewTick(t), b));
     }
     $("sideTools").hidden = !editable();
     syncRemove();
+  }
+
+  // The admin review tick at the left of each row (0.2.11): everyone sees it, users.admin holders
+  // tick it while the run is open, telling accounts the hours are checked. Changing hours clears it.
+  function reviewTick(t) {
+    const who = t.reviewed && t.reviewedBy ? ` by ${t.reviewedBy.name}` : "";
+    const box = el("input", {
+      type: "checkbox",
+      class: "pr-review",
+      "aria-label": `Admin reviewed ${t.name}`,
+      title: t.reviewed ? `Reviewed${who}` : "Not reviewed by admin yet",
+    });
+    box.checked = !!t.reviewed;
+    box.disabled = !(can("users.admin") && run.status === "open");
+    box.addEventListener("change", async () => {
+      box.disabled = true;
+      try {
+        const ts = await api(`/api/payruns/${runId}/timesheets/${t.id}/review`, {
+          method: "POST",
+          body: JSON.stringify({ reviewed: box.checked }),
+        });
+        Object.assign(t, { reviewed: ts.reviewed, reviewedBy: ts.reviewedBy, reviewedAt: ts.reviewedAt });
+        if (sheet && sheet.id === t.id) Object.assign(sheet, { reviewed: ts.reviewed, reviewedBy: ts.reviewedBy });
+        toast(ts.reviewed ? `${t.name}: reviewed for accounts.` : `${t.name}: review tick removed.`);
+      } catch (e) {
+        toast(`Error: ${e.message}`);
+      }
+      renderList();
+    });
+    return box;
   }
 
   // A sheet can be removed while it has nothing stored (no typed day and no notes).
@@ -723,6 +753,8 @@
     if (!row) return;
     row.entered = ts.entered;
     row.signed = ts.signed;
+    row.reviewed = ts.reviewed;
+    row.reviewedBy = ts.reviewedBy;
     row.saved = ts.saved;
     row.totals = ts.totals;
     row.name = ts.name;
@@ -835,6 +867,11 @@
     let q = `Finalise the pay run for ${run.label}? This freezes every sheet and the summary.`;
     if (unticked.length) {
       q += `\n\nThese sheets aren't ticked as typed in:\n${unticked.join("\n")}\n\nFinalise anyway?`;
+    }
+    // 0.2.11 (Todd 2026-11-01): warn, don't block, when an admin hasn't reviewed every sheet.
+    const unreviewed = (run.timesheets || []).filter((t) => !t.reviewed).map((t) => t.name);
+    if (unreviewed.length) {
+      q += `\n\nAn admin hasn't reviewed these sheets yet:\n${unreviewed.join("\n")}\n\nFinalise anyway?`;
     }
     if (!confirm(q)) return;
     run = await api(`/api/payruns/${runId}/finalise`, { method: "POST", body: "{}" });

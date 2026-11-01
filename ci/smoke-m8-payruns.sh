@@ -254,6 +254,20 @@ expect_jq '.error == "Clear the sheet before removing it"' "the clear-first sent
 req DELETE "/api/payruns/$M8_RUN/timesheets/$M8_TS_OFF" "$ACCT"
 expect_status 204 "remove the empty sheet"
 
+echo "--- admin review tick (0.2.11) ---"
+req POST "/api/payruns/$M8_RUN/timesheets/$M8_TS/review" "$ACCT" '{"reviewed":true}'
+expect_status 403 "acct can't tick the admin review"
+req POST "/api/payruns/$M8_RUN/timesheets/$M8_TS/review" "$ADMIN" '{"reviewed":"yes"}'
+expect_status 400 "review must be true or false"
+req POST "/api/payruns/$M8_RUN/timesheets/$M8_TS/review" "$ADMIN" '{"reviewed":true}'
+expect_status 200 "admin ticks the review"
+expect_jq '.reviewed == true and (.reviewedBy.name | type == "string") and (.reviewedAt | type == "string")' "the sheet is reviewed"
+req GET "/api/payruns/$M8_RUN" "$ACCT"
+expect_status 200 "acct GET the run"
+expect_jq "[.timesheets[] | select(.id == $M8_TS)][0].reviewed == true" "accounts sees the review tick"
+req POST "/api/payruns/$M8_RUN/timesheets/999999999/review" "$ADMIN" '{"reviewed":true}'
+expect_status 404 "review an unknown sheet"
+
 echo "--- finalise ---"
 req POST "/api/payruns/$M8_RUN/myob" "$ACCT" '{"entered":true}'
 expect_status 409 "MYOB tick on an open run"
@@ -261,6 +275,8 @@ expect_jq '.error == "Finalise the pay run first"' "the finalise-first sentence"
 req POST "/api/payruns/$M8_RUN/finalise" "$ACCT"
 expect_status 200 "acct finalises"
 expect_jq '.status == "finalised" and (.finalisedAt | type == "string") and (.finalisedBy.name | type == "string")' "the finalised run"
+req POST "/api/payruns/$M8_RUN/timesheets/$M8_TS/review" "$ADMIN" '{"reviewed":false}'
+expect_status 409 "no review changes on a finalised run"
 req GET "/api/payruns/$M8_RUN/summary" "$ACCT"
 expect_jq ".frozen == true and .payRun.status == \"finalised\" and ([.rows[] | select(.timesheetId == $M8_TS)][0] | .normalMin == 1920 and .otMin == 420 and .dtMin == 270)" "the frozen summary"
 M8_FROZEN=$(jqr '[.rows, .totals, .rules] | tojson')

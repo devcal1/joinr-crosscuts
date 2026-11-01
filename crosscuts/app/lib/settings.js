@@ -60,6 +60,8 @@ const DEFAULTS = {
   // accounts sweep's last run is {audit: false}.
   "invoices.followup_days_default": "7",
   "accounts.sweep_last_run": null,
+  // 0.2.11: the pay-run review ping's last day ({audit: false}).
+  "payrun.review_ping_last": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 
