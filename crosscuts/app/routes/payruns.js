@@ -80,7 +80,7 @@ r.post("/people", EDIT, handle((req, res) => {
 }));
 
 r.put("/people/worker/:workerId", EDIT, handle((req, res) => {
-  res.json(payroll.setWorkerOnPayRun(db, req, idOr404(req.params.workerId), body(req).onPayRun));
+  res.json(payroll.updateWorkerPerson(db, req, idOr404(req.params.workerId), body(req)));
 }));
 
 r.patch("/people/:id", EDIT, handle((req, res) => {

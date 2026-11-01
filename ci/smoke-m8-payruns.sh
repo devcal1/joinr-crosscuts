@@ -98,6 +98,20 @@ expect_jq "[.people[] | select(.id == $M8_OFFICE)] | length == 1" "the office pe
 req PATCH "/api/payruns/people/$M8_OFF_PERSON" "$ACCT" '{"name":"M8 Renamed"}'
 expect_status 400 "rename a worker's row"
 expect_jq '.error == "Board workers are changed on the Workers page"' "the workers-page sentence"
+# 0.2.11: pay first name and surname, "SURNAME, Firstname"; the board name stays.
+req PUT "/api/payruns/people/worker/$M8_OFF" "$ACCT" '{"firstName":"Offy","surname":"Testman"}'
+expect_status 200 "acct sets a worker's pay name"
+expect_jq '.name == "TESTMAN, Offy" and .baseName == "M8 Off Worker" and .surname == "Testman" and .onPayRun == false' "the pay name"
+req PUT "/api/payruns/people/worker/$M8_OFF" "$ACCT" '{"surname":5}'
+expect_status 400 "a surname that isn't text"
+req PATCH "/api/payruns/people/$M8_OFFICE" "$ACCT" '{"surname":"Deskly"}'
+expect_status 200 "acct sets a pay-only surname"
+expect_jq '.name == "DESKLY, M8 Office Person"' "first name falls back to the own name"
+req PUT "/api/payruns/people/worker/$M8_OFF" "$ACCT" '{"firstName":"","surname":""}'
+expect_status 200 "clear the worker's pay name"
+expect_jq '.name == "M8 Off Worker"' "back to the board name"
+req PATCH "/api/payruns/people/$M8_OFFICE" "$ACCT" '{"surname":null}'
+expect_status 200 "clear the pay-only surname"
 
 echo "--- create ---"
 req POST /api/payruns "$ACCT" '{"startDate":"2035-01-02"}'

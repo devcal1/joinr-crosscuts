@@ -147,3 +147,6 @@ a.hs-btn:hover { text-decoration: none; }
   .py-hols tr.py-past td.py-holname { color: var(--muted); }
   .py-people td.py-acts:empty, .py-hols td.py-acts:empty { display: none; }
 }
+
+/* 0.2.11: the board name under a pay name. */
+.py-board { display: block; font-size: 12px; }

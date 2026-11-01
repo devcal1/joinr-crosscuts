@@ -204,6 +204,9 @@
     for (const p of people) {
       const worker = p.kind === "worker";
       const name = el("td", { class: "py-name", "data-label": "Name" }, el("span", { text: p.name }));
+      // The board name under a pay name that differs (a nickname, or no surname yet).
+      if (worker && p.surname && p.baseName !== p.firstName) name.append(el("span", { class: "py-muted py-board", text: `Board: ${p.baseName}` }));
+      else if (!p.surname) name.append(el("span", { class: "py-muted py-board", text: "No surname yet" }));
       if (p.archived) name.append(el("span", { class: "hs-badge hs-badge-na py-tag", text: "Removed" }));
 
       const on = el("td", { class: "py-on", "data-label": "On the pay run" });
@@ -225,6 +228,12 @@
       else kind.append(el("span", { class: "hs-badge hs-badge-na", text: "Pay only" }));
 
       const acts = el("td", { class: "py-acts" });
+      if (edit && !p.archived) {
+        const pn = el("button", { type: "button", class: "hs-btn", text: "Pay name", "data-person": personKey(p), "data-act": "payname" });
+        pn.setAttribute("aria-label", `Pay name for ${p.name}`);
+        pn.addEventListener("click", () => openPayName(p));
+        acts.append(pn);
+      }
       if (edit && !worker) {
         if (p.archived) {
           const back = el("button", { type: "button", class: "hs-btn", text: "Restore", "data-person": personKey(p), "data-act": "restore" });
@@ -571,7 +580,7 @@
   }
 
   function openRename(p) {
-    const name = textInput("dpRename", p.name, 100);
+    const name = textInput("dpRename", p.baseName, 100);
     formDialog({
       title: "Rename",
       note: "Sheets already in a pay run keep the name they were started with until it is finalised.",
@@ -580,7 +589,7 @@
       focus: name,
       run: async () => {
         const n = cleanName(name.value, 100, "a name");
-        if (n === p.name) return;
+        if (n === p.baseName) return;
         await api(personUrl(p), { method: "PATCH", body: JSON.stringify({ name: n }) });
         toast("Renamed");
       },
@@ -590,6 +599,31 @@
       },
     });
     name.select();
+  }
+
+  // Pay first name and surname (0.2.11): pay runs list people as "SURNAME, Firstname". The board
+  // keeps its own name; an empty first name falls back to it.
+  function openPayName(p) {
+    const first = textInput("dpFirst", p.firstName, 100);
+    const sur = textInput("dpSurname", p.surname, 100);
+    first.placeholder = p.baseName;
+    formDialog({
+      title: "Pay name",
+      note: `Pay runs show "SURNAME, Firstname". Leave the first name empty to use "${p.baseName}". The board name doesn't change.`,
+      fields: [field("First name", first), field("Surname", sur)],
+      action: "Save name",
+      focus: p.surname ? first : sur,
+      run: async () => {
+        const body = { firstName: first.value.trim(), surname: sur.value.trim() };
+        if (body.firstName === p.firstName && body.surname === p.surname) return;
+        await api(personUrl(p), { method: p.kind === "worker" ? "PUT" : "PATCH", body: JSON.stringify(body) });
+        toast("Pay name saved");
+      },
+      after: async () => {
+        await loadPeople();
+        focusPerson(p, "payname");
+      },
+    });
   }
 
   function openRemovePerson(p) {

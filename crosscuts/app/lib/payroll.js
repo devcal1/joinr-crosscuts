@@ -90,7 +90,7 @@ function byName(a, b) {
   const y = String(b.name || "").toLowerCase();
   if (x < y) return -1;
   if (x > y) return 1;
-  return a.id - b.id;
+  return (a.id || 0) - (b.id || 0);
 }
 
 // "Mon 5 Oct": the date prefix of the save sentences.
@@ -124,16 +124,28 @@ function runRules(db, run) {
 
 // ----------------------------------------------------------------- people ---
 
-const PERSON_SQL = `SELECT p.id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived,
+const PERSON_SQL = `SELECT p.id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived, p.first_name, p.surname,
                            w.name AS worker_name, w.archived AS worker_archived
                       FROM pay_people p LEFT JOIN workers w ON w.id = p.worker_id`;
 
+// The pay name (Todd 2026-11-01): "SURNAME, Firstname" once a surname is set, the first name
+// falling back to the board (or own) name; just that name until then.
+function payName(base, first, surname) {
+  const sn = (surname || "").trim();
+  if (!sn) return base;
+  return `${sn.toUpperCase()}, ${(first || "").trim() || base}`;
+}
+
 function personOut(row) {
   const isWorker = row.worker_id != null;
+  const base = isWorker ? row.worker_name : row.own_name;
   return {
     id: row.id == null ? null : row.id,
     workerId: isWorker ? row.worker_id : null,
-    name: isWorker ? row.worker_name : row.own_name,
+    name: payName(base, row.first_name, row.surname),
+    baseName: base,
+    firstName: row.first_name || "",
+    surname: row.surname || "",
     kind: isWorker ? "worker" : "pay_only",
     onPayRun: row.on_pay_run == null ? true : bool(row.on_pay_run),
     archived: isWorker ? bool(row.worker_archived) : bool(row.archived),
@@ -149,7 +161,7 @@ function personById(db, id) {
 function personForWorker(db, workerId) {
   const row = db
     .prepare(
-      `SELECT p.id, w.id AS worker_id, NULL AS own_name, p.on_pay_run, p.archived,
+      `SELECT p.id, w.id AS worker_id, NULL AS own_name, p.on_pay_run, p.archived, p.first_name, p.surname,
               w.name AS worker_name, w.archived AS worker_archived
          FROM workers w LEFT JOIN pay_people p ON p.worker_id = w.id
         WHERE w.id = ?`
@@ -169,7 +181,7 @@ function ensureWorkerRow(db, workerId) {
 function listPeople(db, { all = false } = {}) {
   const workers = db
     .prepare(
-      `SELECT p.id, w.id AS worker_id, NULL AS own_name, p.on_pay_run, p.archived,
+      `SELECT p.id, w.id AS worker_id, NULL AS own_name, p.on_pay_run, p.archived, p.first_name, p.surname,
               w.name AS worker_name, w.archived AS worker_archived
          FROM workers w LEFT JOIN pay_people p ON p.worker_id = w.id
         WHERE w.archived = 0
@@ -182,7 +194,7 @@ function listPeople(db, { all = false } = {}) {
         ORDER BY p.name COLLATE NOCASE, p.id`
     )
     .all();
-  return [...workers, ...payOnly].map(personOut);
+  return [...workers, ...payOnly].map(personOut).sort(byName);
 }
 
 // Everyone on the pay run (section 5): active workers whose row is missing or on, then pay-only
@@ -245,6 +257,59 @@ function addPayOnly(db, req, { name } = {}) {
   return personById(db, id);
 }
 
+// A pay first name and surname (0.2.11, Todd 2026-11-01), for a board worker or a pay-only person.
+// Empty text clears a name. The board's worker name is never touched.
+function payNameField(v, what) {
+  if (v === null) return null;
+  if (typeof v !== "string") throw bad(`The ${what} must be text`);
+  const t = v.trim();
+  if (t.length > PERSON_NAME_MAX) throw bad(`Keep the ${what} to ${PERSON_NAME_MAX} characters`);
+  return t || null;
+}
+function setPayNames(db, req, personId, b) {
+  const next = {};
+  if (b.firstName !== undefined) next.first_name = payNameField(b.firstName, "first name");
+  if (b.surname !== undefined) next.surname = payNameField(b.surname, "surname");
+  if (!Object.keys(next).length) return;
+  db.transaction(() => {
+    const row = db.prepare("SELECT * FROM pay_people WHERE id = ?").get(personId);
+    if (!row) throw notFound();
+    const before = {};
+    const after = {};
+    for (const [c, v] of Object.entries(next)) {
+      if ((row[c] || null) !== v) {
+        before[c] = row[c] || null;
+        after[c] = v;
+      }
+    }
+    if (!Object.keys(after).length) return;
+    const cols = Object.keys(after);
+    db.prepare(`UPDATE pay_people SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ? WHERE id = ?`).run(
+      ...cols.map((c) => after[c]),
+      nowIso(),
+      personId
+    );
+    audit.log(req, { action: "payperson.update", entityType: "pay_person", entityId: personId, before, after });
+  })();
+}
+// PUT /people/worker/:workerId: {onPayRun?, firstName?, surname?}. Gives the worker a row if needed.
+function updateWorkerPerson(db, req, workerId, body) {
+  const b = body && typeof body === "object" ? body : {};
+  const worker = db.prepare("SELECT id, archived FROM workers WHERE id = ?").get(workerId);
+  if (!worker || worker.archived) throw notFound();
+  if (b.onPayRun === undefined && b.firstName === undefined && b.surname === undefined) {
+    throw bad("onPayRun must be true or false");
+  }
+  if (b.firstName !== undefined || b.surname !== undefined) {
+    payNameField(b.firstName === undefined ? null : b.firstName, "first name");
+    payNameField(b.surname === undefined ? null : b.surname, "surname");
+    const id = db.transaction(() => ensureWorkerRow(db, workerId))();
+    setPayNames(db, req, id, b);
+  }
+  if (b.onPayRun !== undefined) return setWorkerOnPayRun(db, req, workerId, b.onPayRun);
+  return personForWorker(db, workerId);
+}
+
 function updatePerson(db, req, id, body) {
   const b = body && typeof body === "object" ? body : {};
   const row = db.prepare("SELECT * FROM pay_people WHERE id = ?").get(id);
@@ -267,6 +332,7 @@ function updatePerson(db, req, id, body) {
       after[k] = next[k];
     }
   }
+  setPayNames(db, req, id, b);
   if (Object.keys(after).length) {
     db.transaction(() => {
       db.prepare(
@@ -372,8 +438,9 @@ function listRuns(db) {
 function sheetsOf(db, runId) {
   return db
     .prepare(
-      `SELECT t.*, p.id AS p_id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived AS p_archived,
-              w.name AS worker_name, w.archived AS worker_archived, ru.display_name AS reviewer_name
+      `SELECT t.*, p.id AS p_id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived AS p_archived, p.first_name, p.surname,
+              w.name AS worker_name, w.archived AS worker_archived, ru.display_name AS reviewer_name,
+              (SELECT status FROM pay_runs WHERE id = t.pay_run_id) AS run_status
          FROM pay_timesheets t
          JOIN pay_people p ON p.id = t.person_id
          LEFT JOIN workers w ON w.id = p.worker_id
@@ -381,7 +448,17 @@ function sheetsOf(db, runId) {
         WHERE t.pay_run_id = ?
         ORDER BY t.name COLLATE NOCASE, t.id`
     )
-    .all(runId);
+    .all(runId)
+    .map(liveName)
+    .sort((a, b) => byName(a, b));
+}
+
+// An open run's sheets show the person's current pay name (so a surname added mid-fortnight shows
+// at once); a finalised run keeps the name frozen at finalise. stored_name is the column as stored.
+function liveName(t) {
+  const out = { ...t, stored_name: t.name };
+  if (t.run_status === "open") out.name = sheetPerson(t).name;
+  return out;
 }
 
 function sheetPerson(t) {
@@ -393,6 +470,8 @@ function sheetPerson(t) {
     archived: t.p_archived,
     worker_name: t.worker_name,
     worker_archived: t.worker_archived,
+    first_name: t.first_name,
+    surname: t.surname,
   });
 }
 
@@ -507,7 +586,7 @@ function finalise(db, req, id) {
     // Freeze each sheet's name as the person's current name.
     for (const t of sheetsOf(db, id)) {
       const name = sheetPerson(t).name;
-      if (name && name !== t.name) db.prepare("UPDATE pay_timesheets SET name = ? WHERE id = ?").run(name, t.id);
+      if (name && name !== t.stored_name) db.prepare("UPDATE pay_timesheets SET name = ? WHERE id = ?").run(name, t.id);
     }
     const frozenRules = rules(db);
     const now = nowIso();
@@ -578,19 +657,20 @@ function setMyob(db, req, id, entered) {
 // -------------------------------------------------------------- timesheets ---
 
 function sheetRow(db, runId, tsId) {
-  return (
+  const row =
     db
       .prepare(
-        `SELECT t.*, p.id AS p_id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived AS p_archived,
-                w.name AS worker_name, w.archived AS worker_archived, ru.display_name AS reviewer_name
+        `SELECT t.*, p.id AS p_id, p.worker_id, p.name AS own_name, p.on_pay_run, p.archived AS p_archived, p.first_name, p.surname,
+                w.name AS worker_name, w.archived AS worker_archived, ru.display_name AS reviewer_name,
+                (SELECT status FROM pay_runs WHERE id = t.pay_run_id) AS run_status
            FROM pay_timesheets t
            JOIN pay_people p ON p.id = t.person_id
            LEFT JOIN workers w ON w.id = p.worker_id
            LEFT JOIN users ru ON ru.id = t.reviewed_by
           WHERE t.id = ? AND t.pay_run_id = ?`
       )
-      .get(tsId, runId) || null
-  );
+      .get(tsId, runId);
+  return row ? liveName(row) : null;
 }
 
 function getTimesheet(db, runId, tsId) {
@@ -1043,6 +1123,7 @@ module.exports = {
   setWorkerOnPayRun,
   addPayOnly,
   updatePerson,
+  updateWorkerPerson,
   listRuns,
   getRun,
   createRun,
