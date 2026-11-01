@@ -1,0 +1,130 @@
+/* AMEX (amex.html; the company card statement). Tokens come from tokens.css, hs- components from
+   components.css, the dialogs from orderui.css and the shell's cc-dialog. Page classes are ax-.
+   Nothing prints from this page (the statement is amexprint.html). */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ax-page { max-width: 1400px; margin: 0 auto; padding: 22px 16px 48px; }
+
+/* ---------- header and messages ---------- */
+.ax-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 12px; margin-bottom: 14px; }
+.ax-head h1 { margin: 2px 0 0; font-size: 28px; font-weight: 700; color: var(--white); }
+.ax-head h1:focus { outline: none; }
+.ax-head h1:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.ax-eyebrow, .ax-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.ax-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ax-status { margin: 0 0 12px; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.ax-status:empty { display: none; }
+.ax-status-ok { color: var(--go-tint); }
+.ax-status-err { color: var(--orange-tint); }
+
+/* ---------- the three figures ---------- */
+.ax-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.ax-fig { background: var(--surface); border-radius: var(--r-card); padding: 14px 16px; min-width: 0; }
+.ax-figval { margin: 4px 0 0; font-size: 26px; font-weight: 700; color: var(--white); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ax-orange { color: var(--orange); }
+
+.ax-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ax-range { width: auto; min-width: 180px; }
+
+/* ---------- the statement ---------- */
+.ax-wrap {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.ax-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; }
+.ax-table th {
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: left;
+  white-space: nowrap;
+}
+.ax-table td {
+  padding: 10px;
+  border-top: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.ax-table tbody tr:first-child td { border-top: 0; }
+.ax-table .ax-c-date { width: 130px; white-space: nowrap; }
+.ax-table .ax-c-sup { width: 230px; }
+.ax-table .ax-c-note { width: auto; }
+.ax-table .ax-c-num { width: 140px; text-align: right; font-variant-numeric: tabular-nums; }
+.ax-table .ax-c-bal { width: 150px; text-align: right; font-variant-numeric: tabular-nums; }
+.ax-table td.ax-c-num, .ax-table td.ax-c-bal { color: var(--white); font-weight: 700; }
+.ax-sup { color: var(--white); font-weight: 700; }
+.ax-note { color: var(--label); }
+
+.ax-row-click { cursor: pointer; }
+.ax-row-click:hover td { background: var(--raised); }
+.ax-row-click:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+/* paid charges: grey, the amount struck through (the balance is not) */
+.ax-paid td { color: var(--muted); }
+.ax-paid .ax-sup { color: var(--muted); font-weight: 400; }
+.ax-paid td.ax-c-num { color: var(--muted); font-weight: 400; text-decoration: line-through; }
+.ax-paid td.ax-c-bal { color: var(--muted); font-weight: 400; }
+
+/* repayments and the opening balance */
+.ax-rep td { background: var(--raised); }
+.ax-rep .ax-c-num.ax-repaid { color: var(--teal-tint); }
+.ax-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--teal);
+  border-radius: var(--r-badge);
+  color: var(--teal-tint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.ax-open td { color: var(--label); font-style: normal; }
+.ax-open .ax-sup { color: var(--label); }
+.ax-total td { border-top: 2px solid var(--muted); }
+.ax-total .ax-c-bal { color: var(--orange); }
+.ax-empty td { color: var(--label); text-align: center; }
+
+.ax-hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+
+/* ---------- dialogs ---------- */
+.ax-pick { max-height: 280px; overflow-y: auto; border: 1px solid var(--hairline); border-radius: var(--r-control); }
+.ax-pick-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-top: 1px solid var(--hairline); cursor: pointer; }
+.ax-pick-row:first-child { border-top: 0; }
+.ax-pick-row input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); flex: none; }
+.ax-pick-date { flex: none; width: 90px; color: var(--label); font-size: 12px; }
+.ax-pick-sup { flex: 1 1 auto; min-width: 0; color: var(--white); overflow-wrap: anywhere; }
+.ax-pick-amt { flex: none; color: var(--white); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ax-picktotal { margin: 0; color: var(--body); font-variant-numeric: tabular-nums; }
+.ax-picktotal.ax-warn { color: var(--orange-tint); }
+.ax-covers { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow-y: auto; }
+.ax-covers li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
+.ax-covers li:first-child { border-top: 0; }
+
+@media (max-width: 700px) {
+  .ax-figures { grid-template-columns: minmax(0, 1fr); }
+  .ax-figval { font-size: 22px; }
+}

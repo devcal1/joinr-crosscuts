@@ -1,0 +1,86 @@
+/* The AMEX statement print (/amexprint.html). On screen: the house-style frame with the sheet as a
+   white A4 box on the ink ground (a document, so dark on white). On paper: only the sheet, A4
+   portrait, black on white, on its own named page (xpsheet); a long table runs on with its header
+   repeated. Sizes are in mm and pt so the screen box and the printed page match. Colours come from
+   tokens.css, except in the print block. Page classes are xp-. */
+body.xp-body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--body);
+  font-family: var(--font);
+}
+
+.xp-page { max-width: 210mm; margin: 0 auto; padding: 20px 16px 48px; }
+
+.xp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 14px; }
+.xp-status { flex: 1 1 260px; margin: 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.xp-status:empty { display: none; }
+
+.xp-scroll { overflow-x: auto; }
+
+/* ---------- the sheet (screen) ---------- */
+.xp-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 10pt;
+  line-height: 1.35;
+}
+.xp-sheet :where(h1, h2, p, dl, dd, ul) { margin: 0; }
+.xp-sheet-error { min-height: 0; }
+.xp-loading, .xp-error { font-size: 12pt; }
+.xp-error { font-weight: 700; }
+
+.xp-label { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.xp-titlerow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.5mm solid var(--ink);
+}
+.xp-h1 { font-size: 17pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
+.xp-sub { margin-top: 2mm; font-size: 11pt; font-weight: 700; }
+.xp-meta { display: grid; grid-template-columns: auto minmax(0, auto); gap: 1mm 4mm; flex: none; max-width: 95mm; font-size: 10pt; }
+.xp-meta dt { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; align-self: center; }
+.xp-meta dd { font-weight: 700; overflow-wrap: anywhere; }
+
+.xp-table { width: 100%; margin-top: 4mm; border-collapse: collapse; table-layout: fixed; }
+.xp-table thead { display: table-header-group; }
+.xp-table th, .xp-table td { padding: 1.4mm 1.5mm; border-bottom: 0.2mm solid var(--ink); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.xp-table thead th { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 0.4mm solid var(--ink); }
+.xp-table tr { break-inside: avoid; page-break-inside: avoid; }
+.xp-c-date { width: 24mm; white-space: nowrap; }
+.xp-c-sup { width: 38mm; }
+.xp-c-num { width: 24mm; text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.xp-paidrow td.xp-c-chg { text-decoration: line-through; }
+.xp-reprow td { font-weight: 700; }
+.xp-total th, .xp-total td { font-weight: 700; border-top: 0.4mm solid var(--ink); border-bottom: 0; }
+.xp-total th { font-size: 7.5pt; letter-spacing: 0.1em; text-transform: uppercase; }
+.xp-foot { margin-top: 6mm; font-size: 8.5pt; }
+
+@media (max-width: 600px) {
+  .xp-page { padding: 12px 8px 32px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+.xp-sheet { page: xpsheet; }
+@page xpsheet {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html:has(> body.xp-body), body.xp-body { background: #fff; color: #000; }
+  body.xp-body > :not(main) { display: none !important; }
+  body.xp-body .xp-toolbar { display: none !important; }
+  .xp-page { max-width: none; margin: 0; padding: 0; }
+  .xp-scroll { overflow: visible; }
+  .xp-sheet { width: auto; min-height: 0; padding: 0; background: #fff; color: #000; }
+  .xp-sheet * { color: #000; border-color: #000; background: #fff; }
+}
+/* style-check: print-end */

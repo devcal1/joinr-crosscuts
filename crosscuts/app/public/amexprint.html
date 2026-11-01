@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMEX statement - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="amexprint.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="xp-body">
+  <div id="cc-shell"></div>
+
+  <!-- The AMEX statement print (amexprint.js): the sheet as it will print, on a white paper box. -->
+  <main class="xp-page">
+    <div class="xp-toolbar">
+      <button id="xpPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print</button>
+      <a id="xpBack" class="hs-btn" href="/amex.html">Back</a>
+      <p id="xpStatus" class="xp-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="xp-scroll">
+      <article id="xpSheet" class="xp-sheet" aria-label="AMEX statement">
+        <p class="xp-loading">Loading...</p>
+      </article>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="amexprint.js"></script>
+</body>
+</html>

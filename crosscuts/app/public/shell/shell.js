@@ -86,6 +86,8 @@
         // M13 (docs/plans/m13-contracts.md section 9): owner-only key, grantable to an Accounts login.
         // 0.2.7 (docs/plans/m28-contracts.md section 4): or loans.maintain (an array: any one will do).
         { label: "Loans", href: "/loans.html", key: ["loans.manage", "loans.maintain"] },
+        // 0.2.12: the company card ledger, same access as Loans.
+        { label: "AMEX", href: "/amex.html", key: ["loans.manage", "loans.maintain"] },
         // 0.2.7 (m28-contracts.md section 1): the vehicles register (rego and insurance).
         { label: "Vehicles", href: "/vehicles.html", key: "accounts.view" },
         { label: "Reports", href: "/reports.html", key: "accounts.view" },
@@ -144,6 +146,7 @@
     // M13 (docs/plans/m13-contracts.md section 9).
     "/bonusprint.html": "/bonuses.html",
     "/loanprint.html": "/loans.html",
+    "/amexprint.html": "/amex.html",
     // 2026-10-18: the batten calculator is a tool, so the menu lights up Tools.
     "/battens.html": "/tools.html",
     "/index.html": "/",

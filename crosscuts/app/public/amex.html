@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMEX - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderui.css">
+<link rel="stylesheet" href="amex.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="ax-body">
+  <div id="cc-shell"></div>
+
+  <main class="ax-page" id="axPage">
+    <div class="ax-head">
+      <div>
+        <p class="ax-eyebrow">Accounts</p>
+        <h1 id="axTitle" tabindex="-1">AMEX</h1>
+      </div>
+      <div id="axHeadActions" class="ax-head-actions"></div>
+    </div>
+    <p id="axStatus" class="ax-status" role="status" aria-live="polite">Loading...</p>
+
+    <section id="axBody" aria-labelledby="axTitle" hidden>
+      <div class="ax-figures">
+        <div class="ax-fig"><p class="ax-label">Owing now</p><p id="axOwing" class="ax-figval ax-orange"></p></div>
+        <div class="ax-fig"><p class="ax-label">Charged this year</p><p id="axCharged" class="ax-figval"></p></div>
+        <div class="ax-fig"><p class="ax-label">Repaid this year</p><p id="axRepaid" class="ax-figval"></p></div>
+      </div>
+
+      <div class="ax-tools">
+        <label class="ax-label" for="axRange">Show</label>
+        <select id="axRange" class="hs-input ax-range">
+          <option value="year">This year</option>
+          <option value="12m">Last 12 months</option>
+          <option value="all">Everything</option>
+        </select>
+      </div>
+
+      <div class="ax-wrap">
+        <table class="ax-table">
+          <thead>
+            <tr>
+              <th scope="col" class="ax-c-date">Date</th>
+              <th scope="col" class="ax-c-sup">Supplier</th>
+              <th scope="col" class="ax-c-note">Note</th>
+              <th scope="col" class="ax-c-num">Charge</th>
+              <th scope="col" class="ax-c-num">Repaid</th>
+              <th scope="col" class="ax-c-bal">Balance</th>
+            </tr>
+          </thead>
+          <tbody id="axRows"></tbody>
+        </table>
+      </div>
+      <p class="ax-hint">Click a charge to change it. Click a repayment to see what it covers.</p>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="orderui.js"></script>
+  <script src="amex.js"></script>
+</body>
+</html>

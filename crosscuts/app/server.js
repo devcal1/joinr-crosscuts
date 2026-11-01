@@ -90,6 +90,8 @@ const routers = [
   require("./routes/bonuses"),
   require("./routes/alarms"),
   require("./routes/loans"),
+  // 0.2.12: the AMEX company card ledger (Loans access).
+  require("./routes/amex"),
   // Department notes (docs/plans/notes-contracts.md).
   require("./routes/notes"),
   // The job's Materials list (docs/plans/materials-contracts.md).

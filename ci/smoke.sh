@@ -1277,6 +1277,8 @@ for f in "$(dirname "$0")"/smoke-m27-*.sh; do [ -f "$f" ] && source "$f"; done
 for f in "$(dirname "$0")"/smoke-m28-*.sh; do [ -f "$f" ] && source "$f"; done
 # Jobs as containers (ci/smoke-jobs-tradify.sh, docs/plans/jobs-tradify-contracts.md section 6.1): same rules.
 [ -f "$(dirname "$0")/smoke-jobs-tradify.sh" ] && source "$(dirname "$0")/smoke-jobs-tradify.sh"
+# AMEX suite (ci/smoke-amex.sh, 0.2.12, the company card ledger): same rules.
+[ -f "$(dirname "$0")/smoke-amex.sh" ] && source "$(dirname "$0")/smoke-amex.sh"
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 
