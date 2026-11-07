@@ -726,6 +726,53 @@
 
   guarded(loadJoinr)();
 
+  // --- Invoice email (0.2.13): the Resend key and the From address ---
+  let mailKeyFromEnv = false;
+  function showMailError(msg) {
+    $("mailError").textContent = msg || "";
+    $("mailError").hidden = !msg;
+  }
+  function fillMail(s) {
+    $("mailFrom").value = s.from || "";
+    $("mailKey").value = "";
+    mailKeyFromEnv = !!(s.key && s.key.fromEnv);
+    const configured = !!(s.key && s.key.configured);
+    $("mailKeyHint").textContent = configured
+      ? `Set, ending ••••${s.key.last4 || ""}${mailKeyFromEnv ? " (set by the server's environment)" : ""}`
+      : "Not set: invoices can't be emailed until a key is saved";
+    $("mailKey").placeholder = configured ? "Enter a new key to replace it" : "Paste the key from Resend";
+    $("mailKey").disabled = mailKeyFromEnv;
+    $("mailRemove").hidden = !configured || mailKeyFromEnv;
+  }
+  async function loadMail() {
+    fillMail(await api("/api/invoice-email/settings"));
+  }
+  $("mailSave").addEventListener("click", async () => {
+    showMailError("");
+    const btn = $("mailSave");
+    btn.disabled = true;
+    try {
+      const body = { from: $("mailFrom").value.trim() };
+      const key = $("mailKey").value.trim();
+      if (key) body.apiKey = key;
+      fillMail(await api("/api/invoice-email/settings", { method: "PUT", body: JSON.stringify(body) }));
+      toast("Saved");
+    } catch (err) {
+      showMailError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  $("mailRemove").addEventListener(
+    "click",
+    guarded(async () => {
+      if (!confirm("Remove the Resend API key? Invoices can't be emailed until a key is saved again.")) return;
+      showMailError("");
+      fillMail(await api("/api/invoice-email/settings/key", { method: "DELETE" }));
+    })
+  );
+  guarded(loadMail)();
+
   // --- Backups (docs/plans/backup-contracts.md section 10) ---
   // Everything shown comes from GET /api/backup/status: states and fixed sentences only, never a
   // passphrase, password or address. All text goes in through textContent (h() with text).

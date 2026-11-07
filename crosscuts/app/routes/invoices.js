@@ -428,4 +428,59 @@ r.post("/:id/contacts", "invoices.edit", handle((req, res) => {
   res.status(201).json({ contacts: list, invoice: invoices.present(db, invoices.getInvoice(db, inv.id)) });
 }));
 
+// --- email (0.2.13): send an issued invoice with its PDF through Resend ------------------------------
+
+const invoiceEmail = require("../lib/invoiceemail");
+const invoicePdf = require("../lib/invoicepdf");
+
+function handleAsync(fn) {
+  return async (req, res) => {
+    try {
+      await fn(req, res);
+    } catch (e) {
+      if (e && typeof e.status === "number" && e.status >= 400 && e.status <= 599 && e.status !== 500) {
+        return res.status(e.status).json({ error: e.message });
+      }
+      console.error("[invoices]", e);
+      res.status(500).json({ error: "Server error" });
+    }
+  };
+}
+
+r.get("/:id/email", "accounts.view", handle((req, res) => {
+  res.json(invoiceEmail.overview(db, load(req)));
+}));
+
+r.post("/:id/email", "invoices.edit", handleAsync(async (req, res) => {
+  const inv = load(req);
+  const out = await invoiceEmail.send(db, req, inv.id, body(req));
+  res.status(201).json({ ...out, invoice: invoices.present(db, invoices.getInvoice(db, inv.id)), ...invoiceEmail.overview(db, invoices.getInvoice(db, inv.id)) });
+}));
+
+// Ask Resend now about this invoice's emails that are still in flight.
+r.post("/:id/email/check", "invoices.edit", handleAsync(async (req, res) => {
+  const inv = load(req);
+  await invoiceEmail.pollInFlight(db, { invoiceId: inv.id });
+  res.json(invoiceEmail.overview(db, inv));
+}));
+
+// The PDF that is attached to the email: the same print layout as the invoice page.
+r.get("/:id/pdf", "accounts.view", handleAsync(async (req, res) => {
+  const inv = load(req);
+  let pdf;
+  try {
+    pdf = await invoicePdf.renderInvoicePdf(db, inv.id);
+  } catch (e) {
+    if (e && typeof e.status === "number") throw e;
+    console.error("[invoices] PDF failed:", e && e.message ? e.message : e);
+    return res.status(502).json({ error: "The invoice PDF couldn't be made (" + (e && e.message ? e.message : "unknown problem") + ")." });
+  }
+  res.set({
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `inline; filename="${invoicePdf.fileName(inv)}"`,
+    "Cache-Control": "no-store",
+  });
+  res.send(pdf);
+}));
+
 module.exports = r.router;

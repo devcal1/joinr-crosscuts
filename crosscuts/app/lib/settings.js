@@ -62,6 +62,8 @@ const DEFAULTS = {
   "accounts.sweep_last_run": null,
   // 0.2.11: the pay-run review ping's last day ({audit: false}).
   "payrun.review_ping_last": null,
+  // 0.2.13: the From of invoice emails (Resend; the domain must be verified there). PUT /api/invoice-email/settings only.
+  "invoices.email_from": "TH Cabinets Accounts <accounts@thcabinets.com.au>",
 };
 const KEYS = Object.keys(DEFAULTS);
 

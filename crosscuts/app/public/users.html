@@ -269,6 +269,31 @@
       <p class="hint">Use this once, to bring in every quote that is already won in Joinr. Each becomes a Won job (or links to the job with its quote number). After that new wins arrive on their own.</p>
     </section>
 
+    <section class="card hs-card" id="mailCard" aria-labelledby="mailTitle">
+      <div class="hs-sectionbar"><h2 id="mailTitle">Invoice email</h2></div>
+      <p class="text-muted small">Invoices are emailed to clients through Resend, with the invoice as a PDF. The key is kept on this server and is never shown again. Setting it up is described in the how-to "Sending invoices by email".</p>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="mailFrom">From</label>
+          <input class="hs-input" id="mailFrom" type="text" maxlength="200" autocomplete="off" spellcheck="false"
+                 placeholder="TH Cabinets Accounts &lt;accounts@thcabinets.com.au&gt;">
+          <div class="hint">The domain must be verified in Resend. Replies go to the same address.</div>
+        </div>
+        <div class="field">
+          <label for="mailKey">Resend API key</label>
+          <input class="hs-input" id="mailKey" type="password" maxlength="200" autocomplete="new-password" spellcheck="false">
+          <div class="hint" id="mailKeyHint">Not set</div>
+        </div>
+      </div>
+
+      <p class="form-error" id="mailError" role="alert" hidden></p>
+      <div class="actions">
+        <button class="hs-btn hs-btn-primary" type="button" id="mailSave">Save</button>
+        <button class="hs-btn hs-btn-stop" type="button" id="mailRemove" hidden>Remove key</button>
+      </div>
+    </section>
+
     <section class="card hs-card" id="backups" aria-labelledby="backupTitle">
       <div class="hs-sectionbar"><h2 id="backupTitle">Backups</h2></div>
       <p class="text-muted small">Every night at 1:30 am an encrypted copy of the database is kept on this server. Every Saturday at 1:30 am everything the NAS doesn't have yet is copied to it. The passphrase and the NAS password are placed with the backup helper and are never shown here.</p>

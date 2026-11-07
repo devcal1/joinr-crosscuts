@@ -185,8 +185,9 @@ start_container() { # name image host-dir mount-root
   # BACKUP_SCHEDULE_DISABLED=1 is CI only (docs/plans/backup-contracts.md section 7.8): no
   # backup timer in any container; the old image ignores it. JOINR_OPEN_QUOTES_TIMER_DISABLED=1 is
   # CI only too (ci/smoke-m16-openquotes.sh): no 5-minute open-quotes fetch to race the suite's
-  # counted requests; the old image ignores it.
-  docker run -d --name "$name" -p "$PORT:3000" -e BACKUP_SCHEDULE_DISABLED=1 -e JOINR_OPEN_QUOTES_TIMER_DISABLED=1 \
+  # counted requests; the old image ignores it. INVOICE_EMAIL_SWEEP_DISABLED=1 likewise (ci/smoke-invoice-send.sh):
+  # the suite asks for the delivery check itself.
+  docker run -d --name "$name" -p "$PORT:3000" -e BACKUP_SCHEDULE_DISABLED=1 -e JOINR_OPEN_QUOTES_TIMER_DISABLED=1 -e INVOICE_EMAIL_SWEEP_DISABLED=1 \
     -v "$dir/db:$root/db" -v "$dir/uploads:$root/uploads" -v "$dir/config:$root/config" \
     "$image" >/dev/null
 }
@@ -1279,6 +1280,8 @@ for f in "$(dirname "$0")"/smoke-m28-*.sh; do [ -f "$f" ] && source "$f"; done
 [ -f "$(dirname "$0")/smoke-jobs-tradify.sh" ] && source "$(dirname "$0")/smoke-jobs-tradify.sh"
 # AMEX suite (ci/smoke-amex.sh, 0.2.12, the company card ledger): same rules.
 [ -f "$(dirname "$0")/smoke-amex.sh" ] && source "$(dirname "$0")/smoke-amex.sh"
+# Invoice email suite (ci/smoke-invoice-send.sh, 0.2.13, sending invoices through Resend): same rules.
+[ -f "$(dirname "$0")/smoke-invoice-send.sh" ] && source "$(dirname "$0")/smoke-invoice-send.sh"
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

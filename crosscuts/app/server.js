@@ -24,6 +24,9 @@ app.use((err, req, res, next) => {
   return next(err);
 });
 app.get("/healthz", (req, res) => res.json({ ok: true }));
+// 0.2.13: the headless browser that prints an invoice PDF gets its one page in here, before the login
+// gate, on a single-use loopback token (lib/invoicepdf.js).
+app.use(require("./lib/invoicepdf").middleware(require("./db")));
 app.use(auth.originCheck);
 app.use(auth.authenticate);
 app.use(auth.pageGate);
@@ -61,6 +64,8 @@ const routers = [
   require("./routes/dashboard"),
   require("./routes/meta"),
   require("./routes/invoices"),
+  // 0.2.13: the Resend key and From address for invoice emails.
+  require("./routes/invoiceemail"),
   require("./routes/notifications"),
   require("./routes/settings"),
   require("./routes/orders"),
@@ -156,6 +161,12 @@ app.listen(PORT, () => {
     require("./lib/payrunping").start(require("./db"));
   } catch (e) {
     console.error(`[payrun] review ping failed to start (${safeCode(e)})`);
+  }
+  // 0.2.13: the delivery check for invoice emails, every 3 minutes (INVOICE_EMAIL_SWEEP_DISABLED=1 turns it off).
+  try {
+    require("./lib/invoiceemail").start(require("./db"));
+  } catch (e) {
+    console.error(`[invoice-email] delivery check failed to start (${safeCode(e)})`);
   }
   // The "needs a project owner" sweep, at boot and every 5 minutes (OWNER_SWEEP_DISABLED=1 turns it off).
   require("./lib/projectsteps").start(require("./db"));

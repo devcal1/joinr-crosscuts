@@ -33,8 +33,19 @@ Jobs that were already on the board before invoicing started don't get automatic
 4. Leave the due date blank for the standard terms (10 days), or set one.
 5. **Preview** shows the draft, marked "DRAFT – not a tax invoice".
 6. Press **Issue**. The invoice gets its number and is locked: it can't be changed after this.
-7. **View / Save as PDF**, then choose "Save as PDF" in the print window. Email the PDF to the client from your own email. Crosscuts never sends email.
+7. Press **Send invoice** to email it to the client (see below). Or press **View / Save as PDF** and choose "Save as PDF" in the print window to send it yourself.
 8. Enter the invoice in MYOB, then tick **Entered in MYOB**. The table and the Friday round-up show anything not yet entered.
+
+## Sending the invoice by email (from 0.2.13)
+
+Once Todd has set up email (`how-to-send-invoices-by-email.md`), an issued invoice has a **Send invoice** button, on the invoice page and in the Accounts invoice window.
+
+1. Press **Send invoice**. **To** is filled in from the job's client email when there is one; otherwise type it. Add anyone else under **CC** (commas between addresses).
+2. Read the subject and message. They are filled in for you and you can change them. **Preview PDF** shows exactly what is attached.
+3. Press **Send invoice**. Crosscuts sends it, marks the invoice sent today (so the follow-up reminders carry on), and lists the email under **Email history** on the invoice.
+4. If it fails, you see why and nothing is marked sent. Fix it and press Send again.
+
+Each email shows **Sent, checking**, then **Delivered**. Crosscuts asks the email service every few minutes (or press **Check now**). If an email **bounces** (a wrong or dead address), the invoice shows an orange note and accounts get an alert: fix the address and press **Re-send**. A paid invoice can also be re-sent. Drafts and void invoices can't be sent. This is the only email Crosscuts ever sends, and only when someone presses Send.
 
 ## When the money arrives
 

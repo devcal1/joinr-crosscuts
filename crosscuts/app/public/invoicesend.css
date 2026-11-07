@@ -1,0 +1,42 @@
+/* Send an invoice by email (invoicesend.js): the send dialog, and the alert and history on an invoice.
+   Tokens from tokens.css, hs- components from components.css, the dialog frame from the shell's
+   cc-dialog. Classes here are prefixed ise-. */
+.cc-dialog.ise-dialog { width: min(94vw, 760px); max-height: 92vh; overflow-y: auto; }
+.ise-dialog .cc-dialog-form { gap: 14px; }
+.ise-dialog .hs-input { color-scheme: dark; min-height: 36px; }
+.ise-dialog textarea.ise-msg { min-height: 170px; resize: vertical; font-family: var(--font); line-height: 1.45; }
+.ise-dialog .ise-ro { color: var(--label); }
+.ise-eyebrow {
+  margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label);
+}
+.ise-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ise-hint { margin-top: 5px; font-size: 13px; color: var(--label); }
+.ise-note { margin: 0; color: var(--body); }
+.ise-muted { color: var(--label); }
+.ise-attach {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  border: 1px solid var(--raised); border-radius: var(--r-control); padding: 10px 12px;
+}
+.ise-attach b { color: var(--white); overflow-wrap: anywhere; }
+.ise-small { padding: 6px 10px; font-size: 11px; min-height: 0; text-decoration: none; }
+
+.ise-panel {
+  margin: 0 0 14px; padding: 14px 16px; background: var(--surface);
+  border: 1px solid var(--hairline); border-radius: var(--r-card);
+}
+.ise-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ise-alert {
+  margin-bottom: 12px; padding: 10px 12px; color: var(--white);
+  border: 1px solid var(--orange); border-radius: var(--r-control);
+}
+.ise-table { width: 100%; }
+.ise-table td { vertical-align: middle; }
+.ise-when { color: var(--white); font-weight: 700; white-space: nowrap; }
+.ise-to { overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .ise-two { grid-template-columns: minmax(0, 1fr); }
+}
+@media print {
+  .ise-panel, .ise-dialog { display: none !important; }
+}

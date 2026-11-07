@@ -944,6 +944,14 @@
       actions.append(el("a", { class: "hs-btn", href: "/invoice.html?id=" + inv.id, target: "_blank", rel: "noopener", text: "Preview" }));
     }
     if (voidPanel) root.append(voidPanel);
+    // 0.2.13: Send invoice by email, and the email history with its bounce alert.
+    if (live) {
+      const sendBtn = el("button", { type: "button", class: "hs-btn hs-btn-primary", hidden: true, text: "Send invoice" });
+      const emailBox = el("div", { hidden: true });
+      actions.prepend(sendBtn);
+      root.append(emailBox);
+      if (window.ccInvoiceSend) window.ccInvoiceSend.mount(inv, { button: sendBtn, panel: emailBox, onChange: () => refreshOpen(inv.id) });
+    }
     root.append(err, actions);
     dlg.replaceChildren(root);
   }

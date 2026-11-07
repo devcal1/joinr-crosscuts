@@ -8,6 +8,8 @@
   var sheet = document.getElementById("sheet");
   var btnPdf = document.getElementById("btn-pdf");
   var btnBack = document.getElementById("btn-back");
+  var btnSend = document.getElementById("btn-send");
+  var emailPanel = document.getElementById("inv-email");
   var stateEl = document.getElementById("inv-state");
 
   // ---- formatting ----------------------------------------------------------
@@ -342,6 +344,11 @@
       inv.status === "issued" ? "hs-badge-teal" : "hs-badge-na"
     );
     stateEl.textContent = inv.overdue ? "Overdue" : labels[inv.status] || inv.status;
+
+    // 0.2.13: Send invoice, and the email history. Not in the headless render that makes the PDF.
+    if (!window.__INVOICE_DATA__ && window.ccInvoiceSend) {
+      window.ccInvoiceSend.mount(inv, { button: btnSend, panel: emailPanel });
+    }
   }
 
   function fail(message) {
@@ -353,7 +360,10 @@
   }
 
   var id = new URLSearchParams(location.search).get("id");
-  if (!id || !/^\d+$/.test(id)) {
+  if (window.__INVOICE_DATA__) {
+    // The server printing the PDF embeds the invoice in the page: no API call, no login.
+    render(window.__INVOICE_DATA__);
+  } else if (!id || !/^\d+$/.test(id)) {
     fail("Invoice not found");
   } else {
     btnBack.href = "/accounts.html?invoice=" + encodeURIComponent(id);

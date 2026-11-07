@@ -9,6 +9,12 @@ RUN apk add --no-cache rsync 7zip \
  && { 7zz i > /dev/null 2>&1 || 7z i > /dev/null 2>&1; } \
  && test ! -e /etc/popt && test ! -e /etc/popt.d
 
+# Invoice PDFs (0.2.13, lib/invoicepdf.js): the server prints the invoice page with headless Chromium
+# (the distro package, so amd64 and arm64 both work) and Liberation fonts (Arial-compatible). The
+# build fails if Chromium does not run.
+RUN apk add --no-cache chromium font-liberation \
+ && chromium --version
+
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
