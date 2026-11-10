@@ -1299,6 +1299,7 @@
     renderWeeks();
     renderBacklog();
     weekPicker.value = state.weekStart;
+    if (tvActive) fitTv();
   }
 
   // --- nav controls ---
@@ -1321,6 +1322,119 @@
   }));
   document.getElementById("exportPdfBtn").addEventListener("click", () => window.print());
   document.getElementById("exportJpgBtn").addEventListener("click", exportJpg);
+
+  // --- TV mode (Todd, 2026-11-11): fullscreen current week, uniformly scaled to fit ---
+  // Screen only. The board is laid out at a chosen width and then scaled with one
+  // transform, so rows and columns keep their proportions. alignPanels() and
+  // exportJpg() are untouched. The layout width is searched so the board's shape
+  // matches the screen's (a wider screen gets a wider layout, hence less height).
+  let tvActive = false;
+  let tvWake = null;
+  let tvIdleTimer = null;
+  const tvExitBtn = document.getElementById("tvExitBtn");
+  const TV_MIN_W = 1300;
+  const TV_MAX_W = 3200;
+  function fitTv() {
+    const board = document.querySelector(".board");
+    if (!board) return;
+    // Fit inside a small margin so nothing touches the screen edge (TVs overscan).
+    const sw = window.innerWidth;
+    const sh = window.innerHeight;
+    const vw = sw * 0.98;
+    const vh = sh * 0.98;
+    board.style.transform = "none";
+    let s = 1;
+    let L = vw;
+    let h = vh;
+    // Aim for a layout whose shape matches the screen: scale = screen height / board
+    // height at the trial width, width = screen width / scale. Damped so it settles.
+    for (let i = 0; i < 14; i++) {
+      L = Math.min(TV_MAX_W, Math.max(TV_MIN_W, Math.round(vw / s)));
+      board.style.width = `${L}px`;
+      syncRowHeights();
+      h = board.offsetHeight;
+      const next = (s + vh / h) / 2;
+      const done = Math.abs(next - s) < 0.003;
+      s = next;
+      if (done) break;
+    }
+    // Re-measure at the final width so the scale is true to what is on screen.
+    L = Math.min(TV_MAX_W, Math.max(TV_MIN_W, Math.round(vw / s)));
+    board.style.width = `${L}px`;
+    syncRowHeights();
+    h = board.offsetHeight;
+    // Content can overhang a narrow layout slightly; fit what is really drawn.
+    L = Math.max(L, board.scrollWidth);
+    s = Math.min(vw / L, vh / h);
+    const tx = Math.max(0, (sw - L * s) / 2);
+    const ty = Math.max(0, (sh - h * s) / 2);
+    board.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+  }
+  async function tvAcquireWake() {
+    try {
+      if (tvActive && navigator.wakeLock && !tvWake) {
+        tvWake = await navigator.wakeLock.request("screen");
+        tvWake.addEventListener("release", () => { tvWake = null; });
+      }
+    } catch {
+      tvWake = null; // unsupported or refused: carry on
+    }
+  }
+  function tvShowExit() {
+    document.body.classList.remove("tv-idle");
+    tvExitBtn.hidden = false;
+    clearTimeout(tvIdleTimer);
+    tvIdleTimer = setTimeout(() => {
+      tvExitBtn.hidden = true;
+      document.body.classList.add("tv-idle");
+    }, 4000);
+  }
+  async function enterTv() {
+    if (tvActive) return;
+    const el = document.documentElement;
+    try {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) await req.call(el);
+    } catch {
+      // Fullscreen refused: TV mode still works in the window.
+    }
+    tvActive = true;
+    document.body.classList.add("tv-mode");
+    popover.hidden = true;
+    for (const d of document.querySelectorAll("dialog[open]")) d.close();
+    state.weekStart = mondayOf(localTodayStr());
+    tvShowExit();
+    tvAcquireWake();
+    fitTv();
+    try { await refresh(); } catch { /* keep what is on screen */ }
+  }
+  function exitTv() {
+    if (!tvActive) return;
+    tvActive = false;
+    clearTimeout(tvIdleTimer);
+    document.body.classList.remove("tv-mode", "tv-idle");
+    tvExitBtn.hidden = true;
+    const board = document.querySelector(".board");
+    if (board) { board.style.width = ""; board.style.transform = ""; }
+    if (tvWake) { tvWake.release().catch(() => {}); tvWake = null; }
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch { /* ignore */ }
+    }
+    syncRowHeights();
+  }
+  document.getElementById("tvModeBtn").addEventListener("click", enterTv);
+  tvExitBtn.addEventListener("click", exitTv);
+  function onFullscreenChange() {
+    if (tvActive && !document.fullscreenElement && !document.webkitFullscreenElement) exitTv();
+  }
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+  document.addEventListener("mousemove", () => { if (tvActive) tvShowExit(); });
+  document.addEventListener("keydown", (e) => { if (tvActive && e.key === "Escape") exitTv(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") tvAcquireWake();
+  });
+  window.addEventListener("resize", () => { if (tvActive) fitTv(); });
 
   // --- JPG export: drawn straight from the loaded data, not a DOM screenshot ---
   function exportJpg() {

@@ -642,6 +642,23 @@ main {
   border-radius: var(--r-control);
 }
 
+/* — TV mode (Todd, 2026-11-11; CLAUDE.md non-negotiable 7, TV mode exception) —
+   Screen only. A separate display state layered on the normal board: the menu bar,
+   week strip and edit controls are hidden and schedule.js scales the whole board
+   uniformly to fit the screen. Rows, columns and sizes are not changed. */
+body.tv-mode { overflow: hidden; padding-bottom: 0 !important; background: var(--ink); }
+body.tv-mode #cc-shell, body.tv-mode .nav, body.tv-mode .cc-foot-rule,
+body.tv-mode .finish-week-bar, body.tv-mode .add-row, body.tv-mode .cell-add,
+body.tv-mode .chip-x, body.tv-mode .cell-flag:not(.active) { display: none !important; }
+body.tv-mode main { position: fixed; inset: 0; max-width: none; margin: 0; padding: 0; overflow: hidden; pointer-events: none; }
+body.tv-mode .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+body.tv-mode .board-side { position: static; max-height: none; overflow: visible; }
+body.tv-mode .backlog-list { max-height: none; overflow: visible; }
+body.tv-mode .week-head { position: static; }
+body.tv-mode.tv-idle, body.tv-mode.tv-idle * { cursor: none !important; }
+#tvExitBtn { position: fixed; top: var(--space-3); right: var(--space-3); z-index: 300; background: var(--ink); }
+#tvExitBtn[hidden] { display: none; }
+
 /* style-check: print-start */
 @media print {
   #cc-shell, .cc-foot-rule, .cc-dialog, .nav, .add-row, .job-actions, .cell-add, .cell-flag, .chip-x { display: none !important; }

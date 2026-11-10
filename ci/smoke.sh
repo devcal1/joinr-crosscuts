@@ -938,6 +938,12 @@ req GET /api/schedule "$SHOW"
 expect_status 403 "show GET /api/schedule"
 req GET /schedule.html "$SHOW"
 expect_status 403 "show GET /schedule.html"
+req GET /schedule.html "$ADMIN"
+expect_status 200 "admin GET /schedule.html (TV mode)"
+case "$BODY" in
+  *'id="tvModeBtn"'*) ok "the board has the TV mode button" ;;
+  *) fail "schedule.html has no TV mode button" ;;
+esac
 
 # M7 (docs/plans/m7-contracts.md section 15.1): the workshop role and the two planner keys.
 req GET /api/users/meta "$ADMIN"
