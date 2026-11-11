@@ -931,7 +931,7 @@ function suggestionsFor(db, run, person) {
                    wr.sort_order, wr.id, a.id`
       )
       .all(workerId, weeks[0], weeks[1]);
-    const offset = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4 };
+    const offset = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, wknd: 5 }; // Weekend suggests Saturday only
     for (const row of rows) {
       const date = addDays(row.week_start, offset[row.day]);
       const qn = row.quote_number ? String(row.quote_number).trim() : "";

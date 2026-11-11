@@ -15,6 +15,9 @@
   --raised: #262735;
   --hairline: #24252f;
   --na: #2e2f3c;
+  /* The board's Weekend column: a slightly lighter ground between surface and raised
+     (Todd, 2026-11-11; CLAUDE.md non-negotiable 7, Weekend exception). schedule.css and the JPG export only. */
+  --weekend: #1e1f2b;
 
   /* text */
   --white: #ffffff;

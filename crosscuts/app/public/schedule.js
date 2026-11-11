@@ -1,6 +1,8 @@
 (function () {
-  const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
-  const DAY_LABELS = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri" };
+  // "wknd" is the Weekend column after Friday (0.2.16): one cell covering Saturday and Sunday,
+  // dated by its Saturday.
+  const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "wknd"];
+  const DAY_LABELS = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", wknd: "Weekend" };
   const PANELS = [
     { key: "manufacturing", label: "Manufacturing" },
     { key: "installing", label: "Installing" },
@@ -89,10 +91,10 @@
     const d = parseDate(s);
     return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(-2)}`;
   }
-  // Built client-side (Mon–Fri range in AU format); the server's `label`
+  // Built client-side (Mon–Sun range in AU format); the server's `label`
   // field is deliberately unused so date display stays a frontend concern.
   function weekRangeLabel(week) {
-    return `${fmtAU(week.start)} – ${fmtAU(addDays(week.start, 4))}`;
+    return `${fmtAU(week.start)} – ${fmtAU(addDays(week.start, 6))}`;
   }
 
   // api(), toast(), guarded() now live in shared.js, loaded before this file.
@@ -483,7 +485,7 @@
     DAY_KEYS.forEach((day, i) => {
       const flagged = !!(row.flags && row.flags[day]);
       const cell = document.createElement("div");
-      cell.className = "sched-cell" + (i === todayIndex ? " today-col" : "") + (flagged ? " flagged" : "");
+      cell.className = "sched-cell" + (day === "wknd" ? " weekend-col" : "") + (i === todayIndex ? " today-col" : "") + (flagged ? " flagged" : "");
       const chips = document.createElement("div");
       chips.className = "sched-chips";
       // Two rows max, filled column-major (see .sched-chips): worker 2 sits
@@ -700,7 +702,7 @@
     rowDiv.appendChild(jobCell);
     DAY_KEYS.forEach((day, i) => {
       const cell = document.createElement("div");
-      cell.className = "sched-cell" + (i === todayIndex ? " today-col" : "");
+      cell.className = "sched-cell" + (day === "wknd" ? " weekend-col" : "") + (i === todayIndex ? " today-col" : "");
       rowDiv.appendChild(cell);
     });
     return rowDiv;
@@ -774,7 +776,8 @@
 
     const today = localTodayStr();
     const dayOffset = Math.round((parseDate(today) - parseDate(week.start)) / 86400000);
-    const todayIndex = dayOffset >= 0 && dayOffset < 5 ? dayOffset : -1;
+    // Saturday and Sunday both fall in the Weekend column (index 5).
+    const todayIndex = dayOffset >= 0 && dayOffset < 7 ? Math.min(dayOffset, 5) : -1;
 
     const head = document.createElement("div");
     head.className = "sched-row sched-head";
@@ -783,7 +786,7 @@
     head.appendChild(jobHead);
     DAY_KEYS.forEach((day, i) => {
       const d = document.createElement("div");
-      d.className = i === todayIndex ? "today-col" : "";
+      d.className = (day === "wknd" ? "weekend-col" : "") + (i === todayIndex ? " today-col" : "");
       d.textContent = `${DAY_LABELS[day]} ${fmtAUShort(addDays(week.start, i))}`;
       head.appendChild(d);
     });
@@ -1447,7 +1450,7 @@
     // the board), and 132px left a two-column day unreadable.
     const dayW = 150;
     const jobW = 190;
-    const panelW = jobW + dayW * 5;
+    const panelW = jobW + dayW * DAY_KEYS.length;
     const gap = 28;
     const margin = 24;
     const chipH = 22;
@@ -1494,6 +1497,7 @@
     const tok = (name) => rootStyle.getPropertyValue(name).trim();
     const C = {
       ink: tok("--ink"),
+      weekend: tok("--weekend"),
       white: tok("--white"),
       body: tok("--body"),
       label: tok("--label"),
@@ -1554,6 +1558,10 @@
         ctx.fillText(label, x, py + 10);
         py += panelTitleH;
 
+        // Mirrors .weekend-col: the Weekend column's slightly lighter ground, header and rows.
+        const weekendX = x + jobW + (DAY_KEYS.length - 1) * dayW;
+        ctx.fillStyle = C.weekend;
+        ctx.fillRect(weekendX, py, dayW, headerH);
         ctx.strokeStyle = C.na;
         ctx.fillStyle = C.label;
         ctx.font = `700 10px ${FONT}`;
@@ -1568,6 +1576,8 @@
 
         alignedWeeks[wi][key].forEach((row, li) => {
           const h = weekLines[wi][li];
+          ctx.fillStyle = C.weekend;
+          ctx.fillRect(weekendX, py, dayW, h);
           if (row) {
             const hasNotes = !!(row.notes && row.notes.trim());
             const midY = py + h / 2;

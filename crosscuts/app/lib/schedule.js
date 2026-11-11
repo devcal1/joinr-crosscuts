@@ -5,7 +5,8 @@ const { weekLabel } = require("./time");
 const production = require("./production");
 const availability = require("./availability");
 
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
+// "wknd" is the Weekend column after Friday (0.2.16, migration 060): one cell for Saturday and Sunday.
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "wknd"];
 
 // Kept in sync by hand with hueColors() in public/shared.js — this copy is
 // authoritative (board chips + JPG export), the client copy only drives the
@@ -101,7 +102,8 @@ function buildScheduleRow(weekRow, assignments, flagRows, ctx) {
       name: a.name,
       bg,
       fg,
-      away: awayDays ? awayDays[a.day] : null,
+      // Leave and days off are Monday to Friday only; the Weekend cell is never "away".
+      away: awayDays ? awayDays[a.day] || null : null,
       // Only the day(s) beyond their pattern (Todd, 2026-10-11).
       overDays: !!(c.overDays.get(Number(a.worker_id)) && c.overDays.get(Number(a.worker_id)).has(a.day)),
     });

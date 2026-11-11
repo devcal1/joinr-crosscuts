@@ -198,7 +198,10 @@ main {
 .sched-grid { width: 100%; font-size: 16px; }
 .sched-row {
   display: grid;
-  grid-template-columns: 204px repeat(5, 1fr);
+  /* minmax(0, ...) so the six day columns share the panel and never push it wider than the page
+     (min-content chips would otherwise overflow a 1366px screen). The Weekend column is a little
+     wider (it can hold two days of work); its header type is smaller to fit the word. */
+  grid-template-columns: 204px repeat(5, minmax(0, 1fr)) minmax(0, 1.3fr);
   align-items: start;
   border-bottom: 1px solid var(--hairline);
 }
@@ -213,6 +216,8 @@ main {
 .sched-row > div { padding: var(--space-2) 5px; min-height: 36px; }
 .sched-row > div:first-child { padding-left: 0; }
 .sched-row:hover:not(.sched-head):not(.row-blank) { background: var(--surface); }
+.weekend-col { background: var(--weekend); }
+.sched-row.sched-head > .weekend-col { font-size: 11px; letter-spacing: 0.03em; }
 .today-col { background: var(--teal-8); }
 
 /* Alignment padding: a blank line where the other panel has a job. Kept as a
@@ -696,6 +701,8 @@ body.tv-mode.tv-idle, body.tv-mode.tv-idle * { cursor: none !important; }
   .text-muted { color: #111 !important; }
   /* Chips keep their dark bg + light text pair; flagged cells keep the amber
      wash. Browsers strip backgrounds when printing unless told otherwise. */
+  /* The Weekend column prints as a light grey tint, text still black on white. */
+  .weekend-col { background: #ececec; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .chip-worker,
   .sched-cell.flagged { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   /* Borders always print, so the lock-in marker survives even when the

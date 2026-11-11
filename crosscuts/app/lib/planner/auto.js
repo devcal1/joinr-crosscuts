@@ -12,7 +12,7 @@ const layersLib = require("./layers");
 const { sydneyToday, parseDateUTC, formatDateUTC, addDays, mondayOf } = require("../time");
 
 const TITLE_MAX = 120; // job and task names inside a title (the full name stays in job.name)
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "wknd"]; // wknd: the Weekend cell, shown on its Saturday
 
 // The live-job filter for the job-based sources (section 8).
 const JOB_LIVE = "j.archived = 0 AND (j.stage IS NULL OR j.stage NOT IN ('lost','archived'))";
@@ -107,7 +107,7 @@ function weekdayRuns(from, to) {
   return runs;
 }
 
-// The date of a board day key ('mon'..'fri') in the week starting weekStart; null if unknown.
+// The date of a board day key ('mon'..'fri', 'wknd' = Saturday) in the week starting weekStart; null if unknown.
 function boardDate(weekStart, day) {
   const i = DAY_KEYS.indexOf(day);
   return i < 0 ? null : addDays(weekStart, i);

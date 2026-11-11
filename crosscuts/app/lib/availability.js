@@ -6,6 +6,10 @@ const { bad, notFound } = require("./httperror");
 const audit = require("./audit");
 
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
+// The board's day cells: Monday to Friday plus the Weekend cell (migration 060). Leave, days off and
+// the regular-days-off pattern stay Monday to Friday (DAY_KEYS); a Weekend booking counts as one
+// worked day for days_per_week.
+const BOARD_DAY_KEYS = [...DAY_KEYS, "wknd"];
 
 // 'fri' / 'mon,fri' -> ['mon','fri'] (known keys only, in week order).
 function parseDaysOff(text) {
@@ -94,7 +98,7 @@ function overDayKeysForWeek(db, weekStart) {
     daysOf.get(id).add(r.day);
   }
   for (const [id, days] of daysOf) {
-    const ordered = DAY_KEYS.filter((d) => days.has(d));
+    const ordered = BOARD_DAY_KEYS.filter((d) => days.has(d));
     const extra = ordered.slice(limits.get(id));
     if (extra.length) out.set(id, new Set(extra));
   }

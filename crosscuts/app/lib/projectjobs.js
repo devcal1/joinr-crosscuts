@@ -19,7 +19,7 @@ const { sydneyToday } = require("./time");
 const HARDWARE_SECTIONS = new Set(["hardware", "handles"]);
 const NOTES_MAX = 5000;
 const DESCRIPTION_MAX = 500;
-const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4 };
+const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, wknd: 5 }; // Weekend counts as one person-day, dated Saturday
 
 const nowIso = () => new Date().toISOString();
 const userId = (req) => (req && req.user && req.user.id != null ? req.user.id : null);
