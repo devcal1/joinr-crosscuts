@@ -38,12 +38,12 @@ function single(req, name) {
 }
 
 r.get("/", ANY_DEPT, handle((req, res) => {
-  res.json(notes.list(db, req, single(req, "dept"), { week: single(req, "week") }));
+  res.json(notes.list(db, req, single(req, "dept"), { from: single(req, "from") }));
 }));
 
 r.post("/", ANY_DEPT, handle((req, res) => {
   const b = body(req);
-  res.status(201).json(notes.create(db, req, b.dept, b.date, b.body));
+  res.status(201).json(notes.create(db, req, b.dept, b.date, b.body, b.week));
 }));
 
 r.patch("/:id", ANY_DEPT, handle((req, res) => {
@@ -52,7 +52,7 @@ r.patch("/:id", ANY_DEPT, handle((req, res) => {
   if (b.updatedAt !== undefined && b.updatedAt !== null && typeof b.updatedAt !== "string") {
     throw bad("updatedAt must be text");
   }
-  res.json(notes.update(db, req, id, { body: b.body, date: b.date }, b.updatedAt));
+  res.json(notes.update(db, req, id, { body: b.body, date: b.date, week: b.week }, b.updatedAt));
 }));
 
 r.delete("/:id", ANY_DEPT, handle((req, res) => {
@@ -60,13 +60,22 @@ r.delete("/:id", ANY_DEPT, handle((req, res) => {
   res.status(204).end();
 }));
 
-// Thumbs-up: PUT gives it, DELETE takes it back. Both answer with the note.
+// Reacts: PUT gives one, DELETE takes it back (kind is up, down, laugh or sad). Both answer with the
+// note. /ack is the older name for the thumbs-up.
+r.put("/:id/react/:kind", ANY_DEPT, handle((req, res) => {
+  res.json(notes.react(db, req, idOr404(req.params.id), req.params.kind, true));
+}));
+
+r.delete("/:id/react/:kind", ANY_DEPT, handle((req, res) => {
+  res.json(notes.react(db, req, idOr404(req.params.id), req.params.kind, false));
+}));
+
 r.put("/:id/ack", ANY_DEPT, handle((req, res) => {
-  res.json(notes.acknowledge(db, req, idOr404(req.params.id), true));
+  res.json(notes.react(db, req, idOr404(req.params.id), "up", true));
 }));
 
 r.delete("/:id/ack", ANY_DEPT, handle((req, res) => {
-  res.json(notes.acknowledge(db, req, idOr404(req.params.id), false));
+  res.json(notes.react(db, req, idOr404(req.params.id), "up", false));
 }));
 
 module.exports = r.router;

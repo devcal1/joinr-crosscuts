@@ -38,7 +38,7 @@ const addDays = (date, n) => new Date(Date.parse(date + "T00:00:00Z") + n * 8640
   const lastWeek = addDays(thisWeek, -7), nextWeek = addDays(thisWeek, 7);
   const ins = db.prepare("INSERT INTO dept_notes (dept, note_date, week_start, body, author_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const seeded = d => db.prepare("SELECT COUNT(*) n FROM dept_notes WHERE dept = ?").get(d).n;
-  const ack = db.prepare("INSERT INTO dept_note_acks (note_id, user_id, created_at) VALUES (?, ?, ?)");
+  const ack = db.prepare("INSERT INTO dept_note_reacts (note_id, user_id, kind, created_at) VALUES (?, ?, 'up', ?)");
   // put(week, weekday 0..4 (Mon..Fri), "HH:MM" Sydney, author, text, [who gave a thumbs-up]): posted on the day
   // it is for unless `postedDay` (a weekday offset) says it was written earlier.
   const putIn = dept => (week, day, hm, author, text, acks, postedDay) => {

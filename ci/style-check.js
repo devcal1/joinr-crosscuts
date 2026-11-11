@@ -19,10 +19,10 @@
 //   - menu department rules: --layer-scheduling, --layer-design, --layer-install (Ordering) and
 //     --layer-accounts, only in
 //     shell/shell.css (approved by Todd on 2026-10-12)
-//   - Notes paper and thumbs-up (approved by Todd on 2026-10-16), only in notes.html, notes.css and
-//     notes.js: the --paper token (cream sticky notes) and the Phosphor thumbs-up icon (ph-thumbs-up
-//     and the Phosphor stylesheet link, no other icon); files are matched by their path under
-//     crosscuts/app/public
+//   - Notes paper and reacts (paper and thumbs-up approved by Todd on 2026-10-16; thumbs down, laughing
+//     and sad added 2026-11-11), only in notes.html, notes.css and notes.js: the --paper token (cream
+//     sticky notes) and the four small drawn react marks (inline SVG line drawings built in notes.js,
+//     no Phosphor, no other icon); files are matched by their path under crosscuts/app/public
 //   - loading cursor: the Joinr dot (approved by Todd on 2026-10-18), only in shell/shell.css (the
 //     cursor rule), shell/busy.js and shell/cursor-dot-N.svg; a cursor image (url(...)) or a
 //     cursor-dot reference anywhere else is refused
@@ -39,10 +39,10 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..", "crosscuts", "app", "public");
 const TOKENS = "tokens.css";
 // Paths are relative to crosscuts/app/public. The board may use any Phosphor icon; the Notes page
-// only the thumbs-up (and the stylesheet link that loads the icon font).
+// none, but it may draw its four react marks as inline SVG (notes.js only).
 const PHOSPHOR_OK = new Set(["schedule.html", "schedule.js"]);
-const PHOSPHOR_NOTES = new Set(["notes.html", "notes.js"]);
-const NOTES_ICON_OK = /ph ph-thumbs-up(?![-\w])|vendor\/phosphor\/style\.css/g;
+// The Notes react marks: inline SVG in notes.js only.
+const NOTES_SVG_OK = new Set(["notes.js"]);
 const PAPER_OK = new Set(["tokens.css", "notes.html", "notes.css", "notes.js"]);
 const OKLCH_OK = new Set(["shared.js"]);
 const LAYER_OK = new Set(["tokens.css", "planner.html", "planner.css", "planner.js"]);
@@ -70,7 +70,8 @@ const RULES = [
   ["Inter font", /\bInter\b|vendor\/inter/, () => true],
   ["cursor image outside the loading cursor rule", /\bcursor\s*:[^;{}]*\burl\(/, f => f !== CURSOR_FILE],
   ["loading cursor image outside the shell", /cursor-dot/, f => !CURSOR_DOT_OK.has(f)],
-  ["inline SVG icon outside the Benchtop designer's Add piece buttons", /<svg|bt-shapeicon/, f => !SHAPE_ICON_OK.has(f)],
+  ["inline SVG icon outside the Benchtop designer's Add piece buttons and the Notes react marks", /<svg/, f => !SHAPE_ICON_OK.has(f) && !NOTES_SVG_OK.has(f)],
+  ["Benchtop shape diagram class outside the Benchtop designer", /bt-shapeicon/, f => !SHAPE_ICON_OK.has(f)],
   ["icon (Phosphor) outside the board", /phosphor|["'\s]ph ph-|["'\s]ph-[a-z]/, f => !PHOSPHOR_OK.has(f)],
 ];
 
@@ -108,9 +109,7 @@ for (const file of walk(ROOT)) {
     for (const [label, re, applies] of RULES) {
       if (!applies(rel)) continue;
       if (inPrint && /colour|named/.test(label)) continue;
-      // The Notes page may name the thumbs-up and load the icon font, and nothing else from it.
-      const text = PHOSPHOR_NOTES.has(rel) && /Phosphor/.test(label) ? line.replace(NOTES_ICON_OK, "") : line;
-      if (re.test(text)) problems.push(`${rel}:${i + 1}: ${label}: ${raw.trim().slice(0, 140)}`);
+      if (re.test(line)) problems.push(`${rel}:${i + 1}: ${label}: ${raw.trim().slice(0, 140)}`);
     }
   });
 }

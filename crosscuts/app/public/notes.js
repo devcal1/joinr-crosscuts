@@ -1,7 +1,7 @@
-// Department notes page: /notes.html?dept=<id>&week=<Monday>. A week wall, one column per weekday,
-// of sticky notes. Talks to /api/notes (routes/notes.js, docs/plans/notes-contracts.md). Every
-// piece of note text is set with textContent; line breaks are kept by the CSS (white-space:
-// pre-wrap), never by markup.
+// Department notes page: /notes.html?dept=<id>&from=<Monday>. Five week columns (this week centred
+// by default) of sticky notes, each with an optional day tag. Talks to /api/notes (routes/notes.js,
+// docs/plans/notes-contracts.md). Every piece of note text is set with textContent; line breaks are
+// kept by the CSS (white-space: pre-wrap), never by markup.
 (function () {
   "use strict";
 
@@ -30,6 +30,7 @@
   var wallEl = $("wall");
   var composer = $("composer");
   var bodyEl = $("body");
+  var weekEl = $("week");
   var dayEl = $("day");
   var postBtn = $("post");
   var countEl = $("count");
@@ -39,7 +40,7 @@
   var guardText = $("guardText");
   var guardBtns = $("guardBtns");
 
-  var data = null;     // the week on screen, as the server sent it
+  var data = null;     // the five weeks on screen, as the server sent them
   // The note being edited or removed, if any: { id, li, dirty(), close() }. Only one at a time, and
   // never while the add form holds text, so a redraw can't swallow work that isn't saved.
   var current = null;
@@ -110,12 +111,11 @@
   function sydDate(iso) {
     return new Date(iso).toLocaleDateString("en-CA", { timeZone: SYD });
   }
-  // "11:20 am"; with the day in front ("Mon 12 Oct 9:10 am") when it was posted on another day
-  // than the one the note sits under.
-  function signedAt(iso, noteDate) {
+  // "11:20 am" when it was posted today; otherwise with the day in front ("Mon 12 Oct 9:10 am").
+  function signedAt(iso) {
     var d = new Date(iso);
     var time = d.toLocaleTimeString("en-AU", { timeZone: SYD, hour: "numeric", minute: "2-digit" });
-    if (sydDate(iso) === noteDate) return time;
+    if (data && sydDate(iso) === data.today) return time;
     return d.toLocaleDateString("en-AU", { timeZone: SYD, weekday: "short", day: "numeric", month: "short" }).replace(",", "") + " " + time;
   }
 
@@ -125,6 +125,9 @@
   function dayLabel(date) {
     return new Date(date + "T00:00:00Z").toLocaleDateString("en-AU", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).replace(",", "");
   }
+  function shortDate(date) {
+    return new Date(date + "T00:00:00Z").toLocaleDateString("en-AU", { timeZone: "UTC", day: "numeric", month: "short" });
+  }
 
   function showMessage(text) {
     messageEl.textContent = text;
@@ -132,15 +135,69 @@
     boardEl.hidden = true;
   }
 
-  // ---------- one note ----------
+  // ---------- the week and day pickers ----------
 
-  function dayOptions(select, days, selected) {
+  var FORM_WEEKS = 13;   // this week and the twelve after it
+
+  // Week options: this week and the weeks ahead, plus the note's own week if it falls outside.
+  function weekOptions(select, selected) {
     select.replaceChildren();
-    days.forEach(function (d) {
-      var o = el("option", { value: d.date, text: d.label });
-      if (d.date === selected) o.selected = true;
+    var weeks = [];
+    for (var i = 0; i < FORM_WEEKS; i++) weeks.push(plusDays(data.thisWeek, 7 * i));
+    if (selected && weeks.indexOf(selected) < 0) { weeks.push(selected); weeks.sort(); }
+    weeks.forEach(function (w) {
+      var tag = w === data.thisWeek ? " (this week)" : w === plusDays(data.thisWeek, 7) ? " (next week)" : "";
+      var o = el("option", { value: w, text: "Week of " + shortDate(w) + tag });
+      if (w === selected) o.selected = true;
       select.append(o);
     });
+  }
+  // Day options for a week: Any day, then Monday to Friday. `keep` is a weekday index 0-4 to keep, or -1.
+  function dayOptions(select, week, keep) {
+    select.replaceChildren(el("option", { value: "", text: "Any day" }));
+    for (var i = 0; i < 5; i++) {
+      var date = plusDays(week, i);
+      var o = el("option", { value: date, text: dayLabel(date) });
+      if (i === keep) o.selected = true;
+      select.append(o);
+    }
+  }
+  function dayIndex(week, date) {
+    if (!date) return -1;
+    return Math.round((Date.parse(date + "T00:00:00Z") - Date.parse(week + "T00:00:00Z")) / 86400000);
+  }
+
+  // ---------- reacts: four small drawn marks, ink on the paper ----------
+
+  var REACTS = [
+    { kind: "up", label: "Thumbs up", mine: "Take back your thumbs up" },
+    { kind: "down", label: "Thumbs down", mine: "Take back your thumbs down" },
+    { kind: "laugh", label: "Laughing", mine: "Take back your laughing" },
+    { kind: "sad", label: "Sad", mine: "Take back your sad" },
+  ];
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    var n = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+  // One mark: a 24 by 24 line drawing, no fill, one stroke weight, in the text colour.
+  function reactMark(kind) {
+    var svg = svgEl("svg", { "class": "nt-mark", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" });
+    function p(d) { return svgEl("path", { d: d }); }
+    if (kind === "up" || kind === "down") {
+      var g = svgEl("g", kind === "down" ? { transform: "rotate(180 12 12)" } : {});
+      g.append(p("M3.5 11H7v8.5H3.5z"), p("M7 11l4-7c1.6 0 2.5 1.1 2.5 2.5v3h5.3a1.8 1.8 0 0 1 1.8 2.2L19.3 18a2 2 0 0 1-2 1.5H7"));
+      svg.append(g);
+    } else {
+      svg.append(svgEl("circle", { cx: "12", cy: "12", r: "9" }));
+      if (kind === "laugh") {
+        svg.append(p("M7.8 10.6q1-1.7 2-0"), p("M14.2 10.6q1-1.7 2-0"), p("M7.5 13.8h9a4.5 4.5 0 0 1-9 0z"));
+      } else {
+        svg.append(p("M9 10v1"), p("M15 10v1"), p("M8.5 16.6q3.5-3.4 7 0"), p("M16.6 12.6q0.9 1.2 0 2"));
+      }
+    }
+    return svg;
   }
 
   // A person's name on a colour chip: their board worker colour (or a stable one from their id).
@@ -156,18 +213,15 @@
 
   function noteItem(n) {
     var li = el("article", { class: "nt-note", "data-id": n.id });
+    if (n.dayName) li.append(el("div", { class: "nt-daytag", text: n.dayName }));
     li.append(el("p", { class: "nt-text", text: n.body }));
     var sign = el("div", { class: "nt-sign" });
-    sign.append(nameChip(n.author.name, n.author.hue), " · " + signedAt(n.createdAt, n.date));
+    sign.append(nameChip(n.author.name, n.author.hue), " \u00b7 " + signedAt(n.createdAt));
     if (n.edited) sign.append(el("span", { class: "nt-edited", text: " (edited)" }));
     li.append(sign);
     var foot = el("div", { class: "nt-foot" });
-    foot.append(ackButton(li, n));
-    if (n.acks.people && n.acks.people.length) {
-      var ackers = el("span", { class: "nt-ackers" });
-      n.acks.people.forEach(function (p) { ackers.append(nameChip(p.name, p.hue), " "); });
-      foot.append(ackers);
-    }
+    var anyReact = REACTS.some(function (r) { return n.reacts[r.kind].count > 0; });
+    if (n.canReact || anyReact) foot.append(reactRow(li, n));
     if (n.canEdit) {
       var actions = el("div", { class: "nt-actions" });
       var edit = el("button", { type: "button", class: "hs-btn", text: "Edit" });
@@ -178,39 +232,64 @@
       foot.append(actions);
     }
     li.append(foot);
+    var who = reactorList(n);
+    if (who) li.append(who);
     return li;
   }
 
-  // The thumbs-up: a button for anyone but the author (whose own mark is shown but inactive).
-  function ackButton(li, n) {
-    var mine = n.acks.mine;
-    var btn = el("button", {
-      type: "button",
-      class: "nt-ack",
-      "aria-pressed": n.canAck ? (mine ? "true" : "false") : false,
-      "aria-label": !n.canAck ? "Thumbs-up (you can't acknowledge your own note)" : mine ? "Take back your thumbs-up" : "Give this note a thumbs-up",
-      title: !n.canAck ? "You can't acknowledge your own note" : mine ? "Take back your thumbs-up" : "Thumbs-up",
-      disabled: !n.canAck,
+  // Names of who reacted, one line per react that has any.
+  function reactorList(n) {
+    var box = null;
+    REACTS.forEach(function (r) {
+      var info = n.reacts[r.kind];
+      if (!info.count) return;
+      if (!box) box = el("div", { class: "nt-reactors" });
+      var line = el("div", { class: "nt-reactor-line" });
+      line.append(reactMark(r.kind));
+      line.firstChild.setAttribute("class", "nt-mark nt-mark-small");
+      line.append(el("span", { class: "nt-sr", text: r.label + ": " }));
+      info.people.forEach(function (p) { line.append(nameChip(p.name, p.hue), " "); });
+      box.append(line);
     });
-    btn.append(el("i", { class: "ph ph-thumbs-up", "aria-hidden": "true" }));
-    btn.append(el("span", { class: "nt-ack-count", text: n.acks.count ? String(n.acks.count) : "" }));
-    if (n.canAck) {
-      btn.addEventListener("click", async function () {
-        btn.disabled = true;
-        try {
-          var saved = await api("/api/notes/" + n.id + "/ack", { method: mine ? "DELETE" : "PUT" });
-          if (current && current.id === n.id) current = null;
-          var fresh = noteItem(saved);
-          li.replaceWith(fresh);
-          focusIn(fresh, ".nt-ack");
-        } catch (e) {
-          btn.disabled = false;
-          btn.focus();
-          flash(li, e.message);
-        }
+    return box;
+  }
+
+  // The four reacts: a count beside each mark. A react nobody has given shows faintly until the note
+  // is hovered or focused. Your own note shows its marks but they do nothing.
+  function reactRow(li, n) {
+    var row = el("div", { class: "nt-reacts", role: "group", "aria-label": "Reacts" });
+    REACTS.forEach(function (r) {
+      var info = n.reacts[r.kind];
+      var btn = el("button", {
+        type: "button",
+        class: "nt-ack nt-react" + (info.count ? "" : " nt-react-zero"),
+        "data-kind": r.kind,
+        "aria-pressed": n.canReact ? (info.mine ? "true" : "false") : false,
+        "aria-label": !n.canReact ? r.label + " (you can't react to your own note)" : info.mine ? r.mine : "Give this note: " + r.label,
+        title: !n.canReact ? "You can't react to your own note" : info.mine ? r.mine : r.label,
+        disabled: !n.canReact,
       });
-    }
-    return btn;
+      btn.append(reactMark(r.kind));
+      btn.append(el("span", { class: "nt-ack-count", text: info.count ? String(info.count) : "" }));
+      if (n.canReact) {
+        btn.addEventListener("click", async function () {
+          btn.disabled = true;
+          try {
+            var saved = await api("/api/notes/" + n.id + "/react/" + r.kind, { method: info.mine ? "DELETE" : "PUT" });
+            if (current && current.id === n.id) current = null;
+            var fresh = noteItem(saved);
+            li.replaceWith(fresh);
+            focusIn(fresh, '.nt-react[data-kind="' + r.kind + '"]');
+          } catch (e) {
+            btn.disabled = false;
+            btn.focus();
+            flash(li, e.message);
+          }
+        });
+      }
+      row.append(btn);
+    });
+    return row;
   }
 
   function flash(li, text) {
@@ -224,28 +303,23 @@
     if (!freeUp(li)) return;
     var text = el("textarea", { class: "hs-input nt-body-input", rows: "4", maxlength: String(BODY_MAX), "aria-label": "Edit note" });
     text.value = n.body;
-    // The days a note may move to: its own day, today and later this week, and the week after
-    // (so a Friday note can still go to Monday).
-    var days = [];
-    function addDay(d) { if (!days.some(function (x) { return x.date === d.date; })) days.push(d); }
-    data.days.forEach(function (d) { if (d.date === n.date) addDay({ date: d.date, label: d.label }); });
-    data.formDays.forEach(addDay);
-    for (var i = 0; i < 5; i++) {
-      var date = plusDays(data.weekStart, 7 + i);
-      if (data.formDays.length && date > data.formDays[0].date) addDay({ date: date, label: dayLabel(date) });
-    }
-    days.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var week = el("select", { class: "hs-input", "aria-label": "Week" });
+    weekOptions(week, n.weekStart);
     var day = el("select", { class: "hs-input", "aria-label": "Day" });
-    dayOptions(day, days, n.date);
+    dayOptions(day, n.weekStart, dayIndex(n.weekStart, n.date));
+    // Choosing another week keeps the same weekday tag (or no tag) in that week.
+    week.addEventListener("change", function () {
+      dayOptions(day, week.value, day.selectedIndex - 1);
+    });
     var msg = el("span", { class: "nt-edit-msg", role: "alert" });
     var save = el("button", { type: "button", class: "hs-btn", text: "Save" });
     var cancel = el("button", { type: "button", class: "hs-btn", text: "Cancel" });
-    var row = el("div", { class: "nt-edit-row" }, day, save, cancel, msg);
+    var row = el("div", { class: "nt-edit-row" }, week, day, save, cancel, msg);
     li.replaceChildren(el("div", { class: "nt-edit" }, text, row));
     current = {
       id: n.id,
       li: li,
-      dirty: function () { return text.value !== n.body || day.value !== n.date; },
+      dirty: function () { return text.value !== n.body || week.value !== n.weekStart || day.value !== (n.date || ""); },
       close: function () { li.replaceWith(noteItem(n)); },
     };
     text.focus();
@@ -261,11 +335,10 @@
       try {
         var saved = await api("/api/notes/" + n.id, {
           method: "PATCH",
-          body: JSON.stringify({ body: text.value, date: day.value, updatedAt: n.updatedAt }),
+          body: JSON.stringify({ body: text.value, week: week.value, date: day.value || null, updatedAt: n.updatedAt }),
         });
         current = null;
-        // A note moved to a day of another week takes you to that week.
-        await load(saved.weekStart, saved.weekStart !== data.weekStart ? "push" : null);
+        await reloadFor(saved.weekStart);
         focusIn(noteEl(saved.id), ".nt-actions .hs-btn", addBtn);
       } catch (e) {
         msg.textContent = e.message;
@@ -301,7 +374,7 @@
       try {
         await api("/api/notes/" + n.id, { method: "DELETE" });
         current = null;
-        await load(data.weekStart);
+        await load(data.from);
         focusIn(wallEl, ".nt-new", addBtn);
       } catch (e) {
         msg.textContent = e.message;
@@ -313,37 +386,37 @@
   // ---------- the wall ----------
 
   function render() {
-    $("weekHead").textContent = data.heading;
-    $("thisBtn").disabled = data.current;
-    addBtn.hidden = !data.canAdd;
+    $("weekHead").textContent = data.label;
+    $("thisBtn").disabled = data.centred;
     current = null;   // the wall is redrawn, so nothing is open on it any more
     wallEl.replaceChildren();
-    data.days.forEach(function (d) {
-      var head = el("h2", { class: "nt-day-head" }, d.label);
-      if (d.today) head.append(el("span", { text: " · today" }));
+    data.weeks.forEach(function (w) {
+      var head = el("h2", { class: "nt-day-head" }, w.heading, el("span", { class: "nt-week-sub", text: w.sub }));
       var stack = el("div", { class: "nt-stack" });
-      d.notes.forEach(function (n) { stack.append(noteItem(n)); });
-      var col = el("section", { class: "nt-day" + (d.today ? " nt-day-today" : ""), "data-date": d.date }, head, stack);
-      if (d.canAdd) {
+      w.notes.forEach(function (n) { stack.append(noteItem(n)); });
+      var col = el("section", { class: "nt-day" + (w.current ? " nt-day-today" : "") + (w.past ? " nt-past" : ""), "data-week": w.weekStart }, head, stack);
+      if (w.canAdd) {
         var add = el("button", { type: "button", class: "nt-new", text: "+ New note" });
-        add.addEventListener("click", function () { openComposer(d.date); });
+        add.addEventListener("click", function () { openComposer(w.weekStart); });
         col.append(add);
-      } else if (!d.notes.length) {
+      } else if (!w.notes.length) {
         col.append(el("p", { class: "nt-none", text: "No notes" }));
       }
       wallEl.append(col);
     });
   }
 
-  function urlFor(week) {
-    return "?dept=" + encodeURIComponent(dept) + "&week=" + encodeURIComponent(week);
+  function urlFor(from) {
+    return "?dept=" + encodeURIComponent(dept) + (from ? "&from=" + encodeURIComponent(from) : "");
   }
 
-  // Loads a week (a Monday; none = this week) and draws it. `push` adds a history entry.
-  async function load(week, push) {
-    var q = "/api/notes?dept=" + encodeURIComponent(dept) + (week ? "&week=" + encodeURIComponent(week) : "");
+  // Loads five weeks starting at a Monday (none = this week centred) and draws them. `push` adds a
+  // history entry; "replace" rewrites the current one. The address names the first week only when
+  // the window has been moved off centre.
+  async function load(from, push) {
+    var q = "/api/notes?dept=" + encodeURIComponent(dept) + (from ? "&from=" + encodeURIComponent(from) : "");
     var d = await api(q);
-    var changed = !data || data.weekStart !== d.weekStart;
+    var changed = !data || data.from !== d.from;
     data = d;
     titleEl.textContent = d.deptLabel + " notes";
     document.title = d.deptLabel + " notes - Crosscuts";
@@ -352,13 +425,21 @@
     if (changed) closeComposer();
     clearGuard();
     render();
-    if (push === "push") history.pushState(null, "", urlFor(d.weekStart));
-    else if (push === "replace") history.replaceState(null, "", urlFor(d.weekStart));
+    var url = urlFor(d.centred ? "" : d.from);
+    if (push === "push") history.pushState(null, "", url);
+    else if (push === "replace") history.replaceState(null, "", url);
   }
 
-  async function go(week, push) {
+  // After a save that put a note in another week: stay if that week is on screen, else centre on it.
+  async function reloadFor(weekStart) {
+    var shown = data.weeks.some(function (w) { return w.weekStart === weekStart; });
+    if (shown) await load(data.from);
+    else await load(plusDays(weekStart, -14), "push");
+  }
+
+  async function go(from, push) {
     try {
-      await load(week, push);
+      await load(from, push);
     } catch (e) {
       messageEl.textContent = e.message;
       messageEl.hidden = false;
@@ -367,16 +448,23 @@
 
   $("lastBtn").addEventListener("click", function () { if (data) leave(function () { go(data.prev, "push"); }); });
   $("nextBtn").addEventListener("click", function () { if (data) leave(function () { go(data.next, "push"); }); });
-  $("thisBtn").addEventListener("click", function () { if (data) leave(function () { go(data.thisWeek, "push"); }); });
+  $("thisBtn").addEventListener("click", function () { if (data) leave(function () { go(null, "push"); }); });
+  // The address names the first week (from=); an older address with week= centres on that week.
+  function fromParam() {
+    var q = new URLSearchParams(location.search);
+    if (q.get("from")) return q.get("from");
+    if (q.get("week")) return plusDays(q.get("week"), -14);
+    return null;
+  }
   window.addEventListener("popstate", function () {
-    var w = new URLSearchParams(location.search).get("week");
+    var f = fromParam();
     if (data && unsaved()) {
       // Put the address back and ask first; agreeing moves on as a fresh step.
-      history.pushState(null, "", urlFor(data.weekStart));
-      leave(function () { go(w || null, "push"); });
+      history.pushState(null, "", urlFor(data.centred ? "" : data.from));
+      leave(function () { go(f, "push"); });
       return;
     }
-    go(w || null);
+    go(f);
   });
 
   // ---------- the add form ----------
@@ -388,8 +476,8 @@
   }
   bodyEl.addEventListener("input", updateCount);
 
-  function openComposer(date) {
-    if (!data || !data.formDays.length) return;
+  function openComposer(week) {
+    if (!data) return;
     if (current && !current.li.isConnected) current = null;
     if (current) {
       if (current.dirty()) { sayGuard("Save or cancel the note you are editing before you add a new one."); return; }
@@ -397,13 +485,15 @@
       current = null;
     }
     clearGuard();
-    var pick = date && data.formDays.some(function (d) { return d.date === date; }) ? date : data.defaultDate;
-    dayOptions(dayEl, data.formDays, pick);
+    var pick = week && week >= data.thisWeek ? week : data.thisWeek;
+    weekOptions(weekEl, pick);
+    dayOptions(dayEl, pick, -1);
     errorEl.textContent = "";
     composer.hidden = false;
     composer.scrollIntoView({ block: "nearest" });
     bodyEl.focus();
   }
+  weekEl.addEventListener("change", function () { dayOptions(dayEl, weekEl.value, dayEl.value ? dayEl.selectedIndex - 1 : -1); });
   function closeComposer(refocus) {
     composer.hidden = true;
     bodyEl.value = "";
@@ -432,12 +522,10 @@
     try {
       var saved = await api("/api/notes", {
         method: "POST",
-        body: JSON.stringify({ dept: dept, date: dayEl.value, body: bodyEl.value }),
+        body: JSON.stringify({ dept: dept, week: weekEl.value, date: dayEl.value || null, body: bodyEl.value }),
       });
       closeComposer();
-      // A note for a day in another week (a weekend post goes to Monday) takes you to that week.
-      var other = saved.weekStart !== data.weekStart;
-      await load(saved.weekStart, other ? "push" : null);
+      await reloadFor(saved.weekStart);
       focusIn(noteEl(saved.id), ".nt-ack:not(:disabled)", addBtn);
     } catch (err) {
       errorEl.textContent = err.message;
@@ -449,7 +537,7 @@
   // A tab left open shows fresh notes (and the right "today") when it is next looked at.
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible" || boardEl.hidden || (current && current.li.isConnected) || !composer.hidden) return;
-    load(data.weekStart).catch(function () {});
+    load(data.from).catch(function () {});
   });
 
   // ---------- start ----------
@@ -460,7 +548,7 @@
       return;
     }
     try {
-      await load(params.get("week") || null, "replace");
+      await load(fromParam(), "replace");
     } catch (e) {
       // 0.2.0: someone with design.view but not the Projects notes still gets the Projects
       // dashboard below (projectsdash.js), so the page just says so instead of refusing.
@@ -475,7 +563,7 @@
       }
       if (/^Forbidden/.test(e.message)) showMessage("These notes are only for the people in that department. You don't have access to them.");
       else if (/Unknown department/.test(e.message)) showMessage("There is no Notes page for that department. Choose one from the menu.");
-      else if (/^week must be/.test(e.message)) {
+      else if (/^from must be/.test(e.message)) {
         try { await load(null, "replace"); } catch (e2) { showMessage(e2.message); }
       } else showMessage(e.message);
     }
