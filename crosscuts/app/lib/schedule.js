@@ -102,7 +102,7 @@ function buildScheduleRow(weekRow, assignments, flagRows, ctx) {
       name: a.name,
       bg,
       fg,
-      // Leave and days off are Monday to Friday only; the Weekend cell is never "away".
+      // Days off are Monday to Friday only; the Weekend cell is away when leave covers Saturday or Sunday.
       away: awayDays ? awayDays[a.day] || null : null,
       // Only the day(s) beyond their pattern (Todd, 2026-10-11).
       overDays: !!(c.overDays.get(Number(a.worker_id)) && c.overDays.get(Number(a.worker_id)).has(a.day)),

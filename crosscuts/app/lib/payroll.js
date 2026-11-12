@@ -1080,7 +1080,7 @@ function suggestionsFor(db, run, person) {
   const dates = PayMaths.fortnightDates(start);
   const out = {};
   for (const date of dates) {
-    out[date] = { job: "", pholMin: null, sickMin: null, arlMin: null, reason: null, holidayName: null };
+    out[date] = { job: "", pholMin: null, sickMin: null, arlMin: null, reason: null, holidayName: null, weekend: null };
   }
 
   const holidays = db.prepare("SELECT date, name FROM public_holidays WHERE date >= ? AND date <= ?").all(start, end);
@@ -1106,14 +1106,24 @@ function suggestionsFor(db, run, person) {
                    wr.sort_order, wr.id, a.id`
       )
       .all(workerId, weeks[0], weeks[1]);
-    const offset = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, wknd: 5 }; // Weekend suggests Saturday only
+    const offset = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4 }; // timesheets hold only the ten weekdays
+    const weekendOn = {}; // Friday date -> ["name (quote)", ...] for that week's weekend board jobs
     for (const row of rows) {
-      const date = addDays(row.week_start, offset[row.day]);
       const qn = row.quote_number ? String(row.quote_number).trim() : "";
       const text = qn ? `${row.name} (${qn})` : row.name;
+      if (row.day === "wknd") {
+        // Todd 2026-11-13: weekend work has no timesheet row; the Friday Check column lists it.
+        // Display only, never stored and never part of Friday's job.
+        const fri = addDays(row.week_start, 4);
+        const wl = (weekendOn[fri] = weekendOn[fri] || []);
+        if (!wl.includes(text)) wl.push(text);
+        continue;
+      }
+      const date = addDays(row.week_start, offset[row.day]);
       const list = (jobsOn[date] = jobsOn[date] || []);
       if (!list.includes(text)) list.push(text);
     }
+    for (const fri of Object.keys(weekendOn)) if (out[fri]) out[fri].weekend = weekendOn[fri].join(", ");
     const leave = db
       .prepare(
         `SELECT kind, date_from, date_to FROM leave

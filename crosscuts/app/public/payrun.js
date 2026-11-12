@@ -355,12 +355,15 @@
   function hintFor(date) {
     const s = suggestionFor(date);
     if (!s) return "";
-    if (s.reason === "holiday") return s.holidayName || "Public holiday";
-    if (s.reason === "leave") return "Leave on the board";
-    if (s.reason === "sick") return "Sick on the board";
-    if (s.reason === "other") return "Away";
-    if (s.reason === "dayoff") return "Regular day off";
-    return "";
+    let reason = "";
+    if (s.reason === "holiday") reason = s.holidayName || "Public holiday";
+    else if (s.reason === "leave") reason = "Leave on the board";
+    else if (s.reason === "sick") reason = "Sick on the board";
+    else if (s.reason === "other") reason = "Away";
+    else if (s.reason === "dayoff") reason = "Regular day off";
+    // Weekend jobs show on Friday's Check column only; never filled into cells or saved.
+    if (s.weekend) reason += (reason ? ". " : "") + "Weekend on the board: " + s.weekend;
+    return reason;
   }
 
   function buildGrid() {

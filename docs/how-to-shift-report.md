@@ -16,6 +16,10 @@ For workshop staff, and for whoever sets up their logins. From 0.2.4. The detail
 4. Worked on a job that isn't listed? Use **Another job** to search for it.
 5. Add a note if you want, then tap **Send report**. You can send it again later the same day to update it.
 
+## At the weekend
+
+If you're booked in the board's Weekend column, your Weekend jobs show in **End of shift** on Saturday and Sunday. There's no reminder at the weekend, so open **End of shift** yourself when you finish.
+
 ## The reminder
 
 On weekdays at 4:00 pm, anyone on an install that day who hasn't sent their report gets a reminder in the bell. An admin can change the time, or clear it to turn the reminder off, under **Admin > Users**, Business details, **Shift report reminder**.

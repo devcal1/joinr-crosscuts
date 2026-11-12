@@ -11,6 +11,8 @@ const jobstage = require("./jobstage");
 const { can } = require("./httperror");
 const { sydneyToday, sydneyMonday, sydneyParts } = require("./time");
 
+// Deliberately weekday-only: the end-of-shift line never shows at weekends (Todd 2026-11-13), so do
+// not switch this to time.boardDayKey.
 const DAYS = [null, "mon", "tue", "wed", "thu", "fri", null, null];
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 

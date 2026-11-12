@@ -21,7 +21,7 @@ Open **Accounts**, then **Pay runs**.
    - **Total**, **OT** and **DT** work themselves out as you type, as do the totals and the summary block.
    - Grey values are suggestions from the board (the job), leave and public holidays. Check them against the paper; what you type wins. On a worker's regular day off nothing is suggested and the row says "Regular day off". **Fill suggestions** fills only blank cells on a sheet already saved.
    - A cell outlined in orange has a problem (for example a finish before the start); the reason shows beside the row and the sheet won't save until it's fixed.
-   - Weekend work has no row: write it in **Notes**, which print on the summary.
+   - Weekend work has no row: Friday's Check column lists the weekend's board jobs; write the hours in **Notes**, which print on the summary.
    - Tick **Signed** if the paper is signed and **Typed in** when you're done, then **Save** (or **Save and next**, or Ctrl+S).
    - If someone else saved the same sheet meanwhile, Crosscuts says so: press **Reload sheet** and type your changes again.
 4. **Check the summary.** The **Summary** tab shows everyone's Normal Time, Over Time, Double Time, Public Holiday, Annual Leave, Personal Leave and On Site hours, with notes. **Print summary** gives a landscape page (marked DRAFT until finalised).

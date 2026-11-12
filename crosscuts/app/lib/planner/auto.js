@@ -12,7 +12,7 @@ const layersLib = require("./layers");
 const { sydneyToday, parseDateUTC, formatDateUTC, addDays, mondayOf } = require("../time");
 
 const TITLE_MAX = 120; // job and task names inside a title (the full name stays in job.name)
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "wknd"]; // wknd: the Weekend cell, shown on its Saturday
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "wknd"]; // wknd: the Weekend cell, shown on its Saturday and Sunday
 
 // The live-job filter for the job-based sources (section 8).
 const JOB_LIVE = "j.archived = 0 AND (j.stage IS NULL OR j.stage NOT IN ('lost','archived'))";
@@ -107,10 +107,12 @@ function weekdayRuns(from, to) {
   return runs;
 }
 
-// The date of a board day key ('mon'..'fri', 'wknd' = Saturday) in the week starting weekStart; null if unknown.
-function boardDate(weekStart, day) {
+// The dates of a board day key in the week starting weekStart: 'mon'..'fri' give that one date,
+// 'wknd' gives Saturday and Sunday; [] if unknown.
+function boardDates(weekStart, day) {
+  if (day === "wknd") return [addDays(weekStart, 5), addDays(weekStart, 6)];
   const i = DAY_KEYS.indexOf(day);
-  return i < 0 ? null : addDays(weekStart, i);
+  return i < 0 || i > 4 ? [] : [addDays(weekStart, i)];
 }
 
 function item(fields) {
@@ -161,10 +163,11 @@ function boardWeeks(db, user, from, to) {
     const rowId = Number(a.week_row_id);
     const ws = rowWeek.get(rowId);
     if (!ws) continue;
-    const date = boardDate(ws, a.day);
-    if (!date || date < from || date > to) continue;
-    if (!daysByRow.has(rowId)) daysByRow.set(rowId, new Set());
-    daysByRow.get(rowId).add(date);
+    for (const date of boardDates(ws, a.day)) {
+      if (!date || date < from || date > to) continue;
+      if (!daysByRow.has(rowId)) daysByRow.set(rowId, new Set());
+      daysByRow.get(rowId).add(date);
+    }
   }
 
   const weeks = new Map(); // weekStart -> {weekStart, manufacturing, installing, seen}

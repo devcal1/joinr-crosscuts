@@ -245,7 +245,7 @@
       el("div", { class: "av-two" }, field("From", from, "alFrom"), field("To", to, "alTo")),
       field("Kind", kind, "alKind"),
       field("Note", note, "alNote"),
-      el("p", { class: "av-hint-dlg", text: "Whole days. Saturday and Sunday in the range are ignored by the board." }),
+      el("p", { class: "av-hint-dlg", text: "Whole days. Leave over a Saturday or Sunday greys that person's Weekend chips on the board." }),
       err,
       el("div", { class: "cc-dialog-actions" }, closeBtn(), save)
     );

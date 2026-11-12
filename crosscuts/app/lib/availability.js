@@ -1,5 +1,5 @@
-// Leave and availability (brief §5.3.4; m5-contracts.md section 2). Whole days, Monday to
-// Friday. Scaffold (M5 · 2.2): the reads used by the board are complete and frozen; Wave 1 B
+// Leave and availability (brief §5.3.4; m5-contracts.md section 2). Whole days. Leave records are
+// date ranges; regular days off and the weekday count stay Monday to Friday. Scaffold (M5 · 2.2): the reads used by the board are complete and frozen; Wave 1 B
 // fills in the writes (signatures binding).
 const { addDays, parseDateUTC, formatDateUTC, DATE_RE } = require("./time");
 const { bad, notFound } = require("./httperror");
@@ -17,14 +17,18 @@ function parseDaysOff(text) {
   return DAY_KEYS.filter((d) => set.has(d));
 }
 
-// Map workerId -> {mon..fri: 'leave'|'sick'|'other'|'off'|null} for workers with at least one
-// away day in the week starting on the Monday weekStart. Leave beats a regular day off.
+// Map workerId -> {mon..fri, wknd: 'leave'|'sick'|'other'|'off'|null} for workers with at least one
+// away day in the week starting on the Monday weekStart. Leave beats a regular day off. 'wknd' is a
+// leave kind when leave covers Saturday or Sunday (Saturday's kind wins if both are covered by
+// different kinds); a regular day off never sets it.
 function awayForWeek(db, weekStart) {
   const dates = DAY_KEYS.map((_, i) => addDays(weekStart, i));
+  const sat = addDays(weekStart, 5);
+  const sun = addDays(weekStart, 6);
   const out = new Map();
   const slot = (workerId) => {
     const id = Number(workerId);
-    if (!out.has(id)) out.set(id, { mon: null, tue: null, wed: null, thu: null, fri: null });
+    if (!out.has(id)) out.set(id, { mon: null, tue: null, wed: null, thu: null, fri: null, wknd: null });
     return out.get(id);
   };
   for (const w of db
@@ -38,11 +42,18 @@ function awayForWeek(db, weekStart) {
         WHERE removed_at IS NULL AND date_from <= ? AND date_to >= ?
         ORDER BY id`
     )
-    .all(dates[4], dates[0]);
+    .all(sun, dates[0]);
+  const satKind = new Map();
+  const sunKind = new Map();
   for (const l of leave) {
     DAY_KEYS.forEach((d, i) => {
       if (l.date_from <= dates[i] && l.date_to >= dates[i]) slot(l.worker_id)[d] = l.kind;
     });
+    if (l.date_from <= sat && l.date_to >= sat) satKind.set(Number(l.worker_id), l.kind);
+    if (l.date_from <= sun && l.date_to >= sun) sunKind.set(Number(l.worker_id), l.kind);
+  }
+  for (const id of new Set([...satKind.keys(), ...sunKind.keys()])) {
+    slot(id).wknd = satKind.has(id) ? satKind.get(id) : sunKind.get(id);
   }
   return out;
 }

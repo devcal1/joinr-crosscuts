@@ -119,8 +119,17 @@ function sydneyInstant(date, time) {
   return sydneyInstant(later.slice(0, 10), later.slice(11, 16));
 }
 
+// The board day key for a Sydney weekday (sydneyParts().weekday, 1 = Mon .. 7 = Sun). The board's
+// Weekend cell (key wknd, migration 060) covers Saturday and Sunday.
+function boardDayKey(weekday) {
+  if (weekday >= 1 && weekday <= 5) return ["mon", "tue", "wed", "thu", "fri"][weekday - 1];
+  if (weekday === 6 || weekday === 7) return "wknd";
+  return null;
+}
+
 module.exports = {
   DATE_RE,
+  boardDayKey,
   sydneyInstant,
   sydneyParts,
   latestFridayNoon,

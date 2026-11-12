@@ -1,8 +1,10 @@
 // Workshop end-of-shift report (0.2.4, docs/plans/m25-contracts.md). Each workshop person, from
 // their own login (users.worker_id links it to their board worker), sees today's jobs from this
 // week's board rows they are on, adds photos (tagged install or shift), raises issues
-// (lib/issues.js) and sends a report. On weekdays at shift.reminder_time (default 16:00; empty is
-// off) anyone on an install row today who hasn't sent a report gets a bell reminder.
+// (lib/issues.js) and sends a report. Jobs in the board's Weekend column are listed on Saturday and
+// Sunday. On weekdays at shift.reminder_time (default 16:00; empty is off) anyone on an install row
+// today who hasn't sent a report gets a bell reminder; there is no reminder at weekends (Todd
+// 2026-11-13).
 //
 // Every function takes db first; nothing here requires ../db.
 const audit = require("./audit");
@@ -11,18 +13,17 @@ const settings = require("./settings");
 const issues = require("./issues");
 const jobstage = require("./jobstage");
 const { bad, notFound } = require("./httperror");
-const { sydneyMonday, sydneyParts, sydneyInstant } = require("./time");
+const { sydneyMonday, sydneyParts, sydneyInstant, boardDayKey } = require("./time");
 
-const DAYS = [null, "mon", "tue", "wed", "thu", "fri", null, null];
 const NOTE_MAX = 2000;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const CLOSED = ["complete", "invoiced", "lost", "archived"];
 const userId = (req) => (req && req.user && req.user.id != null ? req.user.id : null);
 
-// Sydney today's date, its Monday and its board day key (null at the weekend).
+// Sydney today's date, its Monday and its board day key ('wknd' on Saturday and Sunday).
 function dayOf(now = new Date()) {
   const p = sydneyParts(now);
-  return { date: p.date, weekStart: sydneyMonday(p.date), day: DAYS[p.weekday] };
+  return { date: p.date, weekStart: sydneyMonday(p.date), day: boardDayKey(p.weekday) };
 }
 
 function workerOf(db, uid) {
@@ -170,7 +171,8 @@ function reminderTime(db) {
 // an install row that day, with no report sent.
 function dueToRemind(db, now = new Date()) {
   const { date, weekStart, day } = dayOf(now);
-  if (!day) return [];
+  const wd = sydneyParts(now).weekday;
+  if (wd < 1 || wd > 5 || !day) return [];
   const holders = new Set(notify.usersWithKey(db, "shift.report").map(Number));
   return db
     .prepare(
@@ -191,8 +193,8 @@ function runReminder(db, { now = new Date(), force = false } = {}) {
   return db.transaction(() => {
     if (!force) {
       const t = reminderTime(db);
-      if (!t || !day) return { sent: 0, date };
       const p = sydneyParts(now);
+      if (!t || !day || p.weekday < 1 || p.weekday > 5) return { sent: 0, date };
       const hm = `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
       if (hm < t || settings.get(db, "shift.reminder_last_run") === date) return { sent: 0, date };
     }
@@ -224,4 +226,4 @@ function start(db) {
   timer.unref();
 }
 
-module.exports = { today, search, photoTag, liveJob, send, runReminder, dueToRemind, start, TIME_RE };
+module.exports = { today, search, photoTag, liveJob, send, runReminder, dueToRemind, dayOf, start, TIME_RE };

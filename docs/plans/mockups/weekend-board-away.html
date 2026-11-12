@@ -1,0 +1,4771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekend away chip - board mockup</title>
+<!-- Mockup for docs/plans/weekend-followups-plan.md. Built from the real page: its markup, CSS and JS
+     are inlined unchanged from crosscuts/app/public (0.2.16); only window.fetch is replaced by sample
+     data, which is where the proposed change lives. Open straight from disk. -->
+<style>
+/* ===== tokens.css (real file) ===== */
+/* Crosscuts house style: the TH Cabinets Brand & Document Style Guide v1.0 on screen.
+   The values match Offcuts (joinr-offcuts/src/styles.css). These tokens are the only
+   colours a page may use; ci/style-check.sh enforces that. The rules are in CLAUDE.md
+   under "Look and feel".
+
+   Ink ground, and teal as the one working accent. Orange means "attend to this". Red is
+   only for overdue and destructive actions. The spectrum appears only as thin rules.
+   Arial, bold and regular only. No shadows, and no icons except the board's. */
+
+:root {
+  /* ground and surfaces */
+  --ink: #101019;
+  --surface: #191a24;
+  --raised: #262735;
+  --hairline: #24252f;
+  --na: #2e2f3c;
+  /* The board's Weekend column: a slightly lighter ground between surface and raised
+     (Todd, 2026-11-11; CLAUDE.md non-negotiable 7, Weekend exception). schedule.css and the JPG export only. */
+  --weekend: #1e1f2b;
+
+  /* text */
+  --white: #ffffff;
+  --body: #d3d4dc;
+  --label: #9a9ba8;
+  --muted: #6f7080;
+
+  /* colour roles */
+  --teal: #17c8a0;
+  --teal-tint: #6ee7c9;
+  --violet: #8b5cf6;
+  --violet-tint: #a855f7;
+  --fuchsia: #d946ef;
+  --orange: #f97316;
+  --orange-tint: #fb923c;
+  --go: #22c55e;
+  --go-tint: #4ade80;
+  --stop: #ef4444;
+  --stop-tint: #f87171;
+
+  /* Planner layer markers: the named exception in CLAUDE.md "Look and feel" (Todd, 2026-10-11).
+     Used only by planner.html, planner.css and planner.js; ci/style-check.js enforces that. */
+  --layer-company: var(--teal);
+  --layer-install: var(--orange);
+  --layer-accounts: var(--label);
+  --layer-design: var(--violet);
+  --layer-scheduling: var(--fuchsia);
+  --layer-workshop: var(--muted);
+  --layer-personal: var(--label);  /* drawn as a hollow outline, never a fill; the quiet label grey (M7 · 4.3) */
+
+  /* Notes paper: the named exception in CLAUDE.md "Look and feel" (Todd, 2026-10-16). The cream of
+     a sticky note, with --ink as its text. Used only by notes.html, notes.css and notes.js;
+     ci/style-check.js enforces that. */
+  --paper: #e9e4c9;
+
+  /* Benchtop plan-set paper fills (Todd, 2026-10-25): pale, print-friendly tints, one per material
+     (a light grey when the plan has one material). Used only by benchtopprint.css, on the white
+     paper sheet; black lines print on top. Not screen colours. */
+  --bt-fill-g: #ececec;
+  --bt-fill-0: #dbe8f5;
+  --bt-fill-1: #f6e2cc;
+  --bt-fill-2: #dcefd8;
+  --bt-fill-3: #e8dcf3;
+  --bt-fill-4: #f4eec4;
+  --bt-fill-5: #f3d9dc;
+
+  /* 16% fills, for badges, hovers, selected rows and highlights */
+  --teal-16: rgba(23, 200, 160, 0.16);
+  --orange-16: rgba(249, 115, 22, 0.16);
+  --go-16: rgba(34, 197, 94, 0.16);
+  --stop-16: rgba(239, 68, 68, 0.16);
+  --violet-16: rgba(139, 92, 246, 0.16);
+  --teal-8: rgba(23, 200, 160, 0.08);
+  --orange-8: rgba(249, 115, 22, 0.08);
+  --backdrop: rgba(16, 16, 25, 0.8);
+
+  --spectrum: linear-gradient(90deg, #17c8a0 0%, #8b5cf6 30%, #d946ef 55%, #f97316 100%);
+  --step: linear-gradient(135deg, #8b5cf6, #d946ef);
+
+  /* type and shape */
+  --font: Arial, Helvetica, sans-serif;
+  --mono: Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --r-card: 6px;
+  --r-callout: 5px;
+  --r-control: 4px;
+  --r-badge: 3px;
+  --accent-border: 4px;
+  --rule-h: 5px;
+
+  /* Legacy names, kept as aliases while pages move to the names above.
+     New CSS uses the house names, not these. */
+  --color-surface: var(--surface);
+  --color-text: var(--body);
+  --color-accent: var(--teal);
+  --color-divider: var(--hairline);
+  --color-neutral-500: var(--label);
+  --color-neutral-800: var(--na);
+  --color-neutral-900: var(--raised);
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--ink); }
+
+/* The house components set display (hs-btn is inline-flex), which would otherwise beat
+   the hidden attribute. */
+[hidden] { display: none !important; }
+
+/* One focus ring, everywhere the keyboard can land. Teal, never a shadow. */
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--raised); border-radius: var(--r-badge); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== components.css (real file) ===== */
+/* House components, shared by every page (loaded through tokens.css). Ported from
+   Offcuts (joinr-offcuts/src/styles.css). The hs- prefix keeps them clear of the
+   board's global classes and the shell's cc- classes.
+
+   Use these instead of writing page-local buttons, badges or inputs:
+     .hs-rule                spectrum rule (5px), at the top and bottom of a page
+     .hs-lockup              "TH CABINETS" wordmark (wrap CABINETS in <b> for teal)
+     .hs-label               small uppercase letterspaced label
+     .hs-btn                 outlined uppercase button. Modifiers: -primary (teal),
+                             -go, -check (orange), -stop (destructive), -quiet (no border)
+     .hs-badge               16% fill + border, uppercase. Modifiers: -teal, -go,
+                             -check, -stop, -violet, -na
+     .hs-pill                outlined rounded tag. Modifiers: -na, -violet, -stop, -check
+     .hs-sectionbar          raised bar with a 4px teal left border; h2 inside.
+                             Modifiers: -orange, -violet
+     .hs-callout             surface panel with a 4px left border; h3 inside.
+                             Modifiers: -orange, -stop
+     .hs-card                surface, hairline border, 6px corners
+     .hs-kvt                 label/value table: alternating .k and .v children
+     .hs-input               text input, select or textarea
+     .hs-disc                numbered disc with the violet-fuchsia gradient
+     .hs-table               plain data table with uppercase label headers */
+
+.hs-rule {
+  display: block;
+  height: var(--rule-h);
+  background: var(--spectrum);
+}
+
+.hs-lockup {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--white);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.hs-lockup b { color: var(--teal); font-weight: 700; }
+
+.hs-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+/* ---------- buttons ---------- */
+
+.hs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.hs-btn:hover { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn-primary { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn-primary:hover { background: var(--teal-16); }
+.hs-btn-go:hover { border-color: var(--go); color: var(--go-tint); }
+.hs-btn-check { border-color: var(--orange); color: var(--orange-tint); }
+.hs-btn-check:hover { background: var(--orange-16); color: var(--orange-tint); border-color: var(--orange); }
+.hs-btn-stop { color: var(--stop-tint); }
+.hs-btn-stop:hover { border-color: var(--stop); color: var(--stop-tint); background: var(--stop-16); }
+.hs-btn-quiet { border-color: transparent; color: var(--label); }
+.hs-btn-quiet:hover { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn:disabled,
+.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+.hs-btn:disabled:hover,
+.hs-btn[aria-disabled="true"]:hover { border-color: var(--na); color: var(--body); background: none; }
+.hs-btn-primary:disabled:hover { border-color: var(--teal); color: var(--teal-tint); }
+
+/* ---------- badges and pills ---------- */
+
+.hs-badge {
+  display: inline-block;
+  border: 1px solid;
+  border-radius: var(--r-badge);
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 17px;
+  white-space: nowrap;
+}
+.hs-badge-teal { background: var(--teal-16); border-color: var(--teal); color: var(--teal-tint); }
+.hs-badge-go { background: var(--go-16); border-color: var(--go); color: var(--go-tint); }
+.hs-badge-check { background: var(--orange-16); border-color: var(--orange); color: var(--orange-tint); }
+.hs-badge-stop { background: var(--stop-16); border-color: var(--stop); color: var(--stop-tint); }
+.hs-badge-violet { background: var(--violet-16); border-color: var(--violet); color: var(--violet-tint); }
+.hs-badge-na { background: transparent; border-color: var(--na); color: var(--label); }
+
+.hs-pill {
+  display: inline-block;
+  border: 1px solid var(--teal);
+  color: var(--teal-tint);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.hs-pill-na { border-color: var(--na); color: var(--label); }
+.hs-pill-violet { border-color: var(--violet); color: var(--violet-tint); }
+.hs-pill-stop { border-color: var(--stop); color: var(--stop-tint); }
+.hs-pill-check { border-color: var(--orange); color: var(--orange-tint); }
+
+/* ---------- structure ---------- */
+
+.hs-sectionbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--raised);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  padding: 6px 12px;
+  min-height: 32px;
+}
+.hs-sectionbar-orange { border-left-color: var(--orange); }
+.hs-sectionbar-violet { border-left-color: var(--violet); }
+.hs-sectionbar h2,
+.hs-sectionbar .hs-sectionbar-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.hs-callout {
+  background: var(--surface);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  padding: 12px;
+}
+.hs-callout-orange { border-left-color: var(--orange); }
+.hs-callout-stop { border-left-color: var(--stop); }
+.hs-callout h3 {
+  margin: 0 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--teal-tint);
+}
+.hs-callout-orange h3 { color: var(--orange-tint); }
+.hs-callout-stop h3 { color: var(--stop-tint); }
+
+.hs-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 12px;
+}
+
+.hs-kvt {
+  display: grid;
+  grid-template-columns: 38% minmax(0, 1fr);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.hs-kvt > div {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline);
+  min-width: 0;
+}
+.hs-kvt > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.hs-kvt .k {
+  display: flex;
+  align-items: center;
+  background: var(--raised);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.hs-kvt .v { background: var(--surface); color: var(--body); }
+
+.hs-table { width: 100%; border-collapse: collapse; }
+.hs-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  white-space: nowrap;
+}
+.hs-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+}
+
+/* ---------- inputs ---------- */
+
+.hs-input {
+  width: 100%;
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.hs-input::placeholder { color: var(--muted); }
+.hs-input:hover { border-color: var(--label); }
+.hs-input:focus { outline: none; border-color: var(--teal); }
+.hs-input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+
+/* ---------- numbered disc ---------- */
+
+.hs-disc {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--step);
+  color: var(--white);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== shell/shell.css (real file) ===== */
+/* Crosscuts shared shell: top bar, menus and dialogs, in the house style.
+   Self-contained: every class is prefixed cc-, nothing styles bare elements.
+   Colours, type and shape come from tokens.css (shell.js loads it if the page didn't). */
+
+#cc-shell {
+  --cc-bar-h: 52px;
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.cc-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--cc-bar-h);
+  padding: 0 16px;
+  background: var(--ink);
+  color: var(--body);
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: left;
+}
+.cc-bar *,
+.cc-bar *::before,
+.cc-bar *::after { box-sizing: border-box; }
+
+/* Brand: the house lockup, then the app name as a quiet label */
+.cc-brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-right: 8px;
+  padding: 6px 4px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cc-brand-app {
+  color: var(--label);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Dashboard link and department menus */
+.cc-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cc-depts {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-group-label {
+  display: none;
+  margin: 0;
+  padding: 10px 12px 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.cc-dashboard { display: flex; align-items: center; }
+.cc-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 9px 5px;
+  color: var(--label);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.cc-link:hover { color: var(--body); }
+.cc-link[aria-current="page"] {
+  color: var(--white);
+  border-bottom-color: var(--teal);
+}
+
+/* The Dashboard: a small outlined teal button (not a department heading) with a little extra
+   space after it. On the dashboard itself it takes a faint teal fill and white text. */
+.cc-dash {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 14px;
+  padding: 8px 12px;
+  color: var(--teal-tint);
+  background: none;
+  border: 1px solid var(--teal);
+  border-radius: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cc-dash:hover { color: var(--white); background: var(--teal-8); }
+.cc-dash[aria-current="page"] { color: var(--white); background: var(--teal-16); }
+
+/* A department: one button (its name) that opens a small list of its pages.
+   Menu 3.1, the fourth named exception in CLAUDE.md: Scheduling, Projects, Ordering and Accounts carry a
+   2 px rule in their Planner layer colour under the name and down the left edge of the open
+   panel. Photos and Admin stay plain. Nothing else on the bar takes these colours. */
+.cc-dept {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+}
+.cc-dept-scheduling { --cc-dept-rule: var(--layer-scheduling); }
+.cc-dept-design { --cc-dept-rule: var(--layer-design); }
+.cc-dept-ordering { --cc-dept-rule: var(--layer-install); }
+.cc-dept-accounts { --cc-dept-rule: var(--layer-accounts); }
+.cc-dept-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 7px 9px 5px;
+  color: var(--label);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cc-dept-ruled { border-bottom-color: var(--cc-dept-rule); }
+.cc-dept-btn:hover,
+.cc-dept-btn[aria-expanded="true"] { color: var(--white); }
+/* The department holding this page: white name and the bar's teal marker. On a ruled department
+   the teal sits just above its colour rule. */
+.cc-dept-btn[aria-current] { color: var(--white); }
+.cc-dept-btn[aria-current]:not(.cc-dept-ruled) { border-bottom-color: var(--teal); }
+.cc-dept-btn[aria-current].cc-dept-ruled::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--teal);
+}
+.cc-dept-head { display: none; }
+.cc-dept-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 1;
+  min-width: 190px;
+  padding: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+}
+.cc-dept-panel.cc-open { display: block; }
+.cc-dept-scheduling > .cc-dept-panel::before,
+.cc-dept-design > .cc-dept-panel::before,
+.cc-dept-ordering > .cc-dept-panel::before,
+.cc-dept-accounts > .cc-dept-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--cc-dept-rule);
+}
+.cc-dept-list { margin: 0; padding: 0; list-style: none; }
+.cc-dept-link {
+  display: block;
+  padding: 8px 12px;
+  color: var(--body);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--r-control);
+}
+.cc-dept-link:hover,
+.cc-dept-link:focus-visible { background: var(--raised); color: var(--white); }
+.cc-dept-link[aria-current="page"] { color: var(--white); font-weight: 700; background: var(--raised); }
+
+/* Right-hand side: user menu */
+.cc-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  position: relative;
+}
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--body);
+  background: none;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+.cc-btn:hover:not(:disabled),
+.cc-btn[aria-expanded="true"] { border-color: var(--teal); color: var(--teal-tint); }
+.cc-user-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-btn:disabled { opacity: 0.4; cursor: default; }
+.cc-btn-quiet { border-color: transparent; color: var(--label); }
+.cc-btn-quiet:hover:not(:disabled) { border-color: var(--teal); color: var(--teal-tint); }
+.cc-btn-sm { min-height: 26px; padding: 4px 8px; font-size: 10px; }
+
+.cc-menu-btn { display: none; }
+
+/* Alerts: the bell is a text button with an unread count; its panel lists the latest 30. */
+.cc-bell-badge {
+  min-width: 18px;
+  padding: 2px 5px;
+  color: var(--teal-tint);
+  background: var(--teal-16);
+  border: 1px solid var(--teal);
+  border-radius: var(--r-badge);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  text-align: center;
+}
+/* M4: Tasks and Messages are links with the same badge; orange when a task is overdue. */
+.cc-count { text-decoration: none; }
+.cc-count[aria-current="page"] { border-color: var(--teal); color: var(--teal-tint); }
+.cc-bell-badge.cc-badge-attend { color: var(--orange-tint); background: var(--orange-16); border-color: var(--orange); }
+.cc-bell-older { align-self: center; margin: 6px 0 10px; }
+.cc-group.cc-group-counts { display: none; }
+.cc-count-link { display: flex; align-items: center; gap: 8px; }
+.cc-bell-older[hidden] { display: none; }
+
+.cc-bell-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(380px, calc(100vw - 20px));
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+}
+.cc-bell-menu.cc-open { display: flex; flex-direction: column; }
+.cc-bell-menu:focus { outline: none; }
+.cc-bell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+.cc-bell-heading {
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cc-bell-list {
+  max-height: min(60vh, 440px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.cc-bell-li + .cc-bell-li { border-top: 1px solid var(--hairline); }
+.cc-bell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px 10px 12px;
+  color: var(--label);
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cc-bell-item:hover,
+.cc-bell-item:focus-visible { background: var(--raised); }
+.cc-bell-item:focus-visible { outline-offset: -2px; }
+.cc-bell-item.cc-unread { border-left-color: var(--teal); }
+.cc-bell-title { color: var(--body); font-size: 13px; line-height: 1.3; }
+.cc-unread .cc-bell-title { color: var(--white); font-weight: 700; }
+.cc-bell-body { color: var(--label); font-size: 12px; line-height: 1.35; }
+.cc-bell-time { color: var(--muted); font-size: 11px; }
+.cc-bell-empty { padding: 18px 14px; color: var(--label); font-size: 13px; }
+.cc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Popup menu (user menu) */
+.cc-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+}
+.cc-menu[hidden] { display: none; }
+.cc-menu-head {
+  padding: 8px 10px 6px;
+  color: var(--label);
+  font-size: 11px;
+}
+.cc-menu-head strong { display: block; color: var(--white); font-size: 13px; font-weight: 700; }
+.cc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--body);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-control);
+  text-align: left;
+  cursor: pointer;
+}
+.cc-menu-item:hover,
+.cc-menu-item:focus-visible { background: var(--raised); color: var(--white); }
+.cc-menu-sep { height: 1px; margin: 6px 4px; background: var(--hairline); border: 0; }
+
+/* Below 1480 px the app name beside the wordmark goes and the right-hand buttons tighten
+   (measured with the full admin set, a long name and 99+ on every badge). */
+@media (max-width: 1479px) {
+  .cc-brand-app { display: none; }
+  .cc-right { gap: 2px; }
+  .cc-right .cc-btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.04em; }
+  .cc-user-name { max-width: 10ch; }
+}
+
+/* Narrow screens: Dashboard and the departments collapse into the Menu panel as a flat list
+   (no nested dropdowns): each department is a heading over its pages, with its colour rule as
+   a left edge. */
+@media (max-width: 1259px) {
+  .cc-menu-btn { display: inline-flex; margin-left: 4px; }
+  .cc-brand { margin-right: 0; }
+  .cc-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    align-self: auto;
+    gap: 0;
+    padding: 6px 12px 12px;
+    background: var(--ink);
+    border-bottom: 1px solid var(--hairline);
+    max-height: calc(100vh - var(--cc-bar-h) - var(--rule-h));
+    overflow-y: auto;
+  }
+  .cc-nav.cc-open { display: flex; }
+  .cc-group,
+  .cc-depts { flex-direction: column; align-items: stretch; align-self: auto; gap: 0; }
+  .cc-group-label { display: block; }
+  .cc-dashboard { display: block; }
+  .cc-link { padding: 10px 12px; border-bottom: 0; border-left: 2px solid transparent; }
+  .cc-link[aria-current="page"] { border-left-color: var(--teal); }
+  .cc-dashboard { margin: 6px 0 2px 12px; }
+  .cc-dash { margin-right: 0; padding: 9px 12px; }
+  .cc-dept {
+    display: block;
+    align-self: auto;
+    margin-top: 6px;
+    padding-top: 2px;
+    border-top: 1px solid var(--hairline);
+    border-left: 2px solid var(--cc-dept-rule, transparent);
+  }
+  .cc-dept-btn { display: none; }
+  .cc-dept-head {
+    display: block;
+    padding: 10px 12px 2px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  a.cc-dept-head:hover,
+  a.cc-dept-head[aria-current="page"] { color: var(--text); }
+  .cc-dept-panel,
+  .cc-dept-panel.cc-open {
+    display: block;
+    position: static;
+    min-width: 0;
+    padding: 0;
+    overflow: visible;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .cc-dept-scheduling > .cc-dept-panel::before,
+  .cc-dept-design > .cc-dept-panel::before,
+  .cc-dept-ordering > .cc-dept-panel::before,
+  .cc-dept-accounts > .cc-dept-panel::before { display: none; }
+  .cc-dept-link { padding: 10px 12px; font-size: 14px; border-radius: 0; background: none; border-left: 2px solid transparent; }
+  .cc-dept-link[aria-current="page"] { background: none; border-left-color: var(--teal); }
+}
+/* The phone-only counts group comes first in the nav; while it is hidden the Dashboard link
+   must not get the divider the group would give it. */
+.cc-group-counts + .cc-depts { margin: 0; padding: 0; border: 0; }
+/* Phones and small windows: Planner, Tasks and Messages leave the bar for the top of the Menu
+   panel (below 720 px; measured with a long name and 99+ on every badge). */
+@media (max-width: 719px) {
+  .cc-right .cc-count { display: none; }
+  .cc-group.cc-group-counts { display: flex; }
+  .cc-group-counts + .cc-depts { margin-top: 6px; padding-top: 2px; border-top: 1px solid var(--hairline); }
+}
+@media (max-width: 520px) {
+  .cc-brand-app { display: none; }
+  .cc-bar { padding: 0 10px; gap: 4px; }
+  .cc-btn { padding: 6px 8px; letter-spacing: 0.04em; }
+  .cc-right { gap: 2px; min-width: 0; }
+  .cc-user-name { max-width: 8ch; }
+}
+
+/* Dialogs (change password, set PIN) */
+.cc-dialog {
+  width: min(92vw, 400px);
+  padding: 0;
+  color: var(--body);
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.cc-dialog::backdrop { background: var(--backdrop); }
+.cc-dialog *, .cc-dialog *::before, .cc-dialog *::after { box-sizing: border-box; }
+.cc-dialog-form { display: flex; flex-direction: column; gap: 12px; padding: 20px; margin: 0; }
+.cc-dialog-title { margin: 0; color: var(--white); font-size: 16px; font-weight: 700; }
+.cc-dialog-note { margin: 0; color: var(--label); font-size: 13px; }
+.cc-field { display: flex; flex-direction: column; gap: 4px; }
+.cc-field-label {
+  color: var(--label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cc-dialog-error { min-height: 18px; margin: 0; color: var(--orange-tint); font-size: 13px; } /* attend, not red (Todd, 2026-10-13) */
+.cc-dialog-error.cc-dialog-ok { color: var(--go-tint); }
+.cc-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.cc-dialog-actions .hs-btn-quiet { margin-right: auto; }
+
+/* The bottom spectrum rule sits on the window's bottom edge, as in Offcuts, on short pages
+   too. A matching gap after the content keeps the last line clear of it. */
+.cc-foot-rule {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 150;
+}
+body:has(> .cc-foot-rule) { padding-bottom: var(--rule-h); }
+
+/* Loading cursor (seventh named exception in CLAUDE.md, Todd 2026-10-18): while a page loads, or
+   after a link or form is used and the next page is awaited, the pointer is the Joinr dot, gently
+   pulsing. busy.js puts cc-busy on <html> and steps cc-f1..cc-f4 (the dot at 24, 26, 28 and 30 px in
+   a 32 px canvas, hotspot at the centre); with no frame class, or with reduced motion, it is the
+   still 28 px dot. The rule reaches every element so links and buttons show it too. progress is the
+   fallback if the image does not load. Cursors are never drawn in print, exportJpg() or screenshots. */
+html.cc-busy,
+html.cc-busy *,
+html.cc-busy *::before,
+html.cc-busy *::after { cursor: url(cursor-dot-3.svg) 16 16, progress !important; }
+html.cc-busy.cc-f1,
+html.cc-busy.cc-f1 *,
+html.cc-busy.cc-f1 *::before,
+html.cc-busy.cc-f1 *::after { cursor: url(cursor-dot-1.svg) 16 16, progress !important; }
+html.cc-busy.cc-f2,
+html.cc-busy.cc-f2 *,
+html.cc-busy.cc-f2 *::before,
+html.cc-busy.cc-f2 *::after { cursor: url(cursor-dot-2.svg) 16 16, progress !important; }
+html.cc-busy.cc-f4,
+html.cc-busy.cc-f4 *,
+html.cc-busy.cc-f4 *::before,
+html.cc-busy.cc-f4 *::after { cursor: url(cursor-dot-4.svg) 16 16, progress !important; }
+
+/* Every print leaves out the menu bar, the foot rule and any dialog (M12 contracts section 12.22).
+   The board, Planner, BAS and the print pages already did this in their own print rules. */
+@media print {
+  #cc-shell, .cc-foot-rule, .cc-dialog { display: none !important; }
+  body:has(> .cc-foot-rule) { padding-bottom: 0; }
+}
+
+/* ===== schedule.css (real file) ===== */
+
+:root {
+  /* The ground is --ink everywhere. --color-bg stays only because the
+     .nav rule still reads it. */
+  --color-bg: var(--ink);
+
+  /* This page's spacing/radius scale is ~1.2x the base used elsewhere —
+     deliberately larger so the schedule board reads clearly on a workshop TV
+     mirroring a laptop. Page-local by design, not drift from search/admin. */
+  --space-2: 6.7px;
+  --space-3: 10px;
+  --space-4: 13.4px;
+  --space-6: 20px;
+  --space-8: 27px;
+
+  --radius-md: var(--r-control);
+  --radius-lg: var(--r-card);
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--ink);
+}
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.text-muted { color: var(--label); }
+
+.input {
+  min-height: 43px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 17px;
+  color: var(--white);
+  caret-color: var(--teal);
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+}
+.input::placeholder { color: var(--muted); }
+.input:hover { border-color: var(--label); }
+.input:focus-visible { outline: none; border-color: var(--teal); }
+
+textarea.input { min-height: 77px; width: 100%; font-family: var(--font); resize: vertical; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
+  padding: 8px 14px;
+  min-height: 41px;
+}
+/* Icons keep the size they had; the button text is set smaller because it is
+   now uppercase and letterspaced. */
+.btn .ph { font-size: 16px; }
+.btn-icon { width: 36px; height: 36px; padding: 0; min-height: 0; }
+.btn-primary { border-color: var(--teal); color: var(--teal-tint); }
+.btn-primary:hover { background: var(--teal-16); }
+.btn-secondary { border-color: var(--na); color: var(--body); }
+.btn-secondary:hover { border-color: var(--teal); color: var(--teal-tint); }
+.btn-ghost { color: var(--label); }
+.btn-ghost:hover { border-color: var(--teal); color: var(--teal-tint); }
+.btn-ghost.btn-del:hover { border-color: var(--stop); color: var(--stop-tint); }
+.btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+
+/* — nav — */
+/* The week controls strip. The shared menu bar (#cc-shell) sits above it, so it
+   sticks just under that bar (its height lands in --shell-h; Todd, 2026-10-13). */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--color-divider);
+  position: sticky;
+  top: var(--shell-h, 52px);
+  background: var(--color-bg);
+  z-index: 5;
+  flex-wrap: wrap;
+}
+.nav-spacer { flex: 1; }
+.nav .input[type="date"] { min-height: 41px; padding: 6px 10px; }
+
+/* — page — */
+/* Sized for the 1920x1080 laptop-mirrored-to-TV setup this board lives on:
+   1416px left ~250px of dead margin each side there. The cap still exists so
+   an ultrawide doesn't stretch day cells to absurdity, and width:auto keeps
+   narrower laptops fluid. Every pixel gained here goes to the day columns,
+   which is what gives worker chips room to sit two-across. */
+main {
+  max-width: 1860px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4) var(--space-8);
+}
+.page-head { margin-bottom: var(--space-4); }
+.page-head h1 { margin: 0 0 5px; font-size: 26px; }
+.page-head p { margin: 0; font-size: 17px; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: var(--space-6);
+}
+/* The title and legend live in the left column (.board-side), under To start.
+   There they stack: one worker per line, left aligned. */
+.board-side .page-head { margin: var(--space-4) 0 0; }
+.board-side .page-head p { line-height: 1.35; }
+.page-head h1 { color: var(--white); }
+.legend-title { margin: var(--space-4) 0 var(--space-3); font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--label); }
+.board-side .legend { margin: 0; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 6px; }
+
+.chip-worker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  padding: 4px 10px;
+  border-radius: var(--r-control);
+  width: fit-content;
+  border: none;
+  cursor: default;
+  font-family: var(--font);
+}
+.chip-worker.archived { opacity: 0.45; }
+.chip-worker .chip-x {
+  cursor: pointer;
+  opacity: 0.7;
+  font-weight: 700;
+  margin-left: 2px;
+}
+.chip-worker .chip-x:hover { opacity: 1; }
+/* M5 (rule 7, M5 exception). Away that day (leave, sick, other, regular day off):
+   token grey instead of the worker's colours (chipEl leaves the inline colours off).
+   Over their days this week: an orange outline drawn inside the chip, so neither
+   style changes the chip's size. Mirrored in exportJpg() and in print. */
+.chip-worker.away { background: var(--na); color: var(--muted); }
+.chip-worker.over-days { outline: 2px solid var(--orange); outline-offset: -2px; }
+
+/* — week / grid — */
+/* The board shows one week at a time now, so the doubled bottom gap that used
+   to separate week 1 from week 2 is just dead space and is back to single.
+   The accent band stays: it caps the board and pairs with the sticky heading.
+   (The multi-week CSS below — sticky .week-head, the print page break — is
+   kept intentionally: state.weeks is still an array and renderWeeks still
+   loops, so showing a fortnight again is a one-line change in loadSchedule.) */
+.week-section {
+  margin-bottom: var(--space-4);
+  /* The week band is the spectrum rule, exactly 4px as the accent band was. */
+  border-top: var(--accent-border) solid transparent;
+  border-image: var(--spectrum) 1;
+}
+.week-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: var(--space-3);
+  /* Sticky just below the nav (its measured height lands in --nav-h via
+     syncRowHeights), so whichever week you're scrolled into stays named
+     on screen. Opaque background so rows slide under it cleanly. */
+  position: sticky;
+  top: var(--nav-h, 62px);
+  z-index: 4;
+  background: var(--ink);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.week-head h2 { margin: 0; font-size: 24px; font-weight: 700; color: var(--white); }
+.week-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (max-width: 900px) { .week-cols { grid-template-columns: 1fr; } }
+
+.panel h3 { margin: 0 0 var(--space-2); font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--teal-tint); }
+
+.sched-grid { width: 100%; font-size: 16px; }
+.sched-row {
+  display: grid;
+  /* minmax(0, ...) so the six day columns share the panel and never push it wider than the page
+     (min-content chips would otherwise overflow a 1366px screen). The Weekend column is a little
+     wider (it can hold two days of work); its header type is smaller to fit the word. */
+  grid-template-columns: 204px repeat(5, minmax(0, 1fr)) minmax(0, 1.3fr);
+  align-items: start;
+  border-bottom: 1px solid var(--hairline);
+}
+.sched-row.sched-head {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+  border-bottom: 1px solid var(--na);
+}
+.sched-row > div { padding: var(--space-2) 5px; min-height: 36px; }
+.sched-row > div:first-child { padding-left: 0; }
+.sched-row:hover:not(.sched-head):not(.row-blank) { background: var(--surface); }
+.weekend-col { background: var(--weekend); }
+.sched-row.sched-head > .weekend-col { font-size: 11px; letter-spacing: 0.03em; }
+.today-col { background: var(--teal-8); }
+
+/* Alignment padding: a blank line where the other panel has a job. Kept as a
+   bordered row so the grid lines run level across both panels. Below 900px the
+   panels stack, so the padding means nothing and is hidden. */
+@media (max-width: 900px) { .sched-row.row-blank { display: none; } }
+
+/* Cells must fill the row track: syncRowHeights stretches rows past their
+   content height, and with align-items:start the today/flagged backgrounds
+   would stop short and leave notches. Children still flow from the top. */
+.sched-row:not(.sched-head) > .sched-cell { align-self: stretch; }
+
+.job-cell { display: flex; flex-direction: column; gap: 2px; padding-top: var(--space-3) !important; }
+.job-name {
+  font-weight: 700;
+  background: none;
+  border: none;
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 16px;
+  text-align: left;
+  padding: 0;
+  cursor: text;
+  width: 100%;
+}
+.job-name:focus-visible { outline: 1px solid var(--teal); border-radius: var(--r-control); }
+.job-actions { display: flex; gap: 2px; }
+.job-actions .btn-icon { width: 26px; height: 26px; }
+.job-actions .btn-icon .ph { font-size: 14px; }
+/* A job with saved notes shows its note icon in orange-tint (mirrored as an
+   orange-tint dot in the JPG export — see exportJpg). Flagged cells are orange
+   too; the two stay apart by shape (left bar versus note icon). */
+.job-actions .btn-icon.has-notes,
+.job-actions .btn-icon.has-notes:hover { color: var(--orange-tint); }
+/* M5 row indicators (rule 7, M5 exception): the materials mark and the short stage
+   label after the delete button. The line has 33px spare there, so the two stack
+   inside the line's own 26px height; the fixed height and the clip mean they can
+   never make the line taller or wider. Mirrored in exportJpg() and in print. */
+.job-marks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 26px;
+  max-width: 31px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.job-marks .ph { font-size: 12px; line-height: 12px; }
+.job-mark-materials.in { color: var(--teal); }
+.job-mark-materials.ordered { color: var(--orange); }
+.job-mark-stage {
+  font-size: 10px;
+  line-height: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--muted);
+  cursor: default;
+}
+/* Print-only text twin of the indicators (see the print block). */
+.job-print-marks { display: none; }
+
+/* — drag to reorder — */
+.drag-grip { cursor: grab; }
+.drag-grip:active { cursor: grabbing; }
+/* The row keeps its place in the grid while a ghost of it follows the cursor;
+   fading it is what tells you which row you picked up. */
+.sched-row.dragging { opacity: 0.4; }
+/* Drop position marker: a 3px teal bar on the top or bottom edge, drawn as a
+   background layer rather than a border so it can't change row height mid-drag
+   and shove the rows under the cursor around — the pairing heights
+   syncRowHeights measured would fight a border here. */
+.sched-row.drop-before { background: linear-gradient(var(--teal), var(--teal)) top / 100% 3px no-repeat; }
+.sched-row.drop-after { background: linear-gradient(var(--teal), var(--teal)) bottom / 100% 3px no-repeat; }
+
+.job-notes {
+  grid-column: 1 / -1;
+  padding: 4px var(--space-2) var(--space-3) !important;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.job-notes[hidden] { display: none !important; }
+
+.sched-cell { position: relative; }
+/* Worker chips fill DOWN two rows, then start a new column: worker 2 under
+   worker 1, worker 3 beside worker 1, worker 4 under worker 3. A four-worker
+   day is then two chips tall instead of four, and row height is what decides
+   how much of the week fits on the TV without scrolling.
+   grid-auto-columns: minmax(0, 1fr) makes the columns share the cell evenly
+   and — the minmax(0,…) specifically — lets them shrink below their content
+   so a long name ellipsises instead of pushing into the next day.
+   The row count is set inline per cell in rowEl (1 chip => one track, so an
+   empty second track can't add its gap to every quiet row).
+   MIRRORED in exportJpg() — a chip layout that exists only here would silently
+   vanish from the JPG the workshop prints. */
+.sched-chips {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 5px;
+  min-height: 24px;
+  align-content: start;
+}
+.sched-chips .chip-worker { max-width: 100%; }
+.chip-worker .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Cells with 3+ workers (set in rowEl) are the only ones that go two columns
+   wide, and at ~63px a column the chip's own padding plus its × leave under
+   half the width for the name — "Shooter" came out as "S…". Tighten the
+   padding and lift the × out of the layout so the name gets the whole chip;
+   the × fades in over the chip's right edge on hover, which costs no width and
+   so can't reflow the row under the cursor. Cells with one or two workers are
+   deliberately untouched — that's the common case and it already reads well. */
+.sched-chips.crowded .chip-worker {
+  position: relative;
+  font-size: 13px;
+  padding: 3px 6px;
+  gap: 0;
+}
+.sched-chips.crowded .chip-x {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  margin: 0;
+  background: inherit;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  opacity: 0;
+}
+.sched-chips.crowded .chip-worker:hover .chip-x,
+.sched-chips.crowded .chip-x:focus-visible { opacity: 1; }
+.cell-controls { display: flex; gap: 5px; margin-top: 2px; }
+.cell-add {
+  border: 1px dashed var(--na);
+  border-radius: var(--r-control);
+  color: var(--label);
+  background: none;
+  font-size: 17px;
+  line-height: 1;
+  width: 26px;
+  height: 24px;
+  cursor: pointer;
+}
+.cell-add:hover { color: var(--teal-tint); border-color: var(--teal); }
+
+.cell-flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--na);
+  border-radius: var(--r-control);
+  color: var(--label);
+  background: none;
+  font-size: 15px;
+  width: 26px;
+  height: 24px;
+  cursor: pointer;
+}
+.cell-flag:hover { color: var(--teal-tint); border-color: var(--teal); }
+.cell-flag.active {
+  border-style: solid;
+  border-color: var(--orange);
+  color: var(--orange-tint);
+  background: var(--orange-16);
+}
+/* Locked in with client: an orange left bar plus a faint orange wash. The bar is
+   a 3px border; the cell's left padding gives up the same 3px (5px -> 2px) so
+   the chips and the cell's size don't move. */
+.sched-cell.flagged {
+  background: var(--orange-8);
+  border-left: 3px solid var(--orange);
+  padding-left: 2px;
+}
+
+.add-row {
+  display: flex;
+  gap: 6px;
+  padding: var(--space-3) 0 0;
+}
+.add-row .input { flex: 1; }
+
+/* — worker picker popover — */
+.popover {
+  position: fixed;
+  z-index: 20;
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+  padding: 7px;
+  min-width: 192px;
+  max-height: 312px;
+  overflow-y: auto;
+}
+.popover[hidden] { display: none; }
+.popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: var(--r-control);
+  border: none;
+  background: none;
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.popover-item:hover { background: var(--raised); color: var(--white); }
+.popover-swatch { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+/* M5 picker warnings: people away that day are listed last and greyed, with the
+   kind; people who would go over their days are tagged in orange. */
+.popover-name { flex: 1; min-width: 0; }
+.popover-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.popover-tag.away { color: var(--muted); }
+.popover-tag.over { color: var(--orange); }
+.popover-item.away { color: var(--muted); }
+.popover-item.away .popover-swatch { opacity: 0.45; }
+.popover-empty { padding: 12px 10px; font-size: 15px; color: var(--label); }
+
+.empty-schedule { padding: 40px 0; text-align: center; color: var(--label); }
+
+/* — layout: "To start" sidebar beside the weeks — */
+/* Sidebar is a fixed column on the left; the weeks take the rest. Below 900px
+   it stacks above the weeks (it comes first in the DOM). Not part of print or
+   the JPG export. */
+.board {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (max-width: 900px) { .board { grid-template-columns: minmax(0, 1fr); } }
+
+/* The whole left column (To start, then title and legend) is one sticky block
+   under the nav. It scrolls internally as a unit when it outgrows the screen,
+   so the Workers list is never cut off. */
+.board-side {
+  position: sticky;
+  top: var(--nav-h, 62px);
+  max-height: calc(100vh - var(--nav-h, 62px) - var(--space-8));
+  overflow-y: auto;
+}
+.backlog {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+}
+/* A long waiting list scrolls inside its own box, so Workers stays reachable. */
+.backlog-list { max-height: 45vh; overflow-y: auto; }
+/* Row dragged onto the panel (see schedule.js). Inset offset: the column is a
+   scroll box, so an outline drawn outside the panel would be clipped. */
+.backlog.drop-active {
+  outline: 2px dashed var(--teal);
+  outline-offset: -4px;
+  border-radius: var(--r-card);
+}
+@media (max-width: 900px) {
+  .board-side { position: static; max-height: none; overflow: visible; }
+  .backlog-list { max-height: none; overflow: visible; }
+}
+.backlog-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.backlog h3 { margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--teal-tint); }
+.backlog-count { font-size: 15px; color: var(--label); }
+.backlog-list { display: flex; flex-direction: column; }
+.backlog-empty { padding: var(--space-3) 0; font-size: 15px; color: var(--label); }
+.backlog-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  border-bottom: 1px solid var(--hairline);
+}
+.backlog-item .btn-icon { width: 26px; height: 26px; flex-shrink: 0; }
+.backlog-item .btn-icon .ph { font-size: 14px; }
+.backlog-item.dragging { opacity: 0.4; }
+.backlog-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--white);
+}
+.backlog .add-row { padding-top: var(--space-3); }
+.backlog .add-row .input { min-width: 0; font-size: 16px; }
+.backlog .add-row .btn { flex-shrink: 0; }
+
+/* — finish week — */
+/* Page chrome under each week. Not part of print or the JPG export. */
+.finish-week-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+/* Native <dialog>, opened with showModal() so it centres in the top layer and
+   Esc works for free. Padding lives on .finish-body, not here, so a click on
+   the dialog element itself is unambiguously the backdrop. */
+.finish-dialog {
+  margin: auto;
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  color: var(--body);
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+  font-family: var(--font);
+}
+.finish-dialog::backdrop { background: var(--backdrop); }
+.finish-body { padding: var(--space-6); }
+.finish-body h2 { margin: 0 0 var(--space-2); font-size: 24px; font-weight: 700; color: var(--white); }
+.finish-help { margin: 0 0 var(--space-4); font-size: 17px; }
+
+.finish-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--hairline);
+}
+.finish-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.finish-info { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; }
+.finish-name { font-size: 17px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
+.finish-where { font-size: 15px; }
+
+/* Joined segmented control. The real radio is visually hidden but stays in the
+   tab order; focus is shown on the label instead. */
+.finish-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  overflow: hidden;
+}
+.finish-opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--body);
+  background: none;
+  cursor: pointer;
+  user-select: none;
+}
+.finish-opt + .finish-opt { border-left: 1px solid var(--na); }
+.finish-opt:hover { background: var(--raised); color: var(--white); }
+.finish-opt input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Selected is a teal outline with a 16% teal fill (never a solid fill). The
+   outline sits inside the option so nothing changes size. */
+.finish-opt.selected,
+.finish-opt.selected:hover {
+  background: var(--teal-16);
+  color: var(--teal-tint);
+  outline: 1px solid var(--teal);
+  outline-offset: -1px;
+}
+.finish-opt:focus-within { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+/* M5 "Stage reached" select on each job line (optional; rule 7, M5 exception). It
+   sits on the line after the outcome control and wraps with it. */
+.finish-stage { display: inline-flex; align-items: center; gap: var(--space-2); }
+.finish-stage-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.finish-stage-select { min-height: 44px; font-size: 16px; }
+
+.finish-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.finish-count { margin-right: auto; font-size: 16px; }
+
+/* Whole-grid highlight when a backlog item is dropped on a panel but not on a
+   specific row (it then goes to the end of the list). */
+.sched-grid.drop-active {
+  outline: 2px dashed var(--teal);
+  outline-offset: 4px;
+  border-radius: var(--r-control);
+}
+
+/* — TV mode (Todd, 2026-11-11; CLAUDE.md non-negotiable 7, TV mode exception) —
+   Screen only. A separate display state layered on the normal board: the menu bar,
+   week strip and edit controls are hidden and schedule.js scales the whole board
+   uniformly to fit the screen. Rows, columns and sizes are not changed. */
+body.tv-mode { overflow: hidden; padding-bottom: 0 !important; background: var(--ink); }
+body.tv-mode #cc-shell, body.tv-mode .nav, body.tv-mode .cc-foot-rule,
+body.tv-mode .finish-week-bar, body.tv-mode .add-row, body.tv-mode .cell-add,
+body.tv-mode .chip-x, body.tv-mode .cell-flag:not(.active) { display: none !important; }
+body.tv-mode main { position: fixed; inset: 0; max-width: none; margin: 0; padding: 0; overflow: hidden; pointer-events: none; }
+body.tv-mode .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+body.tv-mode .board-side { position: static; max-height: none; overflow: visible; }
+body.tv-mode .backlog-list { max-height: none; overflow: visible; }
+body.tv-mode .week-head { position: static; }
+body.tv-mode.tv-idle, body.tv-mode.tv-idle * { cursor: none !important; }
+#tvExitBtn { position: fixed; top: var(--space-3); right: var(--space-3); z-index: 300; background: var(--ink); }
+#tvExitBtn[hidden] { display: none; }
+
+/* style-check: print-start */
+@media print {
+  #cc-shell, .cc-foot-rule, .cc-dialog, .nav, .add-row, .job-actions, .cell-add, .cell-flag, .chip-x { display: none !important; }
+  /* The "To start" sidebar is for the shop floor, not the printed schedule:
+     hide it and let the weeks fill the page as before. The title and legend
+     sit in the same column but print above the weeks as they always did, so
+     the column is plain flow here (no sticky, no scroll cap) and the legend
+     goes back to a row of chips. The "Workers" heading is screen-only. */
+  .backlog { display: none !important; }
+  .board-side { position: static; max-height: none; overflow: visible; }
+  .board-side .page-head { margin: 0 0 var(--space-4); }
+  .board-side .page-head p { line-height: 1.55; }
+  .legend-title { display: none !important; }
+  .board-side .legend { margin: 0 0 var(--space-6); flex-direction: row; flex-wrap: wrap; align-items: normal; gap: 10px; }
+  /* Finish-week button and popup are page chrome, not schedule content. */
+  .finish-week-bar, .finish-dialog { display: none !important; }
+  .board { display: block; }
+  /* html too: its screen ink paints the whole canvas, so with "Background graphics"
+     ticked the page below the weeks would print dark. */
+  html { background: #fff; }
+  body { background: #fff; color: #111; }
+  .job-notes { color: #111; }
+  /* Paper stays black on white: the spectrum week band prints as a plain rule,
+     and the white screen headings print dark. */
+  .week-section { border-top: 4px solid #111; border-image: none; }
+  .page-head h1,
+  .finish-name { color: #111; }
+  main { max-width: none; padding: 0 var(--space-4); }
+  /* Dark-theme text colors don't inherit body's print override — without
+     these, job names and headers print near-white on white. */
+  .job-name,
+  .panel h3,
+  .sched-row.sched-head,
+  .sched-row.sched-head > div,
+  .text-muted { color: #111 !important; }
+  /* Chips keep their dark bg + light text pair; flagged cells keep the amber
+     wash. Browsers strip backgrounds when printing unless told otherwise. */
+  /* The Weekend column prints as a light grey tint, text still black on white. */
+  .weekend-col { background: #ececec; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .chip-worker,
+  .sched-cell.flagged { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Borders always print, so the lock-in marker survives even when the
+     browser's "background graphics" option is off. */
+  .sched-cell.flagged { border-left: 3px solid #a97d17; }
+  /* One week per printed page: the on-screen sticky banner has no print
+     analog, so the page break is the week separation there. Sticky itself is
+     inert in paged media; the accent heading prints fine. */
+  .week-section + .week-section { break-before: page; }
+  .week-head { position: static; background: none; }
+  .week-head h2 { color: #111 !important; }
+  /* .job-actions is hidden in print, so mirror the orange notes icon with a
+     printable marker (darker orange for white paper). */
+  .has-notes-row .job-cell::after {
+    content: "● note";
+    color: #b45a00;
+    font-size: 11px;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* The M5 materials and stage indicators, as text: black on white. A row with notes
+     carries "● note" on the same line, so a row never gains more than the one line
+     the note marker already took. */
+  .job-print-marks {
+    display: block;
+    color: #111;
+    font-size: 11px;
+    white-space: pre-wrap;
+  }
+  .has-notes-row .job-print-marks::after {
+    content: "  ● note";
+    color: #b45a00;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .has-notes-row .job-cell:has(> .job-print-marks)::after { content: none; }
+  /* M5 away and over-days chips on paper: "(away)" / "(over days)" after the name,
+     black on white, inside the chip's own line (smaller type than the name, so the
+     chip is no taller). In a narrow day the mark gives way and the name does not:
+     the name keeps its width (up to the chip's), the mark takes what is left, and
+     the chip clips the rest (its × is hidden on paper). An away chip also prints plain white with a
+     dashed outline, and an over-days chip keeps its outline in the darker print
+     orange of the "● note" marker, so both still read when the text is clipped.
+     Outlines never change size. */
+  .chip-worker.away { background: #fff; color: #111; outline: 1px dashed #111; outline-offset: -1px; }
+  .chip-worker.over-days:not(.away) { outline-color: #b45a00; }
+  .chip-worker[data-print-mark] { overflow: clip; overflow-clip-margin: content-box; }
+  .chip-worker[data-print-mark] .chip-name { flex-shrink: 0; max-width: 100%; }
+  .chip-worker[data-print-mark]::after {
+    content: attr(data-print-mark);
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: #fff;
+    color: #111;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+}
+
+@media print and (max-width: 900px) {
+  /* Portrait paper stacks the panels (page box < 900px), where row pairing
+     means nothing — without this, the inline heights syncRowHeights measured
+     at screen width would print as dead space in every mismatched pair.
+     !important is load-bearing: it must beat those inline styles. */
+  .sched-row { min-height: 0 !important; margin-bottom: 0 !important; }
+}
+/* style-check: print-end */
+
+@font-face { font-family: "Phosphor"; src: url("../../../crosscuts/app/public/vendor/phosphor/Phosphor.woff2") format("woff2"); font-display: block; }
+.ph {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: "Phosphor" !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Enable Ligatures ================ */
+  letter-spacing: 0;
+  -webkit-font-feature-settings: "liga";
+  -moz-font-feature-settings: "liga=1";
+  -moz-font-feature-settings: "liga";
+  -ms-font-feature-settings: "liga" 1;
+  font-feature-settings: "liga";
+  -webkit-font-variant-ligatures: discretionary-ligatures;
+  font-variant-ligatures: discretionary-ligatures;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.ph-caret-left:before {
+  content: "\e138";
+}
+.ph-caret-right:before {
+  content: "\e13a";
+}
+.ph-file-pdf:before {
+  content: "\e702";
+}
+.ph-image:before {
+  content: "\e2ca";
+}
+.ph-monitor:before {
+  content: "\e32e";
+}
+.ph-dots-six-vertical:before {
+  content: "\eae2";
+}
+.ph-note-pencil:before {
+  content: "\e34c";
+}
+.ph-copy:before {
+  content: "\e1ca";
+}
+.ph-arrow-square-left:before {
+  content: "\e074";
+}
+.ph-arrow-square-right:before {
+  content: "\e076";
+}
+.ph-trash:before {
+  content: "\e4a6";
+}
+.ph-flag:before {
+  content: "\e244";
+}
+.ph-package:before {
+  content: "\e390";
+}
+.ph-flag-checkered:before {
+  content: "\ea38";
+}
+.ph-x:before {
+  content: "\e4f6";
+}
+
+.mk-banner { position: fixed; left: 12px; bottom: 12px; z-index: 9999; max-width: 520px; padding: 10px 14px;
+  background: #262735; color: #D3D4DC; border: 1px solid #17C8A0; border-radius: 6px; font: 13px/1.4 Arial, Helvetica, sans-serif; }
+.mk-banner b { color: #fff; }
+.mk-banner a { color: #6EE7C9; margin-right: 10px; }
+.mk-banner a.on { color: #fff; font-weight: 700; text-decoration: none; }
+@media print { .mk-banner { display: none; } }
+</style>
+</head>
+<body>
+<script>
+window.MOCK_V = new URLSearchParams(location.search).get('v') || '';
+(function () {
+  
+  function shellRoute(u) {
+    if (u.pathname === '/api/auth/me') return [200, { user: { id: 1, username: 'todd', displayName: 'Todd', roles: ['admin'], perms: ['board.view','board.edit','workers.edit','jobs.view','planner.view','planner.edit','shift.report','accounts.view','scheduling.view','photos.search','users.admin','leave.edit','notes.scheduling','tasks.use','messages.use','invoices.edit'], mustChangePassword: false }, session: {} }];
+    if (u.pathname === '/api/notifications/unread-count') return [200, { count: 0 }];
+    if (u.pathname === '/api/notifications') return [200, { rows: [] }];
+    return null;
+  }
+  function addDays(s, n) { var d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+  function hue(h) { return { bg: 'oklch(30% 0.06 ' + h + ')', fg: 'oklch(86% 0.10 ' + h + ')' }; }
+  var W = [
+    { id: 1, name: 'Dave', hue: 30 }, { id: 2, name: 'Kel', hue: 150 }, { id: 3, name: 'Sam', hue: 250 },
+    { id: 4, name: 'Lee', hue: 330 }, { id: 5, name: 'Ash', hue: 80 }
+  ];
+  var workers = W.map(function (w) { var c = hue(w.hue); return { id: w.id, name: w.name, hue: w.hue, bg: c.bg, fg: c.fg, archived: false, daysPerWeek: null, regularDaysOff: [] }; });
+  var nextA = 100;
+  function chip(wid, day, away) {
+    var w = W[wid - 1], c = hue(w.hue);
+    return { assignmentId: nextA++, workerId: w.id, name: w.name, bg: c.bg, fg: c.fg, away: away && away[wid] ? away[wid][day] || null : null, overDays: false };
+  }
+  function row(id, jobId, name, cellWorkers, opts, away) {
+    var cells = {}, flags = {};
+    ['mon','tue','wed','thu','fri','wknd'].forEach(function (d) {
+      cells[d] = (cellWorkers[d] || []).map(function (wid) { return chip(wid, d, away); });
+      flags[d] = !!(opts.flags && opts.flags.indexOf(d) >= 0);
+    });
+    return { rowId: id, jobId: jobId, jobName: name, notes: opts.notes || '', cells: cells, flags: flags,
+      materials: opts.materials || null, productionStage: opts.stage || null,
+      stageOptions: ['cut_edge','kit','assemble','inspect','install'] };
+  }
+  function week(start) {
+    // Kel is on leave Friday to Monday (Fri ... Mon of next week). Weekday leave is greyed today;
+    // the proposal greys the Weekend chip too. ?v=current shows 0.2.16 as it is.
+    var away = { 2: { mon: null, tue: null, wed: null, thu: null, fri: 'leave' } };
+    if (window.MOCK_V !== 'current') away[2].wknd = 'leave';
+    nextA = 100;
+    return {
+      start: start, label: '',
+      manufacturing: [
+        row(11, 21, 'Harris vanity', { mon: [5], tue: [5], wed: [5, 3], thu: [3] }, { stage: 'assemble', materials: 'in' }, away),
+        row(12, 22, 'Olsen kitchen', { mon: [3], tue: [3], wed: [], thu: [5], fri: [5, 3] }, { stage: 'cut_edge', materials: 'ordered' }, away),
+        row(13, 23, 'Brooks wardrobes', { fri: [4] }, {}, away)
+      ],
+      installing: [
+        row(14, 24, 'Nguyen kitchen', { mon: [1, 3], tue: [1, 3], wed: [1], thu: [2], fri: [2], wknd: [2, 1] }, { stage: 'install', materials: 'in', flags: ['mon', 'wknd'] }, away),
+        row(15, 25, 'Patel laundry', { thu: [4], wknd: [4] }, { materials: 'in' }, away),
+        row(16, 26, 'Ford bathroom', { tue: [4], wed: [4] }, { notes: 'Tiler booked Wed pm' }, away)
+      ],
+      away: away, overDays: []
+    };
+  }
+  function route(u, o) {
+    var s = shellRoute(u); if (s) return s;
+    if (u.pathname === '/api/workers') return [200, workers];
+    if (u.pathname === '/api/jobs') return [200, [{ id: 21, name: 'Harris vanity' }, { id: 24, name: 'Nguyen kitchen' }]];
+    if (u.pathname === '/api/schedule') {
+      var ws = u.searchParams.get('week');
+      return [200, { weeks: [week(ws), week(addDays(ws, 7))], backlog: [{ id: 1, jobId: 27, name: 'Young pantry', notes: '' }] }];
+    }
+    if ((o.method || 'GET') !== 'GET') return [200, {}];
+    return null;
+  }
+  window.fetch = function (input, opts) {
+    var url = typeof input === 'string' ? input : input.url;
+    var u = new URL(url, 'http://mock.local');
+    var r = route(u, opts || {});
+    var status = r ? r[0] : 404, body = r ? r[1] : { error: 'Not in the mockup' };
+    return Promise.resolve(new Response(status === 204 ? null : JSON.stringify(body), { status: status, headers: { 'Content-Type': 'application/json' } }));
+  };
+})();
+</script>
+
+
+  <div id="cc-shell"></div>
+
+  <!-- The week controls: a strip under the shared menu bar (Todd, 2026-10-13). -->
+  <nav class="nav" aria-label="Week">
+    <div class="nav-spacer"></div>
+    <button id="prevWeekBtn" class="btn btn-secondary btn-icon" type="button" aria-label="Previous week"><i class="ph ph-caret-left"></i></button>
+    <input id="weekPicker" class="input" type="date" title="Jump to week">
+    <button id="nextWeekBtn" class="btn btn-secondary btn-icon" type="button" aria-label="Next week"><i class="ph ph-caret-right"></i></button>
+    <button id="todayBtn" class="btn btn-secondary" type="button">This week</button>
+    <button id="exportPdfBtn" class="btn btn-secondary" type="button"><i class="ph ph-file-pdf"></i> PDF</button>
+    <button id="exportJpgBtn" class="btn btn-secondary" type="button"><i class="ph ph-image"></i> JPG</button>
+    <button id="tvModeBtn" class="btn btn-secondary" type="button" title="TV mode" aria-label="TV mode"><i class="ph ph-monitor"></i> TV mode</button>
+  </nav>
+
+  <main id="main">
+    <div class="board">
+      <!-- Left column: To start, then the page title and the worker legend. -->
+      <div class="board-side">
+        <aside id="backlogPanel" class="backlog" aria-label="To start"></aside>
+        <div class="page-head">
+          <h1>Live schedule</h1>
+          <p class="text-muted">Manufacturing and installing, Mon–Sun.</p>
+        </div>
+        <h3 class="legend-title">Workers</h3>
+        <div id="legend" class="legend"></div>
+      </div>
+      <div id="weeksContainer">
+        <div class="empty-schedule">Loading…</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- TV mode only: hidden until TV mode is on, shown on mouse move. -->
+  <button id="tvExitBtn" class="btn btn-secondary" type="button" hidden>Exit TV mode</button>
+
+  <div id="popover" class="popover" hidden></div>
+  <dialog id="finishDialog" class="finish-dialog" aria-label="Finish week"></dialog>
+
+  
+  
+  
+
+<div class="mk-banner"><b>Mockup b: weekend leave greys the Weekend chip</b><br>Kel is on leave Friday to Monday. Today (0.2.16) only Friday's chip is grey; the proposal greys the Weekend chip too (Nguyen kitchen, Installing). The + picker on a Weekend cell lists Kel last as On leave. JPG and PDF buttons use the real export code.<br><a href="?v=proposed" data-v="proposed">Proposed</a><a href="?v=current" data-v="current">Now (0.2.16)</a></div>
+<script>(function(){var v=new URLSearchParams(location.search).get('v') || 'proposed';document.querySelectorAll('.mk-banner a').forEach(function(a){if(a.dataset.v===v)a.className='on';});})();</script>
+<script>/* ===== shell/shell.js (real file) ===== */
+// Crosscuts shared shell: the top bar used by every page except login, setup
+// and photo search (Todd, 2026-10-13: the board and Workers use it too).
+//
+//   <div id="cc-shell"></div>
+//   <script src="/shell/shell.js"><\/script>
+//
+// Self-contained, no framework. Reads GET /api/auth/me, shows only the
+// departments the user may use, and exposes window.cc = { me, can(key), ... }.
+// Fires `cc:ready` on document once the user is known (also: cc.ready promise).
+(function () {
+  "use strict";
+  if (window.cc && window.cc.__shell) return;
+
+  // The loading cursor (shell/busy.js, the seventh named exception in CLAUDE.md). Every page loads it
+  // from its <head>; a page that does not still gets it from here (later, so it misses early requests).
+  if (!window.ccBusy) {
+    var busyScript = document.createElement("script");
+    busyScript.src = "/shell/busy.js";
+    document.head.appendChild(busyScript);
+  }
+
+  // Menu 3.1 (docs/plans/menu-plan.md): the bar is the wordmark, a Dashboard link, one button per
+  // department (each opens a short list of its pages), then a fixed right-hand cluster for
+  // everyone: Planner, Tasks, Messages, Alerts and the user's name. A department shows only the
+  // pages the user can see, and only when there is at least one. dept = the layer colour its
+  // thin rule takes (the fourth named exception in CLAUDE.md); Photos and Admin stay plain.
+  var DEPARTMENTS = [
+    {
+      id: "scheduling",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=scheduling", key: "notes.scheduling" },
+      label: "Scheduling",
+      dept: "scheduling",
+      items: [
+        { label: "Board", href: "/schedule.html", key: "board.view" },
+        // 2026-10-18 (Todd): read-only without jobs.edit; it stays in Projects too.
+        { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
+        { label: "Workers", href: "/workers.html", key: "workers.edit" },
+      ],
+    },
+    {
+      id: "design",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=design", key: ["notes.design", "design.view"] },
+      label: "Projects",
+      dept: "design",
+      items: [
+        { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
+        { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
+        { label: "Intake", href: "/intake.html", key: "design.view" },
+        // M12 (docs/plans/m12-contracts.md section 8).
+        { label: "Benchtops", href: "/stone.html", key: "design.view" },
+        // 2026-10-18 (Todd): the tools page holds the batten calculator (and later tools).
+        { label: "Tools", href: "/tools.html", key: "design.view" },
+      ],
+    },
+    {
+      // Ordering (Todd, 2026-10-12): its own department. M10: Orders by orders.view (no job pages
+      // needed); Deliveries for whoever receives them. M11 (docs/plans/m11-contracts.md section 10):
+      // the drawer, stock and paint orders and the board stocktake.
+      id: "ordering",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=ordering", key: "notes.ordering" },
+      label: "Ordering",
+      dept: "ordering",
+      items: [
+        { label: "Orders", href: "/orders.html", key: "orders.view" },
+        { label: "Deliveries", href: "/deliveries.html", key: "orders.receive" },
+        { label: "Drawer order", href: "/drawers.html", key: "stock.order" },
+        { label: "Stock order", href: "/stock.html", key: "stock.count" },
+        { label: "Paint order", href: "/paint.html", key: "stock.order" },
+        { label: "Board stocktake", href: "/boards.html", key: "stock.count" },
+      ],
+    },
+    {
+      id: "accounts",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=accounts", key: "notes.accounts" },
+      label: "Accounts",
+      dept: "accounts",
+      items: [
+        { label: "Overdue client invoices", href: "/accounts.html", key: "accounts.view" },
+        { label: "Pay runs", href: "/payruns.html", key: "accounts.view" },
+        { label: "BAS sales", href: "/bas.html", key: "accounts.view" },
+        { label: "Supplier accounts", href: "/suppliers.html", key: "accounts.view" },
+        // M13 (docs/plans/m13-contracts.md section 9): owner-only key, grantable to an Accounts login.
+        // 0.2.7 (docs/plans/m28-contracts.md section 4): or loans.maintain (an array: any one will do).
+        { label: "Loans", href: "/loans.html", key: ["loans.manage", "loans.maintain"] },
+        // 0.2.12: the company card ledger, same access as Loans.
+        { label: "AMEX", href: "/amex.html", key: ["loans.manage", "loans.maintain"] },
+        // 0.2.7 (m28-contracts.md section 1): the vehicles register (rego and insurance).
+        { label: "Vehicles", href: "/vehicles.html", key: "accounts.view" },
+        { label: "Reports", href: "/reports.html", key: "accounts.view" },
+      ],
+    },
+    {
+      // 0.2.2 (docs/plans/m23-contracts.md section 7): Workshop, the sixth department. Its name opens
+      // the Workshop notes wall; M27 adds Maintenance under it. Plain, like Photos and Admin (no rule).
+      id: "workshop",
+      home: { href: "/notes.html?dept=workshop", key: "notes.workshop" },
+      label: "Workshop",
+      // 0.2.4: the end-of-shift report.
+      items: [
+        { label: "End of shift", href: "/shift.html", key: "shift.report" },
+        // 0.2.6 (docs/plans/m27-contracts.md sections 4 and 5).
+        { label: "Maintenance", href: "/maintenance.html", key: "maintenance.manage" },
+        { label: "To reserve", href: "/reserve.html", key: "stock.count" },
+        // 0.2.7 (m28-contracts.md section 1): vehicle bookings, for the workshop manager.
+        { label: "Vehicles", href: "/vehicles.html", key: "maintenance.manage" },
+      ],
+    },
+    {
+      id: "photos",
+      label: "Photos",
+      items: [
+        { label: "Photos", href: "/search.html", key: "photos.search" },
+        { label: "Photo admin", href: "/admin.html", key: "photos.admin" },
+      ],
+    },
+    {
+      id: "admin",
+      // Clicking the department name opens its Notes page (Todd, 2026-10-23); not listed in the menu.
+      home: { href: "/notes.html?dept=admin", key: "notes.admin" },
+      label: "Admin",
+      items: [
+        { label: "Users", href: "/users.html", key: "users.admin" },
+        { label: "Audit", href: "/audit.html", key: "audit.view" },
+        { label: "Availability", href: "/availability.html", key: "users.admin" },
+        // 0.2.0 (docs/plans/m20-recurring-tasks.md): recurring tasks, admins only.
+        { label: "Tasks", href: "/admintasks.html", key: "users.admin" },
+        // 0.2.0 (docs/plans/m21-benchtop-designer.md): benchtop materials and edge finishes.
+        { label: "Benchtop lists", href: "/benchtopadmin.html", key: "users.admin" },
+        // M13 (docs/plans/m13-contracts.md section 9): owner-only keys.
+        { label: "Bonuses", href: "/bonuses.html", key: "bonuses.manage" },
+        { label: "Alarms", href: "/alarms.html", key: "alarms.manage" },
+      ],
+    },
+  ];
+
+  // Pages that belong to a nav link but have a different path.
+  var PAGE_ALIASES = {
+    "/job.html": "/jobs.html",
+    "/invoice.html": "/accounts.html",
+    "/payrun.html": "/payruns.html",
+    "/payprint.html": "/payruns.html",
+    // M13 (docs/plans/m13-contracts.md section 9).
+    "/bonusprint.html": "/bonuses.html",
+    "/loanprint.html": "/loans.html",
+    "/amexprint.html": "/amex.html",
+    // 2026-10-18: the batten calculator is a tool, so the menu lights up Tools.
+    "/battens.html": "/tools.html",
+    "/index.html": "/",
+    // 0.2.0: the benchtop designer and its print belong to Benchtops.
+    "/benchtop.html": "/stone.html",
+    "/benchtopprint.html": "/stone.html",
+    // 0.2.1: a job's project page and its printed order list belong to the Pipeline.
+    "/project.html": "/pipeline.html",
+    "/projectorder.html": "/pipeline.html",
+  };
+
+  var path = location.pathname;
+  var onAuthPage = /^\/(login|setup)\.html$/.test(path);
+
+  var perms = new Set();
+  var devMode = false;
+  var resolveReady;
+  var cc = (window.cc = {
+    __shell: true,
+    me: null,
+    session: null,
+    dev: false,
+    loaded: false,
+    can: function (key) {
+      return devMode || perms.has(key);
+    },
+    ready: new Promise(function (resolve) {
+      resolveReady = resolve;
+    }),
+    // Alerts, for pages that show them too (the dashboard).
+    // Deferred, so the click that asked for it finishes bubbling (and reaches the outside-click
+    // handler) before the panel opens.
+    openAlerts: function () { setTimeout(openAlerts, 0); },
+    openAlert: function (n) { openAlert(n); },
+    refreshAlerts: function () { return pollCount(); },
+    // M4: re-poll the Tasks, Messages and Alerts counts now (after reading messages, closing a task).
+    refreshCounts: function () { return pollCount(); },
+    timeAgo: function (iso) { return timeAgo(iso); },
+  });
+
+  // ---------- small DOM helpers ----------
+  function h(tag, attrs, children) {
+    var el = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (k) {
+        var v = attrs[k];
+        if (v === false || v === null || v === undefined) return;
+        if (k === "class") el.className = v;
+        else if (k === "text") el.textContent = v;
+        else if (k.slice(0, 2) === "on") el.addEventListener(k.slice(2), v);
+        else el.setAttribute(k, v === true ? "" : v);
+      });
+    }
+    (children || []).forEach(function (c) {
+      if (c) el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    });
+    return el;
+  }
+
+  function ensureStyles() {
+    var wanted = ["/shell/shell.css", "/tokens.css"];
+    wanted.forEach(function (href) {
+      var present = Array.prototype.some.call(document.querySelectorAll('link[rel="stylesheet"]'), function (l) {
+        var a = l.getAttribute("href") || "";
+        return a === href || a === href.slice(1) || a.endsWith(href);
+      });
+      if (!present) document.head.appendChild(h("link", { rel: "stylesheet", href: href }));
+    });
+  }
+
+  // ---------- auth redirect + requests ----------
+  function loginUrl(locked) {
+    var next = encodeURIComponent(location.pathname + location.search);
+    return (locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
+  }
+  function goLogin(locked) {
+    if (onAuthPage) return;
+    location.href = loginUrl(locked);
+  }
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        return { ok: res.ok, status: res.status, body: data || {} };
+      });
+    });
+  }
+  // A 401 from a dialog can also mean "wrong current password", so only treat it as
+  // a lost session when the body says so.
+  function sessionLost(r) {
+    return r.status === 401 && (r.body.locked || /not logged in|locked/i.test(r.body.error || ""));
+  }
+
+  // ---------- dialogs ----------
+  function openDialog(opts) {
+    // opts: { title, note, fields:[{name,label,type,autocomplete,inputmode,pattern,maxlength}], submit,
+    //         extra: {label, run}, onSubmit(values) -> Promise<{ok,status,body}>, success }
+    var errorEl = h("p", { class: "cc-dialog-error", role: "alert" });
+    var inputs = {};
+    var fieldEls = opts.fields.map(function (f) {
+      var input = h("input", {
+        class: "hs-input",
+        id: "cc-f-" + opts.id + "-" + f.name,
+        name: f.name,
+        type: f.type || "text",
+        autocomplete: f.autocomplete,
+        inputmode: f.inputmode,
+        pattern: f.pattern,
+        maxlength: f.maxlength,
+        minlength: f.minlength,
+        required: f.optional ? false : true,
+      });
+      inputs[f.name] = input;
+      return h("div", { class: "cc-field" }, [
+        h("label", { class: "cc-field-label", for: input.id, text: f.label }),
+        input,
+      ]);
+    });
+    var submitBtn = h("button", { class: "hs-btn hs-btn-primary", type: "submit", text: opts.submit });
+    var cancelBtn = h("button", { class: "hs-btn", type: "button", text: "Cancel" });
+    var actions = [];
+    var extraBtn = null;
+    if (opts.extra) {
+      extraBtn = h("button", { class: "hs-btn hs-btn-quiet", type: "button", text: opts.extra.label });
+      actions.push(extraBtn);
+    }
+    actions.push(cancelBtn, submitBtn);
+
+    var form = h("form", { class: "cc-dialog-form", novalidate: false }, [
+      h("h2", { class: "cc-dialog-title", text: opts.title }),
+      opts.note ? h("p", { class: "cc-dialog-note", text: opts.note }) : null,
+    ].concat(fieldEls, [errorEl, h("div", { class: "cc-dialog-actions" }, actions)]));
+    var dlg = h("dialog", { class: "cc-dialog", "aria-label": opts.title }, [form]);
+    document.body.appendChild(dlg);
+
+    function close() {
+      dlg.close();
+    }
+    dlg.addEventListener("close", function () {
+      dlg.remove();
+    });
+    // Click on the backdrop closes the dialog.
+    dlg.addEventListener("mousedown", function (e) {
+      if (e.target === dlg) close();
+    });
+    cancelBtn.addEventListener("click", close);
+
+    function busy(on) {
+      submitBtn.disabled = on;
+      if (extraBtn) extraBtn.disabled = on;
+    }
+    function run(fn) {
+      errorEl.textContent = "";
+      errorEl.classList.remove("cc-dialog-ok");
+      busy(true);
+      fn()
+        .then(function (r) {
+          busy(false);
+          if (sessionLost(r)) return goLogin(!!r.body.locked);
+          if (r.ok) {
+            errorEl.classList.add("cc-dialog-ok");
+            errorEl.textContent = opts.success;
+            setTimeout(close, 900);
+          } else {
+            errorEl.textContent = r.body.error || "Something went wrong (" + r.status + ").";
+          }
+        })
+        .catch(function () {
+          busy(false);
+          errorEl.textContent = "Couldn't reach the server. Try again.";
+        });
+    }
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var values = {};
+      Object.keys(inputs).forEach(function (k) { values[k] = inputs[k].value; });
+      var problem = opts.validate && opts.validate(values);
+      if (problem) {
+        errorEl.classList.remove("cc-dialog-ok");
+        errorEl.textContent = problem;
+        return;
+      }
+      run(function () { return opts.onSubmit(values); });
+    });
+    if (extraBtn) {
+      extraBtn.addEventListener("click", function () {
+        var values = {};
+        Object.keys(inputs).forEach(function (k) { values[k] = inputs[k].value; });
+        var problem = opts.extra.validate && opts.extra.validate(values);
+        if (problem) {
+          errorEl.classList.remove("cc-dialog-ok");
+          errorEl.textContent = problem;
+          return;
+        }
+        run(function () { return opts.extra.run(values); });
+      });
+    }
+    dlg.showModal();
+    var first = fieldEls.length ? inputs[opts.fields[0].name] : submitBtn;
+    first.focus();
+    return dlg;
+  }
+
+  function openPasswordDialog(note) {
+    openDialog({
+      id: "pw",
+      title: "Change password",
+      note: note || "Use at least 8 characters.",
+      submit: "Change password",
+      success: "Password changed.",
+      fields: [
+        { name: "currentPassword", label: "Current password", type: "password", autocomplete: "current-password" },
+        { name: "newPassword", label: "New password", type: "password", autocomplete: "new-password", minlength: 8 },
+        { name: "confirm", label: "Confirm new password", type: "password", autocomplete: "new-password", minlength: 8 },
+      ],
+      validate: function (v) {
+        if (v.newPassword.length < 8) return "The new password must be at least 8 characters.";
+        if (v.newPassword !== v.confirm) return "The new passwords don't match.";
+        return "";
+      },
+      onSubmit: function (v) {
+        return post("/api/auth/password", { currentPassword: v.currentPassword, newPassword: v.newPassword });
+      },
+    });
+  }
+
+  function openPinDialog() {
+    var pinOk = function (v) {
+      return /^\d{4,6}$/.test(v.pin) ? "" : "A PIN is 4 to 6 digits.";
+    };
+    openDialog({
+      id: "pin",
+      title: "Set PIN",
+      note: "A PIN unlocks this device quickly after it has been locked. It only works on a device you chose to remember.",
+      submit: "Set PIN",
+      success: "PIN saved.",
+      fields: [
+        { name: "currentPassword", label: "Current password", type: "password", autocomplete: "current-password" },
+        { name: "pin", label: "New PIN (4 to 6 digits)", type: "password", inputmode: "numeric", pattern: "[0-9]*", maxlength: 6, autocomplete: "off" },
+      ],
+      validate: pinOk,
+      onSubmit: function (v) {
+        return post("/api/auth/pin", { currentPassword: v.currentPassword, pin: v.pin });
+      },
+      extra: {
+        label: "Remove PIN",
+        validate: function (v) { return v.currentPassword ? "" : "Enter your current password to remove the PIN."; },
+        run: function (v) { return post("/api/auth/pin", { currentPassword: v.currentPassword, pin: null }); },
+      },
+    });
+    // PIN field is required for Set but not for Remove: the browser's own validation
+    // would block Remove, and the extra button doesn't submit the form, so this is fine.
+  }
+
+  // ---------- actions ----------
+  function doLock() {
+    post("/api/auth/lock").then(function (r) {
+      if (r.ok || r.status === 401 || r.status === 404) location.href = loginUrl(true);
+      else window.alert("Couldn't lock this session. Try again.");
+    }).catch(function () { window.alert("Couldn't reach the server."); });
+  }
+  function doSignOut() {
+    post("/api/auth/logout").then(function (r) {
+      if (r.ok || r.status === 401 || r.status === 404) location.href = "/login.html";
+      else window.alert("Couldn't sign out. Try again.");
+    }).catch(function () { window.alert("Couldn't reach the server."); });
+  }
+
+  // ---------- menus ----------
+  // A real mouse (not touch): department menus open on hover.
+  var canHover = window.matchMedia("(hover: hover) and (pointer: fine)");
+  function closeAllPopups(except) {
+    Array.prototype.forEach.call(document.querySelectorAll("#cc-shell [data-cc-toggle]"), function (btn) {
+      if (btn === except) return;
+      setOpen(btn, false);
+    });
+  }
+  function setOpen(btn, open) {
+    var target = document.getElementById(btn.getAttribute("aria-controls"));
+    if (!target) return;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (target.classList.contains("cc-menu")) target.hidden = !open;
+    else target.classList.toggle("cc-open", open);
+  }
+  function menuItems(menu) {
+    return Array.prototype.slice.call(menu.querySelectorAll('[role="menuitem"]'));
+  }
+
+  // User menu: role=menu with arrow-key navigation.
+  function buildUserMenu(displayName) {
+    var menu = h("div", { class: "cc-menu", id: "cc-user-menu", role: "menu", "aria-label": "Account", hidden: true }, [
+      h("div", { class: "cc-menu-head" }, [h("strong", { text: displayName }), "Signed in"]),
+      h("hr", { class: "cc-menu-sep" }),
+      menuItem("Change password", function () { openPasswordDialog(); }), // not the click event as its note
+      menuItem("Set PIN", openPinDialog),
+      menuItem("Lock", doLock),
+      h("hr", { class: "cc-menu-sep" }),
+      menuItem("Sign out", doSignOut),
+    ]);
+    var btn = h(
+      "button",
+      {
+        class: "cc-btn",
+        type: "button",
+        id: "cc-user-btn",
+        "data-cc-toggle": "",
+        "aria-haspopup": "menu",
+        "aria-expanded": "false",
+        "aria-controls": "cc-user-menu",
+      },
+      [h("span", { class: "cc-user-name", text: displayName })]
+    );
+    btn.setAttribute("aria-label", "Account menu for " + displayName);
+    // The name can be cut with an ellipsis on a narrow bar; the tooltip shows it in full.
+    btn.setAttribute("title", displayName);
+
+    function open(focusIndex) {
+      closeAllPopups(btn);
+      setOpen(btn, true);
+      var items = menuItems(menu);
+      if (items.length) items[focusIndex === "last" ? items.length - 1 : 0].focus();
+    }
+    function close(returnFocus) {
+      setOpen(btn, false);
+      if (returnFocus) btn.focus();
+    }
+    btn.addEventListener("click", function () {
+      if (btn.getAttribute("aria-expanded") === "true") close(false);
+      else open();
+    });
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); open(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); open("last"); }
+    });
+    menu.addEventListener("keydown", function (e) {
+      var items = menuItems(menu);
+      var i = items.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+      else if (e.key === "Home") { e.preventDefault(); items[0].focus(); }
+      else if (e.key === "End") { e.preventDefault(); items[items.length - 1].focus(); }
+      else if (e.key === "Escape") { e.preventDefault(); close(true); }
+      else if (e.key === "Tab") { close(false); }
+    });
+    menu.addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest('[role="menuitem"]')) close(false);
+    });
+    return { btn: btn, menu: menu };
+  }
+  function menuItem(label, onClick) {
+    return h("button", { class: "cc-menu-item", type: "button", role: "menuitem", tabindex: "-1", onclick: onClick }, [
+      label,
+    ]);
+  }
+
+  // ---------- alerts (the bell) ----------
+  // A text button with an unread badge. The count is polled every 60 s and on window focus;
+  // a 401 (signed out or locked elsewhere) simply stops the polling, it never redirects.
+  var ALERT_POLL_MS = 60000;
+  var alerts = { btn: null, badge: null, panel: null, list: null, readAll: null, older: null, unread: 0, timer: null, running: false, stopped: false };
+  // M4: the Tasks and Messages buttons beside Alerts share the same poll.
+  // On phones the bar buttons hide and the same counts show in the Menu panel (tasksNav, messagesNav).
+  var counts = { tasks: null, messages: null, tasksNav: null, messagesNav: null };
+
+  // background = true: a poll the page did not wait for; the loading cursor ignores it (busy.js).
+  function getJson(url, background) {
+    return fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" }, ccBackground: !!background }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        return { ok: res.ok, status: res.status, body: body || {} };
+      });
+    });
+  }
+  function timeAgo(iso) {
+    var t = Date.parse(iso);
+    if (isNaN(t)) return "";
+    var m = Math.floor(Math.max(0, Date.now() - t) / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return m + " min ago";
+    var hr = Math.floor(m / 60);
+    if (hr < 24) return hr + (hr === 1 ? " hour ago" : " hours ago");
+    var d = Math.floor(hr / 24);
+    if (d < 7) return d + (d === 1 ? " day ago" : " days ago");
+    return new Date(t).toLocaleDateString("en-AU", { timeZone: "Australia/Sydney", day: "numeric", month: "short" });
+  }
+  // Links are site-relative; anything else is ignored.
+  function safeLink(link) {
+    return typeof link === "string" && /^\/(?![\/\\])/.test(link) ? link : "";
+  }
+  function alertsOpen() {
+    return !!alerts.btn && alerts.btn.getAttribute("aria-expanded") === "true";
+  }
+  function setUnread(n) {
+    alerts.unread = n;
+    if (!alerts.btn) return;
+    alerts.badge.hidden = n < 1;
+    alerts.badge.textContent = n > 99 ? "99+" : String(n);
+    alerts.btn.setAttribute("aria-label", n > 0 ? "Alerts, " + n + " unread" : "Alerts");
+    alerts.readAll.disabled = n < 1;
+  }
+  function stopAlerts() {
+    alerts.stopped = true;
+    if (alerts.timer) clearInterval(alerts.timer);
+    alerts.timer = null;
+    window.removeEventListener("focus", pollCount);
+  }
+  function pollCount() {
+    if (alerts.stopped || !alerts.btn) return Promise.resolve();
+    return getJson("/api/notifications/unread-count", true)
+      .then(function (r) {
+        if (r.status === 401) return stopAlerts();
+        if (!r.ok) return;
+        var n = Number(r.body.unread) || 0;
+        var changed = n !== alerts.unread;
+        setUnread(n);
+        var nt = Number(r.body.tasks) || 0, late = Number(r.body.tasksOverdue) > 0, nm = Number(r.body.messages) || 0;
+        setCount(counts.tasks, nt, late);
+        setCount(counts.tasksNav, nt, late);
+        setCount(counts.messages, nm, false);
+        setCount(counts.messagesNav, nm, false);
+        if (changed && alertsOpen()) loadAlerts();
+      })
+      .catch(function () { /* offline: try again next time */ });
+  }
+  // A count button: a link with a badge. attend = orange (an overdue task).
+  function buildCount(label, href, noun, cls) {
+    var badge = h("span", { class: "cc-bell-badge", hidden: true, "aria-hidden": "true", text: "0" });
+    var link = h("a", { class: cls || "cc-btn cc-count", href: href, "aria-label": label, "aria-current": path === href ? "page" : false }, [label, badge]);
+    return { link: link, badge: badge, label: label, noun: noun };
+  }
+  function setCount(c, n, attend) {
+    if (!c) return;
+    c.badge.hidden = n < 1;
+    c.badge.textContent = n > 99 ? "99+" : String(n);
+    c.badge.classList.toggle("cc-badge-attend", !!attend && n > 0);
+    c.link.setAttribute("aria-label", n > 0 ? c.label + ", " + n + " " + c.noun + (attend ? ", some overdue" : "") : c.label);
+  }
+  function startAlerts() {
+    if (alerts.running || devMode || onAuthPage) return;
+    alerts.running = true;
+    alerts.timer = setInterval(pollCount, ALERT_POLL_MS);
+    window.addEventListener("focus", pollCount);
+    pollCount();
+  }
+
+  function markRead(id) {
+    return post("/api/notifications/" + id + "/read").catch(function () {});
+  }
+  // Mark one alert read, then follow its link (or just refresh when it has none).
+  function openAlert(n) {
+    var href = safeLink(n.link);
+    var go = function () {
+      if (href) location.assign(href);
+      else { pollCount(); if (alertsOpen()) loadAlerts(); }
+    };
+    if (n.readAt) return go();
+    markRead(n.id).then(go);
+  }
+  function alertItem(n) {
+    var unread = !n.readAt;
+    var href = safeLink(n.link);
+    var item = h(href ? "a" : "button", {
+      class: "cc-bell-item" + (unread ? " cc-unread" : ""),
+      href: href || false,
+      type: href ? false : "button",
+    }, [
+      unread ? h("span", { class: "cc-sr", text: "Unread: " }) : null,
+      h("span", { class: "cc-bell-title", text: n.title }),
+      n.body ? h("span", { class: "cc-bell-body", text: n.body }) : null,
+      h("span", { class: "cc-bell-time", text: timeAgo(n.createdAt) }),
+    ]);
+    item.addEventListener("click", function (e) {
+      if (href && (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey)) {
+        if (unread) markRead(n.id); // opened in a new tab: let the browser do that
+        return;
+      }
+      e.preventDefault();
+      openAlert(n);
+    });
+    return item;
+  }
+  function alertNote(text) {
+    alerts.list.textContent = "";
+    alerts.list.appendChild(h("li", { class: "cc-bell-empty", text: text }));
+  }
+  function appendAlerts(rows) {
+    rows.forEach(function (n) {
+      var li = h("li", { class: "cc-bell-li" }, [alertItem(n)]);
+      li.setAttribute("data-id", String(n.id));
+      alerts.list.appendChild(li);
+    });
+  }
+  function setOlder(more) {
+    alerts.older.hidden = !more;
+    alerts.older.disabled = false;
+  }
+  // M4: "Show older" pages back by id.
+  function loadOlder() {
+    var last = alerts.list.querySelector(".cc-bell-li:last-child");
+    var before = last ? last.getAttribute("data-id") : "";
+    if (!before) return;
+    alerts.older.disabled = true;
+    getJson("/api/notifications?limit=30&before=" + encodeURIComponent(before))
+      .then(function (r) {
+        if (!r.ok) { alerts.older.disabled = false; return; }
+        appendAlerts(r.body.rows || []);
+        setOlder(!!r.body.more);
+      })
+      .catch(function () { alerts.older.disabled = false; });
+  }
+  function loadAlerts() {
+    return getJson("/api/notifications?limit=30")
+      .then(function (r) {
+        setOlder(false);
+        if (r.status === 401) { stopAlerts(); return alertNote("Your session has ended. Sign in again."); }
+        if (!r.ok) return alertNote("Couldn't load alerts.");
+        var rows = r.body.rows || [];
+        setUnread(Number(r.body.unread) || 0);
+        if (!rows.length) return alertNote("No alerts");
+        alerts.list.textContent = "";
+        appendAlerts(rows);
+        setOlder(!!r.body.more);
+        // Keyboard users who opened an empty panel land on the first alert once it arrives.
+        if (document.activeElement === alerts.panel) {
+          var first = alerts.list.querySelector(".cc-bell-item");
+          if (first) first.focus();
+        }
+      })
+      .catch(function () { alertNote("Couldn't reach the server."); });
+  }
+  function openAlerts() {
+    if (!alerts.btn || alertsOpen()) return;
+    closeAllPopups(alerts.btn);
+    setOpen(alerts.btn, true);
+    alerts.panel.focus();
+    loadAlerts();
+  }
+  function closeAlerts(returnFocus) {
+    if (!alerts.btn) return;
+    setOpen(alerts.btn, false);
+    if (returnFocus) alerts.btn.focus();
+  }
+
+  function buildBell() {
+    var badge = h("span", { class: "cc-bell-badge", hidden: true, "aria-hidden": "true", text: "0" });
+    var btn = h(
+      "button",
+      {
+        class: "cc-btn cc-bell",
+        type: "button",
+        id: "cc-bell-btn",
+        "data-cc-toggle": "",
+        "aria-haspopup": "dialog",
+        "aria-expanded": "false",
+        "aria-controls": "cc-bell-menu",
+        "aria-label": "Alerts",
+      },
+      ["Alerts", badge]
+    );
+    var readAll = h("button", { class: "cc-btn cc-btn-quiet cc-btn-sm", type: "button", disabled: true, text: "Mark all read" });
+    var list = h("ul", { class: "cc-bell-list" });
+    var older = h("button", { class: "cc-btn cc-btn-quiet cc-btn-sm cc-bell-older", type: "button", hidden: true, text: "Show older" });
+    var panel = h("div", { class: "cc-bell-menu", id: "cc-bell-menu", role: "dialog", "aria-label": "Alerts", tabindex: "-1" }, [
+      h("div", { class: "cc-bell-head" }, [h("span", { class: "cc-bell-heading", text: "Alerts" }), readAll]),
+      list,
+      older,
+    ]);
+    alerts.btn = btn; alerts.badge = badge; alerts.panel = panel; alerts.list = list; alerts.readAll = readAll; alerts.older = older;
+    older.addEventListener("click", loadOlder);
+
+    btn.addEventListener("click", function () {
+      if (alertsOpen()) closeAlerts(false);
+      else openAlerts();
+    });
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown" && !alertsOpen()) { e.preventDefault(); openAlerts(); }
+    });
+    readAll.addEventListener("click", function () {
+      post("/api/notifications/read-all").then(function () { setUnread(0); loadAlerts(); }).catch(function () {});
+    });
+    panel.addEventListener("keydown", function (e) {
+      var stops = Array.prototype.slice.call(panel.querySelectorAll("button:not(:disabled), a[href]"));
+      var i = stops.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); if (stops.length) stops[(i + 1) % stops.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); if (stops.length) stops[(i - 1 + stops.length) % stops.length].focus(); }
+    });
+    // Tabbing out of the panel closes it; clicking inside it never does.
+    panel.addEventListener("focusout", function (e) {
+      var to = e.relatedTarget;
+      if (to && !panel.contains(to) && to !== btn) closeAlerts(false);
+    });
+    setUnread(alerts.unread);
+    return { btn: btn, panel: panel };
+  }
+
+  // ---------- render ----------
+  function isCurrent(href) {
+    var here = PAGE_ALIASES[path] || path;
+    var q = href.indexOf("?");
+    if (q < 0) return here === href;
+    // A link with a query (the department Notes pages) is current for its own ?dept= only.
+    return here === href.slice(0, q) &&
+      new URLSearchParams(location.search).get("dept") === new URLSearchParams(href.slice(q)).get("dept");
+  }
+
+  // A department menu: a button (the department's name) that opens a small list of its pages.
+  // Disclosure pattern: aria-expanded/aria-controls, Escape closes and refocuses the button, only
+  // one popup is open at a time (closeAllPopups). In the collapsed Menu panel the button is hidden
+  // and the department shows as a heading over a flat list (shell.css), so there is no nesting.
+  // A department's home page: one key, or a list of keys of which any one will do (0.2.0: the
+  // Projects page shows the notes wall and the Projects dashboard, so design.view opens it too).
+  function canHome(home) {
+    var keys = Array.isArray(home.key) ? home.key : [home.key];
+    return keys.some(function (k) { return cc.can(k); });
+  }
+
+  function buildDepartment(d, allowed) {
+    var panelId = "cc-dept-" + d.id;
+    var home = d.home && canHome(d.home) ? d.home.href : "";
+    var current = (home && isCurrent(home)) || allowed.some(function (it) { return isCurrent(it.href); });
+    var btn = h("button", {
+      class: "cc-dept-btn" + (d.dept ? " cc-dept-ruled" : ""),
+      type: "button",
+      "data-cc-toggle": "",
+      "aria-expanded": "false",
+      "aria-controls": panelId,
+      "aria-current": current ? "true" : false,
+      text: d.label,
+    });
+    // In the collapsed Menu panel the heading is the way to the department Notes page.
+    var head = home
+      ? h("a", { class: "cc-dept-head", id: "cc-dh-" + d.id, href: home, "aria-current": isCurrent(home) ? "page" : false, text: d.label })
+      : h("span", { class: "cc-dept-head", id: "cc-dh-" + d.id, text: d.label });
+    var list = h("ul", { class: "cc-dept-list" });
+    allowed.forEach(function (it) {
+      list.appendChild(
+        h("li", null, [
+          h("a", { class: "cc-dept-link", href: it.href, "aria-current": isCurrent(it.href) ? "page" : false, text: it.label }),
+        ])
+      );
+    });
+    var panel = h("div", { class: "cc-dept-panel", id: panelId, role: "group", "aria-labelledby": "cc-dh-" + d.id }, [list]);
+    var li = h("li", { class: "cc-dept" + (d.dept ? " cc-dept-" + d.dept : "") }, [btn, head, panel]);
+
+    function links() { return Array.prototype.slice.call(panel.querySelectorAll("a[href]")); }
+    function open(focusFirst) {
+      closeAllPopups(btn);
+      setOpen(btn, true);
+      if (focusFirst) { var l = links(); if (l.length) l[0].focus(); }
+    }
+    btn.addEventListener("click", function () {
+      // Clicking the department's name opens its Notes page (Todd, 2026-10-23), or its first page
+      // when it has none (Photos). With a mouse that is straight away; on touch the first tap opens
+      // the menu and a second tap on the name goes there.
+      var dest = home || (allowed[0] && allowed[0].href);
+      if (dest && (canHover.matches || btn.getAttribute("aria-expanded") === "true")) { location.href = dest; return; }
+      // A click on a menu the mouse has just opened keeps it open rather than shutting it.
+      if (hoverOpened) { hoverOpened = false; return; }
+      if (btn.getAttribute("aria-expanded") === "true") setOpen(btn, false);
+      else open(false);
+    });
+    // With a mouse (Todd, 2026-10-13), pointing at a department opens it and moving away closes it,
+    // after a short pause so the pointer can cross the gap to the list. Touch and the keyboard keep
+    // the click/Enter behaviour, and the collapsed Menu panel (button hidden) is left alone.
+    var hoverCloseTimer = null;
+    var hoverOpened = false;
+    li.addEventListener("mouseenter", function () {
+      if (!canHover.matches || !btn.offsetParent) return;
+      clearTimeout(hoverCloseTimer);
+      if (btn.getAttribute("aria-expanded") !== "true") { open(false); hoverOpened = true; }
+    });
+    li.addEventListener("mouseleave", function () {
+      if (!canHover.matches || !btn.offsetParent) return;
+      clearTimeout(hoverCloseTimer);
+      hoverCloseTimer = setTimeout(function () {
+        hoverOpened = false;
+        if (!li.contains(document.activeElement) || document.activeElement === btn) setOpen(btn, false);
+      }, 250);
+    });
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); open(true); }
+    });
+    panel.addEventListener("keydown", function (e) {
+      var l = links();
+      var i = l.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); l[(i + 1) % l.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); l[(i - 1 + l.length) % l.length].focus(); }
+      else if (e.key === "Home") { e.preventDefault(); l[0].focus(); }
+      else if (e.key === "End") { e.preventDefault(); l[l.length - 1].focus(); }
+    });
+    // Tabbing out of the department closes its panel; clicking inside it never does.
+    li.addEventListener("focusout", function (e) {
+      var to = e.relatedTarget;
+      if (to && !li.contains(to)) setOpen(btn, false);
+    });
+    return li;
+  }
+
+  function render(root, user) {
+    root.textContent = "";
+    // The spectrum rule sits above the bar, so it sticks with it.
+    root.appendChild(h("div", { class: "hs-rule", "aria-hidden": "true" }));
+    var bar = h("header", { class: "cc-bar" });
+    var lockup = h("span", { class: "hs-lockup" }, ["TH ", h("b", { text: "CABINETS" })]);
+    bar.appendChild(
+      h(
+        "a",
+        { class: "cc-brand", href: "/", "aria-label": "Crosscuts home", "aria-current": path === "/" || path === "/index.html" ? "page" : false },
+        [lockup, h("span", { class: "cc-brand-app", text: "Crosscuts" })]
+      )
+    );
+    if (!user) {
+      root.appendChild(bar);
+      return;
+    }
+
+    var nav = h("nav", { class: "cc-nav", id: "cc-nav", "aria-label": "Main" });
+    // Phones only (shell.css): the common features come first in the Menu panel, together.
+    var withCounts = !devMode && !onAuthPage;
+    var wantEveryday = cc.can("planner.view") || (withCounts && (cc.can("tasks.use") || cc.can("messages.use")));
+    if (wantEveryday) {
+      var cg = h("ul", { class: "cc-group cc-group-counts", "aria-labelledby": "cc-gl-counts" });
+      var cl = h("li", { class: "cc-group-label", id: "cc-gl-counts", text: "Everyday" });
+      cl.setAttribute("role", "presentation");
+      cg.appendChild(cl);
+      if (cc.can("planner.view")) {
+        cg.appendChild(h("li", null, [
+          h("a", { class: "cc-link cc-count-link", href: "/planner.html", "aria-current": path === "/planner.html" ? "page" : false, text: "Planner" }),
+        ]));
+      }
+      if (withCounts && cc.can("tasks.use")) {
+        counts.tasksNav = buildCount("Tasks", "/tasks.html", "open", "cc-link cc-count-link");
+        cg.appendChild(h("li", null, [counts.tasksNav.link]));
+      }
+      if (withCounts && cc.can("messages.use")) {
+        counts.messagesNav = buildCount("Messages", "/messages.html", "unread", "cc-link cc-count-link");
+        cg.appendChild(h("li", null, [counts.messagesNav.link]));
+      }
+      nav.appendChild(cg);
+    }
+
+    // Dashboard, then the department menus (fixed order, only those with a visible page).
+    var depts = h("ul", { class: "cc-depts" });
+    depts.appendChild(
+      h("li", { class: "cc-dashboard" }, [
+        h("a", { class: "cc-dash", href: "/", "aria-current": path === "/" || path === "/index.html" ? "page" : false, text: "Dashboard" }),
+      ])
+    );
+    DEPARTMENTS.forEach(function (d) {
+      // 0.2.7: an item's key may be a list, of which any one will do.
+      var allowed = d.items.filter(function (it) {
+        return (Array.isArray(it.key) ? it.key : [it.key]).some(function (k) { return cc.can(k); });
+      });
+      if (allowed.length || (d.home && canHome(d.home))) depts.appendChild(buildDepartment(d, allowed));
+    });
+    nav.appendChild(depts);
+
+    var menuBtn = h(
+      "button",
+      { class: "cc-btn cc-menu-btn", type: "button", "data-cc-toggle": "", "aria-expanded": "false", "aria-controls": "cc-nav" },
+      ["Menu"]
+    );
+    menuBtn.addEventListener("click", function () {
+      var open = menuBtn.getAttribute("aria-expanded") !== "true";
+      closeAllPopups(menuBtn);
+      setOpen(menuBtn, open);
+    });
+
+    var um = buildUserMenu(user.displayName || user.username || "dev");
+
+    // The bell needs a real session, so it is left out of dev mode and the auth pages.
+    var right = h("div", { class: "cc-right" });
+    // The common features, the same order for everyone: Planner, Tasks, Messages, Alerts, name.
+    if (cc.can("planner.view")) {
+      right.appendChild(
+        h("a", { class: "cc-btn cc-count", href: "/planner.html", "aria-current": path === "/planner.html" ? "page" : false, text: "Planner" })
+      );
+    }
+    if (!devMode && !onAuthPage) {
+      // M4: Tasks and Messages (each only with its key), then Alerts.
+      if (cc.can("tasks.use")) {
+        counts.tasks = buildCount("Tasks", "/tasks.html", "open");
+        right.appendChild(counts.tasks.link);
+      }
+      if (cc.can("messages.use")) {
+        counts.messages = buildCount("Messages", "/messages.html", "unread");
+        right.appendChild(counts.messages.link);
+      }
+      var bell = buildBell();
+      right.appendChild(bell.btn);
+      right.appendChild(bell.panel);
+    }
+    right.appendChild(um.btn);
+    right.appendChild(um.menu);
+    bar.appendChild(menuBtn);
+    bar.appendChild(nav);
+    bar.appendChild(right);
+    root.appendChild(bar);
+  }
+
+  // Global dismissal for popups.
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest || !e.target.closest("#cc-shell")) closeAllPopups(null);
+    else if (!e.target.closest(".cc-right") && !e.target.closest(".cc-menu-btn") && !e.target.closest(".cc-dept")) closeAllPopups(null);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    var open = document.querySelector('#cc-shell [data-cc-toggle][aria-expanded="true"]');
+    if (open && open.id !== "cc-user-btn") {
+      closeAllPopups(null);
+      open.focus();
+    }
+  });
+
+  // ---------- boot ----------
+  function boot() {
+    var root = document.getElementById("cc-shell");
+    if (!root) {
+      root = h("div", { id: "cc-shell" });
+      document.body.insertBefore(root, document.body.firstChild);
+    }
+    ensureStyles();
+    // Bottom spectrum rule: a plain block after the page content.
+    if (!document.getElementById("cc-foot-rule")) {
+      document.body.appendChild(h("div", { class: "hs-rule cc-foot-rule", id: "cc-foot-rule", "aria-hidden": "true" }));
+    }
+    render(root, null); // brand only, so the bar doesn't jump while /me loads
+
+    var finish = function (user, session) {
+      cc.me = user;
+      cc.session = session || null;
+      perms = new Set((user && user.perms) || []);
+      cc.dev = devMode;
+      cc.loaded = true;
+      if (!onAuthPage || user) render(root, user);
+      if (user) startAlerts();
+      resolveReady(cc);
+      document.dispatchEvent(new Event("cc:ready"));
+      if (user && user.mustChangePassword && !devMode) {
+        openPasswordDialog(
+          user.passwordReason === "expired"
+            ? "Your password is six months old. Please choose a new one before carrying on."
+            : "An administrator set this password for you. Please choose your own before carrying on."
+        );
+      }
+    };
+    var fallback = function () {
+      devMode = true;
+      finish({ id: 0, username: "dev", displayName: "dev", roles: [], perms: [], mustChangePassword: false }, null);
+    };
+
+    fetch("/api/auth/me", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (res) {
+        if (res.status === 401) {
+          return res.json().catch(function () { return {}; }).then(function (body) {
+            if (onAuthPage) return finish(null, null);
+            goLogin(!!body.locked); // navigating away; leave the page as it is
+          });
+        }
+        if (!res.ok) return fallback(); // 404 (auth not merged yet), 5xx, ...
+        return res.json().then(function (data) {
+          if (!data || !data.user) return fallback();
+          finish(data.user, data.session);
+        });
+      })
+      .catch(fallback);
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+
+</script>
+<script>/* ===== shared.js (real file) ===== */
+// Shared helpers for the schedule/workers pages (plain global functions, no
+// build step — load this before the page's own script).
+
+async function api(path, options) {
+  const res = await fetch(path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options && options.headers) },
+  });
+  if (res.status === 401 && !location.pathname.startsWith("/login.html")) {
+    const body = await res.json().catch(() => ({}));
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.href = (body.locked ? "/login.html?locked=1&next=" : "/login.html?next=") + next;
+    return new Promise(() => {}); // never resolves: the page is navigating away, so callers must not toast
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed (${res.status})`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function toast(msg) {
+  const el = document.createElement("div");
+  el.textContent = msg;
+  el.style.cssText =
+    "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);" +
+    "color:var(--body);border:1px solid var(--hairline);border-radius:var(--r-card);padding:8px 14px;" +
+    "font-family:var(--font);font-size:13px;z-index:50";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+function guarded(fn) {
+  return async (...args) => {
+    try {
+      await fn(...args);
+    } catch (e) {
+      toast(`Error: ${e.message}`);
+    }
+  };
+}
+
+// Kept in sync by hand with hueColors() in server.js — the server copy is
+// authoritative (it colors the chips the board and JPG export show); this one
+// drives the workers-page hue-slider preview and the names on Pipeline tiles and the job page
+// (jobpeople.js: a person's chip takes their linked worker's colour).
+function hueColors(hue) {
+  return { bg: `oklch(30% 0.06 ${hue})`, fg: `oklch(86% 0.10 ${hue})` };
+}
+
+</script>
+<script>/* ===== schedule.js (real file) ===== */
+(function () {
+  // "wknd" is the Weekend column after Friday (0.2.16): one cell covering Saturday and Sunday,
+  // dated by its Saturday.
+  const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "wknd"];
+  const DAY_LABELS = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", wknd: "Weekend" };
+  const PANELS = [
+    { key: "manufacturing", label: "Manufacturing" },
+    { key: "installing", label: "Installing" },
+  ];
+  // Production stages (lib/production.js keeps the same keys, names and codes).
+  const STAGE_LABELS = {
+    cut_edge: "Cut & edge",
+    kit: "Kit",
+    assemble: "Assemble",
+    inspect: "Inspect",
+    paint: "Paint",
+    install: "Install",
+    return_visit: "Return visit",
+  };
+  const STAGE_SHORT = {
+    cut_edge: "CUT",
+    kit: "KIT",
+    assemble: "ASM",
+    inspect: "INSP",
+    paint: "PAINT",
+    install: "INST",
+    return_visit: "RV",
+  };
+  const MATERIALS_TITLES = { in: "Materials in", ordered: "Materials ordered, not in" };
+  const MATERIALS_PRINT = { in: "● materials in", ordered: "● materials ordered" };
+  // Why a worker is away on a day (week.away / chip.away, m5-contracts.md section 2):
+  // the chip's title and the "+" picker's label.
+  const AWAY_TITLES = { leave: "On leave", sick: "Sick", other: "Away", off: "Day off" };
+  // The same, as the middle of the picker's confirm() question.
+  const AWAY_PHRASES = {
+    leave: "is on leave that day",
+    sick: "is off sick that day",
+    other: "is away that day",
+    off: "has that day off",
+  };
+
+  const weeksContainer = document.getElementById("weeksContainer");
+  const legendEl = document.getElementById("legend");
+  const weekPicker = document.getElementById("weekPicker");
+  const popover = document.getElementById("popover");
+  const finishDialog = document.getElementById("finishDialog");
+  const backlogEl = document.getElementById("backlogPanel");
+
+  const state = {
+    workers: [],
+    jobs: [],
+    weeks: [],
+    backlog: [],
+    weekStart: mondayOf(localTodayStr()),
+  };
+  // The local date the board was last successfully rendered for — drives the
+  // midnight rollover check so an always-on TV doesn't keep highlighting
+  // yesterday's column.
+  let renderedToday = localTodayStr();
+
+  // --- date helpers (client-local, so "today" always matches the browser) ---
+  function localTodayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function parseDate(s) {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+  function formatDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function addDays(s, n) {
+    const d = parseDate(s);
+    d.setDate(d.getDate() + n);
+    return formatDate(d);
+  }
+  function mondayOf(s) {
+    const d = parseDate(s);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return formatDate(d);
+  }
+  // Australian date display, d/m and d/m/yy (e.g. 4/9/26), no zero padding.
+  function fmtAUShort(s) {
+    const d = parseDate(s);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  }
+  function fmtAU(s) {
+    const d = parseDate(s);
+    return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(-2)}`;
+  }
+  // Built client-side (Mon–Sun range in AU format); the server's `label`
+  // field is deliberately unused so date display stays a frontend concern.
+  function weekRangeLabel(week) {
+    return `${fmtAU(week.start)} – ${fmtAU(addDays(week.start, 6))}`;
+  }
+
+  // api(), toast(), guarded() now live in shared.js, loaded before this file.
+
+  // --- data loading ---
+  async function loadWorkers() {
+    state.workers = await api("/api/workers");
+  }
+  async function loadJobs() {
+    state.jobs = await api("/api/jobs");
+  }
+  async function loadSchedule() {
+    const data = await api(`/api/schedule?week=${state.weekStart}`);
+    // The board shows ONE week at a time. /api/schedule still returns the
+    // fortnight (weeks[0] and weeks[0]+7) and is left alone on purpose — it's
+    // on the ungated whitelist, other callers may rely on its shape, and
+    // dropping the extra week here costs nothing. Everything downstream
+    // (renderWeeks, alignPanels, exportJpg) already loops over state.weeks,
+    // so a one-element array needs no special-casing.
+    state.weeks = data.weeks.slice(0, 1);
+    state.backlog = data.backlog || [];
+  }
+
+  // --- legend ---
+  function renderLegend() {
+    legendEl.innerHTML = "";
+    for (const w of state.workers.filter((w) => !w.archived)) {
+      const span = document.createElement("span");
+      span.className = "chip-worker";
+      span.style.background = w.bg;
+      span.style.color = w.fg;
+      span.textContent = w.name;
+      legendEl.appendChild(span);
+    }
+  }
+
+  // --- chip element ---
+  // M5 (rule 7, M5 exception): a chip for someone away that day (leave, sick, other,
+  // or their regular day off) takes the grey "away" style instead of the worker's
+  // colours; a chip for someone over their days this week gets an orange outline.
+  // Neither changes the chip's size or adds text inside it on screen.
+  // MIRRORED in exportJpg() (grey fill / orange stroke) and in print ("(away)" /
+  // "(over days)" after the name, from data-print-mark).
+  function chipEl(chip) {
+    const span = document.createElement("span");
+    span.className = "chip-worker";
+    const awayKind = AWAY_TITLES[chip.away] ? chip.away : null;
+    if (awayKind) {
+      // The .away class supplies the token colours; the worker's inline colours
+      // are left off so they can't override it.
+      span.classList.add("away");
+    } else {
+      span.style.background = chip.bg;
+      span.style.color = chip.fg;
+    }
+    if (chip.overDays) span.classList.add("over-days");
+    // Chips share a cell's width once they wrap into columns, so the name
+    // ellipsises rather than spilling into the next day — title keeps the
+    // full name reachable on hover.
+    const notes = [];
+    const printMarks = [];
+    if (awayKind) {
+      notes.push(AWAY_TITLES[awayKind]);
+      printMarks.push("(away)");
+    }
+    if (chip.overDays) {
+      notes.push("Over their days this week");
+      printMarks.push("(over days)");
+    }
+    span.title = notes.length ? `${chip.name}\n${notes.join("\n")}` : chip.name;
+    if (printMarks.length) span.dataset.printMark = printMarks.join(" ");
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "chip-name";
+    nameSpan.textContent = chip.name;
+    span.appendChild(nameSpan);
+    const x = document.createElement("span");
+    x.className = "chip-x";
+    x.textContent = "×";
+    x.title = "Remove";
+    x.addEventListener("click", guarded(async (e) => {
+      e.stopPropagation();
+      await api(`/api/assignments/${chip.assignmentId}`, { method: "DELETE" });
+      await refresh();
+    }));
+    span.appendChild(x);
+    return span;
+  }
+
+  // --- worker picker popover ---
+  // M5 (rule 7, M5 exception): for the cell's day, each worker's availability from
+  // the loaded week. away: the kind ('leave' | 'sick' | 'other' | 'off') or null.
+  // over: { perWeek, on } when one more distinct day would take them past their
+  // days a week, else null. Counted across both panels of the week.
+  function pickerStatus(week, worker, day) {
+    const awayDays = week && week.away ? week.away[String(worker.id)] : null;
+    const away = awayDays && AWAY_TITLES[awayDays[day]] ? awayDays[day] : null;
+    let over = null;
+    const perWeek = Number(worker.daysPerWeek);
+    if (week && Number.isInteger(perWeek) && perWeek > 0) {
+      const days = new Set();
+      for (const row of [...week.manufacturing, ...week.installing]) {
+        for (const d of DAY_KEYS) {
+          if (row.cells[d].some((c) => c.workerId === worker.id)) days.add(d);
+        }
+      }
+      if (!days.has(day) && days.size + 1 > perWeek) over = { perWeek, on: days.size };
+    }
+    return { away, over };
+  }
+
+  // The question asked before assigning someone away or over their days, or null.
+  function pickerQuestion(worker, status) {
+    const parts = [];
+    if (status.away) parts.push(`${worker.name} ${AWAY_PHRASES[status.away]}.`);
+    if (status.over) {
+      const n = status.over.perWeek;
+      parts.push(`${worker.name} works ${n} ${n === 1 ? "day" : "days"} a week and is already on ${status.over.on}.`);
+    }
+    return parts.length ? `${parts.join(" ")} Assign anyway?` : null;
+  }
+
+  function weekOfRow(rowId) {
+    return state.weeks.find((w) => [...w.manufacturing, ...w.installing].some((r) => r.rowId === rowId)) || null;
+  }
+
+  function openPopover(anchorEl, rowId, day) {
+    popover.innerHTML = "";
+    const week = weekOfRow(rowId);
+    const active = state.workers.filter((w) => !w.archived);
+    if (active.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "popover-empty";
+      empty.textContent = "No workers yet — add one on the Workers page.";
+      popover.appendChild(empty);
+    }
+    // Everyone stays assignable; people away that day go last (stable order).
+    const entries = active.map((w) => ({ w, status: pickerStatus(week, w, day) }));
+    const ordered = [...entries.filter((e) => !e.status.away), ...entries.filter((e) => e.status.away)];
+    for (const { w, status } of ordered) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "popover-item" + (status.away ? " away" : "");
+      const swatch = document.createElement("span");
+      swatch.className = "popover-swatch";
+      swatch.style.background = w.bg;
+      btn.appendChild(swatch);
+      const label = document.createElement("span");
+      label.className = "popover-name";
+      label.textContent = w.name;
+      btn.appendChild(label);
+      const tags = [];
+      if (status.away) tags.push(["away", AWAY_TITLES[status.away]]);
+      if (status.over) tags.push(["over", "Over days"]);
+      for (const [kind, text] of tags) {
+        const tag = document.createElement("span");
+        tag.className = `popover-tag ${kind}`;
+        tag.textContent = text;
+        btn.appendChild(tag);
+      }
+      const question = pickerQuestion(w, status);
+      btn.addEventListener("click", guarded(async () => {
+        closePopover();
+        if (question && !confirm(question)) return;
+        await api(`/api/rows/${rowId}/assignments`, {
+          method: "POST",
+          body: JSON.stringify({ day, workerId: w.id }),
+        });
+        await refresh();
+      }));
+      popover.appendChild(btn);
+    }
+    // Unhide before measuring (display:none reads 0x0), then clamp to the
+    // viewport — flipping above the anchor when there's no room below.
+    const rect = anchorEl.getBoundingClientRect();
+    popover.hidden = false;
+    const pw = popover.offsetWidth;
+    const ph = popover.offsetHeight;
+    popover.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8))}px`;
+    const below = rect.bottom + 4;
+    popover.style.top = `${below + ph > window.innerHeight ? Math.max(8, rect.top - ph - 4) : below}px`;
+  }
+  function closePopover() {
+    popover.hidden = true;
+  }
+  document.addEventListener("click", (e) => {
+    if (!popover.hidden && !popover.contains(e.target) && !e.target.closest(".cell-add")) {
+      closePopover();
+    }
+  });
+
+  // --- drag to reorder ---
+  // Set by a grip's dragstart, cleared on dragend. Dragging is scoped to one
+  // panel of one week: the drop targets are wired per-grid in panelEl and
+  // refuse a drag whose panelKey doesn't match, so a job can't be dropped
+  // across the Manufacturing/Installing divide (an installing row can carry
+  // locked-in day flags that a manufacturing row is not allowed to have).
+  let dragState = null;
+  // Separate from dragState: a "To start" item dragged into a panel. Set by the
+  // item grip's dragstart, cleared on dragend or drop. Any panel accepts it.
+  let backlogDrag = null;
+
+  function clearDropMarkers() {
+    for (const el of weeksContainer.querySelectorAll(".drop-before, .drop-after, .drop-active")) {
+      el.classList.remove("drop-before", "drop-after", "drop-active");
+    }
+    // The "To start" panel is a drop target for scheduled rows too (see below).
+    backlogEl.classList.remove("drop-active");
+  }
+
+  // Real rows only — the head row and alignPanels' blank padding rows carry no
+  // data-row-id, so this is the panel's true server order (alignPanels only
+  // ever inserts nulls, it never reorders a panel).
+  function realRows(grid) {
+    return [...grid.querySelectorAll(".sched-row[data-row-id]")];
+  }
+
+  function rowUnderPointer(grid, e) {
+    const row = e.target.closest(".sched-row[data-row-id]");
+    return row && grid.contains(row) ? row : null;
+  }
+
+  // Where the dragged row lands once it has been lifted out of the list. The
+  // server applies the same lift-then-insert, so this index transfers directly.
+  function dropIndex(grid, targetRow, after) {
+    const ids = realRows(grid).map((r) => Number(r.dataset.rowId));
+    const from = ids.indexOf(dragState.rowId);
+    if (from !== -1) ids.splice(from, 1);
+    const at = ids.indexOf(Number(targetRow.dataset.rowId));
+    return at === -1 ? ids.length : at + (after ? 1 : 0);
+  }
+
+  // Backlog drops only: the row under the pointer and which half of it, or null
+  // when the pointer is over no real row (the drop then appends).
+  function rowSlot(grid, e) {
+    const target = rowUnderPointer(grid, e);
+    if (!target) return null;
+    const rect = target.getBoundingClientRect();
+    return { target, after: e.clientY > rect.top + rect.height / 2 };
+  }
+
+  function wireDropTarget(grid, panelKey, weekStart) {
+    // Backlog items: nothing is lifted out of a backlog drag, so the index is
+    // simply the row's position in the panel (+1 when dropped below it).
+    grid.addEventListener("dragover", (e) => {
+      if (!backlogDrag) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      clearDropMarkers();
+      const slot = rowSlot(grid, e);
+      if (slot) slot.target.classList.add(slot.after ? "drop-after" : "drop-before");
+      else grid.classList.add("drop-active");
+    });
+    grid.addEventListener("drop", guarded(async (e) => {
+      if (!backlogDrag) return;
+      e.preventDefault();
+      const slot = rowSlot(grid, e);
+      const body = { weekStart, panel: panelKey };
+      if (slot) body.toIndex = realRows(grid).indexOf(slot.target) + (slot.after ? 1 : 0);
+      const id = backlogDrag.id;
+      backlogDrag = null;
+      clearDropMarkers();
+      await api(`/api/jobs/backlog/${id}/place`, { method: "POST", body: JSON.stringify(body) });
+      await refresh();
+    }));
+
+    grid.addEventListener("dragover", (e) => {
+      if (!dragState || dragState.panelKey !== panelKey) return;
+      const target = rowUnderPointer(grid, e);
+      if (!target || Number(target.dataset.rowId) === dragState.rowId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const rect = target.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      clearDropMarkers();
+      target.classList.add(after ? "drop-after" : "drop-before");
+    });
+    grid.addEventListener("dragleave", (e) => {
+      if (!grid.contains(e.relatedTarget)) clearDropMarkers();
+    });
+    grid.addEventListener("drop", guarded(async (e) => {
+      if (!dragState || dragState.panelKey !== panelKey) return;
+      const target = rowUnderPointer(grid, e);
+      if (!target || Number(target.dataset.rowId) === dragState.rowId) return;
+      e.preventDefault();
+      const rect = target.getBoundingClientRect();
+      const toIndex = dropIndex(grid, target, e.clientY > rect.top + rect.height / 2);
+      const rowId = dragState.rowId;
+      dragState = null;
+      clearDropMarkers();
+      await api(`/api/rows/${rowId}/move`, { method: "PATCH", body: JSON.stringify({ toIndex }) });
+      await refresh();
+    }));
+  }
+
+  // --- row rendering ---
+  function rowEl(row, panelKey, todayIndex) {
+    const wrap = document.createDocumentFragment();
+
+    const rowDiv = document.createElement("div");
+    rowDiv.className = "sched-row";
+    rowDiv.dataset.rowId = row.rowId;
+
+    const jobCell = document.createElement("div");
+    jobCell.className = "job-cell";
+
+    const nameInput = document.createElement("input");
+    nameInput.className = "job-name";
+    nameInput.value = row.jobName;
+    nameInput.spellcheck = false;
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") nameInput.blur();
+    });
+    nameInput.addEventListener("blur", guarded(async () => {
+      const value = nameInput.value.trim();
+      if (!value || value === row.jobName) {
+        nameInput.value = row.jobName;
+        return;
+      }
+      await api(`/api/jobs/${row.jobId}`, { method: "PATCH", body: JSON.stringify({ name: value }) });
+      await refresh();
+    }));
+    jobCell.appendChild(nameInput);
+
+    const actions = document.createElement("div");
+    actions.className = "job-actions";
+
+    // Drag handle. The row itself is deliberately NOT draggable: it holds the
+    // job-name text input, and a draggable ancestor breaks click-to-position
+    // and text selection inside an input in Chrome. A dedicated grip keeps
+    // renaming and dragging from fighting each other.
+    const grip = document.createElement("button");
+    grip.type = "button";
+    grip.className = "btn btn-ghost btn-icon drag-grip";
+    grip.title = "Drag to reorder, or onto To start to unschedule";
+    grip.draggable = true;
+    grip.innerHTML = '<i class="ph ph-dots-six-vertical"></i>';
+    grip.addEventListener("dragstart", (e) => {
+      dragState = { rowId: row.rowId, panelKey };
+      e.dataTransfer.effectAllowed = "move";
+      // Firefox drops a drag that carries no data payload.
+      e.dataTransfer.setData("text/plain", String(row.rowId));
+      // Drag the whole row, not the little grip button.
+      e.dataTransfer.setDragImage(rowDiv, 12, 12);
+      rowDiv.classList.add("dragging");
+    });
+    grip.addEventListener("dragend", () => {
+      dragState = null;
+      rowDiv.classList.remove("dragging");
+      clearDropMarkers();
+    });
+    actions.appendChild(grip);
+
+    const notesBtn = iconBtn("ph-note-pencil", "Notes", () => toggleNotes(row.rowId));
+    if (row.notes && row.notes.trim()) {
+      notesBtn.classList.add("has-notes");
+      rowDiv.classList.add("has-notes-row"); // drives the print-only marker
+    }
+    actions.appendChild(notesBtn);
+    actions.appendChild(iconBtn("ph-copy", "Copy to next week", guarded(async () => {
+      await api(`/api/rows/${row.rowId}/duplicate`, { method: "POST", body: JSON.stringify({}) });
+      toast("Copied to next week");
+      await refresh();
+    })));
+    // Move (not copy) to the adjacent week. Assignments and flags hang off
+    // week_row_id, which the server leaves alone — the workers come along.
+    actions.appendChild(iconBtn("ph-arrow-square-left", "Move to previous week", guarded(async () => {
+      await api(`/api/rows/${row.rowId}/move`, { method: "PATCH", body: JSON.stringify({ week: "prev" }) });
+      toast("Moved to previous week");
+      await refresh();
+    })));
+    actions.appendChild(iconBtn("ph-arrow-square-right", "Move to next week", guarded(async () => {
+      await api(`/api/rows/${row.rowId}/move`, { method: "PATCH", body: JSON.stringify({ week: "next" }) });
+      toast("Moved to next week");
+      await refresh();
+    })));
+    actions.appendChild(iconBtn("ph-trash", "Remove row", guarded(async () => {
+      if (!confirm(`Remove "${row.jobName}" from this week's ${panelKey} schedule?`)) return;
+      await api(`/api/rows/${row.rowId}`, { method: "DELETE" });
+      await refresh();
+    })));
+    const marks = rowIndicatorsEl(row);
+    if (marks) actions.appendChild(marks);
+    jobCell.appendChild(actions);
+    const printMarks = rowPrintMarksEl(row);
+    if (printMarks) jobCell.appendChild(printMarks);
+    rowDiv.appendChild(jobCell);
+
+    DAY_KEYS.forEach((day, i) => {
+      const flagged = !!(row.flags && row.flags[day]);
+      const cell = document.createElement("div");
+      cell.className = "sched-cell" + (day === "wknd" ? " weekend-col" : "") + (i === todayIndex ? " today-col" : "") + (flagged ? " flagged" : "");
+      const chips = document.createElement("div");
+      chips.className = "sched-chips";
+      // Two rows max, filled column-major (see .sched-chips): worker 2 sits
+      // under worker 1, worker 3 starts a second column beside worker 1, 4
+      // under 3. Keeps a busy day two chips tall instead of four, which is
+      // what decides how much of the week fits on the TV.
+      // One worker gets a single track — a second empty track would still
+      // contribute its row gap and pad every quiet row by 5px.
+      // MIRRORED in exportJpg(); the JPG must lay chips out the same way.
+      chips.style.gridTemplateRows = row.cells[day].length > 1 ? "auto auto" : "auto";
+      // 3+ workers means two columns of ~63px, where a chip's padding and its
+      // × leave under half the width for the name ("Shooter" truncates to one
+      // letter). .crowded compresses those cells only — the common 1-2 worker
+      // cell keeps the roomier chip it has today.
+      if (row.cells[day].length > 2) chips.classList.add("crowded");
+      for (const chip of row.cells[day]) chips.appendChild(chipEl(chip));
+      cell.appendChild(chips);
+
+      const controls = document.createElement("div");
+      controls.className = "cell-controls";
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "cell-add";
+      addBtn.textContent = "+";
+      addBtn.title = "Add worker";
+      addBtn.addEventListener("click", () => openPopover(addBtn, row.rowId, day));
+      controls.appendChild(addBtn);
+
+      if (panelKey === "installing") {
+        const flagBtn = document.createElement("button");
+        flagBtn.type = "button";
+        flagBtn.className = "cell-flag" + (flagged ? " active" : "");
+        flagBtn.title = flagged
+          ? "Locked in with client — click to unflag"
+          : "Flag as locked in with client";
+        // The vendored Phosphor build is regular weight only — it has no
+        // -fill variants, so the old ph-flag-fill drew an empty glyph on
+        // exactly the flagged cells it was meant to emphasise. The active
+        // state is carried by .cell-flag.active (solid amber border + wash).
+        flagBtn.innerHTML = '<i class="ph ph-flag"></i>';
+        flagBtn.addEventListener("click", guarded(async () => {
+          if (flagged) {
+            await api(`/api/rows/${row.rowId}/flags/${day}`, { method: "DELETE" });
+          } else {
+            await api(`/api/rows/${row.rowId}/flags`, { method: "POST", body: JSON.stringify({ day }) });
+          }
+          await refresh();
+        }));
+        controls.appendChild(flagBtn);
+      }
+
+      cell.appendChild(controls);
+      rowDiv.appendChild(cell);
+    });
+
+    wrap.appendChild(rowDiv);
+
+    const notes = document.createElement("div");
+    notes.className = "job-notes";
+    notes.id = `notes-${row.rowId}`;
+    notes.hidden = true;
+    const textarea = document.createElement("textarea");
+    textarea.className = "input";
+    textarea.placeholder = "Notes for this job…";
+    textarea.value = row.notes || "";
+    notes.appendChild(textarea);
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "btn btn-secondary";
+    saveBtn.textContent = "Save";
+    saveBtn.addEventListener("click", guarded(async () => {
+      await api(`/api/jobs/${row.jobId}`, { method: "PATCH", body: JSON.stringify({ notes: textarea.value }) });
+      toast("Notes saved");
+      // Notes are per-job, so the same job's icon in the other panel needs
+      // updating too; renderWeeks' snapshot keeps this panel open through it.
+      // Swallowed on failure — the save itself already stuck, and a toast here
+      // would contradict "Notes saved"; the next action or tick re-syncs.
+      try {
+        await refresh();
+      } catch {}
+    }));
+    notes.appendChild(saveBtn);
+    // Dragging the textarea's resize handle changes the editor's height with
+    // no event — keep the other panel's compensation margin in step.
+    if (window.ResizeObserver) new ResizeObserver(queueSync).observe(notes);
+    wrap.appendChild(notes);
+
+    return wrap;
+  }
+
+  // M5 row indicators (CLAUDE.md rule 7, M5 exception): the materials mark and the
+  // short production-stage label, at the end of the EXISTING icon line. That line has
+  // 33px spare after the delete button, too little for the mark and "PAINT" side by
+  // side, so the two stack inside the line's own 26px height (.job-marks is fixed at
+  // that height): no new line, no width change, no row-height change.
+  // MIRRORED in exportJpg() (a filled square and the code) and in print (text).
+  function rowIndicatorsEl(row) {
+    const materials = MATERIALS_TITLES[row.materials] ? row.materials : null;
+    const stage = STAGE_SHORT[row.productionStage] ? row.productionStage : null;
+    if (!materials && !stage) return null;
+    const box = document.createElement("span");
+    box.className = "job-marks";
+    if (materials) {
+      const mark = document.createElement("i");
+      mark.className = `ph ph-package job-mark-materials ${materials}`;
+      mark.title = MATERIALS_TITLES[materials];
+      mark.setAttribute("role", "img");
+      mark.setAttribute("aria-label", MATERIALS_TITLES[materials]);
+      box.appendChild(mark);
+    }
+    if (stage) {
+      const label = document.createElement("span");
+      label.className = "job-mark-stage";
+      label.textContent = STAGE_SHORT[stage];
+      label.title = STAGE_LABELS[stage];
+      box.appendChild(label);
+    }
+    return box;
+  }
+
+  // Print twin of the indicators (.job-actions is hidden on paper), shown only in
+  // the print block, like the "● note" marker.
+  function rowPrintMarksEl(row) {
+    const parts = [];
+    if (MATERIALS_PRINT[row.materials]) parts.push(MATERIALS_PRINT[row.materials]);
+    if (STAGE_SHORT[row.productionStage]) parts.push("● " + STAGE_SHORT[row.productionStage]);
+    if (!parts.length) return null;
+    const el = document.createElement("span");
+    el.className = "job-print-marks";
+    el.textContent = parts.join("  ");
+    return el;
+  }
+
+  function iconBtn(icon, title, onClick) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-ghost btn-icon" + (icon === "ph-trash" ? " btn-del" : "");
+    btn.title = title;
+    btn.innerHTML = `<i class="ph ${icon}"></i>`;
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  function toggleNotes(rowId) {
+    const el = document.getElementById(`notes-${rowId}`);
+    if (el) el.hidden = !el.hidden;
+    syncRowHeights();
+  }
+
+  // --- panel alignment ---
+  // A job appearing in both panels of a week must sit on the same line, with
+  // blank rows (null) padding the other panel. Anchors are the LCS of the two
+  // panels' job-name sequences, so both panels' manual row order is respected —
+  // if the orders conflict, the largest consistent set of jobs still aligns.
+  // Unmatched rows between anchors pair up index-wise to keep the board short.
+  //
+  // Matching is by NAME, not jobId: the same job typed separately into each
+  // panel creates two independent job records, and those used to sit on
+  // unrelated lines despite reading identically on the board. Name matching is
+  // a superset of the old behaviour — one job record in both panels has the
+  // same name in both by definition.
+  function alignKey(row) {
+    return row.jobName.trim().toLowerCase();
+  }
+  function alignPanels(week) {
+    const a = week.manufacturing;
+    const b = week.installing;
+    const keyA = a.map(alignKey);
+    const keyB = b.map(alignKey);
+    const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+    for (let i = a.length - 1; i >= 0; i--) {
+      for (let j = b.length - 1; j >= 0; j--) {
+        dp[i][j] = keyA[i] === keyB[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const outA = [];
+    const outB = [];
+    let segA = [];
+    let segB = [];
+    function flushSegments() {
+      for (let k = 0; k < Math.max(segA.length, segB.length); k++) {
+        outA.push(segA[k] || null);
+        outB.push(segB[k] || null);
+      }
+      segA = [];
+      segB = [];
+    }
+    let i = 0;
+    let j = 0;
+    while (i < a.length && j < b.length) {
+      if (keyA[i] === keyB[j]) {
+        flushSegments();
+        outA.push(a[i++]);
+        outB.push(b[j++]);
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        segA.push(a[i++]);
+      } else {
+        segB.push(b[j++]);
+      }
+    }
+    while (i < a.length) segA.push(a[i++]);
+    while (j < b.length) segB.push(b[j++]);
+    flushSegments();
+    return { manufacturing: outA, installing: outB };
+  }
+
+  function blankRowEl(todayIndex) {
+    const rowDiv = document.createElement("div");
+    rowDiv.className = "sched-row row-blank";
+    const jobCell = document.createElement("div");
+    jobCell.className = "job-cell";
+    rowDiv.appendChild(jobCell);
+    DAY_KEYS.forEach((day, i) => {
+      const cell = document.createElement("div");
+      cell.className = "sched-cell" + (day === "wknd" ? " weekend-col" : "") + (i === todayIndex ? " today-col" : "");
+      rowDiv.appendChild(cell);
+    });
+    return rowDiv;
+  }
+
+  // The two panels are independent grids, so paired lines only stay level if
+  // we measure and match their heights (chips stack, names wrap). An open
+  // notes editor adds height below its row; the margin compensates on the
+  // other panel so lines further down stay aligned while someone types.
+  function openNotesHeight(rowDiv) {
+    const next = rowDiv.nextElementSibling;
+    return next && next.classList.contains("job-notes") && !next.hidden ? next.offsetHeight : 0;
+  }
+  function syncRowHeights() {
+    // The sticky week banner sits below the menu bar and the nav; nav height
+    // varies with flex-wrap, so measure both into the CSS vars the nav's and
+    // the banner's `top` use. This runs on render/resize/fonts-ready (and when
+    // the menu bar has loaded) — the same times they can change.
+    const shellEl = document.getElementById("cc-shell");
+    const shellH = shellEl ? shellEl.offsetHeight : 0;
+    document.documentElement.style.setProperty("--shell-h", `${shellH}px`);
+    document.documentElement.style.setProperty("--nav-h", `${shellH + document.querySelector(".nav").offsetHeight}px`);
+    const stacked = window.matchMedia("(max-width: 900px)").matches;
+    const pairs = [];
+    for (const section of weeksContainer.querySelectorAll(".week-section")) {
+      const grids = section.querySelectorAll(".panel .sched-grid");
+      if (grids.length < 2) continue;
+      const rowsA = [...grids[0].querySelectorAll(".sched-row:not(.sched-head)")];
+      const rowsB = [...grids[1].querySelectorAll(".sched-row:not(.sched-head)")];
+      for (const r of [...rowsA, ...rowsB]) {
+        r.style.minHeight = "";
+        r.style.marginBottom = "";
+      }
+      // Panels stack below 900px (blank rows are hidden there too) — pairing
+      // by line no longer means anything visually, so leave heights natural.
+      if (stacked) continue;
+      for (let k = 0; k < Math.min(rowsA.length, rowsB.length); k++) pairs.push([rowsA[k], rowsB[k]]);
+    }
+    // All reads before all writes: one forced layout per call, not per pair —
+    // this runs after every mutation on a TV-grade device.
+    const measured = pairs.map(([a, b]) => ({
+      a,
+      b,
+      h: Math.max(a.offsetHeight, b.offsetHeight),
+      na: openNotesHeight(a),
+      nb: openNotesHeight(b),
+    }));
+    for (const m of measured) {
+      m.a.style.minHeight = `${m.h}px`;
+      m.b.style.minHeight = `${m.h}px`;
+      if (m.na !== m.nb) (m.na > m.nb ? m.b : m.a).style.marginBottom = `${Math.abs(m.na - m.nb)}px`;
+    }
+  }
+  let syncTimer;
+  function queueSync() {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncRowHeights, 120);
+  }
+
+  // --- panel rendering ---
+  function panelEl(week, panelDef, rows) {
+    const panel = document.createElement("div");
+    panel.className = "panel";
+
+    const h3 = document.createElement("h3");
+    h3.textContent = panelDef.label;
+    panel.appendChild(h3);
+
+    const grid = document.createElement("div");
+    grid.className = "sched-grid";
+
+    const today = localTodayStr();
+    const dayOffset = Math.round((parseDate(today) - parseDate(week.start)) / 86400000);
+    // Saturday and Sunday both fall in the Weekend column (index 5).
+    const todayIndex = dayOffset >= 0 && dayOffset < 7 ? Math.min(dayOffset, 5) : -1;
+
+    const head = document.createElement("div");
+    head.className = "sched-row sched-head";
+    const jobHead = document.createElement("div");
+    jobHead.textContent = "Job";
+    head.appendChild(jobHead);
+    DAY_KEYS.forEach((day, i) => {
+      const d = document.createElement("div");
+      d.className = (day === "wknd" ? "weekend-col" : "") + (i === todayIndex ? " today-col" : "");
+      d.textContent = `${DAY_LABELS[day]} ${fmtAUShort(addDays(week.start, i))}`;
+      head.appendChild(d);
+    });
+    grid.appendChild(head);
+
+    for (const row of rows) {
+      grid.appendChild(row ? rowEl(row, panelDef.key, todayIndex) : blankRowEl(todayIndex));
+    }
+
+    wireDropTarget(grid, panelDef.key, week.start);
+    panel.appendChild(grid);
+
+    const addRow = document.createElement("div");
+    addRow.className = "add-row";
+    const input = document.createElement("input");
+    input.className = "input";
+    input.placeholder = "Add job…";
+    input.setAttribute("list", "jobNamesList");
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "btn btn-primary";
+    addBtn.textContent = "+ Add";
+    const submitAdd = guarded(async () => {
+      const name = input.value.trim();
+      if (!name) return;
+      const existing = state.jobs.find((j) => j.name.toLowerCase() === name.toLowerCase());
+      const body = { weekStart: week.start, panel: panelDef.key };
+      if (existing) body.jobId = existing.id;
+      else body.jobName = name;
+      await api("/api/rows", { method: "POST", body: JSON.stringify(body) });
+      input.value = "";
+      await refresh();
+    });
+    addBtn.addEventListener("click", submitAdd);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitAdd();
+    });
+    addRow.appendChild(input);
+    addRow.appendChild(addBtn);
+    panel.appendChild(addRow);
+
+    return panel;
+  }
+
+  function renderWeeks() {
+    // The rebuild below wipes every notes panel — snapshot the open ones (and
+    // any unsaved draft text) so a chip/flag edit elsewhere can't destroy them.
+    const openNotes = new Map();
+    for (const el of weeksContainer.querySelectorAll(".job-notes:not([hidden])")) {
+      openNotes.set(el.id, el.querySelector("textarea").value);
+    }
+    // M5 review: the panels' "Add job…" boxes are rebuilt too; keep their text
+    // (same order: one week, manufacturing then installing).
+    const addDrafts = [...weeksContainer.querySelectorAll(".add-row .input")].map((i) => i.value);
+
+    weeksContainer.innerHTML = "";
+
+    let datalist = document.getElementById("jobNamesList");
+    if (!datalist) {
+      datalist = document.createElement("datalist");
+      datalist.id = "jobNamesList";
+      document.body.appendChild(datalist);
+    }
+    datalist.innerHTML = "";
+    for (const j of state.jobs) {
+      const opt = document.createElement("option");
+      opt.value = j.name;
+      datalist.appendChild(opt);
+    }
+
+    if (!state.weeks.length) {
+      weeksContainer.innerHTML = '<div class="empty-schedule">No schedule data.</div>';
+      return;
+    }
+
+    for (const week of state.weeks) {
+      const section = document.createElement("section");
+      section.className = "week-section";
+
+      const head = document.createElement("div");
+      head.className = "week-head";
+      const h2 = document.createElement("h2");
+      h2.textContent = weekRangeLabel(week);
+      head.appendChild(h2);
+      section.appendChild(head);
+
+      const cols = document.createElement("div");
+      cols.className = "week-cols";
+      const aligned = alignPanels(week);
+      for (const panelDef of PANELS) cols.appendChild(panelEl(week, panelDef, aligned[panelDef.key]));
+      section.appendChild(cols);
+
+      // Page chrome, not board content: hidden in print and not drawn into the JPG.
+      const finishBar = document.createElement("div");
+      finishBar.className = "finish-week-bar";
+      const finishBtn = document.createElement("button");
+      finishBtn.type = "button";
+      finishBtn.className = "btn btn-secondary";
+      finishBtn.innerHTML = '<i class="ph ph-flag-checkered"></i> Finish week';
+      finishBtn.addEventListener("click", () => openFinishWeek(week));
+      finishBar.appendChild(finishBtn);
+      section.appendChild(finishBar);
+
+      weeksContainer.appendChild(section);
+    }
+
+    for (const [id, draft] of openNotes) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.hidden = false;
+      const textarea = el.querySelector("textarea");
+      if (textarea.value !== draft) textarea.value = draft;
+    }
+    const addInputs = weeksContainer.querySelectorAll(".add-row .input");
+    if (addInputs.length === addDrafts.length) {
+      addInputs.forEach((input, i) => { if (addDrafts[i]) input.value = addDrafts[i]; });
+    }
+
+    syncRowHeights();
+  }
+
+  // --- "To start" backlog sidebar ---
+  // Jobs waiting to be scheduled. One line each; drag a grip into a panel of
+  // the shown week to place it (see wireDropTarget). Safe to call on its own.
+  function backlogItemEl(item) {
+    const el = document.createElement("div");
+    el.className = "backlog-item";
+
+    // Same drag-handle technique as the row grip: a dedicated draggable button,
+    // with the whole item as the drag image.
+    const grip = document.createElement("button");
+    grip.type = "button";
+    grip.className = "btn btn-ghost btn-icon drag-grip";
+    grip.title = "Drag into Manufacturing or Installing";
+    grip.draggable = true;
+    grip.innerHTML = '<i class="ph ph-dots-six-vertical"></i>';
+    grip.addEventListener("dragstart", (e) => {
+      backlogDrag = { id: item.id };
+      e.dataTransfer.effectAllowed = "move";
+      // Firefox drops a drag that carries no data payload.
+      e.dataTransfer.setData("text/plain", String(item.id));
+      e.dataTransfer.setDragImage(el, 12, 12);
+      el.classList.add("dragging");
+    });
+    grip.addEventListener("dragend", () => {
+      backlogDrag = null;
+      el.classList.remove("dragging");
+      clearDropMarkers();
+    });
+    el.appendChild(grip);
+
+    const name = document.createElement("span");
+    name.className = "backlog-name";
+    name.textContent = item.name;
+    name.title = item.name;
+    el.appendChild(name);
+
+    el.appendChild(iconBtn("ph-x", "Remove from To start", guarded(async () => {
+      await api(`/api/jobs/backlog/${item.id}`, { method: "DELETE" });
+      await refresh();
+    })));
+    return el;
+  }
+
+  function backlogAddRowEl(draft) {
+    const addRow = document.createElement("div");
+    addRow.className = "add-row";
+    const input = document.createElement("input");
+    input.className = "input";
+    input.placeholder = "Add job…";
+    input.value = draft;
+    input.setAttribute("list", "jobNamesList");
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "btn btn-primary";
+    addBtn.textContent = "+ Add";
+    const submitAdd = guarded(async () => {
+      const name = input.value.trim();
+      if (!name) return;
+      await api("/api/jobs/backlog", { method: "POST", body: JSON.stringify({ name }) });
+      input.value = "";
+      await refresh();
+    });
+    addBtn.addEventListener("click", submitAdd);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitAdd();
+    });
+    addRow.appendChild(input);
+    addRow.appendChild(addBtn);
+    return addRow;
+  }
+
+  function renderBacklog() {
+    // Rebuilding wipes the add-row, so keep any half-typed name across a refresh.
+    const oldInput = backlogEl.querySelector(".add-row .input");
+    const draft = oldInput ? oldInput.value : "";
+    backlogEl.innerHTML = "";
+
+    const head = document.createElement("div");
+    head.className = "backlog-head";
+    const h3 = document.createElement("h3");
+    h3.textContent = "To start";
+    const count = document.createElement("span");
+    count.className = "backlog-count";
+    count.textContent = String(state.backlog.length);
+    head.appendChild(h3);
+    head.appendChild(count);
+    backlogEl.appendChild(head);
+
+    const list = document.createElement("div");
+    list.className = "backlog-list";
+    if (!state.backlog.length) {
+      const empty = document.createElement("div");
+      empty.className = "backlog-empty";
+      empty.textContent = "Nothing waiting.";
+      list.appendChild(empty);
+    }
+    for (const item of state.backlog) list.appendChild(backlogItemEl(item));
+    backlogEl.appendChild(list);
+
+    backlogEl.appendChild(backlogAddRowEl(draft));
+  }
+
+  // Dragging a scheduled row onto "To start" unschedules it. Wired ONCE here on
+  // the persistent panel element, not in renderBacklog (which rebuilds the
+  // panel's children on every refresh). Only row drags (dragState) are accepted:
+  // a backlog-item drag (backlogDrag) is already in the list, so it's refused.
+  backlogEl.addEventListener("dragover", (e) => {
+    if (!dragState) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    backlogEl.classList.add("drop-active");
+  });
+  backlogEl.addEventListener("dragleave", (e) => {
+    if (!backlogEl.contains(e.relatedTarget)) backlogEl.classList.remove("drop-active");
+  });
+  backlogEl.addEventListener("drop", guarded(async (e) => {
+    if (!dragState) return;
+    e.preventDefault();
+    const rowId = dragState.rowId;
+    dragState = null;
+    clearDropMarkers();
+    // Deleting the row also drops its workers and day flags, so confirm first
+    // when there is anything on it. An empty row goes straight through.
+    const week = state.weeks[0];
+    const row = week && [...week.manufacturing, ...week.installing].find((r) => r.rowId === rowId);
+    if (row) {
+      const hasWorkers = DAY_KEYS.some((d) => row.cells[d].length > 0);
+      const hasFlags = DAY_KEYS.some((d) => row.flags && row.flags[d]);
+      if ((hasWorkers || hasFlags) &&
+          !confirm(`Send ${row.jobName} back to To start? The workers assigned to it this week will be cleared.`)) {
+        return;
+      }
+    }
+    await api(`/api/rows/${rowId}/move`, { method: "PATCH", body: JSON.stringify({ backlog: true }) });
+    await refresh();
+  }));
+
+  // --- "Finish week" popup ---
+  // Lists each job in the shown week once and asks where it is up to. The
+  // answers go to POST /api/rows/finish-week, which sets up the following week.
+  // The radio values ARE the server's outcome strings.
+  const FINISH_OUTCOMES = [
+    { value: "not_started", label: "Not started" },
+    { value: "manufacturing", label: "Still manufacturing" },
+    { value: "install", label: "Ready to install" },
+    { value: "complete", label: "Installed" },
+  ];
+  // True while the request is in flight: blocks a second Done, and stops Esc or
+  // a backdrop click from dismissing the popup mid-save.
+  let finishBusy = false;
+
+  // Backdrop click dismisses. Clicks inside the popup land on its children, so
+  // only a click whose target is the dialog itself is the backdrop.
+  finishDialog.addEventListener("click", (e) => {
+    if (e.target === finishDialog && !finishBusy) finishDialog.close();
+  });
+  finishDialog.addEventListener("cancel", (e) => {
+    if (finishBusy) e.preventDefault();
+  });
+
+  // One group per job name (alignKey), so a job sitting in both panels is one
+  // line. Manufacturing is walked first, so the order is manufacturing rows,
+  // then installing-only jobs.
+  function finishGroups(week) {
+    const groups = new Map();
+    for (const [panelKey, rows] of [["manufacturing", week.manufacturing], ["installing", week.installing]]) {
+      for (const row of rows) {
+        const key = alignKey(row);
+        if (!groups.has(key)) {
+          // The stage select defaults to the first row's current stage (manufacturing
+          // first), and offers the stages that row's job allows.
+          groups.set(key, {
+            name: row.jobName,
+            mfgJobId: null,
+            instJobId: null,
+            productionStage: row.productionStage || null,
+            stageOptions: Array.isArray(row.stageOptions) ? row.stageOptions.slice() : [],
+          });
+        }
+        const g = groups.get(key);
+        if (panelKey === "manufacturing" && g.mfgJobId === null) g.mfgJobId = row.jobId;
+        if (panelKey === "installing" && g.instJobId === null) g.instJobId = row.jobId;
+        // Two separate job records can share a name (one per panel). Whichever one
+        // the outcome sends, the stage must apply to it, so offer only the stages
+        // both allow.
+        const opts = Array.isArray(row.stageOptions) ? row.stageOptions : [];
+        g.stageOptions = g.stageOptions.filter((s) => opts.includes(s));
+      }
+    }
+    return [...groups.values()];
+  }
+
+  // The jobId that carries a group's result. 'install' prefers the installing
+  // row; every other outcome prefers the manufacturing row. Each falls back to
+  // the other panel's row when it has none.
+  function finishJobId(g, outcome) {
+    const installFirst = outcome === "install";
+    const first = installFirst ? g.instJobId : g.mfgJobId;
+    const second = installFirst ? g.mfgJobId : g.instJobId;
+    return first !== null ? first : second;
+  }
+
+  function finishWhere(g) {
+    if (g.mfgJobId !== null && g.instJobId !== null) return "Manufacturing + Installing";
+    return g.mfgJobId !== null ? "Manufacturing" : "Installing";
+  }
+
+  // Plain-words summary of the POST response, shown in the toast after Done.
+  function finishSummary(res) {
+    const carried = res.created.filter((c) => c.outcome !== "not_started").length;
+    const toStart = res.created.length - carried;
+    const already = res.skipped.length;
+    const finished = (res.installed || res.completed).length;
+    const parts = [];
+    if (carried) parts.push(`${carried} carried over`);
+    if (toStart) parts.push(`${toStart} to To start`);
+    if (already) parts.push(`${already} already there`);
+    if (finished) parts.push(`${finished} installed (PM to confirm)`);
+    return parts.length ? `Next week set up: ${parts.join(", ")}` : "Next week set up: nothing to carry over";
+  }
+
+  // One line per job: name, where it sits now, and the segmented control.
+  function finishItemEl(g, index) {
+    const item = document.createElement("div");
+    item.className = "finish-item";
+
+    const info = document.createElement("div");
+    info.className = "finish-info";
+    const name = document.createElement("span");
+    name.className = "finish-name";
+    name.textContent = g.name;
+    const where = document.createElement("span");
+    where.className = "finish-where text-muted";
+    where.textContent = finishWhere(g);
+    info.append(name, where);
+
+    // Real radio inputs (visually hidden, still tabbable and arrow-key driven)
+    // inside labels styled as one joined control.
+    const seg = document.createElement("div");
+    seg.className = "finish-seg";
+    seg.setAttribute("role", "radiogroup");
+    seg.setAttribute("aria-label", `${g.name} status`);
+    for (const opt of FINISH_OUTCOMES) {
+      const label = document.createElement("label");
+      label.className = "finish-opt";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = `fw-${index}`;
+      input.value = opt.value;
+      // Installing-only jobs default to Complete; every other job starts unanswered.
+      if (opt.value === "complete" && g.mfgJobId === null) input.checked = true;
+      const text = document.createElement("span");
+      text.textContent = opt.label;
+      label.append(input, text);
+      seg.appendChild(label);
+    }
+
+    // M5 (rule 7, M5 exception): how far the job got this week. Optional; it does
+    // not count towards "answered", so Done's rule is unchanged.
+    const stageWrap = document.createElement("label");
+    stageWrap.className = "finish-stage";
+    const stageText = document.createElement("span");
+    stageText.className = "finish-stage-label text-muted";
+    stageText.textContent = "Stage reached";
+    const select = document.createElement("select");
+    select.className = "input finish-stage-select";
+    select.name = `fw-stage-${index}`;
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "Not recorded";
+    select.appendChild(none);
+    for (const key of g.stageOptions) {
+      if (!STAGE_LABELS[key]) continue;
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = STAGE_LABELS[key];
+      select.appendChild(opt);
+    }
+    select.value = g.productionStage && g.stageOptions.includes(g.productionStage) ? g.productionStage : "";
+    stageWrap.append(stageText, select);
+
+    item.append(info, seg, stageWrap);
+    return item;
+  }
+
+  function openFinishWeek(week) {
+    const groups = finishGroups(week);
+    if (!groups.length) {
+      toast("No jobs in this week");
+      return;
+    }
+    finishDialog.innerHTML = "";
+
+    const body = document.createElement("div");
+    body.className = "finish-body";
+    const h2 = document.createElement("h2");
+    h2.textContent = `Finish week — ${weekRangeLabel(week)}`;
+    const help = document.createElement("p");
+    help.className = "finish-help text-muted";
+    help.textContent = "Say where each job is up to. This sets up next week.";
+    const list = document.createElement("div");
+    list.className = "finish-list";
+    const foot = document.createElement("div");
+    foot.className = "finish-foot";
+    const count = document.createElement("span");
+    count.className = "finish-count text-muted";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn btn-secondary";
+    cancel.textContent = "Cancel";
+    const done = document.createElement("button");
+    done.type = "button";
+    done.className = "btn btn-primary";
+    done.textContent = "Done";
+    foot.append(count, cancel, done);
+    body.append(h2, help, list, foot);
+    finishDialog.appendChild(body);
+
+    groups.forEach((g, i) => list.appendChild(finishItemEl(g, i)));
+
+    // Single source of truth for the footer: the counter, and whether Done and
+    // Cancel are usable (both locked while a save is in flight).
+    const updateProgress = () => {
+      let answered = 0;
+      for (const item of list.children) {
+        const picked = item.querySelector("input:checked");
+        if (picked) answered++;
+        item.classList.toggle("answered", !!picked);
+        for (const opt of item.querySelectorAll(".finish-opt")) {
+          opt.classList.toggle("selected", opt.querySelector("input").checked);
+        }
+      }
+      count.textContent = `${answered} of ${groups.length} answered`;
+      done.disabled = finishBusy || answered < groups.length;
+      cancel.disabled = finishBusy;
+    };
+    list.addEventListener("change", updateProgress);
+    cancel.addEventListener("click", () => finishDialog.close());
+    done.addEventListener("click", guarded(async () => {
+      // One entry per group. A jobId already used by an earlier group is dropped,
+      // since the server rejects duplicate jobIds in one request; its stage goes
+      // with it, so each jobId sent carries one stage (a key, or null).
+      const seen = new Set();
+      const results = [];
+      groups.forEach((g, i) => {
+        const outcome = list.querySelector(`input[name="fw-${i}"]:checked`).value;
+        const jobId = finishJobId(g, outcome);
+        if (seen.has(jobId)) return;
+        seen.add(jobId);
+        const stageSelect = list.querySelector(`select[name="fw-stage-${i}"]`);
+        const stage = stageSelect && stageSelect.value ? stageSelect.value : null;
+        results.push({ jobId, outcome, stage });
+      });
+      finishBusy = true;
+      updateProgress();
+      try {
+        const res = await api("/api/rows/finish-week", {
+          method: "POST",
+          body: JSON.stringify({ weekStart: week.start, results }),
+        });
+        finishDialog.close();
+        toast(finishSummary(res));
+        // Land on the week that was just set up.
+        state.weekStart = addDays(week.start, 7);
+        await refresh();
+      } finally {
+        // On failure guarded() toasts the error; the answers stay put and Done
+        // comes back so the user can retry.
+        finishBusy = false;
+        updateProgress();
+      }
+    }));
+
+    updateProgress();
+    finishDialog.showModal();
+  }
+
+  // M5 review: refreshes run one after another, so an older response (an idle
+  // reload overlapping an edit) can never render after a newer one.
+  let refreshChain = Promise.resolve();
+  function refresh() {
+    const run = refreshChain.then(refreshNow);
+    refreshChain = run.catch(() => {});
+    return run;
+  }
+  async function refreshNow() {
+    // jobs included so a rename can't leave the add-job autocomplete offering
+    // stale names (which silently creates duplicate jobs server-side).
+    await Promise.all([loadWorkers(), loadJobs(), loadSchedule()]);
+    renderedToday = localTodayStr();
+    renderLegend();
+    renderWeeks();
+    renderBacklog();
+    weekPicker.value = state.weekStart;
+    if (tvActive) fitTv();
+  }
+
+  // --- nav controls ---
+  document.getElementById("prevWeekBtn").addEventListener("click", guarded(async () => {
+    state.weekStart = addDays(state.weekStart, -7);
+    await refresh();
+  }));
+  document.getElementById("nextWeekBtn").addEventListener("click", guarded(async () => {
+    state.weekStart = addDays(state.weekStart, 7);
+    await refresh();
+  }));
+  document.getElementById("todayBtn").addEventListener("click", guarded(async () => {
+    state.weekStart = mondayOf(localTodayStr());
+    await refresh();
+  }));
+  weekPicker.addEventListener("change", guarded(async () => {
+    if (!weekPicker.value) return;
+    state.weekStart = mondayOf(weekPicker.value);
+    await refresh();
+  }));
+  document.getElementById("exportPdfBtn").addEventListener("click", () => window.print());
+  document.getElementById("exportJpgBtn").addEventListener("click", exportJpg);
+
+  // --- TV mode (Todd, 2026-11-11): fullscreen current week, uniformly scaled to fit ---
+  // Screen only. The board is laid out at a chosen width and then scaled with one
+  // transform, so rows and columns keep their proportions. alignPanels() and
+  // exportJpg() are untouched. The layout width is searched so the board's shape
+  // matches the screen's (a wider screen gets a wider layout, hence less height).
+  let tvActive = false;
+  let tvWake = null;
+  let tvIdleTimer = null;
+  const tvExitBtn = document.getElementById("tvExitBtn");
+  const TV_MIN_W = 1300;
+  const TV_MAX_W = 3200;
+  function fitTv() {
+    const board = document.querySelector(".board");
+    if (!board) return;
+    // Fit inside a small margin so nothing touches the screen edge (TVs overscan).
+    const sw = window.innerWidth;
+    const sh = window.innerHeight;
+    const vw = sw * 0.98;
+    const vh = sh * 0.98;
+    board.style.transform = "none";
+    let s = 1;
+    let L = vw;
+    let h = vh;
+    // Aim for a layout whose shape matches the screen: scale = screen height / board
+    // height at the trial width, width = screen width / scale. Damped so it settles.
+    for (let i = 0; i < 14; i++) {
+      L = Math.min(TV_MAX_W, Math.max(TV_MIN_W, Math.round(vw / s)));
+      board.style.width = `${L}px`;
+      syncRowHeights();
+      h = board.offsetHeight;
+      const next = (s + vh / h) / 2;
+      const done = Math.abs(next - s) < 0.003;
+      s = next;
+      if (done) break;
+    }
+    // Re-measure at the final width so the scale is true to what is on screen.
+    L = Math.min(TV_MAX_W, Math.max(TV_MIN_W, Math.round(vw / s)));
+    board.style.width = `${L}px`;
+    syncRowHeights();
+    h = board.offsetHeight;
+    // Content can overhang a narrow layout slightly; fit what is really drawn.
+    L = Math.max(L, board.scrollWidth);
+    s = Math.min(vw / L, vh / h);
+    const tx = Math.max(0, (sw - L * s) / 2);
+    const ty = Math.max(0, (sh - h * s) / 2);
+    board.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+  }
+  async function tvAcquireWake() {
+    try {
+      if (tvActive && navigator.wakeLock && !tvWake) {
+        tvWake = await navigator.wakeLock.request("screen");
+        tvWake.addEventListener("release", () => { tvWake = null; });
+      }
+    } catch {
+      tvWake = null; // unsupported or refused: carry on
+    }
+  }
+  function tvShowExit() {
+    document.body.classList.remove("tv-idle");
+    tvExitBtn.hidden = false;
+    clearTimeout(tvIdleTimer);
+    tvIdleTimer = setTimeout(() => {
+      tvExitBtn.hidden = true;
+      document.body.classList.add("tv-idle");
+    }, 4000);
+  }
+  async function enterTv() {
+    if (tvActive) return;
+    const el = document.documentElement;
+    try {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) await req.call(el);
+    } catch {
+      // Fullscreen refused: TV mode still works in the window.
+    }
+    tvActive = true;
+    document.body.classList.add("tv-mode");
+    popover.hidden = true;
+    for (const d of document.querySelectorAll("dialog[open]")) d.close();
+    state.weekStart = mondayOf(localTodayStr());
+    tvShowExit();
+    tvAcquireWake();
+    fitTv();
+    try { await refresh(); } catch { /* keep what is on screen */ }
+  }
+  function exitTv() {
+    if (!tvActive) return;
+    tvActive = false;
+    clearTimeout(tvIdleTimer);
+    document.body.classList.remove("tv-mode", "tv-idle");
+    tvExitBtn.hidden = true;
+    const board = document.querySelector(".board");
+    if (board) { board.style.width = ""; board.style.transform = ""; }
+    if (tvWake) { tvWake.release().catch(() => {}); tvWake = null; }
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch { /* ignore */ }
+    }
+    syncRowHeights();
+  }
+  document.getElementById("tvModeBtn").addEventListener("click", enterTv);
+  tvExitBtn.addEventListener("click", exitTv);
+  function onFullscreenChange() {
+    if (tvActive && !document.fullscreenElement && !document.webkitFullscreenElement) exitTv();
+  }
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+  document.addEventListener("mousemove", () => { if (tvActive) tvShowExit(); });
+  document.addEventListener("keydown", (e) => { if (tvActive && e.key === "Escape") exitTv(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") tvAcquireWake();
+  });
+  window.addEventListener("resize", () => { if (tvActive) fitTv(); });
+
+  // --- JPG export: drawn straight from the loaded data, not a DOM screenshot ---
+  function exportJpg() {
+    // The "To start" backlog sidebar is intentionally not drawn into the export.
+    if (!state.weeks.length) {
+      toast("Nothing to export yet");
+      return;
+    }
+    // Wider than it was: chips now sit in up to two columns per cell (mirroring
+    // the board), and 132px left a two-column day unreadable.
+    const dayW = 150;
+    const jobW = 190;
+    const panelW = jobW + dayW * DAY_KEYS.length;
+    const gap = 28;
+    const margin = 24;
+    const chipH = 22;
+    const chipGap = 4;
+    const rowPad = 10;
+    const headerH = 26;
+    const panelTitleH = 24;
+    const weekTitleH = 30;
+
+    // Chips stack at most two deep before spilling into a new column (see
+    // .sched-chips and the gridTemplateRows line in rowEl) — so a cell is at
+    // most two chips tall no matter how many workers are on the day.
+    const CHIP_ROWS = 2;
+    function chipRowsUsed(n) {
+      return Math.max(1, Math.min(n, CHIP_ROWS));
+    }
+    function rowHeight(row) {
+      const deepest = Math.max(1, ...DAY_KEYS.map((d) => chipRowsUsed(row.cells[d].length)));
+      return Math.max(34, rowPad * 2 + deepest * chipH + (deepest - 1) * chipGap);
+    }
+
+    // Mirrors the on-screen alignment: one shared height per line, both panels.
+    const alignedWeeks = state.weeks.map((week) => alignPanels(week));
+    const weekLines = alignedWeeks.map((aligned) =>
+      aligned.manufacturing.map((r, i) => {
+        const b = aligned.installing[i];
+        return Math.max(r ? rowHeight(r) : 34, b ? rowHeight(b) : 34);
+      })
+    );
+
+    let totalH = margin;
+    const weekHeights = [];
+    for (const lines of weekLines) {
+      const bodyH = headerH + lines.reduce((a, h) => a + h, 0);
+      const h = weekTitleH + panelTitleH + bodyH + gap;
+      weekHeights.push(h);
+      totalH += h;
+    }
+    totalH += margin;
+
+    // House tokens, read once. The canvas can't use CSS variables, so every
+    // colour it draws comes from here (no colour literals in this function).
+    const rootStyle = getComputedStyle(document.documentElement);
+    const tok = (name) => rootStyle.getPropertyValue(name).trim();
+    const C = {
+      ink: tok("--ink"),
+      weekend: tok("--weekend"),
+      white: tok("--white"),
+      body: tok("--body"),
+      label: tok("--label"),
+      muted: tok("--muted"),
+      na: tok("--na"),
+      hairline: tok("--hairline"),
+      teal: tok("--teal"),
+      tealTint: tok("--teal-tint"),
+      violet: tok("--violet"),
+      fuchsia: tok("--fuchsia"),
+      orange: tok("--orange"),
+      orangeTint: tok("--orange-tint"),
+      orange8: tok("--orange-8"),
+    };
+    const FONT = tok("--font") || "Arial, Helvetica, sans-serif";
+
+    const canvas = document.createElement("canvas");
+    const scale = 2;
+    canvas.width = (margin * 2 + panelW * 2 + gap) * scale;
+    canvas.height = totalH * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = C.ink;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textBaseline = "middle";
+    ctx.font = `700 12px ${FONT}`;
+
+    let y = margin;
+    state.weeks.forEach((week, wi) => {
+      ctx.fillStyle = C.white;
+      ctx.font = `700 16px ${FONT}`;
+      ctx.fillText(weekRangeLabel(week), margin, y + 14);
+      // Mirrors the board's week band — the spectrum rule marking where each
+      // week starts. Same stops as --spectrum (0 / 30 / 55 / 100%), drawn as a
+      // horizontal gradient across the full width of the week.
+      const ruleX2 = margin + panelW * 2 + gap;
+      const rule = ctx.createLinearGradient(margin, 0, ruleX2, 0);
+      rule.addColorStop(0, C.teal);
+      rule.addColorStop(0.3, C.violet);
+      rule.addColorStop(0.55, C.fuchsia);
+      rule.addColorStop(1, C.orange);
+      ctx.strokeStyle = rule;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(margin, y + 26);
+      ctx.lineTo(ruleX2, y + 26);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      y += weekTitleH;
+
+      [
+        { key: "manufacturing", label: "MANUFACTURING", x: margin },
+        { key: "installing", label: "INSTALLING", x: margin + panelW + gap },
+      ].forEach(({ key, label, x }) => {
+        let py = y;
+        ctx.fillStyle = C.tealTint;
+        ctx.font = `700 11px ${FONT}`;
+        ctx.fillText(label, x, py + 10);
+        py += panelTitleH;
+
+        // Mirrors .weekend-col: the Weekend column's slightly lighter ground, header and rows.
+        const weekendX = x + jobW + (DAY_KEYS.length - 1) * dayW;
+        ctx.fillStyle = C.weekend;
+        ctx.fillRect(weekendX, py, dayW, headerH);
+        ctx.strokeStyle = C.na;
+        ctx.fillStyle = C.label;
+        ctx.font = `700 10px ${FONT}`;
+        DAY_KEYS.forEach((day, i) => {
+          ctx.fillText(`${DAY_LABELS[day].toUpperCase()} ${fmtAUShort(addDays(week.start, i))}`, x + jobW + i * dayW + 6, py + headerH / 2);
+        });
+        ctx.beginPath();
+        ctx.moveTo(x, py + headerH);
+        ctx.lineTo(x + panelW, py + headerH);
+        ctx.stroke();
+        py += headerH;
+
+        alignedWeeks[wi][key].forEach((row, li) => {
+          const h = weekLines[wi][li];
+          ctx.fillStyle = C.weekend;
+          ctx.fillRect(weekendX, py, dayW, h);
+          if (row) {
+            const hasNotes = !!(row.notes && row.notes.trim());
+            const midY = py + h / 2;
+            // The marks sit at the right of the job column, laid out right to left:
+            // the notes dot, then the stage code, then the materials square. The
+            // name's maxWidth shrinks to whatever is left (as it always did for notes).
+            let marksLeft = x + jobW - 6;
+            if (hasNotes) {
+              // Mirrors the board's orange-tint notes icon.
+              ctx.fillStyle = C.orangeTint;
+              ctx.beginPath();
+              ctx.arc(x + jobW - 12, midY, 3.5, 0, Math.PI * 2);
+              ctx.fill();
+              marksLeft = x + jobW - 20;
+            }
+            // M5: the stage label (muted, uppercase code) and the materials mark
+            // (teal in, orange ordered), mirroring the board's icon-line indicators.
+            if (STAGE_SHORT[row.productionStage]) {
+              const code = STAGE_SHORT[row.productionStage];
+              ctx.font = `400 9px ${FONT}`;
+              if ("letterSpacing" in ctx) ctx.letterSpacing = "0.4px";
+              const codeW = ctx.measureText(code).width;
+              ctx.fillStyle = C.muted;
+              ctx.fillText(code, marksLeft - codeW, midY);
+              if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+              marksLeft -= codeW + 5;
+            }
+            if (row.materials === "in" || row.materials === "ordered") {
+              const sq = 7;
+              ctx.fillStyle = row.materials === "in" ? C.teal : C.orange;
+              ctx.fillRect(marksLeft - sq, midY - sq / 2, sq, sq);
+              marksLeft -= sq + 5;
+            }
+            ctx.fillStyle = C.white;
+            ctx.font = `700 12px ${FONT}`;
+            ctx.fillText(row.jobName, x, midY, marksLeft - x - 4);
+
+            DAY_KEYS.forEach((day, i) => {
+              const cellX = x + jobW + i * dayW;
+              if (key === "installing" && row.flags && row.flags[day]) {
+                // Mirrors .sched-cell.flagged: orange-8 wash plus a 3px orange left bar.
+                ctx.fillStyle = C.orange8;
+                ctx.fillRect(cellX, py, dayW, h);
+                ctx.fillStyle = C.orange;
+                ctx.fillRect(cellX, py, 3, h);
+              }
+              // Column-major, two deep — the same fill order as the board's
+              // .sched-chips grid: 2nd under 1st, 3rd beside 1st, 4th under 3rd.
+              // Columns split the cell evenly, so names clip to their column
+              // exactly like the board's ellipsis does.
+              const chips = row.cells[day];
+              const chipCols = Math.max(1, Math.ceil(chips.length / CHIP_ROWS));
+              const colW = (dayW - 8) / chipCols;
+              chips.forEach((chip, k) => {
+                const cx = cellX + 4 + Math.floor(k / CHIP_ROWS) * colW;
+                const cy = py + rowPad + (k % CHIP_ROWS) * chipH;
+                const text = chip.name;
+                ctx.font = `400 11px ${FONT}`;
+                const w = Math.min(colW - 4, ctx.measureText(text).width + 14);
+                // M5: mirrors .chip-worker.away (grey ground, muted text) and
+                // .chip-worker.over-days (orange outline drawn inside the chip).
+                const away = !!AWAY_TITLES[chip.away];
+                ctx.fillStyle = away ? C.na : chip.bg;
+                roundRect(ctx, cx, cy, w, chipH - 4, 4);
+                ctx.fill();
+                if (chip.overDays) {
+                  ctx.strokeStyle = C.orange;
+                  ctx.lineWidth = 1.5;
+                  roundRect(ctx, cx + 0.75, cy + 0.75, w - 1.5, chipH - 5.5, 3.5);
+                  ctx.stroke();
+                  ctx.lineWidth = 1;
+                }
+                ctx.fillStyle = away ? C.muted : chip.fg;
+                ctx.fillText(text, cx + 7, cy + (chipH - 4) / 2, w - 12);
+              });
+            });
+          }
+
+          ctx.strokeStyle = C.hairline;
+          ctx.beginPath();
+          ctx.moveTo(x, py + h);
+          ctx.lineTo(x + panelW, py + h);
+          ctx.stroke();
+          py += h;
+        });
+      });
+
+      y += weekHeights[wi] - weekTitleH;
+    });
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          toast("Export failed");
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `schedule-${state.weeks[0].start}.jpg`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      "image/jpeg",
+      0.92
+    );
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // Row-height pairing depends on wrapping, so re-measure when the viewport
+  // changes — and once the web font lands, since it shifts text metrics.
+  window.addEventListener("resize", queueSync);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncRowHeights);
+  document.addEventListener("cc:ready", queueSync);
+
+  // The board lives on an always-on workshop TV: once the local date rolls
+  // over, re-render so the today highlight moves — and if the viewer was on
+  // the current week, re-anchor so a new week surfaces on Monday morning.
+  setInterval(async () => {
+    const now = localTodayStr();
+    if (now === renderedToday) return;
+    try {
+      if (state.weekStart === mondayOf(renderedToday)) state.weekStart = mondayOf(now);
+      await refresh();
+    } catch {
+      // Server may be mid-restart overnight; renderedToday only advances on a
+      // successful refresh, so the next tick retries.
+    }
+  }, 60000);
+
+  // M5 (rule 7, M5 exception): the TV only re-fetched after an edit on that screen
+  // or at midnight, so materials, stages and leave entered elsewhere never showed.
+  // Every 5 minutes, reload the data, but only when nothing is open: no worker
+  // picker, no dialog (Finish week or any other), no notes editor, no drag, and no
+  // input, textarea or select in use. A busy tick is skipped, not queued.
+  // Focus alone outlives the person: the week picker keeps focus after a week is
+  // chosen, and an always-on TV would then never reload. So a focused field holds
+  // the reload while anyone has touched the page within the last interval, or
+  // while it has typing that hasn't been committed (an input event since its last
+  // change); a clean field nobody has touched for a whole interval doesn't.
+  const IDLE_RELOAD_MS = 5 * 60 * 1000;
+  let lastActivity = Date.now();
+  let uncommittedField = null;
+  for (const type of ["pointerdown", "keydown", "wheel"]) {
+    document.addEventListener(type, () => { lastActivity = Date.now(); }, true);
+  }
+  document.addEventListener("input", (e) => {
+    lastActivity = Date.now();
+    uncommittedField = e.target;
+  }, true);
+  document.addEventListener("change", (e) => {
+    if (e.target === uncommittedField) uncommittedField = null;
+  }, true);
+  function fieldInUse(el) {
+    if (!el || !(el.matches("input, textarea, select") || el.isContentEditable)) return false;
+    return el === uncommittedField || Date.now() - lastActivity < IDLE_RELOAD_MS;
+  }
+  function boardIsIdle() {
+    if (!popover.hidden) return false;
+    if (finishBusy || finishDialog.open || document.querySelector("dialog[open]")) return false;
+    if (weeksContainer.querySelector(".job-notes:not([hidden])")) return false;
+    if (dragState || backlogDrag) return false;
+    if (fieldInUse(document.activeElement)) return false;
+    return true;
+  }
+  async function idleReloadTick() {
+    // M5 review: past midnight, leave it to the rollover tick above, which also
+    // re-anchors the week on Monday; refreshing here first would mark the new day
+    // as rendered and the board would stay on last week.
+    if (localTodayStr() !== renderedToday) return false;
+    if (!boardIsIdle()) return false;
+    try {
+      await refresh();
+    } catch {
+      // Server unreachable for a moment: keep what is on screen; the next tick retries.
+    }
+    return true;
+  }
+  setInterval(idleReloadTick, IDLE_RELOAD_MS);
+
+  // --- boot ---
+  (async function init() {
+    try {
+      await refresh();
+    } catch (e) {
+      weeksContainer.innerHTML = `<div class="empty-schedule">Couldn't load the schedule: ${e.message}</div>`;
+    }
+  })();
+})();
+
+</script>
+</body>
+</html>
