@@ -113,6 +113,25 @@ r.put("/settings", EDIT, handle((req, res) => {
   res.json(payroll.putSettings(db, req, body(req)));
 }));
 
+// ----------------------------------------------------------- day notes ---
+// 0.2.17 (docs/plans/payrun-notes-plan.md): an admin's note on one person's day. Admin writes;
+// Accounts reads them inside the run, summary and timesheet answers.
+
+// A positive integer query id; undefined stays undefined, anything else invalid becomes 0 (unknown).
+function queryId(v) {
+  if (v === undefined) return undefined;
+  return typeof v === "string" && /^[1-9]\d*$/.test(v) ? Number(v) : 0;
+}
+
+r.get("/day-notes", ADMIN, handle((req, res) => {
+  const q = req.query || {};
+  res.json(payroll.getDayNote(db, { personId: queryId(q.personId), workerId: queryId(q.workerId), date: q.date }));
+}));
+
+r.put("/day-notes", ADMIN, handle((req, res) => {
+  res.json(payroll.setDayNote(db, req, body(req)));
+}));
+
 // ------------------------------------------------------ one pay run (/:id) ---
 
 r.get("/:id", VIEW, handle((req, res) => {

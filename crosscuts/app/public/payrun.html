@@ -7,6 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="payrun.css">
+<link rel="stylesheet" href="daynote.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -18,6 +19,7 @@
       <span id="runBadge" class="hs-badge hs-badge-na" hidden></span>
       <div class="pr-actions" role="group" aria-label="Pay run actions">
         <button id="finaliseBtn" class="hs-btn hs-btn-primary" type="button" hidden>Finalise</button>
+        <button id="addNoteBtn" class="hs-btn" type="button" hidden>Add day note</button>
         <label id="myobWrap" class="pr-check pr-myob" hidden><input id="myobTick" type="checkbox"> Entered in MYOB</label>
         <button id="reopenBtn" class="hs-btn" type="button" hidden>Reopen</button>
         <button id="deleteBtn" class="hs-btn hs-btn-stop" type="button" hidden>Delete</button>
@@ -42,6 +44,7 @@
         </div>
         <ul id="sheetList" class="pr-list"></ul>
         <p id="noSheets" class="pr-none" hidden>No sheets in this pay run yet.</p>
+        <div id="waiting" class="pr-waiting" hidden></div>
         <div id="sideTools" class="pr-side-tools" hidden>
           <button id="addSheetBtn" class="hs-btn" type="button">Add sheet</button>
           <button id="removeSheetBtn" class="hs-btn hs-btn-stop" type="button" hidden>Remove</button>
@@ -166,6 +169,7 @@
   </dialog>
 
   <script src="shared.js"></script>
+  <script src="daynote.js"></script>
   <script src="/paymaths.js"></script>
   <script src="payrun.js"></script>
   <script src="/shell/shell.js"></script>

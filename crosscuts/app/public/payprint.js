@@ -56,6 +56,26 @@
     return e;
   }
 
+  // "Thu 5 Nov" from YYYY-MM-DD (weekend days too, so not PM.dayKeyOf).
+  var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function dayLabel(date) {
+    var d = new Date(date + "T00:00:00Z");
+    if (!DATE_RE.test(String(date)) || isNaN(d.getTime())) return String(date);
+    return WEEKDAYS[d.getUTCDay()] + " " + d.getUTCDate() + " " + MONTHS[d.getUTCMonth()];
+  }
+
+  // The summary's Notes cell: the sheet notes, then each day note on its own line. Summaries
+  // frozen before 0.2.17 have no dayNotes.
+  function summaryNotesText(r) {
+    var lines = [];
+    var sheet = (r.notes || "").trim();
+    if (sheet) lines.push(sheet);
+    (Array.isArray(r.dayNotes) ? r.dayNotes : []).forEach(function (n) {
+      if (n && n.note) lines.push(dayLabel(n.date) + ": " + n.note);
+    });
+    return lines.join("\n");
+  }
+
   function add(parent) {
     for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]);
     return parent;
@@ -371,7 +391,7 @@
       th.scope = "row";
       tr.appendChild(th);
       SUMMARY_LINES.forEach(function (line) { tr.appendChild(el("td", "pp-num", PM.hours(r[line.key] || 0))); });
-      tr.appendChild(el("td", "pp-s-notes-cell", (r.notes || "").trim()));
+      tr.appendChild(el("td", "pp-s-notes-cell", summaryNotesText(r)));
       tb.appendChild(tr);
     });
     table.appendChild(tb);

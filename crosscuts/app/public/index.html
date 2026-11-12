@@ -6,6 +6,7 @@
 <title>Crosscuts</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="daynote.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -13,8 +14,12 @@
 
   <main class="dash">
     <header class="dash-head">
-      <h1 id="greeting">Hello</h1>
-      <p class="dash-date" id="today"></p>
+      <div class="dash-head-text">
+        <h1 id="greeting">Hello</h1>
+        <p class="dash-date" id="today"></p>
+      </div>
+      <!-- index.js adds the admin's Add day note button here (users.admin) -->
+      <div class="dash-acts" id="dash-acts"></div>
     </header>
 
     <div class="dash-lines">
@@ -69,6 +74,7 @@
   </main>
 
   <script src="shared.js"></script>
+  <script src="daynote.js"></script>
   <script src="shell/shell.js"></script>
   <script src="index.js"></script>
 </body>

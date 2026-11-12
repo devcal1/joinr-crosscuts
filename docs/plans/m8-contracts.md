@@ -427,3 +427,16 @@ One wave: the pages code against §6 with stubbed responses, then 4.1 runs them 
 9. **Display:** each day shows to two decimals; totals are summed in minutes and only then shown, so they never drift from rounding.
 10. **(4.1) The run object stays without `rules`.** The pay-run page takes them from `GET /:id/summary` (frozen when finalised, live when open), falling back to `GET /`; the prints do the same.
 11. **(4.1) The pay-run page's sheet save uses its own `fetch`**, because `shared.js` `api()` drops a 409's body and the stale-sheet 409 carries the newer `timesheet`. `shared.js` stays untouched in M8.
+
+## 0.2.17 addendum: day notes
+
+Admins can leave a short note on one person's day for Accounts to read on the pay run. The reasoning, screens and permissions are in `docs/plans/payrun-notes-plan.md`; this lists only what was built.
+
+- **Table `pay_day_notes`** (migration 061, additive): one row per person and date, `(person_id, date)` the key, `note` never empty, with who created and last updated it and when. It hangs off the person and the date, not a run or a sheet, so a note can be written before the sheet exists, and removing an empty sheet or deleting an empty run never loses one.
+- **`GET /api/payruns/day-notes?personId|workerId&date`** (`users.admin`): the person, the fortnight the date falls in (with whether it has a sheet) and the note, or null. It never creates a person.
+- **`PUT /api/payruns/day-notes`** (`users.admin`): body `{personId | workerId, date, note, updatedAt}`. A note that is empty after trimming removes the row. A stale `updatedAt` gives a 409 carrying the current `dayNote`. Bad dates (not a day of a fortnight, before the first run, past next fortnight) are 400. Both routes sit before `/:id`.
+- **New response fields:**
+  - Timesheet (`getTimesheet`): `dayNotes`, an object keyed by date, each `{note, by, updatedAt}`.
+  - Run (`getRun`): each of `timesheets[]` gains `dayNoteCount`, and the run gains `waitingDayNotes`, a list of `{person: {id, workerId, name}, count}` for people with notes in the fortnight but no sheet yet.
+  - Summary (`liveSummary`): each `rows[]` entry gains `dayNotes: [{date, note}]`. Summaries frozen before 0.2.17 lack it and print as before.
+- **Print:** the summary's Notes cell shows the sheet notes, then each day note on its own line as "Thu 5 Nov: text" (`public/payprint.js`). Blank timesheets and the overtime log are unchanged.

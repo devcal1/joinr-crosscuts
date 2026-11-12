@@ -242,7 +242,8 @@ td.pr-col-hint { font-size: 12px; line-height: 1.3; padding-left: 8px; padding-r
 .pr-draft p { margin: 0; color: var(--white); font-weight: 700; }
 .pr-rules { margin: 0 0 10px; color: var(--label); font-size: 13px; }
 .pr-sumwrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
-.pr-sumtable { min-width: 980px; }
+.pr-sumtable { min-width: 1160px; }
+.pr-sumtable thead th:first-child { width: 170px; }
 .pr-sumtable th.num, .pr-sumtable td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pr-sumtable tbody th {
   text-align: left;
@@ -258,7 +259,7 @@ td.pr-col-hint { font-size: 12px; line-height: 1.3; padding-left: 8px; padding-r
 }
 .pr-sumtable td.num { color: var(--white); }
 .pr-sumtable td.pr-zero { color: var(--muted); }
-.pr-sum-notes { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 200px; max-width: 360px; font-size: 13px; }
+.pr-sum-notes { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 280px; max-width: 420px; font-size: 13px; }
 .pr-sumtable tfoot th, .pr-sumtable tfoot td {
   background: var(--raised);
   border-bottom: 0;
@@ -313,3 +314,39 @@ td.pr-col-hint { font-size: 12px; line-height: 1.3; padding-left: 8px; padding-r
 .pr-li .pr-item { flex: 1; min-width: 0; }
 .pr-review { accent-color: var(--teal); width: 16px; height: 16px; margin: 9px 0 0; flex: none; }
 .pr-review:disabled { opacity: 0.6; }
+
+/* 0.2.17: day notes (docs/plans/payrun-notes-plan.md). A note sits on its own line under its day. */
+.pr-item-notes { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); line-height: 16px; }
+.pr-waiting { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); font-size: 12px; color: var(--label); }
+.pr-waiting b { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--orange-tint); }
+.pr-waiting div + div { margin-top: 2px; }
+.pr-dn-add { padding: 4px 8px; font-size: 10px; margin-top: 2px; }
+.pr-grid tr.pr-dn-row td { padding: 0 6px 6px 8px; height: auto; }
+.pr-dn {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  margin-left: 100px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--label);
+  border-radius: var(--r-control);
+  padding: 6px 10px;
+}
+.pr-dn-k { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); white-space: nowrap; }
+.pr-dn-text { margin: 0; flex: 1 1 320px; min-width: 0; color: var(--white); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pr-dn-by { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.pr-dn-tools { display: inline-flex; gap: 6px; }
+.pr-dn-tools .hs-btn { padding: 4px 8px; font-size: 10px; }
+.pr-dn-edit { flex-direction: column; align-items: stretch; gap: 8px; border-left-color: var(--teal); }
+.pr-dn-edit textarea { min-height: 56px; resize: vertical; color-scheme: dark; width: 100%; }
+.pr-dn-editbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pr-dn-count { margin-left: auto; color: var(--muted); font-size: 12px; }
+.pr-dn-stale { margin: 0; color: var(--orange-tint); }
+.pr-dn-theirs { margin: 0; color: var(--white); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Summary: day notes under the sheet notes */
+.pr-sum-dn { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.pr-sum-dn li { color: var(--body); }
+.pr-sum-dn b { color: var(--label); font-weight: 700; margin-right: 4px; }
+@media (max-width: 640px) {
+  .pr-dn { margin-left: 0; }
+}

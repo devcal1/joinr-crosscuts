@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Day notes, accounts view</title>
+<style>
+/* Crosscuts house style: the TH Cabinets Brand & Document Style Guide v1.0 on screen.
+   The values match Offcuts (joinr-offcuts/src/styles.css). These tokens are the only
+   colours a page may use; ci/style-check.sh enforces that. The rules are in CLAUDE.md
+   under "Look and feel".
+
+   Ink ground, and teal as the one working accent. Orange means "attend to this". Red is
+   only for overdue and destructive actions. The spectrum appears only as thin rules.
+   Arial, bold and regular only. No shadows, and no icons except the board's. */
+
+
+:root {
+  /* ground and surfaces */
+  --ink: #101019;
+  --surface: #191a24;
+  --raised: #262735;
+  --hairline: #24252f;
+  --na: #2e2f3c;
+  /* The board's Weekend column: a slightly lighter ground between surface and raised
+     (Todd, 2026-11-11; CLAUDE.md non-negotiable 7, Weekend exception). schedule.css and the JPG export only. */
+  --weekend: #1e1f2b;
+
+  /* text */
+  --white: #ffffff;
+  --body: #d3d4dc;
+  --label: #9a9ba8;
+  --muted: #6f7080;
+
+  /* colour roles */
+  --teal: #17c8a0;
+  --teal-tint: #6ee7c9;
+  --violet: #8b5cf6;
+  --violet-tint: #a855f7;
+  --fuchsia: #d946ef;
+  --orange: #f97316;
+  --orange-tint: #fb923c;
+  --go: #22c55e;
+  --go-tint: #4ade80;
+  --stop: #ef4444;
+  --stop-tint: #f87171;
+
+  /* Planner layer markers: the named exception in CLAUDE.md "Look and feel" (Todd, 2026-10-11).
+     Used only by planner.html, planner.css and planner.js; ci/style-check.js enforces that. */
+  --layer-company: var(--teal);
+  --layer-install: var(--orange);
+  --layer-accounts: var(--label);
+  --layer-design: var(--violet);
+  --layer-scheduling: var(--fuchsia);
+  --layer-workshop: var(--muted);
+  --layer-personal: var(--label);  /* drawn as a hollow outline, never a fill; the quiet label grey (M7 · 4.3) */
+
+  /* Notes paper: the named exception in CLAUDE.md "Look and feel" (Todd, 2026-10-16). The cream of
+     a sticky note, with --ink as its text. Used only by notes.html, notes.css and notes.js;
+     ci/style-check.js enforces that. */
+  --paper: #e9e4c9;
+
+  /* Benchtop plan-set paper fills (Todd, 2026-10-25): pale, print-friendly tints, one per material
+     (a light grey when the plan has one material). Used only by benchtopprint.css, on the white
+     paper sheet; black lines print on top. Not screen colours. */
+  --bt-fill-g: #ececec;
+  --bt-fill-0: #dbe8f5;
+  --bt-fill-1: #f6e2cc;
+  --bt-fill-2: #dcefd8;
+  --bt-fill-3: #e8dcf3;
+  --bt-fill-4: #f4eec4;
+  --bt-fill-5: #f3d9dc;
+
+  /* 16% fills, for badges, hovers, selected rows and highlights */
+  --teal-16: rgba(23, 200, 160, 0.16);
+  --orange-16: rgba(249, 115, 22, 0.16);
+  --go-16: rgba(34, 197, 94, 0.16);
+  --stop-16: rgba(239, 68, 68, 0.16);
+  --violet-16: rgba(139, 92, 246, 0.16);
+  --teal-8: rgba(23, 200, 160, 0.08);
+  --orange-8: rgba(249, 115, 22, 0.08);
+  --backdrop: rgba(16, 16, 25, 0.8);
+
+  --spectrum: linear-gradient(90deg, #17c8a0 0%, #8b5cf6 30%, #d946ef 55%, #f97316 100%);
+  --step: linear-gradient(135deg, #8b5cf6, #d946ef);
+
+  /* type and shape */
+  --font: Arial, Helvetica, sans-serif;
+  --mono: Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --r-card: 6px;
+  --r-callout: 5px;
+  --r-control: 4px;
+  --r-badge: 3px;
+  --accent-border: 4px;
+  --rule-h: 5px;
+
+  /* Legacy names, kept as aliases while pages move to the names above.
+     New CSS uses the house names, not these. */
+  --color-surface: var(--surface);
+  --color-text: var(--body);
+  --color-accent: var(--teal);
+  --color-divider: var(--hairline);
+  --color-neutral-500: var(--label);
+  --color-neutral-800: var(--na);
+  --color-neutral-900: var(--raised);
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--ink); }
+
+/* The house components set display (hs-btn is inline-flex), which would otherwise beat
+   the hidden attribute. */
+[hidden] { display: none !important; }
+
+/* One focus ring, everywhere the keyboard can land. Teal, never a shadow. */
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--raised); border-radius: var(--r-badge); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* House components, shared by every page (loaded through tokens.css). Ported from
+   Offcuts (joinr-offcuts/src/styles.css). The hs- prefix keeps them clear of the
+   board's global classes and the shell's cc- classes.
+
+   Use these instead of writing page-local buttons, badges or inputs:
+     .hs-rule                spectrum rule (5px), at the top and bottom of a page
+     .hs-lockup              "TH CABINETS" wordmark (wrap CABINETS in <b> for teal)
+     .hs-label               small uppercase letterspaced label
+     .hs-btn                 outlined uppercase button. Modifiers: -primary (teal),
+                             -go, -check (orange), -stop (destructive), -quiet (no border)
+     .hs-badge               16% fill + border, uppercase. Modifiers: -teal, -go,
+                             -check, -stop, -violet, -na
+     .hs-pill                outlined rounded tag. Modifiers: -na, -violet, -stop, -check
+     .hs-sectionbar          raised bar with a 4px teal left border; h2 inside.
+                             Modifiers: -orange, -violet
+     .hs-callout             surface panel with a 4px left border; h3 inside.
+                             Modifiers: -orange, -stop
+     .hs-card                surface, hairline border, 6px corners
+     .hs-kvt                 label/value table: alternating .k and .v children
+     .hs-input               text input, select or textarea
+     .hs-disc                numbered disc with the violet-fuchsia gradient
+     .hs-table               plain data table with uppercase label headers */
+
+.hs-rule {
+  display: block;
+  height: var(--rule-h);
+  background: var(--spectrum);
+}
+
+.hs-lockup {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--white);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.hs-lockup b { color: var(--teal); font-weight: 700; }
+
+.hs-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+/* ---------- buttons ---------- */
+
+.hs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.hs-btn:hover { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn-primary { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn-primary:hover { background: var(--teal-16); }
+.hs-btn-go:hover { border-color: var(--go); color: var(--go-tint); }
+.hs-btn-check { border-color: var(--orange); color: var(--orange-tint); }
+.hs-btn-check:hover { background: var(--orange-16); color: var(--orange-tint); border-color: var(--orange); }
+.hs-btn-stop { color: var(--stop-tint); }
+.hs-btn-stop:hover { border-color: var(--stop); color: var(--stop-tint); background: var(--stop-16); }
+.hs-btn-quiet { border-color: transparent; color: var(--label); }
+.hs-btn-quiet:hover { border-color: var(--teal); color: var(--teal-tint); }
+.hs-btn:disabled,
+.hs-btn[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+.hs-btn:disabled:hover,
+.hs-btn[aria-disabled="true"]:hover { border-color: var(--na); color: var(--body); background: none; }
+.hs-btn-primary:disabled:hover { border-color: var(--teal); color: var(--teal-tint); }
+
+/* ---------- badges and pills ---------- */
+
+.hs-badge {
+  display: inline-block;
+  border: 1px solid;
+  border-radius: var(--r-badge);
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 17px;
+  white-space: nowrap;
+}
+.hs-badge-teal { background: var(--teal-16); border-color: var(--teal); color: var(--teal-tint); }
+.hs-badge-go { background: var(--go-16); border-color: var(--go); color: var(--go-tint); }
+.hs-badge-check { background: var(--orange-16); border-color: var(--orange); color: var(--orange-tint); }
+.hs-badge-stop { background: var(--stop-16); border-color: var(--stop); color: var(--stop-tint); }
+.hs-badge-violet { background: var(--violet-16); border-color: var(--violet); color: var(--violet-tint); }
+.hs-badge-na { background: transparent; border-color: var(--na); color: var(--label); }
+
+.hs-pill {
+  display: inline-block;
+  border: 1px solid var(--teal);
+  color: var(--teal-tint);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.hs-pill-na { border-color: var(--na); color: var(--label); }
+.hs-pill-violet { border-color: var(--violet); color: var(--violet-tint); }
+.hs-pill-stop { border-color: var(--stop); color: var(--stop-tint); }
+.hs-pill-check { border-color: var(--orange); color: var(--orange-tint); }
+
+/* ---------- structure ---------- */
+
+.hs-sectionbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--raised);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  padding: 6px 12px;
+  min-height: 32px;
+}
+.hs-sectionbar-orange { border-left-color: var(--orange); }
+.hs-sectionbar-violet { border-left-color: var(--violet); }
+.hs-sectionbar h2,
+.hs-sectionbar .hs-sectionbar-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.hs-callout {
+  background: var(--surface);
+  border-left: var(--accent-border) solid var(--teal);
+  border-radius: var(--r-callout);
+  padding: 12px;
+}
+.hs-callout-orange { border-left-color: var(--orange); }
+.hs-callout-stop { border-left-color: var(--stop); }
+.hs-callout h3 {
+  margin: 0 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--teal-tint);
+}
+.hs-callout-orange h3 { color: var(--orange-tint); }
+.hs-callout-stop h3 { color: var(--stop-tint); }
+
+.hs-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 12px;
+}
+
+.hs-kvt {
+  display: grid;
+  grid-template-columns: 38% minmax(0, 1fr);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.hs-kvt > div {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline);
+  min-width: 0;
+}
+.hs-kvt > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.hs-kvt .k {
+  display: flex;
+  align-items: center;
+  background: var(--raised);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.hs-kvt .v { background: var(--surface); color: var(--body); }
+
+.hs-table { width: 100%; border-collapse: collapse; }
+.hs-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  white-space: nowrap;
+}
+.hs-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--body);
+  vertical-align: top;
+}
+
+/* ---------- inputs ---------- */
+
+.hs-input {
+  width: 100%;
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.hs-input::placeholder { color: var(--muted); }
+.hs-input:hover { border-color: var(--label); }
+.hs-input:focus { outline: none; border-color: var(--teal); }
+.hs-input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+
+/* ---------- numbered disc ---------- */
+
+.hs-disc {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--step);
+  color: var(--white);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Crosscuts shared shell: top bar, menus and dialogs, in the house style.
+   Self-contained: every class is prefixed cc-, nothing styles bare elements.
+   Colours, type and shape come from tokens.css (shell.js loads it if the page didn't). */
+
+#cc-shell {
+  --cc-bar-h: 52px;
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.cc-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--cc-bar-h);
+  padding: 0 16px;
+  background: var(--ink);
+  color: var(--body);
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: left;
+}
+.cc-bar *,
+.cc-bar *::before,
+.cc-bar *::after { box-sizing: border-box; }
+
+/* Brand: the house lockup, then the app name as a quiet label */
+.cc-brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-right: 8px;
+  padding: 6px 4px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cc-brand-app {
+  color: var(--label);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Dashboard link and department menus */
+.cc-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cc-depts {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-group-label {
+  display: none;
+  margin: 0;
+  padding: 10px 12px 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.cc-dashboard { display: flex; align-items: center; }
+.cc-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 9px 5px;
+  color: var(--label);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.cc-link:hover { color: var(--body); }
+.cc-link[aria-current="page"] {
+  color: var(--white);
+  border-bottom-color: var(--teal);
+}
+
+/* The Dashboard: a small outlined teal button (not a department heading) with a little extra
+   space after it. On the dashboard itself it takes a faint teal fill and white text. */
+.cc-dash {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 14px;
+  padding: 8px 12px;
+  color: var(--teal-tint);
+  background: none;
+  border: 1px solid var(--teal);
+  border-radius: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cc-dash:hover { color: var(--white); background: var(--teal-8); }
+.cc-dash[aria-current="page"] { color: var(--white); background: var(--teal-16); }
+
+/* A department: one button (its name) that opens a small list of its pages.
+   Menu 3.1, the fourth named exception in CLAUDE.md: Scheduling, Projects, Ordering and Accounts carry a
+   2 px rule in their Planner layer colour under the name and down the left edge of the open
+   panel. Photos and Admin stay plain. Nothing else on the bar takes these colours. */
+.cc-dept {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+}
+.cc-dept-scheduling { --cc-dept-rule: var(--layer-scheduling); }
+.cc-dept-design { --cc-dept-rule: var(--layer-design); }
+.cc-dept-ordering { --cc-dept-rule: var(--layer-install); }
+.cc-dept-accounts { --cc-dept-rule: var(--layer-accounts); }
+.cc-dept-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 7px 9px 5px;
+  color: var(--label);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cc-dept-ruled { border-bottom-color: var(--cc-dept-rule); }
+.cc-dept-btn:hover,
+.cc-dept-btn[aria-expanded="true"] { color: var(--white); }
+/* The department holding this page: white name and the bar's teal marker. On a ruled department
+   the teal sits just above its colour rule. */
+.cc-dept-btn[aria-current] { color: var(--white); }
+.cc-dept-btn[aria-current]:not(.cc-dept-ruled) { border-bottom-color: var(--teal); }
+.cc-dept-btn[aria-current].cc-dept-ruled::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--teal);
+}
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--body);
+  background: none;
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+.cc-btn:hover:not(:disabled),
+.cc-btn[aria-expanded="true"] { border-color: var(--teal); color: var(--teal-tint); }
+.cc-user-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-btn:disabled { opacity: 0.4; cursor: default; }
+.cc-btn-quiet { border-color: transparent; color: var(--label); }
+.cc-btn-quiet:hover:not(:disabled) { border-color: var(--teal); color: var(--teal-tint); }
+.cc-btn-sm { min-height: 26px; padding: 4px 8px; font-size: 10px; }
+
+
+/* Dialogs (change password, set PIN) */
+.cc-dialog {
+  width: min(92vw, 400px);
+  padding: 0;
+  color: var(--body);
+  background: var(--surface);
+  border: 1px solid var(--na);
+  border-radius: var(--r-card);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.cc-dialog::backdrop { background: var(--backdrop); }
+.cc-dialog *, .cc-dialog *::before, .cc-dialog *::after { box-sizing: border-box; }
+.cc-dialog-form { display: flex; flex-direction: column; gap: 12px; padding: 20px; margin: 0; }
+.cc-dialog-title { margin: 0; color: var(--white); font-size: 16px; font-weight: 700; }
+.cc-dialog-note { margin: 0; color: var(--label); font-size: 13px; }
+.cc-field { display: flex; flex-direction: column; gap: 4px; }
+.cc-field-label {
+  color: var(--label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cc-dialog-error { min-height: 18px; margin: 0; color: var(--orange-tint); font-size: 13px; } /* attend, not red (Todd, 2026-10-13) */
+.cc-dialog-error.cc-dialog-ok { color: var(--go-tint); }
+.cc-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.cc-dialog-actions .hs-btn-quiet { margin-right: auto; }
+
+
+/* One pay run (payrun.html): the header, the Timesheets and Summary tabs, the sheet list and the
+   entry grid that mirrors the paper timesheet (docs/plans/m8-contracts.md section 8.2).
+   Tokens come from tokens.css, hs- components from components.css, and the dialog frame from the
+   shell's cc-dialog. Page classes here are prefixed pr-. */
+html, body { margin: 0; min-height: 100%; background: var(--ink); }
+
+body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--teal-tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.hs-btn:hover { text-decoration: none; }
+
+.pr-page { max-width: 1480px; margin: 0 auto; padding: 22px 16px 48px; }
+
+/* ---------- header ---------- */
+.pr-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.pr-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--white); }
+.pr-h-kicker {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.pr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.pr-meta { margin: 6px 0 14px; color: var(--label); font-size: 13px; }
+.pr-meta:empty { display: none; }
+.pr-status { margin: 0 0 12px; color: var(--label); }
+.pr-status:empty { display: none; }
+.pr-none { margin: 0; color: var(--muted); font-size: 13px; }
+
+.pr-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--body); cursor: pointer; }
+.pr-check input { accent-color: var(--teal); width: 16px; height: 16px; margin: 0; flex: none; }
+.pr-check:has(input:disabled) { cursor: default; color: var(--label); }
+.pr-myob {
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  min-height: 27px;
+}
+.pr-myob:has(input:checked) { border-color: var(--teal); color: var(--teal-tint); }
+
+/* ---------- tabs ---------- */
+.pr-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline); margin-bottom: 16px; }
+.pr-tab {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 14px;
+  color: var(--label);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.pr-tab:hover { color: var(--white); }
+.pr-tab[aria-selected="true"] { color: var(--white); border-bottom-color: var(--teal); }
+
+/* ---------- timesheets: list on the left, the entry screen on the right ---------- */
+.pr-sheets { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; align-items: start; }
+
+.pr-side {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 10px;
+  min-width: 0;
+}
+.pr-side-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 4px 8px; }
+.pr-side-count { font-size: 12px; color: var(--muted); }
+.pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pr-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-left: 3px solid transparent;
+  border-radius: var(--r-control);
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--body);
+  cursor: pointer;
+}
+.pr-item:hover { background: var(--raised); }
+.pr-item-on { background: var(--raised); border-left-color: var(--teal); }
+.pr-item-name { display: block; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
+.pr-item-sub { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.pr-item-state { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; line-height: 18px; }
+.pr-st-typed { color: var(--teal-tint); }
+.pr-st-saved { color: var(--label); }
+.pr-st-new { color: var(--muted); }
+.pr-st-unsaved { color: var(--orange-tint); }
+.pr-item-hrs { color: var(--label); font-variant-numeric: tabular-nums; }
+.pr-side-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+
+.pr-entry { min-width: 0; }
+.pr-form-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 28px;
+  margin-bottom: 12px;
+}
+.pr-kv { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pr-kv-v { color: var(--white); font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.pr-sheet-state { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+.pr-stale { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 12px; }
+.pr-stale p { margin: 0; flex: 1 1 240px; color: var(--white); }
+.pr-keyline { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+
+/* ---------- the grid (scrolls inside its own box on narrow screens) ---------- */
+.pr-gridwrap {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow-x: auto;
+}
+.pr-grid { width: 100%; min-width: 1110px; border-collapse: collapse; table-layout: fixed; }
+.pr-grid th {
+  padding: 8px 4px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--label);
+  text-align: center;
+  white-space: nowrap;
+}
+.pr-grid td { padding: 3px; height: 36px; vertical-align: middle; }
+/* the two weeks of the paper, with a line between them */
+.pr-grid tr.pr-week2 td { border-top: 1px solid var(--na); }
+
+/* column widths: Date, Day, Start, Finish, Lunch, P HOL, SICK, ARL, ON SITE, JOB, Total, OT, DT, check */
+.pr-grid th:nth-child(1) { width: 62px; }
+.pr-grid th:nth-child(2) { width: 46px; }
+.pr-grid th:nth-child(3), .pr-grid th:nth-child(4) { width: 72px; }
+.pr-grid th:nth-child(n+5):nth-child(-n+9) { width: 66px; }
+.pr-grid th.pr-col-job { width: auto; min-width: 180px; text-align: left; padding-left: 8px; }
+.pr-grid th:nth-child(n+11):nth-child(-n+13) { width: 58px; }
+.pr-grid th.pr-col-hint { width: 170px; }
+
+.pr-date { padding-left: 10px !important; color: var(--white); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pr-day { color: var(--label); text-align: center; }
+.pr-grid .num { text-align: right; padding-right: 10px; font-variant-numeric: tabular-nums; }
+.pr-calc { color: var(--white); }
+/* Day and fortnight totals: teal when the paid hours match the usual day, orange when they differ. */
+.pr-grid td.pr-ok, .pr-grid tfoot td.pr-tot-strong.pr-ok { color: var(--teal-tint); border-bottom: 2px solid var(--teal); }
+.pr-grid td.pr-off, .pr-grid tfoot td.pr-tot-strong.pr-off { color: var(--orange); border-bottom: 2px solid var(--orange); }
+.pr-ro { text-align: center; color: var(--white); font-variant-numeric: tabular-nums; }
+td.pr-col-job.pr-ro { text-align: left; padding-left: 8px; color: var(--body); overflow-wrap: anywhere; }
+
+.pr-in {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  background: var(--ink);
+  border: 1px solid var(--na);
+  border-radius: var(--r-control);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 13px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 4px;
+}
+.pr-in-job { text-align: left; padding: 4px 8px; }
+.pr-in:hover { border-color: var(--label); }
+.pr-in:focus { outline: none; border-color: var(--teal); }
+.pr-in:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.pr-in.pr-sug { color: var(--muted); }
+.pr-in.pr-bad, .pr-in.pr-bad:hover, .pr-in.pr-bad:focus { border-color: var(--orange); background: var(--orange-8); }
+.pr-in.pr-bad:focus-visible { outline-color: var(--orange); }
+
+td.pr-col-hint { font-size: 12px; line-height: 1.3; padding-left: 8px; padding-right: 8px; }
+.pr-problem { display: block; color: var(--orange-tint); }
+.pr-hint { display: block; color: var(--muted); }
+
+.pr-grid tfoot th, .pr-grid tfoot td {
+  border-top: 1px solid var(--na);
+  padding-top: 9px;
+  padding-bottom: 9px;
+  background: var(--raised);
+}
+.pr-grid tfoot td.num { color: var(--body); }
+.pr-tot-label { text-align: left !important; padding-left: 10px !important; color: var(--white) !important; }
+.pr-grid tfoot td.pr-tot-strong { color: var(--white); font-weight: 700; }
+
+/* ---------- notes, ticks and the paper's summary block ---------- */
+.pr-lower { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; margin-top: 14px; align-items: start; }
+.pr-notes { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pr-notes-in { min-height: 76px; resize: vertical; color-scheme: dark; }
+.pr-notes-ro { margin: 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-control); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--body); }
+.pr-notes-ro.pr-none { color: var(--muted); }
+.pr-ticks { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 4px; }
+
+.pr-sumblock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.pr-sumblock > div { padding: 5px 12px; border-bottom: 1px solid var(--hairline); }
+.pr-sumblock > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.pr-sum-k {
+  background: var(--raised);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--label);
+  display: flex;
+  align-items: center;
+}
+.pr-sum-v { background: var(--surface); color: var(--white); text-align: right; font-variant-numeric: tabular-nums; min-width: 84px; }
+
+.pr-savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; }
+.pr-hint-keys { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.pr-save-status { min-height: 21px; margin: 8px 0 0; color: var(--label); font-size: 13px; }
+
+/* ---------- summary tab ---------- */
+.pr-draft { margin-bottom: 10px; }
+.pr-draft p { margin: 0; color: var(--white); font-weight: 700; }
+.pr-rules { margin: 0 0 10px; color: var(--label); font-size: 13px; }
+.pr-sumwrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
+.pr-sumtable { min-width: 980px; }
+.pr-sumtable th.num, .pr-sumtable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pr-sumtable tbody th {
+  text-align: left;
+  background: none;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--white);
+  border-bottom: 1px solid var(--hairline);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.pr-sumtable td.num { color: var(--white); }
+.pr-sumtable td.pr-zero { color: var(--muted); }
+.pr-sum-notes { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 200px; max-width: 360px; font-size: 13px; }
+.pr-sumtable tfoot th, .pr-sumtable tfoot td {
+  background: var(--raised);
+  border-bottom: 0;
+  color: var(--white);
+  font-weight: 700;
+  padding: 9px 10px;
+}
+.pr-sumtable tfoot th { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
+
+/* ---------- add-sheet dialog ---------- */
+.cc-dialog.pr-dialog { width: min(92vw, 420px); }
+.pr-select { color-scheme: dark; min-height: 36px; }
+
+.pr-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- narrower screens ---------- */
+/* Below 1400 px the sheet list goes on top, so the paper grid keeps the full width. */
+@media (max-width: 1399.98px) {
+  .pr-sheets { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .pr-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .pr-lower { grid-template-columns: minmax(0, 1fr) 260px; }
+  .pr-grid { min-width: 1010px; }
+  .pr-grid th:nth-child(3), .pr-grid th:nth-child(4) { width: 66px; }
+  .pr-grid th:nth-child(n+5):nth-child(-n+9) { width: 60px; }
+  .pr-grid th.pr-col-hint { width: 140px; }
+}
+@media (max-width: 900px) {
+  .pr-lower { grid-template-columns: minmax(0, 1fr); }
+  .pr-grid { min-width: 1100px; } /* scrolls in its box anyway: room for the job */
+  .pr-actions { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  .pr-page { padding-top: 16px; }
+  .pr-head h1 { font-size: 20px; flex: 1 1 100%; }
+  .pr-sheet-state { margin-left: 0; flex-basis: 100%; }
+  .pr-form-head { gap: 8px 18px; }
+  .pr-hint-keys { display: none; }
+  /* the date stays in view while the grid scrolls sideways */
+  .pr-grid .pr-date, .pr-grid thead th:first-child, .pr-grid .pr-tot-label { position: sticky; left: 0; z-index: 1; }
+  .pr-grid .pr-date { background: var(--surface); }
+}
+
+/* 0.2.11: the admin review tick at the far left of each sheet row. */
+.pr-li { display: flex; align-items: flex-start; gap: 6px; }
+.pr-li .pr-item { flex: 1; min-width: 0; }
+.pr-review { accent-color: var(--teal); width: 16px; height: 16px; margin: 9px 0 0; flex: none; }
+.pr-review:disabled { opacity: 0.6; }
+
+
+/* ---------- proposed: day notes (payrun-notes-plan.md) ---------- */
+.pr-item-notes { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); line-height: 16px; }
+.pr-waiting { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); font-size: 12px; color: var(--label); }
+.pr-waiting b { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--orange-tint); }
+.pr-dn-add { padding: 4px 8px; font-size: 10px; margin-top: 2px; }
+.pr-grid tr.pr-dn-row td { padding: 0 6px 6px 8px; height: auto; }
+.pr-dn {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  margin-left: 100px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--label);
+  border-radius: var(--r-control);
+  padding: 6px 10px;
+}
+.pr-dn-k { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); white-space: nowrap; }
+.pr-dn-text { margin: 0; flex: 1 1 320px; min-width: 0; color: var(--white); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pr-dn-by { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.pr-dn-tools { display: inline-flex; gap: 6px; }
+.pr-dn-tools .hs-btn { padding: 4px 8px; font-size: 10px; }
+.pr-dn-edit { flex-direction: column; align-items: stretch; gap: 8px; border-left-color: var(--teal); }
+.pr-dn-edit textarea { min-height: 56px; resize: vertical; color-scheme: dark; width: 100%; }
+.pr-dn-editbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pr-dn-count { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+/* Summary: day notes under the sheet notes; the name column keeps room for "SURNAME, First" */
+.pr-sumtable { min-width: 1160px; }
+.pr-sumtable thead th:first-child { width: 170px; }
+.pr-sum-notes { min-width: 280px; max-width: 420px; }
+.pr-sum-dn { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.pr-sum-dn li { color: var(--body); }
+.pr-sum-dn b { color: var(--label); font-weight: 700; margin-right: 4px; }
+
+/* The Add day note dialog (payruns.html and payrun.html; shared markup, page prefix per page) */
+.dn-dialog .hs-input { color-scheme: dark; min-height: 40px; width: 100%; }
+.dn-dialog textarea.hs-input { min-height: 96px; resize: vertical; }
+.dn-run { margin: -4px 0 0; font-size: 13px; color: var(--label); }
+.dn-run b { color: var(--body); }
+.dn-run.dn-run-stop { color: var(--orange-tint); }
+.dn-by { margin: -4px 0 0; font-size: 12px; color: var(--muted); }
+.dn-count { margin: -6px 0 0; text-align: right; font-size: 12px; color: var(--muted); }
+
+
+/* mockup frame only */
+.mk-banner { max-width: 1480px; margin: 14px auto 0; padding: 10px 16px; border: 1px dashed var(--na); border-radius: var(--r-card); color: var(--label); font-size: 13px; }
+.mk-banner b { color: var(--white); letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; margin-right: 8px; }
+.mk-phones { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; padding: 18px 16px 8px; }
+.mk-phone { width: 375px; flex: none; }
+.mk-cap { margin: 0 0 8px; font-size: 12px; color: var(--label); }
+.mk-cap b { color: var(--white); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-right: 6px; }
+.mk-screen { position: relative; width: 375px; height: 740px; overflow: hidden; border: 1px solid var(--na); border-radius: 18px; background: var(--ink); }
+.mk-screen .py-page { padding: 16px 16px 40px; }
+.mk-screen .py-cards { grid-template-columns: minmax(0, 1fr); }
+.mk-screen .py-head h1 { font-size: 20px; }
+.mk-bar { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--hairline); }
+.mk-bar .cc-brand { margin-right: auto; }
+.mk-bar .cc-brand-app { display: none; }
+.mk-backdrop { position: absolute; inset: 0; background: var(--backdrop); }
+.mk-screen .cc-dialog.dn-dialog { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); width: calc(100% - 24px); margin: 0; display: block; }
+.mk-desk { position: relative; }
+.mk-desk .mk-backdrop { position: absolute; }
+.mk-desk .cc-dialog.dn-dialog { position: absolute; left: 50%; top: 110px; transform: translateX(-50%); width: 460px; margin: 0; display: block; z-index: 2; }
+
+</style>
+</head>
+<body>
+<div id="cc-shell"><div class="hs-rule" aria-hidden="true"></div><header class="cc-bar">
+<a class="cc-brand" href="#"><span class="hs-lockup">TH <b>CABINETS</b></span><span class="cc-brand-app">Crosscuts</span></a>
+<nav class="cc-nav"><ul class="cc-depts"><li class="cc-dashboard"><a class="cc-dash" href="#">Dashboard</a></li><li class="cc-dept cc-dept-scheduling"><button class="cc-dept-btn cc-dept-ruled" type="button">Scheduling</button></li><li class="cc-dept cc-dept-design"><button class="cc-dept-btn cc-dept-ruled" type="button">Projects</button></li><li class="cc-dept cc-dept-ordering"><button class="cc-dept-btn cc-dept-ruled" type="button">Ordering</button></li><li class="cc-dept cc-dept-accounts"><button class="cc-dept-btn cc-dept-ruled" type="button" aria-current="true">Accounts</button></li>
+<li class="cc-dept"><button class="cc-dept-btn" type="button">Photos</button></li><li class="cc-dept"><button class="cc-dept-btn" type="button">Admin</button></li></ul></nav>
+</header></div>
+<div class="mk-banner"><b>Accounts view</b>What Accounts (Tracey) sees. Top: an open pay run; she types hours as today and reads the admin's day notes, with no Add, Edit or Add day note buttons. Below: a finalised pay run; the notes are read-only for everyone (an admin reopens the run to change one).</div>
+<main class="pr-page"><div class="pr-head"><h1><span class="pr-h-kicker">Pay run</span> 2–13 Nov 2026</h1><span class="hs-badge hs-badge-na">Open</span><div class="pr-actions"><button class="hs-btn hs-btn-primary" type="button">Finalise</button><a class="hs-btn" href="#">Print summary</a><a class="hs-btn" href="#">Print timesheets</a><a class="hs-btn hs-btn-quiet" href="#">Back</a></div></div>
+<p class="pr-meta">Pay day Thursday 19 Nov 2026</p><div class="pr-tabs" role="tablist"><button class="pr-tab" type="button" role="tab" aria-selected="true">Timesheets</button><button class="pr-tab" type="button" role="tab" aria-selected="false">Summary</button></div>
+<section class="pr-sheets"><aside class="pr-side" aria-label="Sheets"><div class="pr-side-head"><span class="hs-label">Sheets</span><span class="pr-side-count">2 of 3 typed in</span></div><ul class="pr-list"><li class="pr-li"><input class="pr-review" type="checkbox" disabled aria-label="Admin reviewed BROWN, Steve"><button type="button" class="pr-item pr-item-on"><span class="pr-item-name">BROWN, Steve</span><span class="pr-item-sub"><span class="pr-item-state pr-st-saved">Saved</span><span class="pr-item-hrs">81.50 h</span></span><span class="pr-item-notes">2 day notes</span></button></li><li class="pr-li"><input class="pr-review" type="checkbox" checked disabled aria-label="Admin reviewed CARTER, Jess"><button type="button" class="pr-item"><span class="pr-item-name">CARTER, Jess</span><span class="pr-item-sub"><span class="pr-item-state pr-st-typed">Typed in</span><span class="pr-item-hrs">76.00 h</span></span></button></li><li class="pr-li"><input class="pr-review" type="checkbox" checked disabled aria-label="Admin reviewed NGUYEN, Sam"><button type="button" class="pr-item"><span class="pr-item-name">NGUYEN, Sam</span><span class="pr-item-sub"><span class="pr-item-state pr-st-typed">Typed in</span><span class="pr-item-hrs">80.00 h</span></span><span class="pr-item-notes">1 day note</span></button></li></ul>
+<p class="pr-waiting"><b>Day notes without a sheet</b>PRICE, Dan: 1 note. Add his sheet to see it.</p><div class="pr-side-tools"><button class="hs-btn" type="button">Add sheet</button></div></aside>
+<div class="pr-entry"><div class="pr-form-head"><div class="pr-kv"><span class="hs-label">Employee</span><span class="pr-kv-v">BROWN, Steve</span></div><div class="pr-kv"><span class="hs-label">From</span><span class="pr-kv-v">Monday 2 November 2026</span></div><div class="pr-kv"><span class="hs-label">To</span><span class="pr-kv-v">Friday 13 November 2026</span></div><span class="pr-sheet-state">Saved 12 Nov, 3:40 pm</span></div>
+<p class="pr-keyline">Grey values are suggestions from the board, leave and public holidays; check them against the paper.</p>
+<div class="pr-gridwrap"><table class="pr-grid"><thead><tr><th scope="col">Date</th><th scope="col">Day</th><th scope="col">Start</th><th scope="col">Finish</th><th scope="col">Lunch</th><th scope="col">P HOL</th><th scope="col">SICK</th><th scope="col">ARL</th><th scope="col">ON SITE</th><th scope="col" class="pr-col-job">JOB</th><th scope="col" class="num">Total</th><th scope="col" class="num">OT</th><th scope="col" class="num">DT</th><th scope="col" class="pr-col-hint"><span class="pr-sr">Check</span></th></tr></thead>
+<tbody><tr><td class="pr-date">2 Nov</td><td class="pr-day">Mon</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="15:30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Harris kitchen" aria-label="cell"></td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">3 Nov</td><td class="pr-day">Tue</td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="8.00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="" aria-label="cell"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"><span class="pr-hint">Melbourne Cup</span></td></tr>
+<tr><td class="pr-date">4 Nov</td><td class="pr-day">Wed</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="15:30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Harris kitchen" aria-label="cell"></td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">5 Nov</td><td class="pr-day">Thu</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="15:30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Lee laundry" aria-label="cell"></td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr><tr class="pr-dn-row"><td colspan="14"><div class="pr-dn"><span class="pr-dn-k">Day note · Thu 5 Nov</span><p class="pr-dn-text">Steve took a 30 min phone call today (personal). Talked to him about it.</p><span class="pr-dn-by">Todd · 5 Nov, 11:20 am</span></div></td></tr>
+<tr><td class="pr-date">6 Nov</td><td class="pr-day">Fri</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="17:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Lee laundry" aria-label="cell"></td><td class="num pr-calc pr-off">9.50</td><td class="num pr-calc">1.50</td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr class="pr-week2"><td class="pr-date">9 Nov</td><td class="pr-day">Mon</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="15:30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Patel vanity" aria-label="cell"></td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">10 Nov</td><td class="pr-day">Tue</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="15:30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Patel vanity" aria-label="cell"></td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">11 Nov</td><td class="pr-day">Wed</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="15:30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Workshop" aria-label="cell"></td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr><tr class="pr-dn-row"><td colspan="14"><div class="pr-dn"><span class="pr-dn-k">Day note · Wed 11 Nov</span><p class="pr-dn-text">Left at 2 pm for a dentist appointment, came back 3 pm. Says he'll make it up Friday.</p><span class="pr-dn-by">Todd · 11 Nov, 3:02 pm</span></div></td></tr>
+<tr><td class="pr-date">12 Nov</td><td class="pr-day">Thu</td><td class="pr-c"><input class="pr-in" type="text" value="07:00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="15:30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="30" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="Workshop" aria-label="cell"></td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">13 Nov</td><td class="pr-day">Fri</td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="8.00" aria-label="cell"></td><td class="pr-c"><input class="pr-in" type="text" value="" aria-label="cell"></td><td class="pr-col-job"><input class="pr-in pr-in-job" type="text" value="" aria-label="cell"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"><span class="pr-hint">Leave on the board</span></td></tr></tbody>
+<tfoot><tr><th scope="row" class="pr-tot-label">TOTALS</th><td></td><td></td><td></td><td></td><td class="num">8.00</td><td class="num">0.00</td><td class="num">8.00</td><td class="num">0.00</td><td></td><td class="num pr-tot-strong pr-ok">81.50</td><td class="num pr-tot-strong">1.50</td><td class="num pr-tot-strong">0.00</td><td></td></tr></tfoot></table></div>
+<div class="pr-lower"><div class="pr-notes"><label class="hs-label">Notes</label><textarea class="hs-input pr-notes-in" maxlength="2000" rows="3">Paper sheet signed Friday.</textarea><div class="pr-ticks"><label class="pr-check"><input type="checkbox" checked> Signed</label><label class="pr-check"><input type="checkbox"> Typed in</label></div></div>
+<div class="pr-sumblock"><div class="pr-sum-k">Normal Time</div><div class="pr-sum-v">72.00</div><div class="pr-sum-k">Over Time</div><div class="pr-sum-v">1.50</div><div class="pr-sum-k">Double Time</div><div class="pr-sum-v">0.00</div><div class="pr-sum-k">Public Holiday</div><div class="pr-sum-v">8.00</div><div class="pr-sum-k">Annual Leave</div><div class="pr-sum-v">8.00</div><div class="pr-sum-k">Personal Leave</div><div class="pr-sum-v">0.00</div><div class="pr-sum-k">On Site</div><div class="pr-sum-v">0.00</div></div></div>
+<div class="pr-savebar"><button class="hs-btn hs-btn-primary" type="button">Save</button><button class="hs-btn" type="button">Save and next</button><span class="pr-hint-keys">Ctrl+S saves. Enter moves down a column.</span></div>
+</div></section></main>
+<div class="mk-banner"><b>Finalised run</b>Read-only grid; day notes shown, no buttons.</div>
+<main class="pr-page"><div class="pr-head"><h1><span class="pr-h-kicker">Pay run</span> 2–13 Nov 2026</h1><span class="hs-badge hs-badge-teal">Finalised</span><div class="pr-actions"><label class="pr-check pr-myob"><input type="checkbox"> Entered in MYOB</label><a class="hs-btn" href="#">Print summary</a><a class="hs-btn" href="#">Print timesheets</a><a class="hs-btn hs-btn-quiet" href="#">Back</a></div></div>
+<p class="pr-meta">Finalised 14 Nov 2026 by Tracey</p><div class="pr-tabs" role="tablist"><button class="pr-tab" type="button" role="tab" aria-selected="true">Timesheets</button><button class="pr-tab" type="button" role="tab" aria-selected="false">Summary</button></div>
+<section class="pr-sheets"><aside class="pr-side" aria-label="Sheets"><div class="pr-side-head"><span class="hs-label">Sheets</span><span class="pr-side-count">2 of 3 typed in</span></div><ul class="pr-list"><li class="pr-li"><input class="pr-review" type="checkbox" disabled aria-label="Admin reviewed BROWN, Steve"><button type="button" class="pr-item pr-item-on"><span class="pr-item-name">BROWN, Steve</span><span class="pr-item-sub"><span class="pr-item-state pr-st-saved">Saved</span><span class="pr-item-hrs">81.50 h</span></span><span class="pr-item-notes">2 day notes</span></button></li><li class="pr-li"><input class="pr-review" type="checkbox" checked disabled aria-label="Admin reviewed CARTER, Jess"><button type="button" class="pr-item"><span class="pr-item-name">CARTER, Jess</span><span class="pr-item-sub"><span class="pr-item-state pr-st-typed">Typed in</span><span class="pr-item-hrs">76.00 h</span></span></button></li><li class="pr-li"><input class="pr-review" type="checkbox" checked disabled aria-label="Admin reviewed NGUYEN, Sam"><button type="button" class="pr-item"><span class="pr-item-name">NGUYEN, Sam</span><span class="pr-item-sub"><span class="pr-item-state pr-st-typed">Typed in</span><span class="pr-item-hrs">80.00 h</span></span><span class="pr-item-notes">1 day note</span></button></li></ul>
+<p class="pr-waiting"><b>Day notes without a sheet</b>PRICE, Dan: 1 note. Add his sheet to see it.</p></aside>
+<div class="pr-entry"><div class="pr-form-head"><div class="pr-kv"><span class="hs-label">Employee</span><span class="pr-kv-v">BROWN, Steve</span></div><div class="pr-kv"><span class="hs-label">From</span><span class="pr-kv-v">Monday 2 November 2026</span></div><div class="pr-kv"><span class="hs-label">To</span><span class="pr-kv-v">Friday 13 November 2026</span></div><span class="pr-sheet-state">Saved 12 Nov, 3:40 pm</span></div>
+
+<div class="pr-gridwrap"><table class="pr-grid"><thead><tr><th scope="col">Date</th><th scope="col">Day</th><th scope="col">Start</th><th scope="col">Finish</th><th scope="col">Lunch</th><th scope="col">P HOL</th><th scope="col">SICK</th><th scope="col">ARL</th><th scope="col">ON SITE</th><th scope="col" class="pr-col-job">JOB</th><th scope="col" class="num">Total</th><th scope="col" class="num">OT</th><th scope="col" class="num">DT</th><th scope="col" class="pr-col-hint"><span class="pr-sr">Check</span></th></tr></thead>
+<tbody><tr><td class="pr-date">2 Nov</td><td class="pr-day">Mon</td><td class="pr-ro">07:00</td><td class="pr-ro">15:30</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Harris kitchen</td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">3 Nov</td><td class="pr-day">Tue</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro">8.00</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"><span class="pr-hint">Melbourne Cup</span></td></tr>
+<tr><td class="pr-date">4 Nov</td><td class="pr-day">Wed</td><td class="pr-ro">07:00</td><td class="pr-ro">15:30</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Harris kitchen</td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">5 Nov</td><td class="pr-day">Thu</td><td class="pr-ro">07:00</td><td class="pr-ro">15:30</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Lee laundry</td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr><tr class="pr-dn-row"><td colspan="14"><div class="pr-dn"><span class="pr-dn-k">Day note · Thu 5 Nov</span><p class="pr-dn-text">Steve took a 30 min phone call today (personal). Talked to him about it.</p><span class="pr-dn-by">Todd · 5 Nov, 11:20 am</span></div></td></tr>
+<tr><td class="pr-date">6 Nov</td><td class="pr-day">Fri</td><td class="pr-ro">07:00</td><td class="pr-ro">17:00</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Lee laundry</td><td class="num pr-calc pr-off">9.50</td><td class="num pr-calc">1.50</td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr class="pr-week2"><td class="pr-date">9 Nov</td><td class="pr-day">Mon</td><td class="pr-ro">07:00</td><td class="pr-ro">15:30</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Patel vanity</td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">10 Nov</td><td class="pr-day">Tue</td><td class="pr-ro">07:00</td><td class="pr-ro">15:30</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Patel vanity</td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">11 Nov</td><td class="pr-day">Wed</td><td class="pr-ro">07:00</td><td class="pr-ro">15:30</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Workshop</td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr><tr class="pr-dn-row"><td colspan="14"><div class="pr-dn"><span class="pr-dn-k">Day note · Wed 11 Nov</span><p class="pr-dn-text">Left at 2 pm for a dentist appointment, came back 3 pm. Says he'll make it up Friday.</p><span class="pr-dn-by">Todd · 11 Nov, 3:02 pm</span></div></td></tr>
+<tr><td class="pr-date">12 Nov</td><td class="pr-day">Thu</td><td class="pr-ro">07:00</td><td class="pr-ro">15:30</td><td class="pr-ro">30</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-col-job pr-ro">Workshop</td><td class="num pr-calc pr-ok">8.00</td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"></td></tr>
+<tr><td class="pr-date">13 Nov</td><td class="pr-day">Fri</td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro"></td><td class="pr-ro">8.00</td><td class="pr-ro"></td><td class="pr-col-job pr-ro"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="num pr-calc"></td><td class="pr-col-hint"><span class="pr-hint">Leave on the board</span></td></tr></tbody>
+<tfoot><tr><th scope="row" class="pr-tot-label">TOTALS</th><td></td><td></td><td></td><td></td><td class="num">8.00</td><td class="num">0.00</td><td class="num">8.00</td><td class="num">0.00</td><td></td><td class="num pr-tot-strong pr-ok">81.50</td><td class="num pr-tot-strong">1.50</td><td class="num pr-tot-strong">0.00</td><td></td></tr></tfoot></table></div>
+<div class="pr-lower"><div class="pr-notes"><label class="hs-label">Notes</label><p class="pr-notes-ro">Paper sheet signed Friday.</p><div class="pr-ticks"><label class="pr-check"><input type="checkbox" checked disabled> Signed</label><label class="pr-check"><input type="checkbox" disabled> Typed in</label></div></div>
+<div class="pr-sumblock"><div class="pr-sum-k">Normal Time</div><div class="pr-sum-v">72.00</div><div class="pr-sum-k">Over Time</div><div class="pr-sum-v">1.50</div><div class="pr-sum-k">Double Time</div><div class="pr-sum-v">0.00</div><div class="pr-sum-k">Public Holiday</div><div class="pr-sum-v">8.00</div><div class="pr-sum-k">Annual Leave</div><div class="pr-sum-v">8.00</div><div class="pr-sum-k">Personal Leave</div><div class="pr-sum-v">0.00</div><div class="pr-sum-k">On Site</div><div class="pr-sum-v">0.00</div></div></div>
+
+</div></section></main>
+</body>
+</html>

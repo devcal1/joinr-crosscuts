@@ -107,6 +107,29 @@
   let loadSeq = 0;
 
   const editable = () => canEdit && run && run.status === "open";
+  // Day notes (0.2.17): only admins write them, only while the run is open.
+  const noteWritable = () => isAdmin && !!run && run.status === "open";
+  let noteEdit = null; // the one open note editor: {sheetId, date, text, orig, updatedAt, stale, current, busy, error}
+
+  // A UTC ISO timestamp as Sydney '5 Nov, 11:20 am'.
+  function sydneyStamp(iso) {
+    const d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return "";
+    const p = {};
+    for (const x of new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Sydney", day: "numeric", month: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
+    }).formatToParts(d)) p[x.type] = x.value;
+    return `${p.day} ${MONTHS[Number(p.month) - 1]}, ${p.hour}:${p.minute} ${String(p.dayPeriod || "").toLowerCase()}`.trim();
+  }
+  function sydneyToday() {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  }
+  function noteBy(n) {
+    return [n.by && n.by.name, sydneyStamp(n.updatedAt)].filter(Boolean).join(" · ");
+  }
+  function noteEditorDirty() {
+    return !!noteEdit && sheet != null && noteEdit.sheetId === sheet.id && noteEdit.text !== noteEdit.orig;
+  }
 
   // ------------------------------------------------------------ the header ---
 
@@ -134,6 +157,7 @@
     $("myobTick").checked = !!run.myobEnteredDate;
     $("reopenBtn").hidden = !(isAdmin && !open);
     $("deleteBtn").hidden = !(canEdit && open && sheets.every((t) => !t.saved));
+    $("addNoteBtn").hidden = !(isAdmin && open && window.DayNote && typeof window.DayNote.open === "function");
 
     const sum = $("printSummary");
     sum.href = `/payprint.html?id=${run.id}&what=summary`;
@@ -197,11 +221,28 @@
       else state = el("span", { class: "pr-item-state pr-st-new", text: "Not started" });
       const hrs = el("span", { class: "pr-item-hrs", text: PM.hours((t.totals && t.totals.workedMin) || 0) + " h" });
       b.append(el("span", { class: "pr-item-sub" }, state, hrs));
+      if (t.dayNoteCount > 0) {
+        b.append(el("span", { class: "pr-item-notes", text: `${t.dayNoteCount} day note${t.dayNoteCount === 1 ? "" : "s"}` }));
+      }
       b.addEventListener("click", () => selectSheet(t.id));
       list.append(el("li", { class: "pr-li" }, reviewTick(t), b));
     }
+    renderWaiting();
     $("sideTools").hidden = !editable();
     syncRemove();
+  }
+
+  // Notes for people with no sheet in this run (0.2.17): shown to everyone who can see the run.
+  function renderWaiting() {
+    const box = $("waiting");
+    box.replaceChildren();
+    const list = run.waitingDayNotes || [];
+    box.hidden = !list.length;
+    if (!list.length) return;
+    box.append(el("b", { text: "Day notes without a sheet" }));
+    for (const w of list) {
+      box.append(el("div", { text: `${w.person.name}: ${w.count} note${w.count === 1 ? "" : "s"}. Add their sheet to see it.` }));
+    }
   }
 
   // The admin review tick at the left of each row (0.2.11): everyone sees it, users.admin holders
@@ -251,6 +292,7 @@
   }
 
   function confirmDiscard() {
+    if (noteEditorDirty() && !confirm(`You have an unsaved day note on ${sheet.name}'s sheet. Leave it unsaved?`)) return false;
     if (!isDirty()) return true;
     return confirm(`You have unsaved changes on ${sheet.name}'s sheet. Leave them unsaved?`);
   }
@@ -278,6 +320,8 @@
   function showSheet(ts) {
     sheet = ts;
     lastDirty = false;
+    // An open note editor survives a reload of the same sheet (a save, a stale reload); anything else drops it.
+    if (noteEdit && (noteEdit.sheetId !== ts.id || !noteWritable())) noteEdit = null;
     hideStale();
     $("entry").hidden = false;
     $("empName").textContent = ts.name;
@@ -364,9 +408,272 @@
       row.dtTd = el("td", { class: "num pr-calc" });
       row.hintTd = el("td", { class: "pr-col-hint", id: `pr-hint-${i}` });
       tr.append(row.totalTd, row.otTd, row.dtTd, row.hintTd);
+      if (noteWritable()) {
+        row.addBtn = el("button", {
+          type: "button", class: "hs-btn hs-btn-quiet pr-dn-add", text: "Add note",
+          "aria-label": `Add day note, ${dayDate(d.date)}`,
+        });
+        row.addBtn.addEventListener("click", () => openNoteEditor(d.date));
+        row.hintTd.append(row.addBtn);
+      }
       body.append(tr);
       rows.push(row);
     });
+    rows.forEach(syncNoteRow);
+  }
+
+  // ------------------------------------------------------------ day notes ---
+
+  // The note line under a day: the note, who wrote it, an Edit button; or the editor in its place.
+  function syncNoteRow(row) {
+    if (row.dnTr) {
+      row.dnTr.remove();
+      row.dnTr = null;
+    }
+    const n = (sheet && sheet.dayNotes && sheet.dayNotes[row.date]) || null;
+    const editing = !!(noteEdit && sheet && noteEdit.sheetId === sheet.id && noteEdit.date === row.date);
+    if (row.addBtn) row.addBtn.hidden = !!n || editing;
+    if (!n && !editing) return;
+    const td = el("td", { colspan: String($("grid").tHead.rows[0].cells.length) });
+    td.append(editing ? noteEditorEl(row) : noteViewEl(row, n));
+    row.dnTr = el("tr", { class: "pr-dn-row" }, td);
+    row.tr.after(row.dnTr);
+  }
+  function syncAllNoteRows() {
+    rows.forEach(syncNoteRow);
+  }
+
+  function noteViewEl(row, n) {
+    const box = el("div", { class: "pr-dn" });
+    box.append(el("span", { class: "pr-dn-k", text: `Day note · ${dayDate(row.date)}` }));
+    box.append(el("p", { class: "pr-dn-text", text: n.note }));
+    const by = noteBy(n);
+    if (by) box.append(el("span", { class: "pr-dn-by", text: by }));
+    if (noteWritable()) {
+      const edit = el("button", {
+        type: "button", class: "hs-btn hs-btn-quiet", text: "Edit", "aria-label": `Edit day note, ${dayDate(row.date)}`,
+      });
+      edit.addEventListener("click", () => openNoteEditor(row.date));
+      box.append(el("span", { class: "pr-dn-tools" }, edit));
+    }
+    return box;
+  }
+
+  function noteEditorEl(row) {
+    const ne = noteEdit;
+    const box = el("div", { class: "pr-dn pr-dn-edit" });
+    box.append(el("span", { class: "pr-dn-k", text: `Day note · ${dayDate(row.date)}` }));
+    if (ne.stale) {
+      box.append(el("p", { class: "pr-dn-stale", role: "alert", text: "Someone else changed this note; here is theirs. Yours wasn't saved." }));
+      box.append(el("p", {
+        class: "pr-dn-theirs",
+        text: ne.current ? `${ne.current.note}${noteBy(ne.current) ? ` (${noteBy(ne.current)})` : ""}` : "No note is stored for this day now.",
+      }));
+    }
+    if (ne.error) box.append(el("p", { class: "pr-dn-stale", role: "alert", text: ne.error }));
+    const ta = el("textarea", { class: "hs-input", maxlength: "500", rows: "2", "aria-label": `Day note for ${dayDate(row.date)}` });
+    ta.value = ne.text;
+    const count = el("span", { class: "pr-dn-count", text: `${ne.text.length} / 500` });
+    ta.addEventListener("input", () => {
+      ne.text = ta.value;
+      count.textContent = `${ta.value.length} / 500`;
+    });
+    box.append(ta);
+    const save = el("button", { type: "button", class: "hs-btn hs-btn-primary", text: "Save note" });
+    const cancel = el("button", { type: "button", class: "hs-btn", text: "Cancel" });
+    save.disabled = cancel.disabled = !!ne.busy;
+    save.addEventListener("click", () => saveNote());
+    cancel.addEventListener("click", () => closeNoteEditor(row.date));
+    const bar = el("div", { class: "pr-dn-editbar" }, save, cancel);
+    if (ne.updatedAt != null) {
+      const rm = el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Remove note" });
+      rm.disabled = !!ne.busy;
+      rm.addEventListener("click", () => saveNote(true));
+      bar.append(rm);
+    }
+    bar.append(count);
+    box.append(bar);
+    // Ctrl+S saves the note only (never the sheet); Esc cancels.
+    box.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        e.stopPropagation();
+        saveNote();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeNoteEditor(row.date);
+      }
+    });
+    ne.ta = ta;
+    return box;
+  }
+
+  function openNoteEditor(date) {
+    if (!noteWritable() || !sheet) return;
+    if (noteEdit && noteEdit.busy) return;
+    if (noteEditorDirty() && noteEdit.date !== date &&
+      !confirm("You have an unsaved day note on another day. Leave it unsaved?")) return;
+    const prev = noteEdit && noteEdit.sheetId === sheet.id ? noteEdit.date : null;
+    if (prev === date) {
+      noteEdit.ta.focus();
+      return;
+    }
+    const n = (sheet.dayNotes && sheet.dayNotes[date]) || null;
+    noteEdit = {
+      sheetId: sheet.id, date, text: n ? n.note : "", orig: n ? n.note : "",
+      updatedAt: n ? n.updatedAt : null, stale: false, current: null, busy: false, error: "",
+    };
+    const row = rows.find((r) => r.date === date);
+    if (prev) {
+      const pr = rows.find((r) => r.date === prev);
+      if (pr) syncNoteRow(pr);
+    }
+    if (row) syncNoteRow(row);
+    if (noteEdit.ta) noteEdit.ta.focus();
+  }
+
+  function closeNoteEditor(date) {
+    noteEdit = null;
+    const row = rows.find((r) => r.date === date);
+    if (!row) return;
+    syncNoteRow(row);
+    const back = row.dnTr ? row.dnTr.querySelector(".pr-dn-tools .hs-btn") : row.addBtn;
+    if (back && !back.hidden) back.focus();
+  }
+
+  // Puts a stored note (or its absence) into the sheet on screen and the list's count.
+  function applyNote(sheetId, date, dn) {
+    if (sheet && sheet.id === sheetId) {
+      if (!sheet.dayNotes) sheet.dayNotes = {};
+      if (dn) sheet.dayNotes[date] = dn;
+      else delete sheet.dayNotes[date];
+      const t = (run.timesheets || []).find((x) => x.id === sheetId);
+      if (t) t.dayNoteCount = Object.keys(sheet.dayNotes).length;
+    }
+    summaryStale = true;
+  }
+
+  async function saveNote(remove) {
+    const ne = noteEdit;
+    if (!ne || ne.busy || !sheet || !sheet.person) return;
+    const text = remove ? "" : ne.text.trim();
+    if (!text && ne.updatedAt == null) {
+      closeNoteEditor(ne.date);
+      return;
+    }
+    const row = rows.find((r) => r.date === ne.date);
+    const rerender = () => {
+      if (noteEdit === ne && row) syncNoteRow(row);
+    };
+    ne.busy = true;
+    ne.error = "";
+    rerender();
+    const sheetId = ne.sheetId;
+    const name = sheet.name;
+    try {
+      const res = await fetch("/api/payruns/day-notes", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personId: sheet.person.id, date: ne.date, note: text, updatedAt: ne.updatedAt }),
+      });
+      if (res.status === 401) {
+        location.href = "/login.html?next=" + encodeURIComponent(location.pathname + location.search);
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      ne.busy = false;
+      if (res.ok) {
+        applyNote(sheetId, ne.date, data.dayNote || null);
+        if (noteEdit === ne) noteEdit = null;
+        if (row && sheet && sheet.id === sheetId) syncNoteRow(row);
+        renderList();
+        toast(data.dayNote ? `Note saved for ${name}, ${dayDate(ne.date)}.` : `Note removed for ${name}, ${dayDate(ne.date)}.`);
+        const back = row && row.dnTr ? row.dnTr.querySelector(".pr-dn-tools .hs-btn") : row && row.addBtn;
+        if (back && !back.hidden) back.focus();
+        return;
+      }
+      if (res.status === 409 && data && "dayNote" in data) {
+        // Stale: show theirs, keep what was typed.
+        applyNote(sheetId, ne.date, data.dayNote || null);
+        ne.stale = true;
+        ne.current = data.dayNote || null;
+        ne.updatedAt = data.dayNote ? data.dayNote.updatedAt : null;
+        rerender();
+        renderList();
+        if (ne.ta && noteEdit === ne) ne.ta.focus();
+        return;
+      }
+      if (res.status === 409) {
+        // Finalised meanwhile: say so, then show the run read-only.
+        const sentence = data.error || "That fortnight's pay run is finalised; reopen it to change its notes";
+        const dirty = isDirty();
+        try {
+          await reloadRun({ keepSheet: true });
+        } catch (e) {
+          /* the sentence below still stands */
+        }
+        noteEdit = null;
+        if (sheet && sheet.id === sheetId && !editable()) {
+          if (dirty) {
+            freezeGrid();
+            showStale(FINALISED_MEANWHILE, null);
+          } else {
+            await selectSheet(sheetId, { skipGuard: true });
+          }
+          for (const r of rows) {
+            if (r.addBtn) r.addBtn.remove();
+            r.addBtn = null;
+          }
+          syncAllNoteRows();
+        }
+        $("saveStatus").textContent = `Note not saved: ${sentence}.`;
+        return;
+      }
+      ne.error = `Not saved. ${data.error || `Request failed (${res.status})`}`;
+      rerender();
+    } catch (e) {
+      ne.busy = false;
+      ne.error = "Not saved. Couldn't reach the server; try again.";
+      rerender();
+    }
+  }
+
+  // The header's Add day note: the shared dialog (daynote.js), starting on the sheet on screen and today.
+  function openDayNoteDialog() {
+    if (!window.DayNote || !run) return;
+    const today = sydneyToday();
+    const date = today >= run.startDate && today <= run.endDate ? today : run.startDate;
+    window.DayNote.open({
+      personId: sheet && sheet.person && sheet.person.id != null ? sheet.person.id : undefined,
+      date,
+      onSaved: afterDialogNote,
+    });
+  }
+
+  // After the dialog saved a note: refresh the run (list, counts, waiting) and the note lines of the
+  // open sheet, without touching hours typed on it.
+  async function afterDialogNote() {
+    try {
+      run = await api(`/api/payruns/${runId}`);
+      summaryStale = true;
+      renderHeader();
+      renderList();
+      if (sheet) {
+        const id = sheet.id;
+        if ((run.timesheets || []).some((t) => t.id === id)) {
+          const ts = await api(`/api/payruns/${runId}/timesheets/${id}`);
+          if (sheet && sheet.id === id) {
+            sheet.dayNotes = ts.dayNotes || {};
+            syncAllNoteRows();
+          }
+        }
+      }
+      if (tab === "summary") loadSummary();
+    } catch (e) {
+      toast(`Error: ${e.message}`);
+    }
   }
 
   function setCellText(i, f, text, sug) {
@@ -456,6 +763,7 @@
     if (sentence) row.hintTd.append(el("span", { class: "pr-problem", text: sentence }));
     const hint = hintFor(row.date);
     if (hint) row.hintTd.append(el("span", { class: "pr-hint", text: hint }));
+    if (row.addBtn) row.hintTd.append(row.addBtn); // after any hint (0.2.17)
   }
 
   // Live totals while editing; the stored figures when read-only.
@@ -787,6 +1095,7 @@
   }
 
   async function saveAndNext() {
+    if (noteEditorDirty() && !confirm(`You have an unsaved day note on ${sheet.name}'s sheet. It will be left unsaved if you move on. Continue?`)) return;
     const next = nextSheetId();
     const ok = await save();
     if (!ok || isDirty()) return; // typed into during the save: stay, its sentence says so
@@ -872,6 +1181,11 @@
     const unreviewed = (run.timesheets || []).filter((t) => !t.reviewed).map((t) => t.name);
     if (unreviewed.length) {
       q += `\n\nAn admin hasn't reviewed these sheets yet:\n${unreviewed.join("\n")}\n\nFinalise anyway?`;
+    }
+    // 0.2.17: warn, don't block, when people have day notes but no sheet.
+    const waiting = (run.waitingDayNotes || []).map((w) => w.person.name);
+    if (waiting.length) {
+      q += `\n\nThese people have day notes but no sheet:\n${waiting.join("\n")}\n\nFinalise anyway?`;
     }
     if (!confirm(q)) return;
     run = await api(`/api/payruns/${runId}/finalise`, { method: "POST", body: "{}" });
@@ -986,13 +1300,14 @@
 
   async function removeSheet() {
     if (!sheet) return;
-    const typed = isDirty() ? " What you've typed on it isn't saved and will be lost." : "";
+    const typed = isDirty() || noteEditorDirty() ? " What you've typed on it isn't saved and will be lost." : "";
     if (!confirm(`Remove ${sheet.name}'s sheet from this pay run?${typed}`)) return;
     const sheets = run.timesheets || [];
     const i = sheets.findIndex((t) => t.id === sheet.id);
     await api(`/api/payruns/${runId}/timesheets/${sheet.id}`, { method: "DELETE" });
     const name = sheet.name;
     sheet = null;
+    noteEdit = null;
     lastDirty = false;
     run = await api(`/api/payruns/${runId}`);
     summaryStale = true;
@@ -1055,7 +1370,14 @@
       const tr = el("tr");
       tr.append(el("th", { scope: "row", class: "pr-sum-name", text: r.name }));
       for (const k of SUM_COLS) tr.append(numCell(r[k]));
-      tr.append(el("td", { class: "pr-sum-notes" + (r.notes ? "" : " pr-zero"), text: r.notes || "" }));
+      const dn = Array.isArray(r.dayNotes) ? r.dayNotes : []; // frozen summaries from before 0.2.17 have none
+      const nc = el("td", { class: "pr-sum-notes" + (r.notes || dn.length ? "" : " pr-zero"), text: r.notes || "" });
+      if (dn.length) {
+        const ul = el("ul", { class: "pr-sum-dn" });
+        for (const n of dn) ul.append(el("li", null, el("b", { text: dayDate(n.date) }), document.createTextNode(n.note || "")));
+        nc.append(ul);
+      }
+      tr.append(nc);
       body.append(tr);
     }
     const foot = $("sumFoot");
@@ -1103,6 +1425,7 @@
       if ($("fillBtn").hidden) $("saveBtn").focus(); // nothing left to fill: the button went away
     });
     $("reloadSheetBtn").addEventListener("click", reloadSheet);
+    $("addNoteBtn").addEventListener("click", openDayNoteDialog);
     $("notes").addEventListener("input", markDirty);
     $("signedTick").addEventListener("change", markDirty);
     $("enteredTick").addEventListener("change", markDirty);
@@ -1110,11 +1433,13 @@
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
-        if (tab === "sheets" && editable() && !$("addDlg").open) save();
+        // Inside a day note editor Ctrl+S saves the note (its own handler stops the event before here).
+        if (e.target && e.target.closest && e.target.closest(".pr-dn-edit")) return;
+        if (tab === "sheets" && editable() && !document.querySelector("dialog[open]")) save();
       }
     });
     window.addEventListener("beforeunload", (e) => {
-      if (isDirty()) {
+      if (isDirty() || noteEditorDirty()) {
         e.preventDefault();
         e.returnValue = "";
       }

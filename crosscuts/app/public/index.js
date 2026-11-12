@@ -356,8 +356,18 @@
       .catch(function () { /* optional; leave it hidden */ });
   }
 
+  // Admins: Add day note (docs/plans/payrun-notes-plan.md), the shared dialog from daynote.js.
+  function renderDayNoteButton(cc) {
+    if (!cc.can("users.admin") || !window.DayNote) return;
+    var b = el("button", "hs-btn hs-btn-primary", "Add day note");
+    b.type = "button";
+    b.addEventListener("click", function () { window.DayNote.open({}); });
+    document.getElementById("dash-acts").appendChild(b);
+  }
+
   function init(cc) {
     renderGreeting(cc);
+    renderDayNoteButton(cc);
     renderWeek(cc);
     renderAccounts(cc);
     renderDeliveries(cc);

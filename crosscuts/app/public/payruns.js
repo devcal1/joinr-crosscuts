@@ -683,6 +683,7 @@
     $("addHoliday").hidden = !edit;
     $("rulesSave").hidden = !edit;
     $("viewOnly").hidden = edit;
+    $("addDayNote").hidden = !can("users.admin");
   }
 
   async function boot() {
@@ -690,6 +691,7 @@
     applyAccess();
     $("addPerson").addEventListener("click", openAddPerson);
     $("addHoliday").addEventListener("click", openAddHoliday);
+    $("addDayNote").addEventListener("click", function () { window.DayNote.open({}); });
     $("showRemoved").addEventListener("change", loadPeople);
     $("showPast").addEventListener("change", loadHolidays);
     $("rulesForm").addEventListener("submit", saveRules);

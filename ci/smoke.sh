@@ -1290,6 +1290,8 @@ for f in "$(dirname "$0")"/smoke-m28-*.sh; do [ -f "$f" ] && source "$f"; done
 [ -f "$(dirname "$0")/smoke-invoice-send.sh" ] && source "$(dirname "$0")/smoke-invoice-send.sh"
 # Weekend column suite (ci/smoke-weekend.sh, 0.2.16, the board's sixth day cell): same rules.
 [ -f "$(dirname "$0")/smoke-weekend.sh" ] && source "$(dirname "$0")/smoke-weekend.sh"
+# Pay run day notes suite (ci/smoke-payrun-notes.sh, 0.2.17, admin notes on a person's day): same rules.
+[ -f "$(dirname "$0")/smoke-payrun-notes.sh" ] && source "$(dirname "$0")/smoke-payrun-notes.sh"
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

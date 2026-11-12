@@ -16,6 +16,7 @@ const PERSON_NAME_MAX = 100;
 const HOLIDAY_NAME_MAX = 80;
 const JOB_MAX = 200;
 const NOTES_MAX = 2000;
+const DAY_NOTE_MAX = 500;
 const RULE_MAX_MIN = 720;
 const DAY_MAX_MIN = 1440;
 const HOLIDAY_SPAN_MAX = 800;
@@ -485,6 +486,172 @@ function reviewOut(t) {
   };
 }
 
+// ---------------------------------------------------------------- day notes ---
+// 0.2.17 (docs/plans/payrun-notes-plan.md): one admin note per person per day, keyed to the person
+// and the date, never to a run or a sheet. Nothing here touches pay_timesheets or pay_runs.
+
+// The fortnight a date belongs to, and whether its run exists: {startDate, endDate, label,
+// payRunId, status}. Throws the 400s for a bad date, one before the first pay run, one past the end
+// of next fortnight, or one that isn't a day of its fortnight.
+function dayNoteFortnight(db, date) {
+  if (!validDate(date)) throw bad("Pick a day in a pay run fortnight");
+  const anchor = rules(db).anchor;
+  if (date < anchor) throw bad("That day is before the first pay run");
+  const nextEnd = PayMaths.endOf(PayMaths.addDays(currentStart(db), 14));
+  if (date > nextEnd) throw bad("That day is too far ahead: notes go up to the end of next fortnight");
+  const start = currentStart(db, date);
+  if (!PayMaths.fortnightDates(start).includes(date)) throw bad("Pick a day in a pay run fortnight");
+  const run = db.prepare("SELECT id, status FROM pay_runs WHERE start_date = ?").get(start);
+  return {
+    startDate: start,
+    endDate: PayMaths.endOf(start),
+    label: PayMaths.fortnightLabel(start),
+    payRunId: run ? run.id : null,
+    status: run ? run.status : "none",
+  };
+}
+
+// {personId | workerId} -> {id, workerId, name}. Exactly one id; unknown or archived is a 404. A
+// board worker with no pay_people row has id null (nothing is inserted here).
+function dayNotePerson(db, { personId, workerId } = {}) {
+  const hasPerson = personId !== undefined && personId !== null;
+  const hasWorker = workerId !== undefined && workerId !== null;
+  if (hasPerson === hasWorker) throw bad("Give a personId or a workerId");
+  let p;
+  if (hasPerson) {
+    const id = bodyId(personId);
+    p = id ? personById(db, id) : null;
+  } else {
+    const id = bodyId(workerId);
+    p = id ? personForWorker(db, id) : null;
+  }
+  if (!p || p.archived) throw notFound();
+  return { id: p.id, workerId: p.workerId, name: p.name };
+}
+
+function dayNoteOut(row) {
+  return {
+    note: row.note,
+    by: row.updated_by != null ? { id: row.updated_by, name: row.by_name || "" } : null,
+    updatedAt: row.updated_at,
+  };
+}
+
+function loadDayNote(db, personId, date) {
+  if (personId == null) return null;
+  const row = db
+    .prepare(
+      `SELECT n.note, n.updated_by, n.updated_at, u.display_name AS by_name
+         FROM pay_day_notes n LEFT JOIN users u ON u.id = n.updated_by
+        WHERE n.person_id = ? AND n.date = ?`
+    )
+    .get(personId, date);
+  return row ? dayNoteOut(row) : null;
+}
+
+function dayNoteAnswer(db, person, date, fortnight) {
+  const hasSheet =
+    fortnight.payRunId != null &&
+    person.id != null &&
+    !!db.prepare("SELECT 1 FROM pay_timesheets WHERE pay_run_id = ? AND person_id = ?").get(fortnight.payRunId, person.id);
+  return { date, person, fortnight: { ...fortnight, hasSheet }, dayNote: loadDayNote(db, person.id, date) };
+}
+
+// GET /day-notes?personId|workerId&date. Never inserts.
+function getDayNote(db, query) {
+  const q = query && typeof query === "object" ? query : {};
+  const person = dayNotePerson(db, { personId: q.personId, workerId: q.workerId });
+  const fortnight = dayNoteFortnight(db, q.date);
+  return dayNoteAnswer(db, person, q.date, fortnight);
+}
+
+// PUT /day-notes: {personId | workerId, date, note, updatedAt}. Empty (after trim) removes.
+function setDayNote(db, req, body) {
+  const b = body && typeof body === "object" ? body : {};
+  const done = db.transaction(() => {
+    let person = dayNotePerson(db, { personId: b.personId, workerId: b.workerId });
+    const fortnight = dayNoteFortnight(db, b.date);
+    if (typeof b.note !== "string") throw bad("Day notes must be text");
+    const text = b.note.trim();
+    if (text.length > DAY_NOTE_MAX) throw bad(`Day notes must be ${DAY_NOTE_MAX} characters or fewer`);
+    if (b.updatedAt !== undefined && b.updatedAt !== null && typeof b.updatedAt !== "string") {
+      throw bad("updatedAt must be text or null");
+    }
+    const sent = b.updatedAt === undefined ? null : b.updatedAt;
+    if (fortnight.status === "finalised") {
+      throw conflict("That fortnight's pay run is finalised; reopen it to change its notes");
+    }
+    const existing =
+      person.id == null
+        ? null
+        : db.prepare("SELECT note, updated_at FROM pay_day_notes WHERE person_id = ? AND date = ?").get(person.id, b.date);
+    if ((existing ? existing.updated_at : null) !== sent) {
+      throw conflict("Someone else changed this note; reload it", { dayNote: loadDayNote(db, person.id, b.date) });
+    }
+    if ((existing ? existing.note : "") === text) return { person, fortnight }; // unchanged: no write, no audit
+    if (person.id == null) person = { ...person, id: ensureWorkerRow(db, person.workerId) };
+    const uid = userId(req);
+    if (!text) {
+      db.prepare("DELETE FROM pay_day_notes WHERE person_id = ? AND date = ?").run(person.id, b.date);
+    } else if (existing) {
+      db.prepare("UPDATE pay_day_notes SET note = ?, updated_by = ?, updated_at = ? WHERE person_id = ? AND date = ?").run(
+        text,
+        uid,
+        nextStamp(existing.updated_at),
+        person.id,
+        b.date
+      );
+    } else {
+      const stamp = nextStamp(null);
+      db.prepare(
+        "INSERT INTO pay_day_notes (person_id, date, note, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).run(person.id, b.date, text, uid, stamp, uid, stamp);
+    }
+    audit.log(req, {
+      action: "payrun.daynote",
+      entityType: "pay_person",
+      entityId: person.id,
+      before: { date: b.date, note: existing ? existing.note : null },
+      after: { date: b.date, note: text || null },
+    });
+    return { person, fortnight };
+  })();
+  return dayNoteAnswer(db, done.person, b.date, done.fortnight);
+}
+
+// Notes in a run's dates, grouped by person: Map(person_id -> [{date, note, by, updatedAt}]), oldest
+// day first. One query for the whole run.
+function dayNotesForRun(db, run) {
+  const dates = PayMaths.fortnightDates(run.start_date);
+  const rows = db
+    .prepare(
+      `SELECT n.person_id, n.date, n.note, n.updated_by, n.updated_at, u.display_name AS by_name
+         FROM pay_day_notes n LEFT JOIN users u ON u.id = n.updated_by
+        WHERE n.date IN (${dates.map(() => "?").join(",")})
+        ORDER BY n.date`
+    )
+    .all(...dates);
+  const map = new Map();
+  for (const r of rows) {
+    if (!map.has(r.person_id)) map.set(r.person_id, []);
+    map.get(r.person_id).push({ date: r.date, ...dayNoteOut(r) });
+  }
+  return map;
+}
+
+// People with notes in the run but no sheet in it: [{person: {id, workerId, name}, count}].
+function waitingDayNotes(db, notes, sheets) {
+  const have = new Set(sheets.map((t) => t.person_id));
+  const out = [];
+  for (const [pid, list] of notes) {
+    if (have.has(pid)) continue;
+    const p = personById(db, pid);
+    if (!p) continue;
+    out.push({ person: { id: p.id, workerId: p.workerId, name: p.name }, count: list.length });
+  }
+  return out.sort((a, b) => byName(a.person, b.person));
+}
+
 function getRun(db, id) {
   const run = loadRun(db, id);
   if (!run) return null;
@@ -494,6 +661,7 @@ function getRun(db, id) {
   const by = run.finalised_by
     ? db.prepare("SELECT id, display_name FROM users WHERE id = ?").get(run.finalised_by)
     : null;
+  const notes = dayNotesForRun(db, run);
   return {
     id: run.id,
     startDate: run.start_date,
@@ -514,7 +682,9 @@ function getRun(db, id) {
       ...reviewOut(t),
       saved: t.saved_at != null,
       totals: PayMaths.totals(tenDays(run.start_date, stored[t.id], r)),
+      dayNoteCount: (notes.get(t.person_id) || []).length,
     })),
+    waitingDayNotes: waitingDayNotes(db, notes, sheets),
   };
 }
 
@@ -680,6 +850,10 @@ function getTimesheet(db, runId, tsId) {
   if (!t) return null;
   const person = sheetPerson(t);
   const days = tenDays(run.start_date, storedDays(db, [t.id])[t.id], runRules(db, run));
+  const dayNotes = {};
+  for (const n of dayNotesForRun(db, run).get(t.person_id) || []) {
+    dayNotes[n.date] = { note: n.note, by: n.by, updatedAt: n.updatedAt };
+  }
   return {
     id: t.id,
     payRunId: run.id,
@@ -694,6 +868,7 @@ function getTimesheet(db, runId, tsId) {
     updatedAt: t.updated_at,
     days,
     totals: PayMaths.totals(days),
+    dayNotes,
     suggestions: run.status === "open" ? suggestionsFor(db, run, person) : {},
   };
 }
@@ -988,6 +1163,7 @@ function liveSummary(db, run) {
   const r = runRules(db, run);
   const sheets = sheetsOf(db, run.id);
   const stored = storedDays(db, sheets.map((t) => t.id));
+  const notes = dayNotesForRun(db, run);
   const totals = emptyTotals();
   const rows = sheets
     .map((t) => {
@@ -1000,6 +1176,7 @@ function liveSummary(db, run) {
       row.notes = t.notes || "";
       row.signed = bool(t.signed);
       row.entered = bool(t.entered);
+      row.dayNotes = (notes.get(t.person_id) || []).map((n) => ({ date: n.date, note: n.note }));
       return row;
     })
     .sort((a, b) => byName({ name: a.name, id: a.timesheetId }, { name: b.name, id: b.timesheetId }));
@@ -1124,6 +1301,9 @@ module.exports = {
   addPayOnly,
   updatePerson,
   updateWorkerPerson,
+  dayNoteFortnight,
+  getDayNote,
+  setDayNote,
   listRuns,
   getRun,
   createRun,
