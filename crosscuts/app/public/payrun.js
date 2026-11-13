@@ -719,6 +719,30 @@
     return n;
   }
 
+  // Standard hours for Prefill (Todd, 2026-11-14): Mon to Thu 07:00 to 15:30, Fri 07:00 to 13:30,
+  // 30 minutes lunch. Only days with no start, finish or lunch typed; public holidays, leave and
+  // regular days off (any suggestion with a reason) are left alone. Fills the cells, never saves.
+  const STANDARD_DAY = { start: "07:00", finish: "15:30", lunch: "30" };
+  const STANDARD_FRI = { start: "07:00", finish: "13:30", lunch: "30" };
+  function prefillStandard() {
+    let n = 0;
+    rows.forEach((row, i) => {
+      const s = suggestionFor(row.date);
+      if (s && s.reason) return;
+      if (["start", "finish", "lunch", "phol", "sick", "arl"].some((f) => row.cells[f].text.trim() !== "")) return;
+      const dow = new Date(row.date + "T00:00:00Z").getUTCDay();
+      if (dow < 1 || dow > 5) return;
+      const std = dow === 5 ? STANDARD_FRI : STANDARD_DAY;
+      for (const f of ["start", "finish", "lunch"]) setCellText(i, f, std[f], false);
+      n++;
+    });
+    recomputeAll();
+    $("saveStatus").textContent = n
+      ? `Prefilled standard hours on ${n} ${n === 1 ? "day" : "days"}. Not saved yet.`
+      : "Nothing to prefill: every working day already has hours, leave or a holiday.";
+    return n;
+  }
+
   // The parsed day, or what is wrong with it.
   function rowState(row) {
     const day = { date: row.date };
@@ -1422,6 +1446,10 @@
 
     $("saveBtn").addEventListener("click", () => save());
     $("saveNextBtn").addEventListener("click", () => saveAndNext());
+    $("prefillBtn").addEventListener("click", () => {
+      if (!editable()) return;
+      if (prefillStandard()) markDirty();
+    });
     $("fillBtn").addEventListener("click", () => {
       fillSuggestions(false);
       markDirty();
