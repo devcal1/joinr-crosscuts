@@ -1408,20 +1408,28 @@ req POST /api/auth/setup "$RHADMIN" \
   "$(jq -nc --arg p "$ADMIN_PW" '{username:"admin",displayName:"CI Admin",password:$p}')"
 expect_status 201 "rehearsal: setup on the migrated database"
 
-# Compare only what the old app returned: the new app may add fields.
+# Compare only what the old app returned: the new app may add fields, and since 0.2.16 a
+# Weekend day ('wknd') the old app never had, so cells and flags are compared Monday to Friday.
 NORM='def cell: {assignmentId, workerId, name, bg, fg};
-def row: {rowId, jobId, jobName, notes, cells: (.cells | map_values(map(cell))), flags};
+def wd: {mon, tue, wed, thu, fri};
+def row: {rowId, jobId, jobName, notes, cells: (.cells | wd | map_values(map(cell))), flags: (.flags | wd)};
 def week: {start, label, manufacturing: [.manufacturing[] | row], installing: [.installing[] | row]};
 {weeks: [.weeks[] | week], backlog: [.backlog[] | {id, jobId, name, notes}]}'
+# The old app had no weekend, so every migrated row must carry an empty Weekend day.
+WKND='[.weeks[] | (.manufacturing + .installing)[] | ((.cells.wknd // []) | length == 0) and ((.flags.wknd // false) == false)] | all'
 
 req GET "/api/schedule?week=$rh_cur" "$RHADMIN"
 expect_status 200 "rehearsal: GET /api/schedule (current week)"
 expect_eq "$(printf '%s' "$BODY" | jq -S -c "$NORM")" "$(printf '%s' "$old_cur" | jq -S -c "$NORM")" \
   "rehearsal: current-week board matches the old app"
+expect_eq "$(printf '%s' "$BODY" | jq -c "$WKND")" "true" \
+  "rehearsal: current-week Weekend day is empty after the move"
 req GET "/api/schedule?week=$rh_next" "$RHADMIN"
 expect_status 200 "rehearsal: GET /api/schedule (next week)"
 expect_eq "$(printf '%s' "$BODY" | jq -S -c "$NORM")" "$(printf '%s' "$old_next" | jq -S -c "$NORM")" \
   "rehearsal: next-week board matches the old app"
+expect_eq "$(printf '%s' "$BODY" | jq -c "$WKND")" "true" \
+  "rehearsal: next-week Weekend day is empty after the move"
 
 req GET /api/job-records "$RHADMIN"
 expect_status 200 "rehearsal: GET /api/job-records"
