@@ -9,6 +9,7 @@
   var btnPdf = document.getElementById("btn-pdf");
   var btnBack = document.getElementById("btn-back");
   var btnSend = document.getElementById("btn-send");
+  var btnRemind = document.getElementById("btn-remind");
   var emailPanel = document.getElementById("inv-email");
   var stateEl = document.getElementById("inv-state");
 
@@ -347,7 +348,7 @@
 
     // 0.2.13: Send invoice, and the email history. Not in the headless render that makes the PDF.
     if (!window.__INVOICE_DATA__ && window.ccInvoiceSend) {
-      window.ccInvoiceSend.mount(inv, { button: btnSend, panel: emailPanel });
+      window.ccInvoiceSend.mount(inv, { button: btnSend, panel: emailPanel, reminderButton: btnRemind, clientName: (inv.job && inv.job.clientName) || inv.clientName || "" });
     }
   }
 

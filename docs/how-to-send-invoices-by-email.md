@@ -2,7 +2,7 @@
 
 For Todd, once. Crosscuts emails invoices through a service called Resend. You make a free account, prove you own `thcabinets.com.au`, make a key, and paste the key into Crosscuts. After that, **Send invoice** works for everyone who can edit invoices.
 
-This is the only email Crosscuts sends, and only when a person presses **Send invoice** (brief decision D9, changed 2026-11-07).
+Crosscuts sends only two kinds of email: invoices, when a person presses **Send invoice**, and overdue reminders, described at the end (brief decision D9, changed 2026-11-07 and 2026-11-13).
 
 ## 1. Make a Resend account
 
@@ -50,3 +50,21 @@ To change the key later, paste a new one over it. **Remove key** turns invoice e
 ## Where the key lives
 
 In the `data/config` folder on the Umbrel (a file called `resend-api-key`), next to the other keys. It is never in the database, the database backups, the audit log or on screen.
+
+## Overdue reminders (0.2.19)
+
+Crosscuts can email a reminder, with the invoice PDF attached again, when an invoice is 7, 14 and 30 days overdue. Reminders are off until someone turns them on.
+
+1. Open **Accounts**, **Overdue list**, and open **Reminder emails**.
+2. Check the **BCC** address (it starts as chloe@thcabinets.com.au; empty means no copy), the days, the time (10:00 on weekdays) and the wording of each reminder. The preview shows it filled in.
+3. Choose **Ready for approval** and press **Save**. From today, invoices that fall overdue get reminders. Invoices already overdue never get them automatically. Turning reminders Off and on again moves that date to the new day.
+4. Each weekday at 10:00 the reminders that are due appear on the overdue list with an orange "ready" mark and a strip at the top. Press **Send** on one, **Send N reminders** for all of them, or **Skip**.
+5. **Automatic** sends them at 10:00 without waiting for anyone. Use it once you trust the wording.
+
+Only invoices that were sent, are overdue, have a client email and haven't bounced get reminders. If Crosscuts was off for a few days, only the latest reminder due goes, never two at once.
+
+- **Send reminder** on an invoice sends the next reminder by hand at any time, even for invoices that were overdue before reminders were turned on.
+- **Pause reminders** on an invoice stops them, optionally until a date and with a reason. Paused clients are listed in the Reminder emails box.
+- Each reminder appears in the invoice's **Email history** with its delivery status, and counts as contacting the client for follow-up.
+
+Try it first: put your own address as a job's client email and press **Send reminder** on one of its overdue invoices, before choosing Ready for approval.

@@ -13,6 +13,8 @@
 //
 // DEV_STUB_SHARP=1 additionally replaces require("sharp") with a stub, for
 // machines where sharp's native binary won't load. Not needed normally.
+// Local runs never email: overdue reminders (0.2.19) go to the log only, unless the caller says otherwise.
+if (process.env.INVOICE_REMINDERS_DRY_RUN === undefined) process.env.INVOICE_REMINDERS_DRY_RUN = "1";
 const Module = require("module");
 const { DatabaseSync } = require("node:sqlite");
 

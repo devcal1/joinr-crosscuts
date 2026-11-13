@@ -186,8 +186,10 @@ start_container() { # name image host-dir mount-root
   # backup timer in any container; the old image ignores it. JOINR_OPEN_QUOTES_TIMER_DISABLED=1 is
   # CI only too (ci/smoke-m16-openquotes.sh): no 5-minute open-quotes fetch to race the suite's
   # counted requests; the old image ignores it. INVOICE_EMAIL_SWEEP_DISABLED=1 likewise (ci/smoke-invoice-send.sh):
-  # the suite asks for the delivery check itself.
+  # the suite asks for the delivery check itself. INVOICE_REMINDERS_SWEEP_DISABLED=1 likewise
+  # (ci/smoke-invoice-reminders.sh): the suite triggers each reminder run itself (POST /api/invoice-reminders/run).
   docker run -d --name "$name" -p "$PORT:3000" -e BACKUP_SCHEDULE_DISABLED=1 -e JOINR_OPEN_QUOTES_TIMER_DISABLED=1 -e INVOICE_EMAIL_SWEEP_DISABLED=1 \
+    -e INVOICE_REMINDERS_SWEEP_DISABLED=1 \
     -v "$dir/db:$root/db" -v "$dir/uploads:$root/uploads" -v "$dir/config:$root/config" \
     "$image" >/dev/null
 }
@@ -1288,6 +1290,10 @@ for f in "$(dirname "$0")"/smoke-m28-*.sh; do [ -f "$f" ] && source "$f"; done
 [ -f "$(dirname "$0")/smoke-amex.sh" ] && source "$(dirname "$0")/smoke-amex.sh"
 # Invoice email suite (ci/smoke-invoice-send.sh, 0.2.13, sending invoices through Resend): same rules.
 [ -f "$(dirname "$0")/smoke-invoice-send.sh" ] && source "$(dirname "$0")/smoke-invoice-send.sh"
+
+# Overdue invoice reminder suite (ci/smoke-invoice-reminders.sh, 0.2.19): after the invoice email suite
+# (it stops its stand-in Resend, so port 4987 is free again).
+[ -f "$(dirname "$0")/smoke-invoice-reminders.sh" ] && source "$(dirname "$0")/smoke-invoice-reminders.sh"
 # Weekend column suite (ci/smoke-weekend.sh, 0.2.16, the board's sixth day cell): same rules.
 [ -f "$(dirname "$0")/smoke-weekend.sh" ] && source "$(dirname "$0")/smoke-weekend.sh"
 # Pay run day notes suite (ci/smoke-payrun-notes.sh, 0.2.17, admin notes on a person's day): same rules.

@@ -66,6 +66,8 @@ const routers = [
   require("./routes/invoices"),
   // 0.2.13: the Resend key and From address for invoice emails.
   require("./routes/invoiceemail"),
+  // 0.2.19: overdue invoice reminders (settings, queue, run).
+  require("./routes/invoicereminders"),
   require("./routes/notifications"),
   require("./routes/settings"),
   require("./routes/orders"),
@@ -167,6 +169,12 @@ app.listen(PORT, () => {
     require("./lib/invoiceemail").start(require("./db"));
   } catch (e) {
     console.error(`[invoice-email] delivery check failed to start (${safeCode(e)})`);
+  }
+  // 0.2.19: overdue invoice reminders, checked every minute (INVOICE_REMINDERS_SWEEP_DISABLED=1 turns it off).
+  try {
+    require("./lib/invoicereminders").start(require("./db"));
+  } catch (e) {
+    console.error(`[invoice-reminders] failed to start (${safeCode(e)})`);
   }
   // The "needs a project owner" sweep, at boot and every 5 minutes (OWNER_SWEEP_DISABLED=1 turns it off).
   require("./lib/projectsteps").start(require("./db"));

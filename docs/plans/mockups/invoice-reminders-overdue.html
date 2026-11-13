@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overdue reminders list</title>
+<!-- Mockup for docs/plans/invoice-reminders-plan.md (planning only, 2026-11-13). Standalone: no app files needed. -->
+<style>
+/* Copied from crosscuts/app/public/tokens.css, components.css, accounts.css and invoicesend.css (2026-11-13). New classes for this feature are prefixed irm-; mk- is mockup furniture only. */
+:root{--ink:#101019;--surface:#191a24;--raised:#262735;--hairline:#24252f;--na:#2e2f3c;--white:#fff;--body:#d3d4dc;--label:#9a9ba8;--muted:#6f7080;
+--teal:#17c8a0;--teal-tint:#6ee7c9;--violet:#8b5cf6;--fuchsia:#d946ef;--orange:#f97316;--orange-tint:#fb923c;--stop:#ef4444;--stop-tint:#f87171;
+--teal-16:rgba(23,200,160,.16);--orange-16:rgba(249,115,22,.16);--orange-8:rgba(249,115,22,.08);--stop-16:rgba(239,68,68,.16);
+--spectrum:linear-gradient(90deg,#17c8a0 0%,#8b5cf6 30%,#d946ef 55%,#f97316 100%);--step:linear-gradient(135deg,#8b5cf6,#d946ef);
+--font:Arial,Helvetica,sans-serif;--r-card:6px;--r-callout:5px;--r-control:4px;--r-badge:3px;--accent-border:4px;--rule-h:5px}
+*{box-sizing:border-box}html{background:var(--ink)}[hidden]{display:none!important}
+body{margin:0;background:var(--ink);color:var(--body);font-family:var(--font);font-size:14px;line-height:1.5}
+a{color:var(--teal-tint);text-decoration:none}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.cc-bar{display:flex;align-items:center;gap:18px;padding:0 16px;height:46px;background:var(--surface);border-bottom:1px solid var(--hairline);overflow-x:auto}
+.cc-bar .lock{font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--white);font-size:14px;white-space:nowrap}.cc-bar .lock b{color:var(--teal)}
+.cc-bar .m{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--label);white-space:nowrap}
+.cc-bar .m.on{color:var(--white);border-bottom:2px solid var(--label);padding-bottom:2px}
+.hs-rule{display:block;height:var(--rule-h);background:var(--spectrum)}
+.hs-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:none;border:1px solid var(--na);border-radius:var(--r-control);color:var(--body);font-family:var(--font);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:7px 12px;line-height:1;cursor:pointer;white-space:nowrap;text-decoration:none}
+.hs-btn:hover{border-color:var(--teal);color:var(--teal-tint)}.hs-btn-primary{border-color:var(--teal);color:var(--teal-tint)}.hs-btn-primary:hover{background:var(--teal-16)}
+.hs-btn-check{border-color:var(--orange);color:var(--orange-tint)}.hs-btn-stop{color:var(--stop-tint)}.hs-btn-quiet{border-color:transparent;color:var(--label)}
+.hs-badge{display:inline-block;border:1px solid;border-radius:var(--r-badge);padding:0 6px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;line-height:17px;white-space:nowrap}
+.hs-badge-teal{background:var(--teal-16);border-color:var(--teal);color:var(--teal-tint)}.hs-badge-check{background:var(--orange-16);border-color:var(--orange);color:var(--orange-tint)}
+.hs-badge-stop{background:var(--stop-16);border-color:var(--stop);color:var(--stop-tint)}.hs-badge-na{background:transparent;border-color:var(--na);color:var(--label)}
+.hs-sectionbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--raised);border-left:var(--accent-border) solid var(--teal);border-radius:var(--r-callout);padding:6px 12px;min-height:32px}
+.hs-sectionbar h2{margin:0;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--white);white-space:nowrap}
+.hs-card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);padding:12px}
+.hs-table{width:100%;border-collapse:collapse}
+.hs-table th{text-align:left;padding:8px 10px;background:var(--raised);border-bottom:1px solid var(--hairline);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--label);white-space:nowrap}
+.hs-table td{padding:8px 10px;border-bottom:1px solid var(--hairline);color:var(--body);vertical-align:top}
+.hs-input{width:100%;background:var(--ink);border:1px solid var(--na);border-radius:var(--r-control);color:var(--white);font-family:var(--font);font-size:13px;padding:8px 10px;color-scheme:dark;min-height:36px}
+.hs-input:focus{outline:none;border-color:var(--teal)}
+textarea.hs-input{min-height:120px;resize:vertical;line-height:1.45}
+.hs-disc{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--step);color:var(--white);font-size:11.5px;font-weight:700;flex:none}
+.hs-disc.dim{background:none;border:1px solid var(--na);color:var(--label)}
+.cc-field{display:flex;flex-direction:column;gap:4px}.cc-field-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.cc-dialog-title{margin:0;color:var(--white);font-size:16px;font-weight:700}.cc-dialog-error{min-height:18px;margin:0;color:var(--orange-tint);font-size:13px}
+.cc-dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.cc-dialog-actions .hs-btn-quiet{margin-right:auto}
+.fake-dialog{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);max-width:760px}
+.fake-dialog .form{display:flex;flex-direction:column;gap:14px;padding:20px}
+.ac-page{max-width:1280px;margin:0 auto;padding:22px 16px 30px}
+.ac-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}.ac-head h1{margin:0;flex:1 1 auto;font-size:22px;font-weight:700;color:var(--white)}
+.ac-views{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ac-totals{margin:0 0 8px;color:var(--label)}.ac-totals b{color:var(--white)}.ac-totals .ac-over{color:var(--stop-tint)}
+.ac-wrap{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);overflow-x:auto}
+.ac-overdue{min-width:1100px}.ac-overdue td{padding:10px 12px}.ac-overdue .ac-days{color:var(--stop-tint);font-weight:700}
+.num{text-align:right;font-variant-numeric:tabular-nums}.ac-none{color:var(--muted)}
+.ac-followup{display:block;font-size:12px;color:var(--orange-tint)}
+.ac-linkbtn{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--teal-tint);cursor:pointer}
+.ac-fubox{margin:0 0 12px;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);padding:10px 12px}
+.ac-fubox summary{cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--white)}
+.ac-fubox[open] summary{margin-bottom:12px}
+.ac-hint{margin:0;font-size:12px;color:var(--muted)}
+.ac-group-title{margin:0;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.ac-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ise-panel{margin:0 0 14px;padding:14px 16px;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card)}
+.ise-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.ise-eyebrow{margin:0;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.ise-alert{margin-bottom:12px;padding:10px 12px;color:var(--white);border:1px solid var(--orange);border-radius:var(--r-control)}
+.ise-when{color:var(--white);font-weight:700;white-space:nowrap}.ise-to{overflow-wrap:anywhere}
+.ise-small{padding:6px 10px;font-size:11px}
+.ise-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.ise-hint{margin-top:5px;font-size:13px;color:var(--label)}
+.ise-attach{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--raised);border-radius:var(--r-control);padding:10px 12px}.ise-attach b{color:var(--white)}
+.ise-table-wrap{overflow-x:auto}
+.inv-page{max-width:210mm;margin:0 auto;padding:20px 16px 30px}
+.inv-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
+.inv-sheet{background:var(--white);color:var(--ink);padding:12mm 14mm;border-radius:2px;font-size:9.5pt}
+.inv-sheet h2{margin:0 0 4px;font-size:18pt}
+.mk-top{max-width:1280px;margin:0 auto;padding:18px 16px 0}
+.mk-top h1{margin:0 0 4px;color:var(--white);font-size:18px}.mk-top p{margin:0 0 6px;color:var(--label);max-width:900px}
+.mk-opt{max-width:1280px;margin:26px auto 0;padding:0 16px}
+.mk-tag{display:inline-block;margin:0 0 6px;padding:3px 10px;border:1px dashed var(--label);border-radius:var(--r-badge);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--white)}
+.mk-note{margin:4px 0 10px;color:var(--label);font-size:13px;max-width:900px}
+.mk-frame{border:1px dashed var(--na);border-radius:var(--r-card);overflow:hidden}
+.mk-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+@media (max-width:900px){.mk-split{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:640px){.ise-two{grid-template-columns:minmax(0,1fr)}}
+.irm-strip{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;margin:0 0 12px;border:1px solid var(--orange);border-left-width:var(--accent-border);border-radius:var(--r-control);background:var(--orange-8);color:var(--white)}
+.irm-strip span{flex:1 1 260px}
+.irm-mode{display:grid;gap:8px}
+.irm-mode label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--na);border-radius:var(--r-control);cursor:pointer}
+.irm-mode label.on{border-color:var(--teal);background:var(--teal-16)}
+.irm-mode input{accent-color:var(--teal);margin-top:3px}
+.irm-mode b{color:var(--white);display:block}.irm-mode small{color:var(--label);font-size:12px}
+.irm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:760px){.irm-grid{grid-template-columns:minmax(0,1fr)}}
+.irm-steps{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.irm-steps .hs-input{width:84px}
+.irm-sub{font-size:13px;color:var(--label)}
+.irm-tabs{display:flex;flex-wrap:wrap;gap:6px}
+.irm-preview{border:1px solid var(--hairline);border-radius:var(--r-control);padding:10px 12px;background:var(--ink);white-space:pre-line;font-size:13px}
+.irm-next{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 0;padding-top:10px;border-top:1px solid var(--hairline)}
+.irm-next span{flex:1 1 220px}
+.irm-ladder{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0 4px}
+.irm-step{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--hairline);border-radius:var(--r-control)}
+.irm-step b{display:block;color:var(--white)}.irm-step small{display:block;color:var(--label);font-size:12px}
+.irm-step.next{border-color:var(--teal)}
+@media (max-width:640px){.irm-ladder{grid-template-columns:minmax(0,1fr)}}
+.irm-cell small{display:block;font-size:12px;color:var(--label)}
+.irm-list{list-style:none;margin:6px 0 0;padding:0}
+.irm-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--hairline)}
+.irm-list li span{flex:1 1 200px}
+.irm-mail{background:var(--white);color:#222;padding:18px 20px;font-size:14px;line-height:1.55;white-space:pre-line}
+.irm-mailhead{background:#f1f1f3;color:#333;padding:10px 20px;font-size:13px;border-bottom:1px solid #ddd}
+.irm-mailhead b{color:#111}
+.irm-att{display:inline-block;margin-top:12px;padding:6px 10px;border:1px solid #ccc;border-radius:3px;font-size:12px;color:#333;white-space:normal}
+.irm-q td{vertical-align:middle}
+.irm-q .hs-badge{margin-left:4px}
+
+</style>
+</head>
+<body>
+<span class="hs-rule"></span>
+<div class="mk-top">
+  <h1>Invoice reminders: the overdue list</h1>
+  <p>Accounts, Overdue list (accounts.html), in Ready for approval mode on Tue 17 Nov after 10:00. Reminders were switched on Fri 13 Nov. Days overdue stay red as now. Orange marks what needs a person: reminders ready to send, a bounce, no email on file. Grey: paused, before reminders, not yet due.</p>
+</div>
+
+<div class="mk-opt">
+  <div class="mk-frame">
+    <div class="cc-bar"><span class="lock">TH <b>Cabinets</b></span><span class="m">Scheduling</span><span class="m">Projects</span><span class="m">Ordering</span><span class="m on">Accounts</span><span class="m">Photos</span><span class="m">Admin</span></div>
+    <main class="ac-page">
+      <div class="ac-head"><h1>Overdue client invoices</h1><button class="hs-btn hs-btn-primary" type="button">New invoice</button><button class="hs-btn" type="button">Add extra</button></div>
+      <div class="ac-views"><button class="hs-btn" type="button">Invoice table</button><button class="hs-btn hs-btn-primary" type="button">Overdue list</button></div>
+      <p class="ac-totals"><b class="ac-over">5</b> overdue, totalling <b>$22,440.00</b>. Oldest first.</p>
+      <div class="irm-strip"><span><b>1 reminder email is ready to send.</b> Check it in the Reminders column, then send.</span><button class="hs-btn ise-small" type="button">Preview</button><button class="hs-btn hs-btn-check ise-small" type="button">Send 1 reminder</button></div>
+      <details class="ac-fubox"><summary>Follow-up intervals</summary></details>
+      <details class="ac-fubox"><summary>Reminder emails · Ready for approval since 13 Nov · 7, 14, 30 days · 10:00</summary></details>
+      <div class="ac-wrap">
+        <table class="hs-table ac-overdue irm-q">
+          <thead><tr><th>Number</th><th>Job</th><th>Client</th><th class="num">Amount</th><th>Due</th><th class="num">Days overdue</th><th>Last contacted</th><th>Reminders</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><button class="ac-linkbtn" type="button">INV-0128</button></td><td><a href="#">Nguyen laundry</a></td><td>T. Nguyen</td><td class="num">$1,960.00</td><td>16 Oct 2026</td><td class="num ac-days">32</td><td>2 Nov 2026</td>
+              <td class="irm-cell"><span class="hs-badge hs-badge-na">Before reminders</span><small>Overdue before 13 Nov · Send reminder works from the invoice</small></td>
+              <td><span class="ac-row"><button class="hs-btn ise-small" type="button">Contacted today</button></span></td></tr>
+            <tr><td><button class="ac-linkbtn" type="button">INV-0139</button></td><td><a href="#">Harbour fit-out</a></td><td>Harbour Builders Pty Ltd</td><td class="num">$9,900.00</td><td>5 Nov 2026</td><td class="num ac-days">12</td><td><span class="ac-none">Never</span><span class="ac-followup">Needs follow-up (every 7 days)</span></td>
+              <td class="irm-cell"><span class="hs-badge hs-badge-na">Before reminders</span><small>Client paused until 30 Nov</small></td>
+              <td><button class="hs-btn ise-small" type="button">Contacted today</button></td></tr>
+            <tr><td><button class="ac-linkbtn" type="button">INV-0151</button></td><td><a href="#">Ali pantry</a></td><td>S. Ali</td><td class="num">$2,180.00</td><td>13 Nov 2026</td><td class="num ac-days">4</td><td><span class="ac-none">Never</span></td>
+              <td class="irm-cell"><span class="hs-badge hs-badge-check">Bounced</span><small>Invoice email bounced 14 Nov. Fix the address, then re-send</small></td>
+              <td><button class="hs-btn ise-small" type="button">Contacted today</button></td></tr>
+            <tr><td><button class="ac-linkbtn" type="button">INV-0147</button></td><td><a href="#">Ortiz vanity</a></td><td>P. Ortiz</td><td class="num">$3,100.00</td><td>13 Nov 2026</td><td class="num ac-days">4</td><td><span class="ac-none">Never</span></td>
+              <td class="irm-cell"><span class="hs-badge hs-badge-check">No email on file</span><small>Reminder 1 due Fri 20 Nov</small></td>
+              <td><button class="hs-btn ise-small" type="button">Contacted today</button></td></tr>
+            <tr><td><button class="ac-linkbtn" type="button">INV-0150</button></td><td><a href="#">Chen study</a></td><td>L. Chen</td><td class="num">$5,300.00</td><td>13 Nov 2026</td><td class="num ac-days">4</td><td><span class="ac-none">Never</span></td>
+              <td class="irm-cell"><span class="hs-badge hs-badge-na">Reminder 1 on Fri 20 Nov</span><small>Invoice delivered 30 Oct</small></td>
+              <td><button class="hs-btn ise-small" type="button">Contacted today</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="ac-hint" style="margin-top:8px">On Fri 27 Nov the Chen row would read "Reminder 2 ready" with Send and Skip buttons in orange, and the strip would count it. In Automatic mode the strip and the Send buttons disappear; the column says "Reminder 2 sent today, 10:00" instead.</p>
+    </main>
+  </div>
+</div>
+
+<div class="mk-opt">
+  <span class="mk-tag">A row with a reminder ready (Mon 23 Nov; due Sat 21 Nov, so it waited for Monday)</span>
+  <div class="ac-wrap">
+    <table class="hs-table ac-overdue irm-q">
+      <tbody>
+        <tr><td><button class="ac-linkbtn" type="button">INV-0153</button></td><td><a href="#">Ward kitchen</a></td><td>J. Ward</td><td class="num">$6,050.00</td><td>14 Nov 2026</td><td class="num ac-days">9</td><td><span class="ac-none">Never</span></td>
+          <td class="irm-cell"><span class="hs-badge hs-badge-check">Reminder 1 ready</span><small>Invoice delivered 4 Nov</small></td>
+          <td><span class="ac-row"><button class="hs-btn ise-small" type="button">View</button><button class="hs-btn hs-btn-check ise-small" type="button">Send</button><button class="hs-btn hs-btn-quiet ise-small" type="button">Skip</button></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div style="height:40px"></div>
+<span class="hs-rule"></span>
+</body>
+</html>

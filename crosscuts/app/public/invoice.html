@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="invoice.css">
 <link rel="stylesheet" href="invoicesend.css">
+<link rel="stylesheet" href="invoicereminders.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -17,6 +18,7 @@
     <div class="inv-toolbar">
       <button class="hs-btn hs-btn-primary" id="btn-pdf" type="button" disabled>Save as PDF</button>
       <button class="hs-btn hs-btn-primary" id="btn-send" type="button" hidden>Send invoice</button>
+      <button class="hs-btn" id="btn-remind" type="button" hidden>Send reminder</button>
       <a class="hs-btn" id="btn-back" href="/accounts.html">Back</a>
       <span class="inv-state" id="inv-state"></span>
     </div>
@@ -30,6 +32,7 @@
 
   <script src="shared.js"></script>
   <script src="invoicesend.js"></script>
+  <script src="invoicereminders.js"></script>
   <script src="invoice.js"></script>
   <script src="/shell/shell.js"></script>
 </body>

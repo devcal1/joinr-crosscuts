@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="accounts.css">
 <link rel="stylesheet" href="invoicesend.css">
+<link rel="stylesheet" href="invoicereminders.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -48,17 +49,24 @@
 
     <section id="overdueView" hidden>
       <p id="overdueSummary" class="ac-totals" role="status" aria-live="polite">Loading...</p>
+      <div id="reminderStrip" class="irm-strip" hidden></div>
+      <p id="reminderErr" class="cc-dialog-error irm-err" role="alert"></p>
       <!-- 0.2.7 (m28-contracts.md section 3): the default follow-up interval and each client's terms. -->
       <details id="followupBox" class="ac-fubox" hidden>
         <summary>Follow-up intervals</summary>
         <div id="followupBody"></div>
+      </details>
+      <!-- 0.2.19 (docs/plans/invoice-reminders-plan.md section 12): reminder emails. -->
+      <details id="reminderBox" class="ac-fubox" hidden>
+        <summary id="reminderSummary">Reminder emails</summary>
+        <div id="reminderBody"></div>
       </details>
       <div class="ac-wrap">
         <table class="hs-table ac-table ac-overdue">
           <thead>
             <tr>
               <th>Number</th><th>Job</th><th>Client</th><th>Phone</th><th class="num">Amount</th>
-              <th>Due</th><th class="num">Days overdue</th><th>Last contacted</th><th>Follow-up notes</th><th></th>
+              <th>Due</th><th class="num">Days overdue</th><th>Last contacted</th><th>Follow-up notes</th><th>Reminders</th><th></th>
             </tr>
           </thead>
           <tbody id="overdueRows"></tbody>
@@ -72,6 +80,8 @@
 
   <script src="shared.js"></script>
   <script src="invoicesend.js"></script>
+  <script src="invoicereminders.js"></script>
+  <script src="overduereminders.js"></script>
   <script src="accounts.js"></script>
   <script src="/shell/shell.js"></script>
 </body>

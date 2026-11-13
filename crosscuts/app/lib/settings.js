@@ -64,6 +64,18 @@ const DEFAULTS = {
   "payrun.review_ping_last": null,
   // 0.2.13: the From of invoice emails (Resend; the domain must be verified there). PUT /api/invoice-email/settings only.
   "invoices.email_from": "TH Cabinets Accounts <accounts@thcabinets.com.au>",
+  // 0.2.19 (docs/plans/invoice-reminders-plan.md): overdue invoice reminder emails. Changed through
+  // PUT /api/invoice-reminders/settings only. mode: off | approval | auto. reminders_on_since is written
+  // by the server when the mode leaves Off (the Sydney date that decides which invoices are included);
+  // reminders_last_run is {audit: false}. reminder_bcc blank means no BCC; reminder_templates null
+  // means the built-in wording.
+  "invoices.reminders_mode": "off",
+  "invoices.reminder_days": "7,14,30",
+  "invoices.reminder_hour": "10",
+  "invoices.reminder_bcc": "chloe@thcabinets.com.au",
+  "invoices.reminder_templates": null,
+  "invoices.reminders_last_run": null,
+  "invoices.reminders_on_since": null,
 };
 const KEYS = Object.keys(DEFAULTS);
 

@@ -29,6 +29,7 @@
     return window.cc && typeof window.cc.can === "function" ? !!window.cc.can(key) : false;
   }
   const canEdit = () => can("invoices.edit");
+  const REM = window.ccOverdueReminders || null; // 0.2.19: reminder emails (overduereminders.js)
 
   // --- helpers ---------------------------------------------------------------------
   function el(tag, props, ...kids) {
@@ -213,6 +214,10 @@
     let list;
     try {
       list = await api("/api/invoices/overdue");
+      if (REM) {
+        REM.setList(list);
+        await REM.loadQueue();
+      }
     } catch (e) {
       if (mine === overdueSeq) $("overdueSummary").textContent = e.message;
       return;
@@ -221,7 +226,8 @@
     const body = $("overdueRows");
     body.replaceChildren();
     let sum = 0;
-    for (const { invoice: inv, daysOverdue } of list) {
+    for (const item of list) {
+      const { invoice: inv, daysOverdue } = item;
       sum += inv.totalCents;
       const tr = el("tr");
       const numBtn = el("button", { type: "button", class: "ac-linkbtn", text: inv.number || "Open" });
@@ -240,9 +246,14 @@
       if (inv.needsFollowUp) lastTd.append(el("span", { class: "ac-followup", text: "Needs follow-up (every " + inv.followUpDaysEffective + " days)" }));
       tr.append(lastTd);
       tr.append(el("td", { class: "ac-notes", text: inv.followUpNotes || "" }));
+      if (REM) tr.append(REM.cell(item));
+      else tr.append(el("td"));
       const act = el("td");
       if (canEdit()) {
-        const b = el("button", { type: "button", class: "hs-btn", text: "Contacted today" });
+        const actRow = el("span", { class: "ac-row" });
+        act.append(actRow);
+        if (REM) for (const rb of REM.buttons(item)) actRow.append(rb);
+        const b = el("button", { type: "button", class: "hs-btn ise-small", text: "Contacted today" });
         b.addEventListener("click", async () => {
           b.disabled = true;
           try {
@@ -254,11 +265,12 @@
             b.disabled = false;
           }
         });
-        act.append(b);
+        actRow.append(b);
       }
       tr.append(act);
       body.append(tr);
     }
+    if (REM) REM.renderStrip();
     $("overdueEmpty").hidden = list.length > 0;
     const s = $("overdueSummary");
     s.replaceChildren();
@@ -947,10 +959,12 @@
     // 0.2.13: Send invoice by email, and the email history with its bounce alert.
     if (live) {
       const sendBtn = el("button", { type: "button", class: "hs-btn hs-btn-primary", hidden: true, text: "Send invoice" });
+      const remindBtn = el("button", { type: "button", class: "hs-btn", hidden: true, text: "Send reminder" });
       const emailBox = el("div", { hidden: true });
+      actions.prepend(remindBtn);
       actions.prepend(sendBtn);
       root.append(emailBox);
-      if (window.ccInvoiceSend) window.ccInvoiceSend.mount(inv, { button: sendBtn, panel: emailBox, onChange: () => refreshOpen(inv.id) });
+      if (window.ccInvoiceSend) window.ccInvoiceSend.mount(inv, { button: sendBtn, panel: emailBox, reminderButton: remindBtn, clientName: job.clientName || "", onChange: () => refreshOpen(inv.id) });
     }
     root.append(err, actions);
     dlg.replaceChildren(root);
@@ -1064,6 +1078,10 @@
       filter = f;
       syncFilters();
       loadTable();
+    }
+    if (REM) {
+      REM.init({ box: $("reminderBox"), summary: $("reminderSummary"), body: $("reminderBody"), strip: $("reminderStrip"), errLine: $("reminderErr"), canEdit, reload: () => loadOverdue() });
+      REM.loadSettings();
     }
     setView(params.get("view") === "overdue" ? "overdue" : "table");
     loadFollowup();

@@ -24,11 +24,12 @@
   margin: 0 0 14px; padding: 14px 16px; background: var(--surface);
   border: 1px solid var(--hairline); border-radius: var(--r-card);
 }
-.ise-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ise-head { flex-wrap: wrap; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
 .ise-alert {
   margin-bottom: 12px; padding: 10px 12px; color: var(--white);
   border: 1px solid var(--orange); border-radius: var(--r-control);
 }
+.ise-table-wrap { overflow-x: auto; }
 .ise-table { width: 100%; }
 .ise-table td { vertical-align: middle; }
 .ise-when { color: var(--white); font-weight: 700; white-space: nowrap; }

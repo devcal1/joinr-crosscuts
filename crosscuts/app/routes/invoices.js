@@ -8,6 +8,8 @@ const settings = require("../lib/settings");
 const invoices = require("../lib/invoices");
 const { sydneyToday, parseDateUTC } = require("../lib/time");
 
+const reminders = require("../lib/invoicereminders");
+
 const { HttpError, KINDS } = invoices;
 const r = defineRoutes("/api/invoices");
 
@@ -141,10 +143,12 @@ r.get("/overdue", "accounts.view", handle((req, res) => {
   const list = db
     .prepare("SELECT * FROM invoices WHERE status = 'issued' AND due_date IS NOT NULL AND due_date < ? ORDER BY due_date ASC, id ASC")
     .all(today);
+  const ctx = reminders.makeCtx(db, today); // settings and paused clients read once for the whole list
   res.json(
     list.map((inv) => ({
       invoice: invoices.present(db, inv, today),
       daysOverdue: Math.round((todayMs - parseDateUTC(inv.due_date).getTime()) / 86400000),
+      reminder: reminders.reminderSummary(db, inv, today, ctx),
     }))
   );
 }));
@@ -462,6 +466,25 @@ r.post("/:id/email/check", "invoices.edit", handleAsync(async (req, res) => {
   const inv = load(req);
   await invoiceEmail.pollInFlight(db, { invoiceId: inv.id });
   res.json(invoiceEmail.overview(db, inv));
+}));
+
+// --- overdue reminders (0.2.19, docs/plans/invoice-reminders-plan.md section 9) ---------------------
+
+r.get("/:id/reminders", "accounts.view", handle((req, res) => {
+  res.json(reminders.overviewFor(db, load(req)));
+}));
+
+// A person sends the next reminder now, with the dialog's {to, cc, subject, body}.
+r.post("/:id/reminders", "invoices.edit", handleAsync(async (req, res) => {
+  const inv = load(req);
+  const out = await reminders.sendManual(db, req, inv.id, body(req));
+  const fresh = invoices.getInvoice(db, inv.id);
+  res.status(201).json({ ...out, reminders: reminders.overviewFor(db, fresh), ...invoiceEmail.overview(db, fresh) });
+}));
+
+r.put("/:id/reminders/pause", "invoices.edit", handle((req, res) => {
+  const inv = load(req);
+  res.json(reminders.setInvoicePause(db, req, inv.id, body(req)));
 }));
 
 // The PDF that is attached to the email: the same print layout as the invoice page.

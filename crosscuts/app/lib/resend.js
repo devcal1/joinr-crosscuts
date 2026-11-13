@@ -124,6 +124,7 @@ async function sendEmail(m, idempotencyKey) {
     attachments: (m.attachments || []).map((a) => ({ filename: a.filename, content: a.content.toString("base64") })),
   };
   if (m.cc && m.cc.length) payload.cc = m.cc;
+  if (m.bcc && m.bcc.length) payload.bcc = m.bcc;
   const out = await call("POST", "/emails", payload, idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined);
   if (!out || typeof out.id !== "string" || !out.id) throw new ResendError("Resend answered without an email id. Check the invoice's email history before trying again.");
   return out.id;

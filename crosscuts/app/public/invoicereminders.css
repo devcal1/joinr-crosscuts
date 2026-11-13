@@ -1,0 +1,60 @@
+/* Overdue invoice reminders (invoicereminders.js): the Next reminder line and the pause dialog.
+   Tokens from tokens.css. Classes prefixed irm-. */
+.irm-next {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--hairline);
+}
+.irm-text { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.irm-strong { color: var(--white); }
+.irm-sub { font-size: 13px; color: var(--label); }
+.irm-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--label); }
+.irm-check input { accent-color: var(--teal); }
+.cc-dialog.irm-dialog { width: min(94vw, 560px); }
+.irm-dialog .cc-dialog-form { gap: 14px; }
+.irm-dialog .hs-input { color-scheme: dark; min-height: 36px; }
+@media print {
+  .irm-next, .irm-dialog { display: none !important; }
+}
+
+/* Accounts overdue list (overduereminders.js): the Reminder emails box, the ready strip and the column. */
+.irm-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; margin: 0 0 12px;
+  border: 1px solid var(--orange); border-left-width: var(--accent-border); border-radius: var(--r-control);
+  background: var(--orange-8); color: var(--white);
+}
+.irm-strip > span { flex: 1 1 260px; min-width: 0; }
+.irm-err { margin: 0 0 12px; white-space: pre-line; }
+.irm-err:empty { display: none; }
+.irm-mode { display: grid; gap: 8px; }
+.irm-mode label {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+  border: 1px solid var(--na); border-radius: var(--r-control); cursor: pointer;
+}
+.irm-mode label.on { border-color: var(--teal); background: var(--teal-16); }
+.irm-mode input { accent-color: var(--teal); margin-top: 3px; }
+.irm-mode b { color: var(--white); display: block; }
+.irm-mode small { color: var(--label); font-size: 12px; }
+.irm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.irm-col { display: grid; gap: 14px; align-content: start; min-width: 0; }
+@media (max-width: 760px) { .irm-grid { grid-template-columns: minmax(0, 1fr); } }
+.irm-steps { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.irm-steps .hs-input { width: 84px; }
+.irm-steps .irm-hour { width: 120px; }
+.irm-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.irm-preview {
+  border: 1px solid var(--hairline); border-radius: var(--r-control); padding: 10px 12px;
+  background: var(--ink); white-space: pre-line; font-size: 13px; overflow-wrap: anywhere;
+}
+.irm-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.irm-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+.irm-list li > span { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.irm-addrow { margin-top: 8px; }
+.irm-addrow .irm-grow { flex: 1 1 160px; width: auto; min-width: 0; }
+.irm-addrow .irm-date { width: 160px; color-scheme: dark; }
+.ac-fubox .hs-input { color-scheme: dark; }
+.ac-fubox textarea.irm-msg { min-height: 190px; resize: vertical; font-family: var(--font); line-height: 1.45; }
+.irm-cell small { display: block; font-size: 12px; color: var(--label); margin-top: 2px; }
+.irm-cell .hs-badge { white-space: normal; }
+.cc-dialog.irm-qdialog { width: min(94vw, 720px); max-height: 92vh; overflow-y: auto; }
+.irm-qitem { display: grid; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+.irm-qline { margin: 0; overflow-wrap: anywhere; }

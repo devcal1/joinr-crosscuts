@@ -122,6 +122,10 @@ function shape(r, now = Date.now()) {
     status: r.status,
     stale: r.status === "sent" && now - Date.parse(r.sent_at) > POLL_MAX_AGE_MS,
     error: r.error || null,
+    // 0.2.19: overdue reminders share this history (kind 'reminder', step 1 to 3, BCC never shown to the client).
+    kind: r.kind || "invoice",
+    reminderStep: r.reminder_step == null ? null : r.reminder_step,
+    bcc: r.bcc_addrs || "",
   };
 }
 
@@ -141,13 +145,14 @@ function alertOf(rows) {
   for (const r of rows) {
     if (r.status === "delivered") return null;
     if (r.status === "bounced" || r.status === "failed") {
+      const what = r.kind === "reminder" && r.reminderStep ? `Reminder ${r.reminderStep} email` : "Email";
       return {
         id: r.id,
         status: r.status,
         message:
           r.status === "bounced"
-            ? `Email to ${r.to} bounced. Check the address and send again.`
-            : `Email to ${r.to} could not be delivered. Check the address and send again.`,
+            ? `${what} to ${r.to} bounced. Check the address and send again.`
+            : `${what} to ${r.to} could not be delivered. Check the address and send again.`,
       };
     }
   }
@@ -337,12 +342,14 @@ async function pollInFlight(db, { invoiceId = null, now = Date.now() } = {}) {
             action: "invoice.email_" + st,
             entityType: "invoice",
             entityId: r.invoice_id,
-            after: { emailId: r.id, to: r.to_addrs, lastEvent: ev },
+            after: { emailId: r.id, to: r.to_addrs, lastEvent: ev, kind: r.kind || "invoice" },
           });
+          const isRem = r.kind === "reminder";
+          const what = isRem ? `Reminder ${r.reminder_step || ""} email`.replace("  ", " ") : "Invoice email";
           notify.toKey(db, "invoices.edit", {
             kind: "invoice.email_" + st,
-            title: `Invoice email ${st === "bounced" ? "bounced" : "not delivered"}: ${r.inv_number || "invoice " + r.invoice_id}`,
-            body: `Email to ${r.to_addrs} ${st === "bounced" ? "bounced" : "could not be delivered"}. Check the address and send again.`,
+            title: `${what} ${st === "bounced" ? "bounced" : "not delivered"}: ${r.inv_number || "invoice " + r.invoice_id}`,
+            body: `${isRem ? "Reminder email" : "Email"} to ${r.to_addrs} ${st === "bounced" ? "bounced" : "could not be delivered"}. Check the address and send again.`,
             link: `/accounts.html?invoice=${r.invoice_id}`,
             entityType: "invoice",
             entityId: r.invoice_id,
@@ -352,7 +359,7 @@ async function pollInFlight(db, { invoiceId = null, now = Date.now() } = {}) {
             action: "invoice.email_delivered",
             entityType: "invoice",
             entityId: r.invoice_id,
-            after: { emailId: r.id, to: r.to_addrs, lastEvent: ev },
+            after: { emailId: r.id, to: r.to_addrs, lastEvent: ev, kind: r.kind || "invoice" },
           });
         }
       })();
@@ -389,6 +396,12 @@ module.exports = {
   fromSetting,
   defaults,
   history,
+  alertOf,
+  parseBody,
+  longDate,
+  shape,
+  SUBJECT_MAX,
+  BODY_MAX,
   overview,
   send,
   mapEvent,

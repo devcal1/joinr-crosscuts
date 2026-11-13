@@ -4,6 +4,10 @@
 //
 //   node fake-resend.js <port> <key>
 //
+// Also used by ci/smoke-invoice-reminders.sh. An Idempotency-Key seen before answers the first email's id (200)
+// and records nothing new, as Resend does for 24 hours; /_control/emails shows bcc (and hasBcc, whether the
+// field was sent at all) and the key.
+//
 // The API (Bearer <key> required, 401 otherwise):
 //   POST /emails        needs from, to[], subject, text and attachments; answers {id}
 //   GET  /emails/:id    {id, last_event} (404 for an unknown id)
@@ -74,6 +78,12 @@ http
     if (req.headers.authorization !== "Bearer " + key) return send(res, 401, { message: "API key is invalid", name: "validation_error" });
     if (p === "/emails" && req.method === "POST") {
       const b = await readBody(req);
+      // Idempotency-Key: a repeated key is the same email (Resend does this for 24 hours): the first id, no new record.
+      const idem = req.headers["idempotency-key"] || null;
+      if (idem) {
+        const prior = emails.find((e) => e.idempotencyKey === idem);
+        if (prior) return send(res, 200, { id: prior.id });
+      }
       if (failNext && failNext.count > 0) {
         failNext.count -= 1;
         const f = failNext;
@@ -99,10 +109,12 @@ http
         from: b.from,
         to: b.to,
         cc: b.cc || [],
+        bcc: b.bcc || [],
+        hasBcc: b.bcc !== undefined,
         reply_to: b.reply_to || null,
         subject: b.subject,
         text: b.text,
-        idempotencyKey: req.headers["idempotency-key"] || null,
+        idempotencyKey: idem,
         attachments,
       });
       return send(res, 200, { id });
