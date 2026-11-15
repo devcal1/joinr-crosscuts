@@ -807,7 +807,7 @@
           dayRows.push(row);
         }
       }
-      // Under the fortnight minimum there is no time and a half: OT moves into normal time.
+      // OT first tops ordinary hours up to the fortnight minimum; only OT above that stays 1.5x.
       if (rules) {
         PM.applyFortnightMinimum(days, rules);
         days.forEach((d, i) => {
@@ -880,13 +880,13 @@
     $("sArl").textContent = PM.hours(t.arlMin);
     $("sSick").textContent = PM.hours(t.sickMin);
     $("sOnsite").textContent = PM.hours(t.onsiteMin);
-    // Plain note when the fortnight minimum took the time and a half away (Todd 2026-11-16).
+    // Plain note when OT was moved to make ordinary hours up to the fortnight minimum (Todd 2026-11-16).
     const note = $("otNote");
     if (note) {
       const moved = t.otMovedMin || 0;
       note.hidden = !moved;
       note.textContent = moved && rules
-        ? `Under ${PM.hours(PM.fortnightMinimumMin(rules))} h this fortnight: no time and a half (${PM.hours(moved)} h of OT paid as normal)`
+        ? `Ordinary hours under ${PM.hours(PM.fortnightMinimumMin(rules))} this fortnight: ${PM.hours(moved)} h of OT paid as normal time to make them up`
         : "";
     }
   }

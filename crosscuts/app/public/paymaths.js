@@ -118,30 +118,35 @@
     return 2 * (4 * rules.ordinaryMonThuMin + rules.ordinaryFriMin);
   }
 
-  // Hours completed in the fortnight: worked plus public holiday, annual leave and sick hours.
+  // Ordinary hours completed in the fortnight: normal time plus public holiday, annual leave and
+  // sick hours. OT and DT don't count here.
   function completedMin(days) {
     var n = 0;
     (days || []).forEach(function (d) {
-      n += ((d && d.workedMin) || 0) + ((d && d.pholMin) || 0) + ((d && d.arlMin) || 0) + ((d && d.sickMin) || 0);
+      n += ((d && d.normalMin) || 0) + ((d && d.pholMin) || 0) + ((d && d.arlMin) || 0) + ((d && d.sickMin) || 0);
     });
     return n;
   }
 
-  // A person only earns 1.5x in a fortnight when the completed hours reach the minimum; under it,
-  // every OT minute is paid as normal time (same hours, no loading) and DT stays as split() gave it.
-  // Mutates the days (split() fields already present): otMin moves into normalMin, otMovedMin records
-  // how much. Applies only when rules.fortnightMinimum is set: live rules carry it, and a run
-  // finalised before the rule keeps its frozen rules without it, so its figures never change.
+  // 1.5x only counts above the fortnight minimum (Todd 2026-11-16): OT first tops normal time up to
+  // the minimum, and only what is left stays 1.5x. Example: 66 h normal + 12 h OT pays 76 h normal
+  // and 2 h at 1.5x. DT is never touched (always paid 2x, and it never fills the shortfall).
+  // Mutates the days (split() fields already present), taking OT in date order: otMin moves into
+  // normalMin and otMovedMin records how much. Applies only when rules.fortnightMinimum is set: live
+  // rules carry it, and a run finalised before the rule keeps its frozen rules without it, so its
+  // figures never change.
   function applyFortnightMinimum(days, rules) {
     var info = { minimumMin: fortnightMinimumMin(rules), completedMin: completedMin(days), movedMin: 0 };
-    if (!rules.fortnightMinimum || info.completedMin >= info.minimumMin) return info;
+    if (!rules.fortnightMinimum) return info;
+    var short = info.minimumMin - info.completedMin;
     (days || []).forEach(function (d) {
-      if (d && d.otMin) {
-        info.movedMin += d.otMin;
-        d.otMovedMin = d.otMin;
-        d.normalMin = (d.normalMin || 0) + d.otMin;
-        d.otMin = 0;
-      }
+      if (short <= 0 || !d || !d.otMin) return;
+      var move = Math.min(d.otMin, short);
+      short -= move;
+      info.movedMin += move;
+      d.otMovedMin = move;
+      d.normalMin = (d.normalMin || 0) + move;
+      d.otMin -= move;
     });
     return info;
   }

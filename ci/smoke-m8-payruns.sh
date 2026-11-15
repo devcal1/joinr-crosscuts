@@ -253,8 +253,9 @@ m8_sheet
 m8_day 2035-01-05 '.normalMin == 450 and .otMin == 0 and .dtMin == 0' "Fri 5 Jan back under the default"
 
 echo "--- fortnight minimum for 1.5x (2026-11-16) ---"
-# The office person's sheet. Exactly 76 h completed (worked, P HOL and ARL together) keeps OT; one
-# minute under pays the OT as normal time. DT stays as the daily split gives it.
+# The office person's sheet. OT first tops normal time (with P HOL, ARL and SICK) up to 76 h; only
+# OT above that stays 1.5x. Exactly 76 h ordinary keeps all the OT; one minute under moves one
+# minute of OT into normal. DT is never touched.
 req GET "/api/payruns/$M8_RUN/timesheets/$M8_TSO" "$ACCT"
 expect_status 200 "GET the office person's sheet for the minimum"
 M8_UPD_O=$(jqr '.updatedAt')
@@ -271,16 +272,16 @@ m8_put_office() { # $1 = Friday 12 Jan finish minute
     {date:"2035-01-11",startMin:420,finishMin:930,lunchMin:30},
     {date:"2035-01-12",startMin:420,finishMin:$f,lunchMin:30}], updatedAt:$u}')"
 }
-m8_put_office 690
+m8_put_office 810
 expect_status 200 "save the office sheet at exactly 76 h"
 M8_UPD_O=$(jqr '.updatedAt')
-expect_jq '.totals.workedMin == 4080 and .totals.pholMin == 480 and .totals.otMin == 120 and .totals.otMovedMin == 0 and .totals.normalMin == 3960' "exactly 76 h counting the public holiday: OT kept"
-m8_put_office 689
+expect_jq '.totals.workedMin == 4200 and .totals.pholMin == 480 and .totals.otMin == 120 and .totals.otMovedMin == 0 and .totals.normalMin == 4080' "exactly 76 h ordinary counting the public holiday: OT kept"
+m8_put_office 809
 expect_status 200 "save the office sheet one minute under"
 M8_UPD_O=$(jqr '.updatedAt')
-expect_jq '.totals.otMin == 0 and .totals.otMovedMin == 120 and .totals.dtMin == 0 and .totals.workedMin == 4079 and .totals.normalMin == 4079' "one minute under 76 h: OT paid as normal"
+expect_jq '.totals.otMin == 119 and .totals.otMovedMin == 1 and .totals.dtMin == 0 and .totals.workedMin == 4199 and .totals.normalMin == 4080' "one minute under 76 h: one minute of OT tops normal up, the rest stays 1.5x"
 req GET "/api/payruns/$M8_RUN/summary" "$ACCT"
-expect_jq "[.rows[] | select(.timesheetId == $M8_TSO)][0] | .otMin == 0 and .dtMin == 0" "the summary row agrees with the sheet"
+expect_jq "[.rows[] | select(.timesheetId == $M8_TSO)][0] | .otMin == 119 and .dtMin == 0 and .normalMin == 4080" "the summary row agrees with the sheet"
 
 echo "--- add and remove sheets ---"
 req POST "/api/payruns/$M8_RUN/timesheets" "$ACCT" "{\"workerId\":$M8_OFF}"
