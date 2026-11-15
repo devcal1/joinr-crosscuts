@@ -112,9 +112,43 @@
     return { workedMin: worked, normalMin: normal, otMin: ot, dtMin: worked - normal - ot };
   }
 
+  // The fortnight minimum for 1.5x (Todd 2026-11-16): two weeks of ordinary hours, 2 x (4 x Mon-Thu
+  // + Fri) = 76 h at the defaults. Derived from the rules, not a setting.
+  function fortnightMinimumMin(rules) {
+    return 2 * (4 * rules.ordinaryMonThuMin + rules.ordinaryFriMin);
+  }
+
+  // Hours completed in the fortnight: worked plus public holiday, annual leave and sick hours.
+  function completedMin(days) {
+    var n = 0;
+    (days || []).forEach(function (d) {
+      n += ((d && d.workedMin) || 0) + ((d && d.pholMin) || 0) + ((d && d.arlMin) || 0) + ((d && d.sickMin) || 0);
+    });
+    return n;
+  }
+
+  // A person only earns 1.5x in a fortnight when the completed hours reach the minimum; under it,
+  // every OT minute is paid as normal time (same hours, no loading) and DT stays as split() gave it.
+  // Mutates the days (split() fields already present): otMin moves into normalMin, otMovedMin records
+  // how much. Applies only when rules.fortnightMinimum is set: live rules carry it, and a run
+  // finalised before the rule keeps its frozen rules without it, so its figures never change.
+  function applyFortnightMinimum(days, rules) {
+    var info = { minimumMin: fortnightMinimumMin(rules), completedMin: completedMin(days), movedMin: 0 };
+    if (!rules.fortnightMinimum || info.completedMin >= info.minimumMin) return info;
+    (days || []).forEach(function (d) {
+      if (d && d.otMin) {
+        info.movedMin += d.otMin;
+        d.otMovedMin = d.otMin;
+        d.normalMin = (d.normalMin || 0) + d.otMin;
+        d.otMin = 0;
+      }
+    });
+    return info;
+  }
+
   // Sums over days that already carry split() fields and the typed leave fields.
   function totals(days) {
-    var t = { workedMin: 0, normalMin: 0, otMin: 0, dtMin: 0, pholMin: 0, sickMin: 0, arlMin: 0, onsiteMin: 0 };
+    var t = { otMovedMin: 0, workedMin: 0, normalMin: 0, otMin: 0, dtMin: 0, pholMin: 0, sickMin: 0, arlMin: 0, onsiteMin: 0 };
     (days || []).forEach(function (d) {
       for (var k in t) t[k] += (d && d[k]) || 0;
     });
@@ -222,6 +256,8 @@
     ordinaryFor: ordinaryFor,
     split: split,
     totals: totals,
+    fortnightMinimumMin: fortnightMinimumMin,
+    applyFortnightMinimum: applyFortnightMinimum,
     hours: hours,
     clock: clock,
     parseClock: parseClock,

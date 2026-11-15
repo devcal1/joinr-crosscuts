@@ -210,6 +210,8 @@ td.pr-col-hint { font-size: 12px; line-height: 1.3; padding-left: 8px; padding-r
 .pr-notes-in { min-height: 76px; resize: vertical; color-scheme: dark; }
 .pr-notes-ro { margin: 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-control); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--body); }
 .pr-notes-ro.pr-none { color: var(--muted); }
+.pr-ot-note { margin: 0; color: var(--label); font-size: 13px; }
+.pr-ot-note[hidden] { display: none; }
 .pr-ticks { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 4px; }
 
 .pr-sumblock {

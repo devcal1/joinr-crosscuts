@@ -10,7 +10,7 @@ Open **Accounts**, then **Pay runs**.
 
 1. **Who's on the pay run.** Every worker on the board is listed. Untick **On the pay run** for anyone who isn't paid through it. Use **Add person** for someone who isn't on the board (office staff); they show as **Pay only** and can be renamed or removed here. Board workers are added and renamed on the Workers page.
 2. **Public holidays.** The Victorian list is filled in to the end of 2027. Add local days (a show day or cup day) with **Add holiday**, and remove any that don't apply. Melbourne Cup is the statewide date; swap it if your area takes a different day.
-3. **Pay rules.** Ordinary hours are 8.00 Mon–Thu and 6.00 Fri; the first 2.00 hours past ordinary are overtime, anything beyond is double time. Change them here if the award changes. The fortnight start (Monday 5 October 2026) locks once the first pay run exists.
+3. **Pay rules.** Ordinary hours are 8.00 Mon–Thu and 6.00 Fri; the first 2.00 hours past ordinary are overtime, anything beyond is double time. **Time and a half needs the fortnight's minimum:** a person only earns Over Time if their hours completed in the fortnight reach 76.00 (two weeks of ordinary hours: worked hours plus public holiday, annual leave and personal leave hours). Under that, the hours that would have been Over Time are paid as Normal Time instead (the total hours don't change), and Double Time is always paid. The 76.00 follows the ordinary hours below; there is no separate setting. Change them here if the award changes. The fortnight start (Monday 5 October 2026) locks once the first pay run exists.
 
 ## Each fortnight
 
@@ -18,7 +18,7 @@ Open **Accounts**, then **Pay runs**.
 2. **Start the pay run.** Press **Start pay run** on the card. It makes a sheet for everyone on the pay run. (Started by mistake? **Delete** on the pay run works until a sheet is saved.)
 3. **Type in each sheet.** Open the pay run and pick a person on the left. The screen is laid out like the paper:
    - Type **Start** and **Finish** on the 24-hour clock (`7`, `730`, `7:30` or `7.30`; half past three in the afternoon is `15:30` or `1530`), **Lunch** in minutes (`30`) or as `1:00`, and **P HOL**, **SICK**, **ARL** and **ON SITE** in hours (`7.5` or `7:30`). **Tab** moves across, **Enter** moves down.
-   - **Total**, **OT** and **DT** work themselves out as you type, as do the totals and the summary block.
+   - **Total**, **OT** and **DT** work themselves out as you type, as do the totals and the summary block. If the person is under the fortnight minimum (76.00 hours), their OT shows as 0.00, the hours move into Normal Time, and a note beside the totals says so.
    - Grey values are suggestions from the board (the job), leave and public holidays. Check them against the paper; what you type wins. On a worker's regular day off nothing is suggested and the row says "Regular day off". **Fill suggestions** fills only blank cells on a sheet already saved. **Prefill** puts standard hours on blank days (Mon to Thu 07:00 to 15:30, Fri 07:00 to 13:30, 30 min lunch), skipping public holidays, leave and regular days off; it does not save, so check and press Save.
    - A cell outlined in orange has a problem (for example a finish before the start); the reason shows beside the row and the sheet won't save until it's fixed.
    - Weekend work has no row: Friday's Check column lists the weekend's board jobs; write the hours in **Notes**, which print on the summary.

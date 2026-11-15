@@ -109,6 +109,9 @@ function rules(db) {
     ordinaryMonThuMin: Number(s["pay.ordinary_mon_thu_min"]),
     ordinaryFriMin: Number(s["pay.ordinary_fri_min"]),
     otBandMin: Number(s["pay.ot_band_min"]),
+    // 1.5x needs the fortnight minimum (Todd 2026-11-16). Frozen into a run when it is finalised, so
+    // runs finalised before this rule have no flag and keep their old figures.
+    fortnightMinimum: true,
   };
 }
 
@@ -390,11 +393,13 @@ function storedDays(db, sheetIds) {
 
 // The ten rows of a sheet with the split, from {date: stored day}.
 function tenDays(startDate, stored, rulesObj) {
-  return PayMaths.fortnightDates(startDate).map((date) => {
+  const days = PayMaths.fortnightDates(startDate).map((date) => {
     const key = PayMaths.dayKeyOf(date);
     const typed = (stored && stored[date]) || blankDay();
     return { date, day: key, ...typed, ...PayMaths.split(typed, key, rulesObj) };
   });
+  PayMaths.applyFortnightMinimum(days, rulesObj);
+  return days;
 }
 
 // ---------------------------------------------------------------- pay runs ---

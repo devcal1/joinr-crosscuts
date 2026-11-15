@@ -185,21 +185,21 @@ M8_DAYS='[
 m8_put "$M8_DAYS"
 expect_status 200 "save the unit-table days"
 expect_jq '.saved == true and .notes == "M8 note" and .signed == true and .entered == true' "the saved sheet"
-m8_day 2035-01-01 '.workedMin == 570 and .normalMin == 480 and .otMin == 90 and .dtMin == 0 and .onsiteMin == 120 and .job == "M8 Test Job (M8Q1)"'
-m8_day 2035-01-02 '.workedMin == 720 and .normalMin == 480 and .otMin == 120 and .dtMin == 120'
-m8_day 2035-01-05 '.workedMin == 450 and .normalMin == 360 and .otMin == 90 and .dtMin == 0'
-m8_day 2035-01-12 '.workedMin == 630 and .normalMin == 360 and .otMin == 120 and .dtMin == 150'
+m8_day 2035-01-01 '.workedMin == 570 and .normalMin == 570 and .otMin == 0 and .dtMin == 0 and .onsiteMin == 120 and .job == "M8 Test Job (M8Q1)"'
+m8_day 2035-01-02 '.workedMin == 720 and .normalMin == 600 and .otMin == 0 and .dtMin == 120'
+m8_day 2035-01-05 '.workedMin == 450 and .normalMin == 450 and .otMin == 0 and .dtMin == 0'
+m8_day 2035-01-12 '.workedMin == 630 and .normalMin == 480 and .otMin == 0 and .dtMin == 150'
 m8_day 2035-01-10 '.workedMin == 240 and .normalMin == 240 and .otMin == 0 and .dtMin == 0 and .arlMin == 240'
 m8_day 2035-01-04 '.workedMin == 0 and .normalMin == 0 and .otMin == 0 and .dtMin == 0 and .pholMin == 480 and .startMin == null'
 m8_day 2035-01-08 '.startMin == null and .job == "" and .workedMin == 0' "an all-blank day stores nothing"
-expect_jq '.totals == {workedMin:2610, normalMin:1920, otMin:420, dtMin:270, pholMin:480, sickMin:0, arlMin:240, onsiteMin:120}' "the sheet totals"
+expect_jq '.totals == {otMovedMin:420, workedMin:2610, normalMin:2340, otMin:0, dtMin:270, pholMin:480, sickMin:0, arlMin:240, onsiteMin:120}' "the sheet totals"
 M8_NDAYS=$(docker exec "$CONTAINER" node -e "console.log(require('better-sqlite3')('/data/db/photos.db').prepare('SELECT COUNT(*) AS n FROM pay_days WHERE timesheet_id = $M8_TS').get().n)")
 expect_eq "$M8_NDAYS" 6 "only the six typed days are stored"
 M8_UPD=$(jqr '.updatedAt')
 req GET "/api/payruns/$M8_RUN/summary" "$ACCT"
 expect_status 200 "GET the summary"
 expect_jq ".frozen == false and .payRun.id == $M8_RUN and .rules.ordinaryFriMin == 360" "a live summary"
-expect_jq "[.rows[] | select(.timesheetId == $M8_TS)][0] | .name == \"M8 Test Worker\" and .normalMin == 1920 and .otMin == 420 and .dtMin == 270 and .pholMin == 480 and .arlMin == 240 and .sickMin == 0 and .onsiteMin == 120 and .workedMin == 2610 and .notes == \"M8 note\" and .signed == true and .entered == true" "the summary row matches the sheet"
+expect_jq "[.rows[] | select(.timesheetId == $M8_TS)][0] | .name == \"M8 Test Worker\" and .normalMin == 2340 and .otMin == 0 and .dtMin == 270 and .pholMin == 480 and .arlMin == 240 and .sickMin == 0 and .onsiteMin == 120 and .workedMin == 2610 and .notes == \"M8 note\" and .signed == true and .entered == true" "the summary row matches the sheet"
 expect_jq '.totals.normalMin >= 1920 and .totals.workedMin >= 2610' "the summary totals include the sheet"
 
 echo "--- validation ---"
@@ -246,11 +246,41 @@ echo "--- live rules ---"
 m8_settings '{"ordinaryFriMin":300}'
 expect_jq '.ordinaryFriMin == 300' "Friday ordinary is 300"
 m8_sheet
-m8_day 2035-01-05 '.normalMin == 300 and .otMin == 120 and .dtMin == 30' "Fri 5 Jan under the new rule"
-m8_day 2035-01-12 '.normalMin == 300 and .otMin == 120 and .dtMin == 210' "Fri 12 Jan under the new rule"
+m8_day 2035-01-05 '.normalMin == 420 and .otMin == 0 and .dtMin == 30' "Fri 5 Jan under the new rule"
+m8_day 2035-01-12 '.normalMin == 420 and .otMin == 0 and .dtMin == 210' "Fri 12 Jan under the new rule"
 m8_settings '{"ordinaryFriMin":360}'
 m8_sheet
-m8_day 2035-01-05 '.normalMin == 360 and .otMin == 90 and .dtMin == 0' "Fri 5 Jan back under the default"
+m8_day 2035-01-05 '.normalMin == 450 and .otMin == 0 and .dtMin == 0' "Fri 5 Jan back under the default"
+
+echo "--- fortnight minimum for 1.5x (2026-11-16) ---"
+# The office person's sheet. Exactly 76 h completed (worked, P HOL and ARL together) keeps OT; one
+# minute under pays the OT as normal time. DT stays as the daily split gives it.
+req GET "/api/payruns/$M8_RUN/timesheets/$M8_TSO" "$ACCT"
+expect_status 200 "GET the office person's sheet for the minimum"
+M8_UPD_O=$(jqr '.updatedAt')
+m8_put_office() { # $1 = Friday 12 Jan finish minute
+  req PUT "/api/payruns/$M8_RUN/timesheets/$M8_TSO" "$ACCT" "$(jq -nc --arg u "$M8_UPD_O" --argjson f "$1" '{days:[
+    {date:"2035-01-01",startMin:420,finishMin:1050,lunchMin:30},
+    {date:"2035-01-02",startMin:420,finishMin:930,lunchMin:30},
+    {date:"2035-01-03",startMin:420,finishMin:930,lunchMin:30},
+    {date:"2035-01-04",pholMin:480},
+    {date:"2035-01-05",startMin:420,finishMin:810,lunchMin:30},
+    {date:"2035-01-08",startMin:420,finishMin:930,lunchMin:30},
+    {date:"2035-01-09",startMin:420,finishMin:930,lunchMin:30},
+    {date:"2035-01-10",startMin:420,finishMin:930,lunchMin:30},
+    {date:"2035-01-11",startMin:420,finishMin:930,lunchMin:30},
+    {date:"2035-01-12",startMin:420,finishMin:$f,lunchMin:30}], updatedAt:$u}')"
+}
+m8_put_office 690
+expect_status 200 "save the office sheet at exactly 76 h"
+M8_UPD_O=$(jqr '.updatedAt')
+expect_jq '.totals.workedMin == 4080 and .totals.pholMin == 480 and .totals.otMin == 120 and .totals.otMovedMin == 0 and .totals.normalMin == 3960' "exactly 76 h counting the public holiday: OT kept"
+m8_put_office 689
+expect_status 200 "save the office sheet one minute under"
+M8_UPD_O=$(jqr '.updatedAt')
+expect_jq '.totals.otMin == 0 and .totals.otMovedMin == 120 and .totals.dtMin == 0 and .totals.workedMin == 4079 and .totals.normalMin == 4079' "one minute under 76 h: OT paid as normal"
+req GET "/api/payruns/$M8_RUN/summary" "$ACCT"
+expect_jq "[.rows[] | select(.timesheetId == $M8_TSO)][0] | .otMin == 0 and .dtMin == 0" "the summary row agrees with the sheet"
 
 echo "--- add and remove sheets ---"
 req POST "/api/payruns/$M8_RUN/timesheets" "$ACCT" "{\"workerId\":$M8_OFF}"
@@ -292,15 +322,21 @@ expect_jq '.status == "finalised" and (.finalisedAt | type == "string") and (.fi
 req POST "/api/payruns/$M8_RUN/timesheets/$M8_TS/review" "$ADMIN" '{"reviewed":false}'
 expect_status 409 "no review changes on a finalised run"
 req GET "/api/payruns/$M8_RUN/summary" "$ACCT"
-expect_jq ".frozen == true and .payRun.status == \"finalised\" and ([.rows[] | select(.timesheetId == $M8_TS)][0] | .normalMin == 1920 and .otMin == 420 and .dtMin == 270)" "the frozen summary"
+expect_jq ".frozen == true and .payRun.status == \"finalised\" and ([.rows[] | select(.timesheetId == $M8_TS)][0] | .normalMin == 2340 and .otMin == 0 and .dtMin == 270)" "the frozen summary"
 M8_FROZEN=$(jqr '[.rows, .totals, .rules] | tojson')
 m8_settings '{"ordinaryFriMin":300}'
 req GET "/api/payruns/$M8_RUN/summary" "$ACCT"
 expect_eq "$(jqr '[.rows, .totals, .rules] | tojson')" "$M8_FROZEN" "the frozen summary ignores a rule change"
 m8_sheet
-m8_day 2035-01-05 '.normalMin == 360 and .otMin == 90' "a finalised sheet keeps its frozen rules"
+m8_day 2035-01-05 '.normalMin == 450 and .otMin == 0' "a finalised sheet keeps its frozen rules"
 expect_jq '.suggestions == {} and .runStatus == "finalised"' "a finalised sheet has no suggestions"
 m8_settings '{"ordinaryFriMin":360}'
+# A run finalised before the fortnight minimum has frozen rules without the flag: its figures stay
+# as they were (OT kept), simulated by dropping the flag from this run's frozen rules.
+docker exec "$CONTAINER" node -e "const d=require('better-sqlite3')('/data/db/photos.db');const r=d.prepare('SELECT rules_json FROM pay_runs WHERE id = $M8_RUN').get();const j=JSON.parse(r.rules_json);delete j.fortnightMinimum;d.prepare('UPDATE pay_runs SET rules_json = ? WHERE id = $M8_RUN').run(JSON.stringify(j))"
+m8_sheet
+m8_day 2035-01-05 '.normalMin == 360 and .otMin == 90 and .dtMin == 0' "a run finalised before the fortnight minimum keeps its old OT"
+expect_jq '.totals.normalMin == 1920 and .totals.otMin == 420 and .totals.dtMin == 270 and .totals.otMovedMin == 0' "its totals keep the old split"
 req POST "/api/payruns/$M8_RUN/finalise" "$ACCT"
 expect_status 409 "finalise twice"
 expect_jq '.error == "This pay run is already finalised"' "the already-finalised sentence"
