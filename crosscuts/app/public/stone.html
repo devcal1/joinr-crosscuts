@@ -54,12 +54,30 @@
 
     <!-- 0.2.0 (docs/plans/m21-benchtop-designer.md): the benchtop plans, one per job (benchtopplans.js) -->
     <section id="bpList" class="so-list" aria-labelledby="bpListH" hidden>
-      <h2 id="bpListH" class="so-plansh">Benchtop plans</h2>
-      <p class="so-intro">Start a plan from its job's Benchtops section (Benchtop plan).</p>
+      <div class="bp-head">
+        <h2 id="bpListH" class="so-plansh">Benchtop plans</h2>
+        <button type="button" id="bpNew" class="hs-btn hs-btn-primary" aria-expanded="false" aria-controls="bpPick" hidden>New benchtop plan</button>
+      </div>
+      <!-- 0.2.21: start a plan here. Pick a job; a job with a plan opens that plan (one per job). -->
+      <div id="bpPick" class="bp-pick" hidden>
+        <label class="so-inline bp-pickfield">
+          <span class="hs-label">Job for the new plan</span>
+          <input id="bpPickIn" class="hs-input" type="search" autocomplete="off" placeholder="Job number, name or client"
+            role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bpPickList">
+        </label>
+        <ul id="bpPickList" class="bp-picklist" role="listbox" aria-label="Jobs" hidden></ul>
+        <button type="button" id="bpPickCancel" class="hs-btn">Cancel</button>
+      </div>
+      <div class="so-tools">
+        <label class="so-inline">
+          <span class="hs-label">Find a plan</span>
+          <input id="bpFind" class="hs-input bp-find" type="search" autocomplete="off" placeholder="Job number, job, client or project manager">
+        </label>
+      </div>
       <p id="bpEmpty" class="so-empty" hidden>No benchtop plans yet.</p>
       <div id="bpWrap" class="so-wrap" hidden>
         <table class="so-table so-table-list">
-          <thead><tr><th scope="col">Job</th><th scope="col">Pieces</th><th scope="col">Revision</th><th scope="col">Updated</th><th scope="col"><span class="so-sr">Open</span></th></tr></thead>
+          <thead><tr><th scope="col">Job no.</th><th scope="col">Job</th><th scope="col">Client</th><th scope="col">Project manager</th><th scope="col">Pieces</th><th scope="col">Revision</th><th scope="col">Updated</th><th scope="col"><span class="so-sr">Open</span></th></tr></thead>
           <tbody id="bpRows"></tbody>
         </table>
       </div>

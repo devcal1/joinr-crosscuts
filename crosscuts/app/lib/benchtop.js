@@ -269,8 +269,10 @@ function list(db) {
   return db
     .prepare(
       `SELECT p.id, p.job_id, p.design_json, p.updated_at, j.name AS job_name, j.archived,
+         j.job_number, j.client_name, u.display_name AS owner_name,
          (SELECT letter FROM benchtop_plan_revisions r WHERE r.plan_id = p.id ORDER BY seq DESC LIMIT 1) AS letter
        FROM benchtop_plans p JOIN jobs j ON j.id = p.job_id
+       LEFT JOIN users u ON u.id = j.project_owner_id
        ORDER BY p.updated_at DESC`
     )
     .all()
@@ -278,6 +280,10 @@ function list(db) {
       id: r.id,
       jobId: r.job_id,
       jobName: r.job_name,
+      // 0.2.21: job number, client and project manager for the Benchtops page lookup.
+      jobNumber: r.job_number || null,
+      clientName: r.client_name || null,
+      ownerName: r.owner_name || null,
       archived: Number(r.archived) !== 0,
       pieces: (JSON.parse(r.design_json).pieces || []).length,
       revision: r.letter || null,

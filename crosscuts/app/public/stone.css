@@ -208,3 +208,28 @@ a.hs-btn:hover { text-decoration: none; }
 
 /* 0.2.0: the benchtop plans list under the stone orders (benchtopplans.js) */
 .so-plansh { margin: 28px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--white); }
+
+/* 0.2.21: New benchtop plan (pick a job) and Find a plan */
+.bp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 28px 0 8px; }
+.bp-head .so-plansh { margin: 0; }
+.bp-head .hs-btn { margin-left: auto; }
+.bp-pick { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 14px; padding: 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.bp-pickfield { flex: 0 1 360px; }
+.bp-picklist { position: absolute; left: 12px; top: calc(100% - 8px); z-index: 40; width: 420px; max-width: calc(100% - 24px); max-height: 50vh; overflow-y: auto; margin: 0; padding: 0; list-style: none; background: var(--surface); border: 1px solid var(--hairline); }
+.bp-picklist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 8px 12px; border-bottom: 1px solid var(--hairline); cursor: pointer; font-size: 14px; color: var(--body); }
+.bp-picklist li:last-child { border-bottom: 0; }
+.bp-picklist li[aria-selected="true"], .bp-picklist li:hover { background: var(--raised); }
+.bp-picklist li[aria-disabled="true"] { cursor: default; color: var(--muted); }
+.bp-picklist li[aria-disabled="true"]:hover { background: none; }
+.bp-jno { color: var(--teal-tint); font-weight: 700; }
+.bp-jname { color: var(--white); font-weight: 700; }
+.bp-jclient { color: var(--label); }
+.bp-has { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.bp-find { width: 340px; max-width: 100%; }
+.bp-jnum { color: var(--teal-tint); font-weight: 700; white-space: nowrap; }
+@media (max-width: 760px) {
+  .bp-head .hs-btn { margin-left: 0; width: 100%; }
+  .bp-pickfield { flex: 1 1 100%; }
+  .bp-pick .hs-btn { flex: 1 1 auto; }
+  .bp-find { width: 100%; }
+}

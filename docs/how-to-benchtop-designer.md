@@ -8,7 +8,11 @@ Admin > **Benchtop lists**. Add each material (supplier, range, colour, thicknes
 
 ## Start a plan
 
-Open the job, go to its **Benchtops** section and click **Benchtop plan**. Existing plans are also listed on Projects > Benchtops.
+Open the job, go to its **Benchtops** section and click **Benchtop plan**. Or, on Projects > Benchtops, click **New benchtop plan**, type the job number, name or client and pick the job (a job that already has a plan is marked **Has a plan** and opens it; each job has one plan).
+
+## Find a plan
+
+Projects > Benchtops lists every benchtop plan, newest first, with the job number, job, client, project manager, pieces, revision and when it was last changed. Type in **Find a plan** to narrow the list by job number, job, client or project manager. Click the job name to open the job at its Benchtops section, or **Open** for the plan.
 
 ## Add pieces
 
