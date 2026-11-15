@@ -85,7 +85,7 @@ Both prints are A4, black on white, on our letterhead (the banner, then the busi
 - **The stone order:** "Stone benchtop order", who it's to, the revision and date sent, then Job, Contacts, Stone, Dates (the requested benchtop install in bold), the line asking for all details, cut-outs included, to be marked on site before the final measure, the notes, and who ordered it. A print of a draft, or of an order changed since it was sent, says **DRAFT – NOT SENT** at the top, with no revision or sent date. On screen, the draft print of a changed order has a link **Print revision n as sent**, which prints the copy the supplier last received (handy for Accounts and Scheduling, who don't have the Benchtops page). A cancelled order prints with a **CANCELLED** box at the top.
 - **The benchtop sheet:** the job, client, site address, quote and the Joinr benchtop text, then a large blank box to draw the benchtops in, and the edge key at the foot: `[ ]` square edge, `//` rolled edge, `X` raw edge. **Print benchtop sheet** on the job fills the job in; **Print blank benchtop sheet** on the Benchtops page leaves the lines empty to write on. Always one page: very long job details or benchtop text print in smaller type rather than being cut off.
 
-An on-screen drawing tool for the benchtop sheet is a future development (`docs/plans/roadmap.md`).
+To draw the benchtops on screen instead, to scale with each edge marked, use the **Benchtop designer** (**Benchtop plan** on the job): see `docs/how-to-benchtop-designer.md`.
 
 ## The batten calculator
 
