@@ -798,10 +798,21 @@
     let tot;
     if (editable()) {
       const days = [];
+      const dayRows = [];
       for (const row of rows) {
         const st = recomputeRow(row);
         // A day with a problem still counts its readable leave and on-site hours, but no work.
-        if (st) days.push(Object.assign({}, st.day, st.split || {}));
+        if (st) {
+          days.push(Object.assign({}, st.day, st.split || {}));
+          dayRows.push(row);
+        }
+      }
+      // Under the fortnight minimum there is no time and a half: OT moves into normal time.
+      if (rules) {
+        PM.applyFortnightMinimum(days, rules);
+        days.forEach((d, i) => {
+          dayRows[i].otTd.textContent = d.otMin ? PM.hours(d.otMin) : "";
+        });
       }
       tot = PM.totals(days);
     } else {
@@ -869,6 +880,15 @@
     $("sArl").textContent = PM.hours(t.arlMin);
     $("sSick").textContent = PM.hours(t.sickMin);
     $("sOnsite").textContent = PM.hours(t.onsiteMin);
+    // Plain note when the fortnight minimum took the time and a half away (Todd 2026-11-16).
+    const note = $("otNote");
+    if (note) {
+      const moved = t.otMovedMin || 0;
+      note.hidden = !moved;
+      note.textContent = moved && rules
+        ? `Under ${PM.hours(PM.fortnightMinimumMin(rules))} h this fortnight: no time and a half (${PM.hours(moved)} h of OT paid as normal)`
+        : "";
+    }
   }
 
   function onInput(i, f) {

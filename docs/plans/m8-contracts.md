@@ -160,8 +160,11 @@ function ordinaryFor(dayKey, rules);  // fri → ordinaryFriMin, else ordinaryMo
 // or finish is null. normal = min(worked, ordinary); ot = min(worked - normal, otBandMin);
 // dt = worked - normal - ot. Leave and holiday hours never change the split (§11 point 1).
 function split(day, dayKey, rules);   // {workedMin, normalMin, otMin, dtMin}
+// Fortnight minimum for 1.5x (Todd 2026-11-16, see below).
+function fortnightMinimumMin(rules);  // 2 x (4 x ordinaryMonThuMin + ordinaryFriMin): 4560 (76 h) by default
+function applyFortnightMinimum(days, rules); // mutates days; returns {minimumMin, completedMin, movedMin}
 // Sums over days, each day already carrying split() fields and the typed leave fields.
-function totals(days);                // {workedMin, normalMin, otMin, dtMin, pholMin, sickMin, arlMin, onsiteMin}
+function totals(days);                // {otMovedMin, workedMin, normalMin, otMin, dtMin, pholMin, sickMin, arlMin, onsiteMin}
 
 // Display.
 function hours(min);                  // null/undefined → ''; else (min/60) to two places: 450 → '7.50', 0 → '0.00'
@@ -178,6 +181,8 @@ function parseLunch(text);            // a bare whole number is minutes: '30' �
 // Returns null when the day is fine, else the sentence without the date prefix.
 function dayProblem(day);
 ```
+
+**Fortnight minimum for time and a half (Todd 2026-11-16).** A person only earns 1.5x (OT) in a fortnight if they completed the minimum standard hours for it; double time is always paid. The minimum is `2 x (4 x ordinaryMonThuMin + ordinaryFriMin)`, 76 h with the default 8 h and 6 h; it is derived from the rules, there is no setting for it. Hours completed over the fortnight are `workedMin + pholMin + arlMin + sickMin` (worked is finish - start - lunch, so it includes the hours in normal, OT and DT; paid leave, sick and public holiday hours count). When completed is under the minimum, `applyFortnightMinimum` moves every day's `otMin` into `normalMin` (total hours paid unchanged, only the 1.5x loading goes) and records the moved minutes as `otMovedMin` on each day and in `totals()`; DT stays exactly as `split()` gave it. At or above the minimum nothing changes. `split()` itself is unchanged (per day); `lib/payroll.js` `tenDays` applies the rule once per sheet, so sheets, run totals, the summary, print and the finalised snapshot agree, and `public/payrun.js` applies it to the live totals as Accounts types. **Finalised runs:** the rule only applies when the run's rules carry `fortnightMinimum: true`. Live rules always carry it and `finalise` freezes it into `rules_json`, so runs open or finalised from now on use the rule; a run finalised before this change has frozen rules without the flag (and a frozen `summary_json`), so its figures never change. Reopening a run drops its frozen rules, so it follows the live rules (the rule on).
 
 `dayProblem` checks, in this order, and returns the first that applies:
 1. start without finish or finish without start → `"Give both a start and a finish"`;
