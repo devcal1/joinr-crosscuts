@@ -1,0 +1,157 @@
+/* Job cards and the New supplier order view on the Orders page (jobcards.js, supplierorder.js;
+   docs/plans/jobcards-plan.md). Tokens from tokens.css, hs- components from components.css, the
+   dialog frame from the shell's cc-dialog, page chrome from orders.css (or-). Classes here are
+   prefixed jc- (job cards) or so- (supplier order). */
+
+.jc-headbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.jc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+input[type="checkbox"] { accent-color: var(--teal); width: 16px; height: 16px; }
+
+/* ---------- tabs ---------- */
+.jc-tabs { display: flex; gap: 20px; margin: 0 0 16px; border-bottom: 1px solid var(--hairline); }
+.jc-tab {
+  padding: 8px 0; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
+  color: var(--label); font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.jc-tab:hover { color: var(--teal-tint); }
+.jc-tab[aria-selected="true"] { color: var(--white); border-bottom-color: var(--teal); }
+
+/* ---------- tools ---------- */
+.jc-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin-bottom: 12px; }
+.jc-find { flex: 0 1 320px; }
+.jc-find .hs-input { color-scheme: dark; }
+.jc-check { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; color: var(--body); font-size: 13px; cursor: pointer; }
+.so-supfield { flex: 0 1 340px; }
+.or-filter .hs-input[type="date"] { color-scheme: dark; }
+
+/* ---------- the cards ---------- */
+.jc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.jc-card { padding: 14px; min-width: 0; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); cursor: pointer; }
+.jc-card:hover, .jc-card.jc-sel { border-color: var(--teal); }
+.jc-jno { color: var(--teal-tint); font-weight: 700; font-size: 12px; }
+.jc-jname { margin: 2px 0; color: var(--white); font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.jc-client { color: var(--label); font-size: 12px; overflow-wrap: anywhere; }
+.jc-counts { display: flex; gap: 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline); font-size: 12px; }
+.jc-counts b { display: block; font-size: 18px; color: var(--white); }
+.jc-counts .jc-att b { color: var(--orange); }
+.jc-sups { margin-top: 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+
+/* ---------- the open card ---------- */
+.jc-panel { margin-top: 20px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.jc-phead { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
+.jc-phead > div:first-child { flex: 1 1 260px; min-width: 0; }
+.jc-ptitle { margin: 0; color: var(--white); font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.jc-ptitle:focus { outline: none; }
+.jc-ptitle:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.jc-pbtns { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.jc-pnote { margin: 0; padding: 18px 16px; color: var(--label); }
+.jc-pwrap, .so-wrap { overflow-x: auto; }
+.jc-panel .or-message { padding: 12px 16px; margin: 0; }
+
+.jc-table th { padding: 8px 12px; }
+.jc-table td { padding: 9px 12px; vertical-align: middle; }
+.jc-table tbody tr:last-child td { border-bottom: 0; }
+.jc-table th.jc-num, .jc-table td.jc-num { text-align: right; white-space: nowrap; }
+.jc-table td.jc-sup { color: var(--white); font-weight: 700; overflow-wrap: anywhere; }
+.jc-table td.jc-text { overflow-wrap: anywhere; min-width: 120px; }
+.jc-table td.jc-date { white-space: nowrap; }
+.jc-table td.jc-notes .ou-note { margin-top: 6px; }
+.jc-dash { color: var(--muted); }
+.jc-table td.jc-overdue { color: var(--orange-tint); }
+.jc-overdue-tag { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange-tint); }
+.jc-table td.jc-acts { white-space: nowrap; }
+
+/* ---------- supplier order ---------- */
+.so-panel { margin-top: 0; }
+.so-table th.so-tick, .so-table td.so-tick { width: 36px; padding-right: 0; }
+.so-table tr.so-group td { background: var(--raised); color: var(--white); font-weight: 700; font-size: 13px; }
+.so-table tr.so-group .jc-jno { margin-right: 8px; font-size: 12px; }
+.so-groupclient { color: var(--label); font-weight: 400; }
+.so-table tr.so-line td.jc-sup { min-width: 160px; }
+.jc-foot { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; padding: 14px 16px; border-top: 1px solid var(--hairline); }
+.so-date { flex: 0 1 170px; }
+.so-ref { flex: 1 1 220px; }
+.jc-footpush { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.jc-sum { color: var(--label); font-size: 13px; }
+.jc-sum b { color: var(--white); }
+
+/* ---------- dialogs ---------- */
+.cc-dialog.jc-dialog { width: min(94vw, 460px); max-height: 92vh; overflow-y: auto; }
+.cc-dialog.jc-dialog-wide { width: min(96vw, 820px); }
+.jc-pickfield { position: relative; }
+.jc-sugg { position: absolute; left: 0; right: 0; top: 100%; z-index: 40; max-height: 40vh; overflow-y: auto; margin: 2px 0 0; padding: 0; list-style: none; background: var(--ink); border: 1px solid var(--hairline); }
+.jc-sugg.jc-sugg-flow { position: static; max-width: 100%; max-height: 38vh; margin: 4px 0 0; }
+.jc-sugg li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 8px 10px; border-bottom: 1px solid var(--hairline); cursor: pointer; font-size: 13px; color: var(--body); overflow-wrap: anywhere; }
+.jc-sugg li:last-child { border-bottom: 0; }
+.jc-sugg li[aria-selected="true"], .jc-sugg li:hover { background: var(--raised); }
+.jc-sugg li.jc-sugg-none { cursor: default; color: var(--muted); }
+.jc-sugg li.jc-sugg-none:hover { background: none; }
+.jc-sname { color: var(--white); font-weight: 700; }
+.jc-sclient { color: var(--label); }
+.jc-has { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+
+.jc-itemswrap { max-width: 100%; }
+.jc-items { width: 100%; border-collapse: collapse; }
+.jc-items th { padding: 4px 8px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.jc-items th.jc-num, .jc-items td .jc-qty { text-align: right; }
+.jc-items td { padding: 4px 8px; vertical-align: top; }
+.jc-c-sup { width: 30%; }
+.jc-c-qty { width: 90px; }
+.jc-c-x { width: 30px; }
+.jc-ta-cell { position: relative; }
+.jc-x { width: 28px; height: 32px; padding: 0; background: none; border: 0; color: var(--stop-tint); font-family: var(--font); font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; }
+.jc-x:hover { color: var(--stop); }
+.jc-dfoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.jc-dialog [aria-invalid="true"] { border-color: var(--orange); }
+
+/* ---------- narrow screens: lines become cards ---------- */
+@media (max-width: 760px) {
+  .jc-find, .so-supfield { flex: 1 1 100%; }
+  .jc-headbtns { width: 100%; }
+  .jc-headbtns .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
+  .jc-pbtns { margin-left: 0; width: 100%; }
+  .jc-pbtns .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
+  .jc-pwrap, .so-wrap { overflow: visible; }
+
+  .jc-table, .jc-table tbody, .jc-table tr, .jc-table td { display: block; width: auto; min-width: 0; }
+  .jc-table thead { display: none; }
+  .jc-table tbody tr { margin: 0 10px 10px; padding: 8px 12px; background: var(--ink); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+  .jc-table tbody tr:first-child { margin-top: 10px; }
+  .jc-table td { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; padding: 3px 0; border: 0; text-align: left; }
+  .jc-table td::before { content: attr(data-label); padding-top: 2px; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+  .jc-table td.jc-num { text-align: left; }
+  .jc-table td.jc-blank { display: none; }
+  .jc-table td.jc-acts { display: block; padding-top: 6px; }
+  .jc-table td.jc-acts::before { content: none; }
+  .jc-table td.jc-acts .hs-btn { width: 100%; padding: 10px 12px; }
+  .jc-table td > .hs-badge { justify-self: start; }
+  .jc-table td.jc-overdue .jc-overdue-tag { grid-column: 2; }
+
+  /* supplier order: a job's name is a heading, each line a card with its tick */
+  .so-table tbody tr.so-group { margin: 12px 10px 6px; padding: 0; background: none; border: 0; }
+  .so-table tr.so-group td { display: block; padding: 8px 10px; background: var(--raised); border-radius: var(--r-callout); }
+  .so-table tr.so-group td:first-child { display: none; }
+  .so-table tbody tr.so-line { position: relative; padding-left: 40px; }
+  .so-table tr.so-line td.so-tick { position: absolute; left: 12px; top: 10px; display: block; width: auto; padding: 0; }
+  .so-table tr.so-line td.so-tick::before { content: none; }
+  .so-table .so-tick input { width: 20px; height: 20px; }
+  .so-table thead { display: block; }
+  .so-table thead tr { display: flex; align-items: center; gap: 8px; margin: 10px 10px 0; padding: 0; border: 0; }
+  .so-table thead th { display: none; }
+  .so-table thead th.so-tick { display: flex; align-items: center; gap: 8px; width: auto; padding: 8px 0; background: none; border: 0; }
+  .so-table thead th.so-tick::after { content: "Tick all"; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+  .jc-footpush { margin-left: 0; width: 100%; }
+  .jc-footpush .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
+  .so-date, .so-ref { flex: 1 1 100%; }
+
+  /* Add items: each row is a small block */
+  .jc-items, .jc-items tbody, .jc-items tr, .jc-items td { display: block; width: auto; }
+  .jc-items thead { display: none; }
+  .jc-items tr { position: relative; margin-bottom: 10px; padding: 8px 36px 8px 8px; border: 1px solid var(--hairline); border-radius: var(--r-card); }
+  .jc-items td { padding: 3px 0; }
+  .jc-items td::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+  .jc-items td.jc-xcell { position: absolute; right: 4px; top: 4px; padding: 0; }
+  .jc-items td.jc-xcell::before { content: none; }
+  .jc-items td .jc-qty { text-align: left; }
+  .jc-sugg { right: 0; }
+}

@@ -93,6 +93,7 @@ function present(row, today = sydneyToday()) {
     jobId: row.job_id,
     supplier: row.supplier,
     description: row.description,
+    quantity: row.quantity == null ? null : Number(row.quantity),
     status: row.status,
     orderedDate: row.ordered_date || null,
     expectedDate: row.expected_date || null,
@@ -181,11 +182,12 @@ function list(db, { status, supplier, jobId } = {}) {
   );
 }
 
-// list() rows: the order object plus jobName and jobStage.
+// list() rows: the order object plus jobName, jobStage, jobNumber and clientName.
 function listRows(db, where, params, orderBy, today) {
   return db
     .prepare(
-      `SELECT ${LINE_COLUMNS}, j.name AS job_name, j.stage AS job_stage
+      `SELECT ${LINE_COLUMNS}, j.name AS job_name, j.stage AS job_stage,
+              j.job_number AS job_number, j.client_name AS client_name
        FROM orders o
        JOIN jobs j ON j.id = o.job_id
        ${LINE_USERS}
@@ -193,7 +195,13 @@ function listRows(db, where, params, orderBy, today) {
        ORDER BY ${orderBy}`
     )
     .all(...params)
-    .map((r) => ({ ...present(r, today), jobName: r.job_name, jobStage: r.job_stage }));
+    .map((r) => ({
+      ...present(r, today),
+      jobName: r.job_name,
+      jobStage: r.job_stage,
+      jobNumber: r.job_number || null,
+      clientName: r.client_name || null,
+    }));
 }
 
 // Up to 50 distinct supplier names (by lower(trim())), the most recent
@@ -211,11 +219,22 @@ function suppliers(db, q) {
     e.name = name; // later rows win: the most recent spelling
     byKey.set(key, e);
   }
-  return [...byKey.entries()]
+  const names = [...byKey.entries()]
     .filter(([key]) => !prefix || key.startsWith(prefix))
     .sort((a, b) => b[1].count - a[1].count || b[1].lastId - a[1].lastId)
-    .slice(0, 50)
     .map(([, e]) => e.name);
+  // 0.2.22: then the Supplier accounts names (not archived) not already listed, A-Z.
+  const seen = new Set(byKey.keys());
+  const accounts = [];
+  for (const { name } of db.prepare("SELECT name FROM suppliers WHERE archived_from IS NULL").all()) {
+    const t = String(name).trim();
+    const key = t.toLowerCase();
+    if (!t || seen.has(key) || (prefix && !key.startsWith(prefix))) continue;
+    seen.add(key);
+    accounts.push(t);
+  }
+  accounts.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()) || a.localeCompare(b));
+  return [...names, ...accounts].slice(0, 50);
 }
 
 // --- validation -------------------------------------------------------------
@@ -230,6 +249,27 @@ function textField(label, v, max, { required = false } = {}) {
   if (required && !t) throw bad(`${label} is required`);
   if (t.length > max) throw bad(`${label} must be ${max} characters or fewer`);
   return t;
+}
+
+// 0.2.22: the quantity (docs/plans/jobcards-plan.md). A number, or a string like "2.4"; above 0, at
+// most 99999, at most 2 decimals. null, "" or undefined -> null (no quantity). Anything else -> 400.
+const QUANTITY_MSG = "Quantity must be a number above 0 and up to 99999, with at most 2 decimals";
+function quantityField(v) {
+  if (v === undefined || v === null || v === "") return null;
+  let n;
+  if (typeof v === "number") {
+    if (!Number.isFinite(v) || Math.abs(Math.round(v * 100) - v * 100) > 1e-7) throw bad(QUANTITY_MSG);
+    n = v;
+  } else if (typeof v === "string") {
+    const t = v.trim();
+    if (t === "") return null;
+    if (!/^\d+(\.\d{1,2})?$/.test(t)) throw bad(QUANTITY_MSG);
+    n = Number(t);
+  } else {
+    throw bad(QUANTITY_MSG);
+  }
+  if (!(n > 0) || n > 99999) throw bad(QUANTITY_MSG);
+  return Math.round(n * 100) / 100;
 }
 
 // null / "" -> null; a valid date -> itself; anything else -> 400.
@@ -345,30 +385,46 @@ function refreshMaterialsIn(db, jobId, req) {
 // call from lib/drawers.js or lib/paint.js behave the same (they write their link row afterwards).
 // opts.blankSupplier (the job's Materials list, docs/plans/materials-contracts.md): the supplier may
 // be left blank, to be chosen later; the routes never pass it.
-function createLine(db, jobId, { supplier, description, expectedDate, notes } = {}, req, opts = {}) {
+function createLine(db, jobId, { supplier, description, quantity, expectedDate, notes } = {}, req, opts = {}) {
   requireJob(db, jobId);
   const sup = textField("supplier", supplier, SUPPLIER_MAX, { required: !opts.blankSupplier });
   const desc = textField("description", description, DESCRIPTION_MAX);
   const note = textField("notes", notes, NOTES_MAX);
+  const qty = quantityField(quantity);
   const expected = dateOrNull("expectedDate", expectedDate);
   return db.transaction(() => {
-    const now = nowIso();
-    const info = db
-      .prepare(
-        `INSERT INTO orders (job_id, supplier, description, status, expected_date, notes, created_at, updated_at, created_by, updated_by)
-         VALUES (?, ?, ?, 'to_order', ?, ?, ?, ?, ?, ?)`
-      )
-      .run(jobId, sup, desc, expected, note, now, now, userId(req), userId(req));
-    const id = Number(info.lastInsertRowid);
-    audit.log(req, {
-      action: "order.create",
-      entityType: "order",
-      entityId: id,
-      after: { job_id: jobId, supplier: sup, description: desc, status: "to_order", expected_date: expected, notes: note },
-    });
+    const id = insertLine(db, jobId, { sup, desc, qty, expected, note }, req);
     refreshMaterialsIn(db, jobId, req);
     return { order: present(loadLine(db, id)), job: jobState(db, jobId) };
   })();
+}
+
+// The insert and its order.create audit row, for createLine and createLines. The values are already
+// validated; the caller owns the transaction and refreshMaterialsIn.
+function insertLine(db, jobId, { sup, desc, qty, expected, note }, req) {
+  const now = nowIso();
+  const info = db
+    .prepare(
+      `INSERT INTO orders (job_id, supplier, description, quantity, status, expected_date, notes, created_at, updated_at, created_by, updated_by)
+       VALUES (?, ?, ?, ?, 'to_order', ?, ?, ?, ?, ?, ?)`
+    )
+    .run(jobId, sup, desc, qty, expected, note, now, now, userId(req), userId(req));
+  const id = Number(info.lastInsertRowid);
+  audit.log(req, {
+    action: "order.create",
+    entityType: "order",
+    entityId: id,
+    after: {
+      job_id: jobId,
+      supplier: sup,
+      description: desc,
+      quantity: qty,
+      status: "to_order",
+      expected_date: expected,
+      notes: note,
+    },
+  });
+  return id;
 }
 
 // opts.via: "drawers" | "paint" | undefined (M11 section 5.2). Only lib/drawers.js and lib/paint.js
@@ -387,6 +443,7 @@ function updateLine(db, orderId, patch, req, opts = {}) {
   const text = {};
   if (has("supplier")) text.supplier = textField("supplier", patch.supplier, SUPPLIER_MAX, { required: true });
   if (has("description")) text.description = textField("description", patch.description, DESCRIPTION_MAX);
+  if (has("quantity")) text.quantity = quantityField(patch.quantity);
   if (has("notes")) text.notes = textField("notes", patch.notes, NOTES_MAX);
   if (has("expectedDate")) text.expected_date = dateOrNull("expectedDate", patch.expectedDate);
   const orderedDateIn = has("orderedDate") ? dateOrNull("orderedDate", patch.orderedDate) : undefined;
@@ -679,24 +736,138 @@ function deliveries(db, today = sydneyToday()) {
 }
 
 // --- 0.2.22 job cards and supplier orders (docs/plans/jobcards-plan.md) -----------------------------
-// Binding signatures (scaffold); the bodies are built by the server task.
+
+const SEP = "\u001f";
 
 // The job cards: {cards: [{jobId, jobNumber, name, client, archived, finished, toOrder, ordered,
-// received, suppliers: [name...]}]}. See the contract in the server brief.
+// received, suppliers: [name...]}]}. One query over orders joined to jobs. A card shows when the job
+// is open and has a to_order or ordered line; finished adds jobs whose lines are all received and
+// archived jobs (cancelled lines are ignored throughout, and a job with only cancelled lines never shows).
 function cards(db, { finished = false } = {}) {
-  throw new Error("cards: not built yet");
+  const rows = db
+    .prepare(
+      `SELECT j.id, j.job_number, j.name, j.client_name, j.archived,
+              SUM(CASE WHEN o.status = 'to_order' THEN 1 ELSE 0 END) AS to_order,
+              SUM(CASE WHEN o.status = 'ordered' THEN 1 ELSE 0 END) AS ordered,
+              SUM(CASE WHEN o.status = 'received' THEN 1 ELSE 0 END) AS received,
+              group_concat(CASE WHEN trim(o.supplier) <> '' THEN trim(o.supplier) END, '${SEP}') AS suppliers
+       FROM orders o
+       JOIN jobs j ON j.id = o.job_id
+       WHERE o.status <> 'cancelled'
+       GROUP BY j.id
+       ${finished ? "" : "HAVING j.archived = 0 AND SUM(CASE WHEN o.status IN ('to_order','ordered') THEN 1 ELSE 0 END) > 0"}
+       ORDER BY (j.job_number IS NULL), j.job_number COLLATE NOCASE, j.name COLLATE NOCASE, j.id`
+    )
+    .all();
+  return {
+    cards: rows.map((r) => {
+      const seen = new Map();
+      for (const s of r.suppliers ? String(r.suppliers).split(SEP) : []) {
+        const key = s.toLowerCase();
+        if (!seen.has(key)) seen.set(key, s);
+      }
+      const toOrder = Number(r.to_order) || 0;
+      const ordered = Number(r.ordered) || 0;
+      return {
+        jobId: r.id,
+        jobNumber: r.job_number || null,
+        name: r.name,
+        client: r.client_name || null,
+        archived: !!r.archived,
+        finished: toOrder + ordered === 0,
+        toOrder,
+        ordered,
+        received: Number(r.received) || 0,
+        suppliers: [...seen.entries()]
+          .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+          .map(([, name]) => name),
+      };
+    }),
+  };
 }
 
 // Add 1 to 50 lines to a job, all or nothing -> {orders: [order...], job: jobState}.
+// Every row is checked first (400 "Row N: ..."), then 404 (no job) and 409 (archived job).
 function createLines(db, jobId, lines, req) {
-  throw new Error("createLines: not built yet");
+  if (!Array.isArray(lines) || lines.length < 1) throw bad("Add at least one item");
+  if (lines.length > 50) throw bad("Add at most 50 items at a time");
+  const clean = lines.map((l, i) => {
+    const row = (e) => (e && e.status === 400 ? bad(`Row ${i + 1}: ${e.message}`) : e);
+    try {
+      if (!l || typeof l !== "object" || Array.isArray(l)) throw bad("must be an object");
+      const sup = textField("Supplier", l.supplier, SUPPLIER_MAX, { required: true });
+      const desc = textField("Hardware", l.description, DESCRIPTION_MAX, { required: true });
+      const note = textField("Notes", l.notes, NOTES_MAX);
+      const qty = quantityField(l.quantity);
+      if (qty === null) throw bad("Quantity is required");
+      return { sup, desc, qty, expected: null, note };
+    } catch (e) {
+      throw row(e);
+    }
+  });
+  const job = db.prepare("SELECT id, archived FROM jobs WHERE id = ?").get(jobId);
+  if (!job) throw notFound();
+  if (job.archived) throw conflict("This job is archived; add items to an open job");
+  return db.transaction(() => {
+    const ids = clean.map((c) => insertLine(db, jobId, c, req));
+    refreshMaterialsIn(db, jobId, req);
+    return { orders: ids.map((id) => present(loadLine(db, id))), job: jobState(db, jobId) };
+  })();
 }
 
 // Mark 1 to 200 to_order lines ordered in one transaction, each through updateLine's mark-ordered
-// path -> {count, jobCount, orders: [order...]}.
+// path (so its audit, the progress invoice and the hand-offs fire as for a single Mark ordered)
+// -> {count, jobCount, orders: [order...]}. 409 and nothing changed if any line is no longer to order.
 function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef } = {}, req) {
-  throw new Error("markOrderedMany: not built yet");
+  if (!can(req, "orders.mark_ordered")) throw forbidden();
+  if (!Array.isArray(orderIds) || orderIds.length < 1) throw bad("Tick at least one item");
+  if (orderIds.length > 200) throw bad("Mark at most 200 items at a time");
+  if (!orderIds.every((id) => Number.isInteger(id) && id > 0)) throw bad("orderIds must be positive whole numbers");
+  if (new Set(orderIds).size !== orderIds.length) throw bad("orderIds must not repeat");
+  const todayStr = sydneyToday();
+  const ordered = dateOrNull("orderedDate", orderedDate) || todayStr;
+  if (ordered > todayStr) throw bad("The ordered date can't be in the future");
+  const expected = dateOrNull("expectedDate", expectedDate);
+  if (supplierRef !== undefined && supplierRef !== null && typeof supplierRef !== "string") {
+    throw bad("supplierRef must be text");
+  }
+  const ref = typeof supplierRef === "string" ? supplierRef.trim() : "";
+  if (ref.length > 100) throw bad("The supplier reference must be 100 characters or fewer");
+
+  return db.transaction(() => {
+    // Every check before any write.
+    const plan = orderIds.map((id) => {
+      const row = loadLine(db, id);
+      const o = row && present(row);
+      if (!o || o.status !== "to_order" || o.reservedFromStock || o.kind === "drawers" || o.kind === "paint") {
+        if (!o) throw conflict("An item you ticked no longer exists. Reload and try again.");
+        const job = db.prepare("SELECT name, job_number FROM jobs WHERE id = ?").get(o.jobId);
+        const where = [job && job.job_number, job && job.name].filter(Boolean).join(" ");
+        throw conflict(
+          `${o.description || "An item"} (${o.supplier}) on ${where} is no longer to order. Reload and try again.`
+        );
+      }
+      const patch = { status: "ordered", orderedDate: ordered };
+      if (expected) patch.expectedDate = expected;
+      if (ref) {
+        const notes = o.notes ? `${o.notes}\nRef: ${ref}` : `Ref: ${ref}`;
+        if (notes.length > NOTES_MAX) {
+          throw bad(`${o.description || "An item"} (${o.supplier}): the notes would be over ${NOTES_MAX} characters with the reference`);
+        }
+        patch.notes = notes;
+      }
+      return { id, jobId: o.jobId, patch };
+    });
+    for (const p of plan) updateLine(db, p.id, p.patch, req);
+    const today = sydneyToday();
+    return {
+      count: plan.length,
+      jobCount: new Set(plan.map((p) => p.jobId)).size,
+      orders: plan.map((p) => present(loadLine(db, p.id), today)),
+    };
+  })();
 }
+
 
 module.exports = {
   cards,

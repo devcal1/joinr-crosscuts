@@ -25,6 +25,7 @@ Open **Ordering**, then **Deliveries** (the dashboard's **Deliveries** line goes
 - **When the rest arrives,** press **Received** then.
 - **Marked one received by mistake?** It's under **Received recently** (the last 14 days): press **Undo**. Its delivery note stays.
 - **Print** prints Overdue, Today and Next 7 days as a checklist to take round the workshop.
+- Lines now show a **quantity** (for example 24 or 2.4) when one was entered; older lines have none. See `how-to-job-cards.md`.
 
 ### Stock and paint
 

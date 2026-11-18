@@ -1,0 +1,101 @@
+/* The supplier order list and job card prints (/orderprint.html; docs/plans/jobcards-plan.md section
+   5). On screen: the house-style frame with the sheet as a white A4 box on the ink ground (a
+   document, so dark on white). On paper: only the sheet, A4 portrait, black on white, on its own
+   named page (opsheet) so nothing here can reach another page's print. Table headings repeat on
+   every printed page; "Page X of Y" shows in the page margin where the browser supports it (Chrome
+   131 and later), and the browser's own footer covers the rest. Colours come from tokens.css,
+   except in the print block. Page classes are op-. */
+body.op-body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--body);
+  font-family: var(--font);
+}
+
+.op-page {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.op-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 14px;
+}
+.op-status { flex: 1 1 260px; margin: 0; color: var(--label); font-size: 13px; overflow-wrap: anywhere; }
+.op-status:empty { display: none; }
+
+/* the sheet scrolls inside its own box on a narrow screen, never the page */
+.op-scroll { overflow-x: auto; }
+
+/* ---------- the sheet (screen) ---------- */
+
+.op-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 10pt;
+  line-height: 1.35;
+}
+.op-sheet :where(h1, h2, p, dl, dd) { margin: 0; }
+.op-sheet-error { min-height: 0; }
+.op-loading, .op-error { font-size: 12pt; }
+.op-error { font-weight: 700; }
+
+.op-banner { display: block; width: 100%; max-height: 28mm; object-fit: contain; object-position: left center; }
+
+.op-titlerow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  margin-top: 4mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.5mm solid var(--ink);
+}
+.op-h1 { font-size: 17pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; overflow-wrap: anywhere; }
+.op-sub { margin-top: 1.5mm; font-size: 11pt; font-weight: 700; overflow-wrap: anywhere; }
+.op-meta { display: grid; grid-template-columns: auto auto; gap: 1mm 4mm; flex: none; font-size: 10pt; }
+.op-meta dt { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; align-self: center; }
+.op-meta dd { font-weight: 700; overflow-wrap: anywhere; }
+
+.op-table { width: 100%; margin-top: 5mm; border-collapse: collapse; font-size: 10pt; }
+.op-table th, .op-table td { padding: 1.6mm 2mm; border-bottom: 0.2mm solid var(--ink); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.op-table th { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border-bottom-width: 0.4mm; }
+.op-table thead { display: table-header-group; }
+.op-table tr { break-inside: avoid; page-break-inside: avoid; }
+.op-table .op-num { text-align: right; white-space: nowrap; }
+.op-table .op-nowrap { white-space: nowrap; }
+.op-table .op-group td { padding-top: 3.5mm; font-weight: 700; border-bottom-width: 0.4mm; }
+.op-card th, .op-card td { font-size: 9pt; padding: 1.4mm 1.5mm; }
+.op-card th { font-size: 7pt; }
+
+.op-foot { margin-top: 5mm; font-size: 10pt; font-weight: 700; }
+
+@media (max-width: 600px) {
+  .op-page { padding: 12px 8px 32px; }
+}
+
+/* style-check: print-start (paper colours: pure black on white) */
+.op-sheet { page: opsheet; }
+@page opsheet {
+  size: A4 portrait;
+  margin: 12mm 12mm 16mm;
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt Arial, Helvetica, sans-serif; color: #000; }
+}
+@media print {
+  html:has(> body.op-body), body.op-body { background: #fff; color: #000; }
+  body.op-body > :not(main) { display: none !important; }
+  body.op-body .op-toolbar { display: none !important; }
+  .op-page { max-width: none; margin: 0; padding: 0; }
+  .op-scroll { overflow: visible; }
+  .op-sheet { width: auto; min-height: 0; padding: 0; background: #fff; color: #000; }
+  .op-sheet *:not(img) { color: #000; border-color: #000; background: #fff; }
+}
+/* style-check: print-end */

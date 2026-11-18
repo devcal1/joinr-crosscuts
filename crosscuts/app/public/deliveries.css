@@ -258,3 +258,5 @@ td.dl-c-notes { color: var(--label); font-size: 13px; white-space: pre-line; }
   .dl-print * { color: #000; border-color: #000; background: #fff; }
 }
 /* style-check: print-end */
+
+.dl-qty { display: block; margin-top: 2px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: var(--label); }

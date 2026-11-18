@@ -47,3 +47,5 @@
 /* still ordered: the note is something to attend to */
 .ou-note-open { border-left-color: var(--orange); }
 .ou-note-open .ou-note-label { color: var(--orange-tint); }
+.ou-qty { max-width: 160px; text-align: right; }
+@media (max-width: 520px) { .ou-qty { max-width: none; } }

@@ -10,6 +10,7 @@
 //   OrderUI.note(line)         -> Promise<{order, job} | {refused: true} | null>
 //   OrderUI.undoReceived(line) -> Promise<{order, job} | {refused: true} | null>
 //   OrderUI.edit(line)         -> Promise<{order, job} | {refused: true} | null>
+//   OrderUI.fmtQty(q)          -> "24", "2.4", "2.45", or "" when there is no quantity
 //   OrderUI.noteBlock(line)    -> HTMLElement | null
 //   OrderUI.actions(line)      -> {receive, note, undoReceived, edit, markOrdered, undoOrdered, cancel, link}
 //   OrderUI.kindLabel(line)    -> HTMLElement | null  ("PAINT ORDER <id>" or "DRAWERS", for under the description)
@@ -98,6 +99,12 @@
     if (!validDate(a)) return validDate(b) ? b : "";
     if (!validDate(b)) return a;
     return a < b ? a : b;
+  }
+
+  // Quantity: 24, 2.4, 2.45 (no trailing zeros); blank when there is none.
+  function fmtQty(q) {
+    if (q == null || q === "" || !Number.isFinite(Number(q))) return "";
+    return String(Math.round(Number(q) * 100) / 100);
   }
 
   function validDate(s) {
@@ -488,10 +495,14 @@
       list = el("datalist", { id: "ou-suppliers" });
       const sup = textInput(line.supplier, SUPPLIER_MAX, "ou-suppliers");
       const desc = textInput(line.description, DESCRIPTION_MAX);
+      const qty = el("input", { class: "hs-input ou-qty", type: "number", step: "0.01", min: "0.01", max: "99999", inputmode: "decimal", autocomplete: "off" });
+      qty.value = fmtQty(line.quantity);
       const exp = dateInput(line.expectedDate || "", null, null);
       top.push(fieldBox("Supplier", sup, { wide: true }), fieldBox("Description", desc, { wide: true }),
+        fieldBox("Quantity (optional)", qty, { hint: "Empty for no quantity." }),
         fieldBox("Expected", exp, { hint: "Empty for no date yet." }));
       read.push(["supplier", sup, line.supplier || "", "text"], ["description", desc, line.description || "", "text"],
+        ["quantity", qty, fmtQty(line.quantity), "qty"],
         ["expectedDate", exp, line.expectedDate || null, "date-or-null"]);
     }
     const placed = line.status === "ordered" || line.status === "received";
@@ -547,7 +558,13 @@
       run: () => {
         const body = {};
         for (const [key, input, before, kind] of read) {
-          if (kind === "text") {
+          if (kind === "qty") {
+            const v = input.value.trim();
+            if (v !== "" && !(/^\d+(\.\d{1,2})?$/.test(v) && Number(v) > 0 && Number(v) <= 99999)) {
+              throw fail("Quantity must be a number above 0 and up to 99999, with at most 2 decimals", input);
+            }
+            if (v !== before) body.quantity = v === "" ? null : Number(v);
+          } else if (kind === "text") {
             const v = input.value.trim();
             if (key === "supplier" && !v) throw new Error("Type the supplier");
             if (v !== String(before).trim()) body[key] = v;
@@ -621,7 +638,7 @@
   }
 
   window.OrderUI = {
-    receive, note, undoReceived, edit, noteBlock, actions, kindLabel, paintLink, receiveItem, undoReceivedItem,
+    fmtQty, receive, note, undoReceived, edit, noteBlock, actions, kindLabel, paintLink, receiveItem, undoReceivedItem,
     // The frame the dialogs above are built on, for the M11 pages: dialog(spec) as described at
     // dialog(); field(label, input, {wide, hint}); the inputs; and the date helpers. fail(message,
     // field, refused) is the M13 pages' sentence that names its input.
