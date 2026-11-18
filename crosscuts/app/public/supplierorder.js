@@ -122,7 +122,7 @@
         rowsEl.append(el(
           "tr",
           { class: "so-line" },
-          el("td", { class: "so-tick" }, el("input", { type: "checkbox", checked: true, "data-id": String(o.id), "aria-label": "In this order: " + name })),
+          el("td", { class: "so-tick" }, el("input", { type: "checkbox", "data-id": String(o.id), "aria-label": "In this order: " + name })),
           el("td", { class: "jc-sup", "data-label": "Hardware" }, el("span", { text: o.description || "" })),
           el("td", { class: "jc-num" + (o.quantity == null ? " jc-blank" : ""), "data-label": "Qty" }, document.createTextNode(window.OrderUI.fmtQty(o.quantity))),
           el("td", { class: "jc-date", "data-label": "Added" }, document.createTextNode(fmtDay(o.createdAt))),
