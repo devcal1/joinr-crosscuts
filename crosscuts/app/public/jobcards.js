@@ -706,7 +706,9 @@
       const title = jobTitle(job);
       const ok = await confirmDialog(
         "Delete this card?",
-        "All " + panelLines.length + (panelLines.length === 1 ? " item" : " items") + " on the card for " + title + " will be deleted. Only an administrator can restore them.",
+        (panelLines.length === 1
+          ? "The 1 item on the card for " + title + " will be deleted. Only an administrator can restore it."
+          : "All " + panelLines.length + " items on the card for " + title + " will be deleted. Only an administrator can restore them."),
         "Delete card",
         "Keep card"
       );

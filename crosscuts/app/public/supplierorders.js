@@ -134,6 +134,10 @@
         td.append(el("span", { class: "hs-badge hs-badge-na", text: "Undone" }), document.createTextNode(" "));
         const note = el("span", { class: "po-undone" }, document.createTextNode("now on "), poLink(c.laterPo.id, c.laterPo.poNumber));
         td.append(note);
+      } else if (c.status === "ordered" || c.status === "received") {
+        // undone from this order, then ordered (or received) on its own, not through a supplier order
+        td.append(el("span", { class: "hs-badge hs-badge-na", text: "Undone" }), document.createTextNode(" "));
+        td.append(el("span", { class: "po-undone", text: "now ordered separately" }));
       } else {
         const [label, badge] = c.status === "cancelled" ? ["Cancelled", "hs-badge-na"] : ["To order", "hs-badge-check"];
         td.append(el("span", { class: "hs-badge " + badge, text: label }), document.createTextNode(" "));
