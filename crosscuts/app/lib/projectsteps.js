@@ -231,7 +231,7 @@ function orderingOf(db, jobId) {
       `SELECT COUNT(*) AS total,
               SUM(CASE WHEN status IN ('ordered','received') THEN 1 ELSE 0 END) AS ordered,
               MAX(CASE WHEN status IN ('to_order','ordered') THEN expected_date END) AS eta
-         FROM orders WHERE job_id = ? AND status <> 'cancelled'`
+         FROM orders WHERE job_id = ? AND status <> 'cancelled' AND deleted_at IS NULL`
     )
     .get(jobId);
   return { ordered: Number(r.ordered) || 0, total: Number(r.total) || 0, latestEta: r.eta || null };

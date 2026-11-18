@@ -56,7 +56,7 @@ function orderLines(db, out) {
       `SELECT SUM(CASE WHEN o.status = 'to_order' AND NOT EXISTS (SELECT 1 FROM stock_reservations r WHERE r.order_id = o.id
                      AND r.covers = 1 AND r.status IN ('reserved', 'confirmed', 'cut')) THEN 1 ELSE 0 END) AS toOrder,
               SUM(CASE WHEN o.status = 'ordered' AND o.expected_date IS NULL THEN 1 ELSE 0 END) AS noEta
-         FROM orders o JOIN jobs j ON j.id = o.job_id WHERE j.archived = 0`
+         FROM orders o JOIN jobs j ON j.id = o.job_id WHERE j.archived = 0 AND o.deleted_at IS NULL`
     )
     .get();
   const toOrder = Number(c.toOrder) || 0;

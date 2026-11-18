@@ -12,9 +12,8 @@
 //     version: 1,
 //     poNumber: "PO-0007",            // poNumberOf(poSeq)
 //     poSeq: 7,
-//     supplier: "Blum Hardware",      // the items' supplier (trimmed). When the items name more than
-//                                     // one supplier (only possible through the API, never the page),
-//                                     // their distinct names A-Z joined with ", "
+//     supplier: "Blum Hardware",      // the items' supplier (trimmed); one saved order is for one supplier
+//                                     // (markOrderedMany refuses mixed suppliers), so this is the first item's
 //     orderedDate: "2026-11-18",      // YYYY-MM-DD
 //     expectedDate: "2026-11-25",     // or null
 //     supplierRef: "BH-55120",        // trimmed; "" when none
@@ -61,14 +60,9 @@ function nextPoSeq(db) {
   return r.n;
 }
 
-// The supplier of an order: the items' distinct names A-Z (case-insensitive) joined with ", ".
+// The supplier of an order: the first item's (trimmed). markOrderedMany has already refused mixed suppliers.
 function supplierOf(items) {
-  const byKey = new Map();
-  for (const it of items) {
-    const name = String(it.supplier || "").trim();
-    if (name && !byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), name);
-  }
-  return [...byKey.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([, n]) => n).join(", ");
+  return items.length ? String(items[0].supplier || "").trim() : "";
 }
 
 /**
@@ -237,7 +231,7 @@ function list(db, filters) {
  *   items: the snapshot items in order, each plus {current: {
  *     status: the line's status now ("to_order"|"ordered"|"received"|"cancelled"),
  *     state: "ordered" | "received" | "undone",
- *       ordered/received: the line is ordered/received now and THIS is the latest saved order holding it
+ *       ordered/received: the line is ordered/received now and THIS order is the one it is on (orders.supplier_order_id)
  *       undone: the line is back to to_order or cancelled, or is now on a later saved order
  *     receivedDate: YYYY-MM-DD or null (state received),
  *     undoneAt: the line's updated_at (ISO) when it is back to to_order/cancelled, else null,
@@ -250,26 +244,26 @@ function detail(db, id) {
   if (!row) throw notFound();
   const { snap, item } = listItem(row);
   const getLine = db.prepare(
-    `SELECT o.status, o.received_date, o.updated_at, u.display_name AS updated_by_name
+    `SELECT o.status, o.received_date, o.updated_at, o.supplier_order_id, u.display_name AS updated_by_name
      FROM orders o LEFT JOIN users u ON u.id = o.updated_by WHERE o.id = ?`
   );
-  const latest = db.prepare(
-    `SELECT so.id, so.po_seq FROM supplier_order_lines sol JOIN supplier_orders so ON so.id = sol.supplier_order_id
-     WHERE sol.order_id = ? ORDER BY so.po_seq DESC LIMIT 1`
-  );
+  const getPo = db.prepare("SELECT id, po_seq FROM supplier_orders WHERE id = ?");
   const items = (snap.items || []).map((it) => {
     const l = getLine.get(it.orderId);
     const status = l ? l.status : "cancelled";
     const live = status === "ordered" || status === "received";
-    const top = live ? latest.get(it.orderId) : null;
-    const later = top && top.id !== id ? { id: top.id, poNumber: poNumberOf(top.po_seq) } : null;
+    // The line is on THIS order only while its supplier_order_id is this order (set by Mark ordered, cleared
+    // by an undo, a cancel or any other way of ordering it).
+    const cur = live && l.supplier_order_id != null ? getPo.get(l.supplier_order_id) : null;
+    const later = cur && cur.id !== id && cur.po_seq > row.po_seq ? { id: cur.id, poNumber: poNumberOf(cur.po_seq) } : null;
     const back = !live;
+    const here = live && cur && cur.id === id;
     return {
       ...it,
       current: {
         status,
-        state: back || later ? "undone" : status,
-        receivedDate: !back && !later && status === "received" ? (l.received_date || null) : null,
+        state: here ? status : "undone",
+        receivedDate: here && status === "received" ? (l.received_date || null) : null,
         undoneAt: back && l ? l.updated_at || null : null,
         undoneBy: back && l ? l.updated_by_name || null : null,
         laterPo: later,
@@ -280,16 +274,15 @@ function detail(db, id) {
 }
 
 /**
- * The line's current saved order: the latest (highest po_seq) saved order holding it, but only while
- * the line is ordered or received; else null. Used for poId/poNumber on every order line (present()).
+ * The line's current saved order: orders.supplier_order_id (migration 066), set when a supplier order's
+ * Mark ordered saved it and cleared when the line goes back to to_order, is cancelled, or is ordered again
+ * any other way (received keeps it). So it is the saved order only while the line's latest move to ordered
+ * came from that order; else null. Used for poId/poNumber on every order line (present()).
  * Returns two SELECT-list columns ("... AS po_id, ... AS po_seq") over the alias `o` (orders), to be
  * added to a query's column list; the number is poNumberOf(po_seq).
  */
 function currentPoSql() {
-  const pick = (col) =>
-    `(SELECT ${col} FROM supplier_order_lines sol JOIN supplier_orders so ON so.id = sol.supplier_order_id
-      WHERE sol.order_id = o.id AND o.status IN ('ordered', 'received') ORDER BY so.po_seq DESC LIMIT 1)`;
-  return `${pick("so.id")} AS po_id, ${pick("so.po_seq")} AS po_seq`;
+  return "o.supplier_order_id AS po_id, (SELECT so.po_seq FROM supplier_orders so WHERE so.id = o.supplier_order_id) AS po_seq";
 }
 
 /** "PO-0007 Blum Hardware.pdf", made filename-safe. */

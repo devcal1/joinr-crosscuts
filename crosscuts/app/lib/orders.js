@@ -55,7 +55,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 // The names of who created, received and last changed a line (M10 section 4.1).
 const LINE_COLUMNS = `o.*, u.display_name AS created_by_name,
-  ur.display_name AS received_by_name, uu.display_name AS updated_by_name,
+  ur.display_name AS received_by_name, uu.display_name AS updated_by_name, ud.display_name AS deleted_by_name,
   ${links.COLUMNS_SQL},
   ${purchaseorders.currentPoSql()},
   (SELECT COALESCE(SUM(sr.qty), 0) FROM stock_reservations sr WHERE sr.order_id = o.id AND sr.status IN ('reserved', 'confirmed', 'cut')) AS reserved_qty,
@@ -63,6 +63,7 @@ const LINE_COLUMNS = `o.*, u.display_name AS created_by_name,
 const LINE_USERS = `LEFT JOIN users u ON u.id = o.created_by
   LEFT JOIN users ur ON ur.id = o.received_by
   LEFT JOIN users uu ON uu.id = o.updated_by
+  LEFT JOIN users ud ON ud.id = o.deleted_by
   ${links.JOIN_SQL}`;
 const SELECT_LINE = `SELECT ${LINE_COLUMNS} FROM orders o ${LINE_USERS}`;
 
@@ -107,6 +108,9 @@ function present(row, today = sydneyToday()) {
     createdByName: row.created_by_name || null,
     receivedBy: person(row.received_by, row.received_by_name),
     updatedBy: person(row.updated_by, row.updated_by_name),
+    // 0.2.23: a soft-deleted line (docs/plans/purchase-orders-plan.md): when and by whom, else null.
+    deletedAt: row.deleted_at || null,
+    deletedBy: person(row.deleted_by, row.deleted_by_name),
     deliveryNote: row.delivery_note || "",
     deliveryNoteAt: row.delivery_note_at || null,
     overdue:
@@ -148,20 +152,24 @@ function listForJob(db, jobId, { includeCancelled = false } = {}) {
   const today = sydneyToday();
   return db
     .prepare(
-      `${SELECT_LINE} WHERE o.job_id = ? ${includeCancelled ? "" : "AND o.status <> 'cancelled'"} ORDER BY o.id`
+      `${SELECT_LINE} WHERE o.job_id = ? AND o.deleted_at IS NULL ${includeCancelled ? "" : "AND o.status <> 'cancelled'"} ORDER BY o.id`
     )
     .all(jobId)
     .map((r) => present(r, today));
 }
 
-function list(db, { status, supplier, jobId } = {}) {
+// status "deleted" (0.2.23) is for users.admin only: the soft-deleted lines of every job, newest deleted first.
+function list(db, { status, supplier, jobId } = {}, req) {
   const st = status === undefined || status === null || status === "" ? "open" : status;
-  if (st !== "open" && st !== "all" && !STATUSES.includes(st)) {
-    throw bad(`status must be one of open, all, ${STATUSES.join(", ")}`);
+  if (st !== "open" && st !== "all" && st !== "deleted" && !STATUSES.includes(st)) {
+    throw bad(`status must be one of open, all, deleted, ${STATUSES.join(", ")}`);
   }
-  const where = [];
+  if (st === "deleted" && !can(req, "users.admin")) throw forbidden();
+  const where = [st === "deleted" ? "o.deleted_at IS NOT NULL" : "o.deleted_at IS NULL"];
   const params = [];
-  if (st === "open") where.push("o.status IN ('to_order','ordered')");
+  if (st === "deleted") {
+    // every status filter is moot: only to_order lines can be deleted
+  } else if (st === "open") where.push("o.status IN ('to_order','ordered')");
   else if (st !== "all") {
     where.push("o.status = ?");
     params.push(st);
@@ -175,14 +183,14 @@ function list(db, { status, supplier, jobId } = {}) {
     if (!Number.isInteger(id) || id <= 0) throw bad("jobId must be a positive integer");
     where.push("o.job_id = ?");
     params.push(id);
-  } else {
+  } else if (st !== "deleted") {
     where.push("j.archived = 0");
   }
   return listRows(
     db,
     where.join(" AND "),
     params,
-    "(o.expected_date IS NULL), o.expected_date, j.name COLLATE NOCASE, o.id",
+    st === "deleted" ? "o.deleted_at DESC, o.id DESC" : "(o.expected_date IS NULL), o.expected_date, j.name COLLATE NOCASE, o.id",
     sydneyToday()
   );
 }
@@ -214,7 +222,7 @@ function listRows(db, where, params, orderBy, today) {
 function suppliers(db, q) {
   const prefix = typeof q === "string" ? q.trim().toLowerCase() : "";
   const byKey = new Map();
-  for (const { id, supplier } of db.prepare("SELECT id, supplier FROM orders ORDER BY id").all()) {
+  for (const { id, supplier } of db.prepare("SELECT id, supplier FROM orders WHERE deleted_at IS NULL ORDER BY id").all()) {
     const name = String(supplier).trim();
     if (!name) continue;
     const key = name.toLowerCase();
@@ -313,7 +321,7 @@ function allOrdered(db, jobId) {
   const c = db
     .prepare(
       `SELECT COUNT(*) AS live, SUM(CASE WHEN status = 'to_order' AND NOT ${COVERED_SQL} THEN 1 ELSE 0 END) AS open
-       FROM orders WHERE job_id = ? AND status <> 'cancelled'`
+       FROM orders WHERE job_id = ? AND status <> 'cancelled' AND deleted_at IS NULL`
     )
     .get(jobId);
   return c.live > 0 && !(c.open > 0);
@@ -334,7 +342,7 @@ function refreshMaterialsIn(db, jobId, req) {
     const job = db.prepare("SELECT id, name, materials_in_date FROM jobs WHERE id = ?").get(jobId);
     if (!job) throw notFound();
     const live = db
-      .prepare(`SELECT status, received_date, ${COVERED_IN_SQL} AS covered FROM orders WHERE job_id = ? AND status <> 'cancelled'`)
+      .prepare(`SELECT status, received_date, ${COVERED_IN_SQL} AS covered FROM orders WHERE job_id = ? AND status <> 'cancelled' AND deleted_at IS NULL`)
       .all(jobId);
     const allIn = live.length > 0 && live.every((l) => l.status === "received" || (l.status === "to_order" && Number(l.covered) === 1));
     if (allIn && !job.materials_in_date) {
@@ -439,6 +447,7 @@ function updateLine(db, orderId, patch, req, opts = {}) {
   const has = (k) => Object.prototype.hasOwnProperty.call(patch, k) && patch[k] !== undefined;
   const line = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   if (!line) throw notFound();
+  if (line.deleted_at) throw conflict("This item was deleted");
 
   // Validate the shape of everything sent (400).
   if (has("status")) {
@@ -586,6 +595,11 @@ function updateLine(db, orderId, patch, req, opts = {}) {
       db.prepare(
         `UPDATE orders SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ?, updated_by = ? WHERE id = ?`
       ).run(...cols.map((c) => changes[c]), ts, userId(req), orderId);
+      // 0.2.23: the link to a saved supplier order ends when the line goes back to To order, and a line ordered
+      // by any path but a supplier order (markOrderedMany sets the link after this) has none. Received keeps it.
+      if (transition === "ordered>to_order" || transition === "to_order>ordered") {
+        db.prepare("UPDATE orders SET supplier_order_id = NULL WHERE id = ?").run(orderId);
+      }
       // order.update: text and date fields and the delivery note; a status change's own dates and
       // received_by go in order.status.
       const plain = cols.filter(
@@ -666,13 +680,14 @@ function cancelLine(db, orderId, req, opts = {}) {
   if (!opts.via && !can(req, "orders.edit")) throw forbidden();
   const line = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   if (!line) throw notFound();
+  if (line.deleted_at) throw conflict("This item was deleted");
   if (line.status === "cancelled") throw conflict("Already cancelled");
   const link = links.linkOf(db, orderId);
   if (link && link.kind === "paint" && !opts.via) {
     throw conflict(`This line is part of paint order ${link.paintOrderId}; change it there`);
   }
   return db.transaction(() => {
-    db.prepare("UPDATE orders SET status = 'cancelled', updated_at = ?, updated_by = ? WHERE id = ?").run(
+    db.prepare("UPDATE orders SET status = 'cancelled', supplier_order_id = NULL, updated_at = ?, updated_by = ? WHERE id = ?").run(
       nowIso(),
       userId(req),
       orderId
@@ -687,6 +702,117 @@ function cancelLine(db, orderId, req, opts = {}) {
     if (can(req, "orders.mark_ordered") && allOrdered(db, line.job_id)) {
       if (markMaterialsOrdered(db, line.job_id, req)) require("./handoffs").onAllOrdered(db, req, line.job_id);
     }
+    refreshMaterialsIn(db, line.job_id, req);
+    return { order: present(loadLine(db, orderId)), job: jobState(db, line.job_id) };
+  })();
+}
+
+// --- delete and restore (0.2.23, docs/plans/purchase-orders-plan.md "Delete lines and cards") ---------
+
+// Why a line can't be deleted (a 409 message), or null. `line` is the raw orders row.
+function deleteRefusal(db, line) {
+  if (line.deleted_at) return "This item was already deleted";
+  if (line.status === "cancelled") return "This item was cancelled, so it can't be deleted";
+  if (line.status !== "to_order") return "This item is already ordered or received. Undo ordered first.";
+  const link = links.linkOf(db, line.id);
+  if (link && link.kind === "paint") return `This line is part of paint order ${link.paintOrderId}; change it there`;
+  if (link && link.kind === "drawers") return "This line is part of a Drawer order; change it on the Drawer order page";
+  return null;
+}
+
+function softDelete(db, line, req) {
+  const ts = nowIso();
+  db.prepare("UPDATE orders SET deleted_at = ?, deleted_by = ?, updated_at = ?, updated_by = ? WHERE id = ?").run(
+    ts,
+    userId(req),
+    ts,
+    userId(req),
+    line.id
+  );
+  const job = db.prepare("SELECT name, job_number FROM jobs WHERE id = ?").get(line.job_id);
+  audit.log(req, {
+    action: "order.delete",
+    entityType: "order",
+    entityId: line.id,
+    before: { status: line.status },
+    after: {
+      deleted: true,
+      jobId: line.job_id,
+      job: job ? [job.job_number, job.name].filter(Boolean).join(" ") : null,
+      supplier: line.supplier,
+      description: line.description,
+    },
+  });
+}
+
+// What cancelLine does after a change: the all-ordered rule (for an orders.mark_ordered holder) and materials in.
+function afterLineGone(db, jobId, req) {
+  if (can(req, "orders.mark_ordered") && allOrdered(db, jobId)) {
+    if (markMaterialsOrdered(db, jobId, req)) require("./handoffs").onAllOrdered(db, req, jobId);
+  }
+  refreshMaterialsIn(db, jobId, req);
+}
+
+// Soft-delete one to_order line -> {order, job: jobState}. orders.edit; 404/409 as above.
+function deleteLine(db, orderId, req) {
+  if (!can(req, "orders.edit")) throw forbidden();
+  const line = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+  if (!line) throw notFound();
+  const why = deleteRefusal(db, line);
+  if (why) throw conflict(why);
+  return db.transaction(() => {
+    softDelete(db, line, req);
+    afterLineGone(db, line.job_id, req);
+    return { order: present(loadLine(db, orderId)), job: jobState(db, line.job_id) };
+  })();
+}
+
+// Soft-delete every to_order line of a job's card in one transaction -> {count, job: jobState}.
+// Lines that are cancelled or already deleted are ignored. Without onlyToOrder, a card with any ordered
+// or received line is refused (409). 404 no job; 409 nothing to delete.
+function deleteCard(db, jobId, { onlyToOrder = false } = {}, req) {
+  if (!can(req, "orders.edit")) throw forbidden();
+  requireJob(db, jobId);
+  return db.transaction(() => {
+    const lines = db
+      .prepare("SELECT * FROM orders WHERE job_id = ? AND status <> 'cancelled' AND deleted_at IS NULL ORDER BY id")
+      .all(jobId);
+    const busy = lines.filter((l) => l.status !== "to_order").length;
+    if (busy > 0 && !onlyToOrder) {
+      throw conflict(`${busy} item${busy === 1 ? "" : "s"} on this card ${busy === 1 ? "is" : "are"} already ordered or received`);
+    }
+    const mine = lines.filter((l) => l.status === "to_order");
+    for (const l of mine) {
+      const why = deleteRefusal(db, l);
+      if (why) throw conflict(why);
+    }
+    if (!mine.length) throw conflict("There are no To order items to delete on this card");
+    for (const l of mine) softDelete(db, l, req);
+    afterLineGone(db, jobId, req);
+    return { count: mine.length, job: jobState(db, jobId) };
+  })();
+}
+
+// Bring a deleted line back as to_order -> {order, job: jobState}. users.admin only. Invoices and
+// hand-offs the delete may have triggered are not reversed.
+function restoreLine(db, orderId, req) {
+  if (!can(req, "users.admin")) throw forbidden();
+  const line = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+  if (!line) throw notFound();
+  if (!line.deleted_at) throw conflict("This item isn't deleted");
+  return db.transaction(() => {
+    db.prepare("UPDATE orders SET deleted_at = NULL, deleted_by = NULL, status = 'to_order', updated_at = ?, updated_by = ? WHERE id = ?").run(
+      nowIso(),
+      userId(req),
+      orderId
+    );
+    audit.log(req, {
+      action: "order.restore",
+      entityType: "order",
+      entityId: orderId,
+      before: { deleted: true },
+      after: { deleted: false, jobId: line.job_id, supplier: line.supplier, description: line.description },
+    });
     refreshMaterialsIn(db, line.job_id, req);
     return { order: present(loadLine(db, orderId)), job: jobState(db, line.job_id) };
   })();
@@ -710,7 +836,7 @@ function deliveries(db, today = sydneyToday()) {
   const byId = Object.fromEntries(groups.map((g) => [g.id, g]));
   const ordered = listRows(
     db,
-    "o.status = 'ordered' AND j.archived = 0 AND poj.paint_order_id IS NULL",
+    "o.status = 'ordered' AND o.deleted_at IS NULL AND j.archived = 0 AND poj.paint_order_id IS NULL",
     [],
     "o.expected_date, j.name COLLATE NOCASE, o.id",
     today
@@ -722,7 +848,7 @@ function deliveries(db, today = sydneyToday()) {
   }
   const recent = listRows(
     db,
-    "o.status = 'received' AND o.received_date >= ? AND j.archived = 0 AND poj.paint_order_id IS NULL",
+    "o.status = 'received' AND o.deleted_at IS NULL AND o.received_date >= ? AND j.archived = 0 AND poj.paint_order_id IS NULL",
     [addDays(today, -13)],
     "o.received_date DESC, o.id DESC",
     today
@@ -758,7 +884,7 @@ function cards(db, { finished = false } = {}) {
               group_concat(CASE WHEN trim(o.supplier) <> '' THEN trim(o.supplier) END, '${SEP}') AS suppliers
        FROM orders o
        JOIN jobs j ON j.id = o.job_id
-       WHERE o.status <> 'cancelled'
+       WHERE o.status <> 'cancelled' AND o.deleted_at IS NULL
        GROUP BY j.id
        ${finished ? "" : "HAVING j.archived = 0 AND SUM(CASE WHEN o.status IN ('to_order','ordered') THEN 1 ELSE 0 END) > 0"}
        ORDER BY (j.job_number IS NULL), j.job_number COLLATE NOCASE, j.name COLLATE NOCASE, j.id`
@@ -846,6 +972,7 @@ function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef 
     const plan = orderIds.map((id) => {
       const row = loadLine(db, id);
       const o = row && present(row);
+      if (o && o.deletedAt) throw conflict("This item was deleted. Reload and try again.");
       if (!o || o.status !== "to_order" || o.reservedFromStock || o.kind === "drawers" || o.kind === "paint") {
         if (!o) throw conflict("An item you ticked no longer exists. Reload and try again.");
         const job = db.prepare("SELECT name, job_number FROM jobs WHERE id = ?").get(o.jobId);
@@ -863,14 +990,20 @@ function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef 
         throw bad(`${o.description || "An item"} (${o.supplier}): the notes would be over ${NOTES_MAX} characters with the PO number`);
       }
       patch.notes = notes;
-      return { id, jobId: o.jobId, patch };
+      return { id, jobId: o.jobId, patch, supplier: o.supplier };
     });
+    // 0.2.23: one saved order is for one supplier (compared trimmed, any case). Checked before any write.
+    if (new Set(plan.map((p) => String(p.supplier || "").trim().toLowerCase())).size > 1) {
+      throw bad("A supplier order is for one supplier");
+    }
     for (const p of plan) updateLine(db, p.id, p.patch, req);
     const saved = purchaseorders.create(
       db,
       { orderedDate: ordered, expectedDate: expected || null, supplierRef: ref, lines: plan.map((p) => ({ orderId: p.id })) },
       req
     );
+    const link = db.prepare("UPDATE orders SET supplier_order_id = ? WHERE id = ?");
+    for (const p of plan) link.run(saved.id, p.id);
     const today = sydneyToday();
     return {
       count: plan.length,
@@ -897,6 +1030,9 @@ module.exports = {
   updateLine,
   deliveries,
   cancelLine,
+  deleteLine,
+  deleteCard,
+  restoreLine,
   refreshMaterialsIn,
   cutNote,
   allOrdered,

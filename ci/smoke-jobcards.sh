@@ -383,9 +383,20 @@ expect_jq "[.cards[] | select(.jobId == $JC_J1)] | length == 1 and .[0].toOrder 
 
 echo "--- mark ordered in bulk: two jobs at once, default date ---"
 # Job 2 has L1 (to order), L2 cancelled, L3 ordered singly, L4 (S_NEW); job 3 is archived with A1.
+# 0.2.23: one supplier order is for one supplier: L1 and A1 are $JC_S1, L4 is $JC_NEW.
 req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":[$JC_L1,$JC_L4,$JC_A1]}"
-expect_status 200 "ordr marks lines of two jobs (one archived)"
-expect_jq ".count == 3 and .jobCount == 2 and (.orders | all(.[]; .orderedDate == \"$JC_TODAY\"))" "the date defaults to today (Sydney); two jobs"
+expect_status 400 "a call that mixes suppliers is refused"
+expect_jq '.error == "A supplier order is for one supplier"' "with that sentence"
+req GET "/api/job-records/$JC_J2/orders" "$ADMIN"
+expect_jq "[.[] | select(.id == $JC_L1 or .id == $JC_L4)] | all(.[]; .status == \"to_order\")" "nothing was ordered by it"
+req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":[$JC_L1,$JC_A1]}"
+expect_status 200 "ordr marks lines of one supplier on two jobs (one archived)"
+expect_jq ".count == 2 and .jobCount == 2 and (.orders | all(.[]; .orderedDate == \"$JC_TODAY\"))" "the date defaults to today (Sydney); two jobs"
+req GET "/api/job-records/$JC_J2" "$ADMIN"
+expect_jq '.materialsOrderedDate == null' "job 2 still has a line to order"
+req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":[$JC_L4]}"
+expect_status 200 "ordr marks the other supplier's line"
+expect_jq ".count == 1 and .jobCount == 1 and .orders[0].orderedDate == \"$JC_TODAY\"" "separately"
 req GET "/api/job-records/$JC_J2" "$ADMIN"
 expect_jq ".materialsOrderedDate == \"$JC_TODAY\"" "job 2's materials-ordered date is set when its last line goes"
 req GET "/api/invoices/job/$JC_J2" "$ADMIN"

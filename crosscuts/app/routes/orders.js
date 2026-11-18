@@ -82,6 +82,15 @@ r.post("/job-records/:id/orders/batch", "orders.edit", handle((req, res) => {
   res.status(201).json(orders.createLines(db, id, b.lines, req));
 }));
 
+// 0.2.23: delete the card: every To order line of the job, soft, in one transaction.
+// Body {onlyToOrder?: true} -> 200 {count, job}. 409 when some lines are ordered or received (unless onlyToOrder).
+r.post("/job-records/:id/orders/delete-card", "orders.edit", handle((req, res) => {
+  const id = idOr404(req);
+  const b = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+  if (b.onlyToOrder !== undefined && typeof b.onlyToOrder !== "boolean") throw bad("onlyToOrder must be true or false");
+  res.json(orders.deleteCard(db, id, { onlyToOrder: b.onlyToOrder === true }, req));
+}));
+
 // Registered before the /orders/:id routes. M10: orders.view (order lines without the job pages).
 // 0.2.22: also suggests the Supplier accounts names (suppliers table).
 r.get("/orders/suppliers", "orders.view", handle((req, res) => {
@@ -131,13 +140,23 @@ r.get("/orders", "orders.view", handle((req, res) => {
   for (const k of ["status", "supplier", "jobId"]) {
     if (q[k] !== undefined && typeof q[k] !== "string") throw bad(`${k} must be a single value`);
   }
-  res.json(orders.list(db, { status: q.status, supplier: q.supplier, jobId: q.jobId }));
+  res.json(orders.list(db, { status: q.status, supplier: q.supplier, jobId: q.jobId }, req));
 }));
 
 // The finer rules (which key each change needs) are in lib/orders.js updateLine.
 r.patch("/orders/:id", ["orders.edit", "orders.mark_ordered", "orders.receive"], handle((req, res) => {
   const id = idOr404(req);
   res.json(orders.updateLine(db, id, body(req), req));
+}));
+
+// 0.2.23 (docs/plans/purchase-orders-plan.md "Delete lines and cards"): soft-delete a to_order line
+// -> {order, job}; restore (admins) brings it back -> {order, job}.
+r.post("/orders/:id/delete", "orders.edit", handle((req, res) => {
+  res.json(orders.deleteLine(db, idOr404(req), req));
+}));
+
+r.post("/orders/:id/restore", "users.admin", handle((req, res) => {
+  res.json(orders.restoreLine(db, idOr404(req), req));
 }));
 
 r.post("/orders/:id/cancel", "orders.edit", handle((req, res) => {

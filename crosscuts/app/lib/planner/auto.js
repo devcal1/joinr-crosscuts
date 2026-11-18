@@ -31,7 +31,7 @@ const SQL = {
      WHERE j.materials_ordered_date BETWEEN ? AND ? AND ${JOB_LIVE}`,
   matDue: `SELECT o.job_id, j.name, o.expected_date AS d, COUNT(*) AS lines
       FROM orders o JOIN jobs j ON j.id = o.job_id
-     WHERE o.status = 'ordered' AND o.expected_date BETWEEN ? AND ? AND ${JOB_LIVE}
+     WHERE o.status = 'ordered' AND o.deleted_at IS NULL AND o.expected_date BETWEEN ? AND ? AND ${JOB_LIVE}
      GROUP BY o.job_id, o.expected_date`,
   matIn: `SELECT j.id, j.name, j.materials_in_date AS d FROM jobs j
      WHERE j.materials_in_date BETWEEN ? AND ? AND ${JOB_LIVE}`,

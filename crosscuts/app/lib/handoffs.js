@@ -57,7 +57,7 @@ function onSent(db, req, jobId) {
 // True while a job on the board still has order lines to order.
 function boardOrdering(db, job) {
   if (!job || job.stage !== "on_board") return false;
-  return !!db.prepare("SELECT 1 AS x FROM orders WHERE job_id = ? AND status = 'to_order' LIMIT 1").get(job.id);
+  return !!db.prepare("SELECT 1 AS x FROM orders WHERE job_id = ? AND status = 'to_order' AND deleted_at IS NULL LIMIT 1").get(job.id);
 }
 
 // ---- All ordered ---------------------------------------------------------------------------
@@ -98,12 +98,12 @@ function needsInstall(db) {
   return db
     .prepare(
       `SELECT j.id, j.name, j.client_name, j.stage, j.sent_to_ordering_at, j.requested_install_date,
-              (SELECT MAX(o.expected_date) FROM orders o WHERE o.job_id = j.id AND o.status IN ('ordered','received')) AS eta
+              (SELECT MAX(o.expected_date) FROM orders o WHERE o.job_id = j.id AND o.status IN ('ordered','received') AND o.deleted_at IS NULL) AS eta
          FROM jobs j
         WHERE j.archived = 0 AND j.promised_install_date IS NULL
           AND (j.stage IS NULL OR j.stage NOT IN ('complete','invoiced','lost','archived'))
-          AND EXISTS (SELECT 1 FROM orders o WHERE o.job_id = j.id AND o.status <> 'cancelled')
-          AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.job_id = j.id AND o.status = 'to_order')
+          AND EXISTS (SELECT 1 FROM orders o WHERE o.job_id = j.id AND o.status <> 'cancelled' AND o.deleted_at IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.job_id = j.id AND o.status = 'to_order' AND o.deleted_at IS NULL)
         ORDER BY (j.requested_install_date IS NULL), j.requested_install_date, j.name COLLATE NOCASE, j.id`
     )
     .all()
@@ -148,7 +148,7 @@ function etaNudge(db, today = sydneyToday()) {
     .prepare(
       `SELECT SUM(CASE WHEN o.status = 'ordered' AND o.expected_date IS NULL THEN 1 ELSE 0 END) AS missing,
               SUM(CASE WHEN o.status IN ('to_order','ordered') AND o.expected_date < ? THEN 1 ELSE 0 END) AS late
-         FROM orders o JOIN jobs j ON j.id = o.job_id WHERE j.archived = 0`
+         FROM orders o JOIN jobs j ON j.id = o.job_id WHERE j.archived = 0 AND o.deleted_at IS NULL`
     )
     .get(today);
   const missing = Number(c.missing) || 0;
