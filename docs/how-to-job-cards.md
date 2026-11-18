@@ -50,7 +50,7 @@ The PO number is added to the notes of every item in the order: `PO-0007`, or `P
 
 **The PDF never changes after it is made.** It shows the order as it was when you pressed Mark ordered: the items, quantities, dates, ref, who placed it and the company details at that moment. Editing, receiving or undoing an item later does not alter it. If an item is undone and ordered again, it appears on a new PO and the old PO stays as it was.
 
-**On job cards,** each ordered item shows its PO number as a link that opens that order. If an item has been on more than one order, the link goes to the latest order that has it.
+**On job cards,** each ordered item shows its PO number as a link that opens that order. The link shows only while the item is ordered (or received) on that order: if you undo it, the link goes; if you then order it again on another supplier order, the link goes to that one; if you mark it ordered on its own, it has no link. A supplier order is always for one supplier.
 
 **Items with no PO.** Items marked ordered one at a time (from the job's Orders & materials tab or a card line), and anything ordered before this change, have no PO number, so there is no link and no PDF for them. A saved order cannot be edited or deleted.
 
