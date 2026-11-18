@@ -5,6 +5,7 @@
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const orders = require("../lib/orders");
+const purchaseorders = require("../lib/purchaseorders");
 const { bad, notFound, sendError } = require("../lib/httperror");
 
 const r = defineRoutes("/api");
@@ -13,6 +14,16 @@ function handle(fn) {
   return (req, res) => {
     try {
       fn(req, res);
+    } catch (e) {
+      sendError(res, e, "[orders]");
+    }
+  };
+}
+
+function handleAsync(fn) {
+  return async (req, res) => {
+    try {
+      await fn(req, res);
     } catch (e) {
       sendError(res, e, "[orders]");
     }
@@ -88,16 +99,25 @@ r.get("/orders/cards", "orders.view", handle((req, res) => {
 // 0.2.22: the supplier order's Mark N ordered. Body {orderIds, orderedDate, expectedDate, supplierRef}
 // -> 200 {count, jobCount, orders: [...]}. One transaction; 409 and nothing changed if any line is no
 // longer to order. The finer rules are in lib/orders.js markOrderedMany.
-r.post("/orders/mark-ordered", "orders.mark_ordered", handle((req, res) => {
+// 0.2.23: it also saves the order (a purchase order, PO-0007) in the same transaction, and responds with
+// supplierOrder: {id, poNumber, pdfReady}. The PDF is made after the commit; if that fails the order is
+// still saved, pdfReady is false and the PDF is made when it is first opened.
+r.post("/orders/mark-ordered", "orders.mark_ordered", handleAsync(async (req, res) => {
   const b = body(req);
-  res.json(
-    orders.markOrderedMany(
-      db,
-      b.orderIds,
-      { orderedDate: b.orderedDate, expectedDate: b.expectedDate, supplierRef: b.supplierRef },
-      req
-    )
+  const out = orders.markOrderedMany(
+    db,
+    b.orderIds,
+    { orderedDate: b.orderedDate, expectedDate: b.expectedDate, supplierRef: b.supplierRef },
+    req
   );
+  let pdfReady = false;
+  try {
+    await purchaseorders.ensurePdf(db, out.supplierOrder.id);
+    pdfReady = true;
+  } catch (e) {
+    console.error("[orders] PO PDF not made yet:", e && e.message ? e.message : e);
+  }
+  res.json({ ...out, supplierOrder: { ...out.supplierOrder, pdfReady } });
 }));
 
 // M10 (docs/plans/m10-contracts.md section 4.4): the Deliveries page. Registered before the

@@ -2,6 +2,7 @@
 // docs/plans/purchase-orders-plan.md). Viewing, printing and downloading need orders.view. A saved
 // order is created only by POST /api/orders/mark-ordered (routes/orders.js); there is no edit or
 // delete. The rules are in lib/purchaseorders.js.
+const path = require("path");
 const db = require("../db");
 const { defineRoutes } = require("../lib/routes");
 const po = require("../lib/purchaseorders");
@@ -63,7 +64,8 @@ r.get("/supplier-orders/:id/pdf", "orders.view", async (req, res) => {
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     });
-    res.sendFile(out.file, { dotfiles: "deny", cacheControl: false, lastModified: false });
+    // root: so the dotfile check covers only the file name, not the folders above the data dir.
+    res.sendFile(path.basename(out.file), { root: path.dirname(out.file), dotfiles: "deny", cacheControl: false, lastModified: false });
   } catch (e) {
     sendError(res, e, "[supplierorders]");
   }

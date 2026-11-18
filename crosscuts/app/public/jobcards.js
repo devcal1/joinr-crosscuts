@@ -516,6 +516,19 @@
     return cell(label, "jc-date" + (extra ? " " + extra : ""), iso ? document.createTextNode(fmtDate(iso)) : dash());
   }
 
+  // 0.2.23: the saved order this line is on (its latest), as a link that opens it. None: blank.
+  function poCell(o) {
+    if (!o.poId || !o.poNumber) return cell("Order", "jc-blank", dash());
+    const a = el("a", { class: "po-link", href: "/orders.html?po=" + encodeURIComponent(o.poId), text: o.poNumber });
+    a.addEventListener("click", (e) => {
+      if (!window.SupplierOrders || e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;
+      e.preventDefault();
+      P.showView("pos");
+      window.SupplierOrders.open(o.poId);
+    });
+    return cell("Order", "jc-date", a);
+  }
+
   function renderPanel() {
     if (!open) {
       panelEl.hidden = true;
@@ -569,6 +582,7 @@
           cell("Qty", "jc-num" + (o.quantity == null ? " jc-blank" : ""), document.createTextNode(qtyText(o.quantity))),
           cell("Status", "", el("span", { class: "hs-badge " + badge, text: label })),
           dateCell("Ordered", o.orderedDate),
+          poCell(o),
           exp,
           dateCell("Received", o.receivedDate),
           notes,
@@ -581,7 +595,7 @@
         el(
           "table",
           { class: "hs-table jc-table" },
-          el("thead", {}, el("tr", {}, ...["Supplier", "Hardware", "Qty", "Status", "Ordered", "Expected", "Received", "Notes", ""].map((h) =>
+          el("thead", {}, el("tr", {}, ...["Supplier", "Hardware", "Qty", "Status", "Ordered", "Order", "Expected", "Received", "Notes", ""].map((h) =>
             el("th", { scope: "col", class: h === "Qty" ? "jc-num" : null }, h ? h : el("span", { class: "jc-sr", text: "Actions" }))))),
           tb
         )

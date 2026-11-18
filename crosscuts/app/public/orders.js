@@ -336,14 +336,15 @@
   // 0.2.22 (job cards): the page opens on Job cards (jobcards.js); All order lines is the list
   // above, unchanged; New supplier order (supplierorder.js) replaces both while it is open.
   const $ = (id) => document.getElementById(id);
-  const VIEWS = { cards: $("viewCards"), lines: $("viewLines"), supplier: $("viewSupplier") };
-  const TABS = { cards: $("tabCards"), lines: $("tabLines") };
-  const hooks = { cards: null, lines: null, supplier: null };
+  const VIEWS = { cards: $("viewCards"), pos: $("viewPos"), lines: $("viewLines"), supplier: $("viewSupplier") };
+  const TABS = { cards: $("tabCards"), pos: $("tabPos"), lines: $("tabLines") };
+  const hooks = { cards: null, pos: null, lines: null, supplier: null };
   let view = "cards";
 
   function showView(name) {
     if (!VIEWS[name]) return;
     view = name;
+    $("poSaved").hidden = true; // the "PO saved" message goes with the next action
     for (const [k, node] of Object.entries(VIEWS)) node.hidden = k !== name;
     for (const [k, tab] of Object.entries(TABS)) {
       tab.setAttribute("aria-selected", k === name ? "true" : "false");
@@ -362,7 +363,9 @@
     tab.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       e.preventDefault();
-      const next = name === "cards" ? "lines" : "cards";
+      const order = Object.keys(TABS);
+      const at = order.indexOf(name) + (e.key === "ArrowRight" ? 1 : -1);
+      const next = order[(at + order.length) % order.length];
       showView(next);
       TABS[next].focus();
     });

@@ -163,6 +163,28 @@
 
   // ---------------------------------------------------------------- actions ---
 
+  // 0.2.23: "PO-0007 saved. 5 items marked ordered for 3 jobs from Blum Hardware." with View PDF
+  // and Download PDF. It stays until dismissed or the next view change (orders.js showView).
+  function showSaved(po, summary, supplierName) {
+    const box = $("poSaved");
+    const base = "/api/supplier-orders/" + encodeURIComponent(po.id) + "/pdf";
+    const text = el("span", {}, el("b", { text: po.poNumber + " saved." }), document.createTextNode(" " + summary + (supplierName ? " from " + supplierName : "") + "."));
+    if (po.pdfReady === false) text.append(document.createTextNode(" The PDF will be made when it is opened."));
+    const open = el("a", { class: "hs-btn hs-btn-primary", href: base, target: "_blank", rel: "noopener", text: "View PDF" });
+    const dl = el("a", { class: "hs-btn", href: base + "?download=1", text: "Download PDF" });
+    const order = el("a", { class: "hs-btn hs-btn-quiet", href: "/orders.html?po=" + encodeURIComponent(po.id), text: "Open order" });
+    order.addEventListener("click", (e) => {
+      if (!window.SupplierOrders) return;
+      e.preventDefault();
+      P.showView("pos");
+      window.SupplierOrders.open(po.id);
+    });
+    const close = el("button", { type: "button", class: "hs-btn hs-btn-quiet", text: "Dismiss" });
+    close.addEventListener("click", () => { box.hidden = true; });
+    box.replaceChildren(text, el("div", { class: "po-push" }, open, dl, order, close));
+    box.hidden = false;
+  }
+
   printEl.addEventListener("click", () => {
     const g = groups.get(selEl.value);
     const ids = ticked();
@@ -202,6 +224,7 @@
       expEl.focus();
       return;
     }
+    const supplierName = (groups.get(selEl.value) || {}).name || "";
     const body = { orderIds: ids, orderedDate, expectedDate: expEl.value || null };
     const ref = refEl.value.trim();
     if (ref) body.supplierRef = ref;
@@ -223,7 +246,10 @@
     const count = r && Number.isFinite(r.count) ? r.count : ids.length;
     const jobCount = r && Number.isFinite(r.jobCount) ? r.jobCount : 0;
     P.showView("cards");
-    if (window.JobCards) window.JobCards.setMessage(plural(count, "item", "items") + " marked ordered for " + plural(jobCount, "job", "jobs") + ".", "ok");
+    const po = r && r.supplierOrder && r.supplierOrder.id ? r.supplierOrder : null;
+    const summary = plural(count, "item", "items") + " marked ordered for " + plural(jobCount, "job", "jobs");
+    if (po) showSaved(po, summary, supplierName);
+    else if (window.JobCards) window.JobCards.setMessage(summary + ".", "ok");
     P.reloadLines();
   });
 

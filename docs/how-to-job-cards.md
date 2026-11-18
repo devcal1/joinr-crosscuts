@@ -28,13 +28,31 @@ Open a card to see its lines: supplier, hardware, quantity, status (To order, Or
 
 1. On **Orders**, press **New supplier order** and pick the **supplier**. Its lines still to order are listed, grouped by job, with how many there are.
 2. **Untick** anything that is not part of this order. Unticked lines stay To order.
-3. Set the **order date** (today unless you placed the order earlier; not in the future). Optionally add an **expected date** and the supplier's **ref** (their order or quote number). The expected date is put on every line. The ref is added to each line's notes as `Ref: ...`.
+3. Set the **order date** (today unless you placed the order earlier; not in the future). Optionally add an **expected date** and the supplier's **ref** (their order or quote number). The expected date is put on every line. The PO number (see Supplier orders below) is added to each line's notes, with the ref after it when you gave one, e.g. `PO-0007 · Ref: BH-55120`.
 4. **Print list** prints the ticked items for the supplier, grouped by job, with the order date and ref. **Printing does not mark anything ordered.**
-5. After placing the order, press **Mark N ordered** (N is how many are ticked). Each line becomes **Ordered** with that order date.
+5. After placing the order, press **Mark N ordered** (N is how many are ticked). Each line becomes **Ordered** with that order date, and the order is saved as a purchase order (see Supplier orders below).
 
 If someone else changed one of the lines in the meantime (marked it ordered, cancelled it, reserved it from stock), the whole order is refused with a sentence naming the line, nothing is changed, and the list reloads. Check it and try again.
 
 Lines reserved from stock, drawer lines and paint lines are not on the supplier list: drawers and paint are ordered from their own pages.
+
+## Supplier orders
+
+Pressing **Mark N ordered** on a supplier order now saves the order as a **purchase order** with its own number: PO-0001, PO-0002 and so on. Numbers are never reused. Back on the Orders page a message says, for example, "PO-0007 saved. 5 items marked ordered for 3 jobs from Blum Hardware", with **View PDF** and **Download PDF** buttons. If the PDF could not be made at that moment, the order is still saved and the message says the PDF will be made when you open it.
+
+The PO number is added to the notes of every item in the order: `PO-0007`, or `PO-0007 · Ref: BH-55120` when you entered the supplier's ref. (This replaces the old `Ref: ...` line.)
+
+**Finding an order.** On Orders, the **Supplier orders** tab (between Job cards and All order lines) lists every saved order, newest first: PO number, supplier, order date, expected date, supplier ref, how many items, the job numbers and who placed it. **Find** searches the PO number, the supplier ref and the job number or name. The **Supplier** filter narrows it to one supplier.
+
+**Opening an order** shows its items grouped by job, each with where it is now: **Ordered**, **Received** (with the date), or **Undone since** (with the date and who) if the item has been put back to To order or cancelled since. That is information only; it never changes the order.
+
+**View PDF, Print and Download PDF** are on the open order. View PDF opens the PDF in a new tab. Print opens the same page ready to print, with only the items in that order. Download PDF saves it as a file named like `PO-0007 Blum Hardware.pdf`. All three need `orders.view`.
+
+**The PDF never changes after it is made.** It shows the order as it was when you pressed Mark ordered: the items, quantities, dates, ref, who placed it and the company details at that moment. Editing, receiving or undoing an item later does not alter it. If an item is undone and ordered again, it appears on a new PO and the old PO stays as it was.
+
+**On job cards,** each ordered item shows its PO number as a link that opens that order. If an item has been on more than one order, the link goes to the latest order that has it.
+
+**Items with no PO.** Items marked ordered one at a time (from the job's Orders & materials tab or a card line), and anything ordered before this change, have no PO number, so there is no link and no PDF for them. A saved order cannot be edited or deleted.
 
 ## When the last line is marked ordered
 

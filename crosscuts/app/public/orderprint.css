@@ -76,6 +76,18 @@ body.op-body {
 .op-card th, .op-card td { font-size: 9pt; padding: 1.4mm 1.5mm; }
 .op-card th { font-size: 7pt; }
 
+/* the saved purchase order (mode=po): company and PO number on top, details, items by job */
+.op-po-top { margin-top: 0; border-bottom-width: 0.7mm; }
+.op-po-brand { font-size: 16pt; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; overflow-wrap: anywhere; }
+.op-po-addr { margin-top: 1mm; font-size: 9pt; line-height: 1.4; overflow-wrap: anywhere; }
+.op-po-title { flex: none; text-align: right; }
+.op-po-no { margin-top: 1.5mm; font-size: 14pt; font-weight: 700; }
+.op-po-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 8mm; margin-top: 4mm; font-size: 10pt; }
+.op-po-meta > div { min-width: 0; }
+.op-po-k { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.op-po-v { overflow-wrap: anywhere; white-space: pre-line; }
+.op-po-note { margin-top: 5mm; font-size: 10pt; }
+
 .op-foot { margin-top: 5mm; font-size: 10pt; font-weight: 700; }
 
 @media (max-width: 600px) {

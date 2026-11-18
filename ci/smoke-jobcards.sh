@@ -350,8 +350,14 @@ req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":$JC_PART,\"orderedDate\
 expect_status 200 "ordr marks all but one line of job 1 ordered"
 expect_jq ".count == $((JC_J1_N - 1)) and .jobCount == 1 and (.orders | length) == $((JC_J1_N - 1))" "the count, the job count and the lines"
 expect_jq ".orders | all(.[]; .status == \"ordered\" and .orderedDate == \"$JC_YESTERDAY\" and .expectedDate == \"$JC_NEXTWEEK\")" "every line has the order and expected dates"
-expect_jq "[.orders[] | select(.id == $JC_Q2)][0].notes == \"existing note\\nRef: PO-4471\"" "the Ref is appended after existing notes on a new line"
-expect_jq "[.orders[] | select(.id == $JC_Q1)][0].notes == \"Ref: PO-4471\"" "a line with no notes gets just the Ref"
+# 0.2.23: every supplier order is a saved order (PO-NNNN); its number is the first part of the notes line.
+# The number isn't known in advance in a shared database, so it is read from the response.
+JC_PO=$(jqr '.supplierOrder.poNumber')
+[[ $JC_PO =~ ^PO-[0-9]{4,}$ ]] || fail "the response names the saved order (got '$JC_PO')"
+ok
+expect_jq ".supplierOrder.id | type == \"number\"" "the response carries the saved order's id"
+expect_jq "[.orders[] | select(.id == $JC_Q2)][0].notes == \"existing note\\n$JC_PO \\u00b7 Ref: PO-4471\"" "the PO number and Ref are appended after existing notes on a new line"
+expect_jq "[.orders[] | select(.id == $JC_Q1)][0].notes == \"$JC_PO \\u00b7 Ref: PO-4471\"" "a line with no notes gets just the PO number and Ref"
 expect_eq "$(jc_audit_total order.status "$JC_Q2")" "$((JC_AUD_Q2 + 1))" "one order.status audit row per line"
 expect_eq "$(jc_audit_total order.update "$JC_Q2")" "$((JC_AUDU_Q2 + 1))" "one order.update audit row for the expected date and notes"
 req GET "/api/audit?action=order.status&entityType=order&entityId=$JC_Q2&limit=1" "$ADMIN"

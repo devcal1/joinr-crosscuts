@@ -9,6 +9,7 @@ const audit = require("./audit");
 const invoices = require("./invoices");
 const notify = require("./notify");
 const links = require("./orderlinks");
+const purchaseorders = require("./purchaseorders");
 const { bad, notFound, conflict, forbidden, can } = require("./httperror");
 const { sydneyToday, addDays } = require("./time");
 
@@ -56,6 +57,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const LINE_COLUMNS = `o.*, u.display_name AS created_by_name,
   ur.display_name AS received_by_name, uu.display_name AS updated_by_name,
   ${links.COLUMNS_SQL},
+  ${purchaseorders.currentPoSql()},
   (SELECT COALESCE(SUM(sr.qty), 0) FROM stock_reservations sr WHERE sr.order_id = o.id AND sr.status IN ('reserved', 'confirmed', 'cut')) AS reserved_qty,
   (SELECT COALESCE(MAX(sr.covers), 0) FROM stock_reservations sr WHERE sr.order_id = o.id AND sr.status IN ('reserved', 'confirmed', 'cut')) AS reserved_covers`;
 const LINE_USERS = `LEFT JOIN users u ON u.id = o.created_by
@@ -115,6 +117,9 @@ function present(row, today = sydneyToday()) {
     // wholly covered, so not to order; else reservedQty is reserved and the rest is still to order.
     reservedQty: Number(row.reserved_qty) || 0,
     reservedFromStock: Number(row.reserved_covers) === 1,
+    // 0.2.23: the saved supplier order the line is on now (the latest, while ordered or received), else null.
+    poId: row.po_id == null ? null : row.po_id,
+    poNumber: row.po_seq == null ? null : purchaseorders.poNumberOf(row.po_seq),
     // M11 section 4.2: {kind, drawers, paintOrderId}.
     ...links.presentLink(row),
   };
@@ -817,7 +822,8 @@ function createLines(db, jobId, lines, req) {
 
 // Mark 1 to 200 to_order lines ordered in one transaction, each through updateLine's mark-ordered
 // path (so its audit, the progress invoice and the hand-offs fire as for a single Mark ordered)
-// -> {count, jobCount, orders: [order...]}. 409 and nothing changed if any line is no longer to order.
+// -> {count, jobCount, orders: [order...], supplierOrder: {id, poNumber}} (0.2.23: the saved order that
+// lib/purchaseorders.js create makes in this same transaction). 409 and nothing changed if any line is no longer to order.
 function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef } = {}, req) {
   if (!can(req, "orders.mark_ordered")) throw forbidden();
   if (!Array.isArray(orderIds) || orderIds.length < 1) throw bad("Tick at least one item");
@@ -835,6 +841,7 @@ function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef 
   if (ref.length > 100) throw bad("The supplier reference must be 100 characters or fewer");
 
   return db.transaction(() => {
+    const poNumber = purchaseorders.poNumberOf(purchaseorders.nextPoSeq(db));
     // Every check before any write.
     const plan = orderIds.map((id) => {
       const row = loadLine(db, id);
@@ -849,21 +856,27 @@ function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef 
       }
       const patch = { status: "ordered", orderedDate: ordered };
       if (expected) patch.expectedDate = expected;
-      if (ref) {
-        const notes = o.notes ? `${o.notes}\nRef: ${ref}` : `Ref: ${ref}`;
-        if (notes.length > NOTES_MAX) {
-          throw bad(`${o.description || "An item"} (${o.supplier}): the notes would be over ${NOTES_MAX} characters with the reference`);
-        }
-        patch.notes = notes;
+      // 0.2.23: every supplier order is a saved order; its PO number (and the Ref, when given) goes in the notes.
+      const noteLine = ref ? `${poNumber} · Ref: ${ref}` : poNumber;
+      const notes = o.notes ? `${o.notes}\n${noteLine}` : noteLine;
+      if (notes.length > NOTES_MAX) {
+        throw bad(`${o.description || "An item"} (${o.supplier}): the notes would be over ${NOTES_MAX} characters with the PO number`);
       }
+      patch.notes = notes;
       return { id, jobId: o.jobId, patch };
     });
     for (const p of plan) updateLine(db, p.id, p.patch, req);
+    const saved = purchaseorders.create(
+      db,
+      { orderedDate: ordered, expectedDate: expected || null, supplierRef: ref, lines: plan.map((p) => ({ orderId: p.id })) },
+      req
+    );
     const today = sydneyToday();
     return {
       count: plan.length,
       jobCount: new Set(plan.map((p) => p.jobId)).size,
       orders: plan.map((p) => present(loadLine(db, p.id), today)),
+      supplierOrder: { id: saved.id, poNumber: saved.poNumber },
     };
   })();
 }

@@ -10,6 +10,12 @@
 //       status and the ordered, expected and received dates.
 //       GET /api/orders?status=all&jobId=<id>   (no lines: the header comes from
 //       GET /api/orders/cards?finished=1)
+//   ?mode=po&id=<supplierOrderId>
+//       a saved purchase order (docs/plans/purchase-orders-plan.md), drawn by renderPo(snapshot)
+//       from the order's frozen snapshot and nothing else. Two ways in: on screen it fetches
+//       GET /api/supplier-orders/<id> and draws response.snapshot; for the PDF the server (headless
+//       Chromium, no session, no shell scripts) inserts window.__PO_DATA__ = {snapshot: {...}}
+//       before this script, and the page draws that with no API call at all.
 //
 // Page numbers: orderprint.css puts "Page X of Y" in the page's bottom-right margin (CSS page
 // margin boxes, Chrome 131 and later); table headings repeat on each page. Older browsers print
@@ -214,6 +220,92 @@
     ], "");
   }
 
+  // ---- the saved purchase order ------------------------------------------------------------
+
+  // Draws a purchase order from its snapshot (version 1) and nothing else: no current line
+  // states, no other API data. Returns { title, nodes }.
+  function renderPo(s) {
+    const biz = s.business || {};
+    const company = text(biz.tradingName) || text(biz.legalName);
+    const contact = [text(biz.phone), text(biz.email)].filter(Boolean).join("  ·  ");
+    const abn = text(biz.abn) ? "ABN " + text(biz.abn) : "";
+    const left = el("div", { class: "op-po-co" });
+    if (company) left.append(el("p", { class: "op-po-brand", text: company }));
+    for (const line of [text(biz.address), contact, abn]) if (line) left.append(el("p", { class: "op-po-addr", text: line }));
+    const head = el("div", { class: "op-titlerow op-po-top" }, left,
+      el("div", { class: "op-po-title" },
+        el("h1", { class: "op-h1", text: "Purchase order" }),
+        el("p", { class: "op-po-no", text: text(s.poNumber) })));
+
+    const pairs = [
+      ["Supplier", text(s.supplier)],
+      ["Order date", fmtDate(s.orderedDate)],
+      ["Supplier reference", text(s.supplierRef)],
+      ["Expected", fmtDate(s.expectedDate)],
+      ["Ordered by", text(s.orderedBy)],
+      ["Deliver to", text(biz.address)],
+    ].filter(([, v]) => v);
+    const meta = el("div", { class: "op-po-meta" });
+    for (const [k, v] of pairs) meta.append(el("div", {}, el("p", { class: "op-po-k", text: k }), el("p", { class: "op-po-v", text: v })));
+
+    // jobs in first-appearance order, items in order within each job
+    const items = Array.isArray(s.items) ? s.items : [];
+    const groups = new Map();
+    for (const it of items) {
+      const key = it.jobId == null ? "n:" + text(it.jobNumber) + "|" + text(it.jobName) : "j:" + it.jobId;
+      if (!groups.has(key)) groups.set(key, { it, list: [] });
+      groups.get(key).list.push(it);
+    }
+    const tbody = el("tbody");
+    for (const { it, list } of groups.values()) {
+      const label = [text(it.jobNumber), text(it.jobName)].filter(Boolean).join(" · ") || "Job";
+      tbody.append(el("tr", { class: "op-group" }, el("td", { colspan: "2", text: label })));
+      for (const o of list) tbody.append(el("tr", {}, cell("td", text(o.description)), cell("td", fmtQty(o.quantity), "op-num")));
+    }
+    const table = el("table", { class: "op-table" },
+      el("thead", {}, el("tr", {}, cell("th", "Item"), cell("th", "Qty", "op-num"))), tbody);
+    const n = items.length;
+    const po = text(s.poNumber);
+    const note = el("p", { class: "op-po-note" },
+      el("b", { text: n + (n === 1 ? " item. " : " items. ") }),
+      "Please quote " + po + " and the job number on the delivery docket.");
+    const title = [po, text(s.supplier)].filter(Boolean).join(" ") || "Purchase order";
+    return { title, nodes: [head, meta, table, note] };
+  }
+
+  function startPoSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== "object") {
+      refuse("That purchase order has no saved copy.");
+      return;
+    }
+    const r = renderPo(snapshot);
+    show(r.title, r.nodes, "");
+  }
+
+  async function startPo(q) {
+    if (window.__PO_DATA__) {
+      startPoSnapshot(window.__PO_DATA__.snapshot);
+      return;
+    }
+    const id = text(q.get("id"));
+    if (!/^[1-9]\d*$/.test(id)) {
+      refuse("That isn't a purchase order. Open Orders, then Supplier orders, and choose one.");
+      return;
+    }
+    $("opBack").setAttribute("href", "/orders.html?po=" + id);
+    const dl = $("opDownload");
+    dl.setAttribute("href", "/api/supplier-orders/" + id + "/pdf?download=1");
+    dl.hidden = false;
+    let r;
+    try {
+      r = await api("/api/supplier-orders/" + encodeURIComponent(id));
+    } catch (e) {
+      refuse(failText(e, "purchase order " + id));
+      return;
+    }
+    startPoSnapshot(r && r.snapshot);
+  }
+
   $("opPrint").addEventListener("click", () => window.print());
 
   (async () => {
@@ -222,6 +314,7 @@
     const mode = q.get("mode");
     if (mode === "supplier") startSupplier(q);
     else if (mode === "card") startCard(q);
-    else refuse("Nothing to print. Open Orders, then print a supplier list or a job card.");
+    else if (mode === "po") startPo(q);
+    else refuse("Nothing to print. Open Orders, then print a supplier list, a job card or a purchase order.");
   })();
 })();
