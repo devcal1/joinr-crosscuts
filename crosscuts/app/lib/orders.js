@@ -678,7 +678,30 @@ function deliveries(db, today = sydneyToday()) {
   };
 }
 
+// --- 0.2.22 job cards and supplier orders (docs/plans/jobcards-plan.md) -----------------------------
+// Binding signatures (scaffold); the bodies are built by the server task.
+
+// The job cards: {cards: [{jobId, jobNumber, name, client, archived, finished, toOrder, ordered,
+// received, suppliers: [name...]}]}. See the contract in the server brief.
+function cards(db, { finished = false } = {}) {
+  throw new Error("cards: not built yet");
+}
+
+// Add 1 to 50 lines to a job, all or nothing -> {orders: [order...], job: jobState}.
+function createLines(db, jobId, lines, req) {
+  throw new Error("createLines: not built yet");
+}
+
+// Mark 1 to 200 to_order lines ordered in one transaction, each through updateLine's mark-ordered
+// path -> {count, jobCount, orders: [order...]}.
+function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef } = {}, req) {
+  throw new Error("markOrderedMany: not built yet");
+}
+
 module.exports = {
+  cards,
+  createLines,
+  markOrderedMany,
   STATUSES,
   markMaterialsOrdered,
   present,
