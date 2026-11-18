@@ -37,7 +37,8 @@ a.hs-btn:hover { text-decoration: none; }
 .or-message.ok { color: var(--go-tint); }
 
 .or-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); overflow-x: auto; }
-.or-table { min-width: 1040px; }
+.or-table { min-width: 1100px; }
+.or-table th.or-numh, .or-table td.or-num { text-align: right; white-space: nowrap; }
 .or-table th { padding: 10px 12px; }
 .or-table td { padding: 10px 12px; vertical-align: middle; }
 .or-table tbody tr:last-child td { border-bottom: 0; }

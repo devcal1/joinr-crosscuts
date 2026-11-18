@@ -1298,6 +1298,8 @@ for f in "$(dirname "$0")"/smoke-m28-*.sh; do [ -f "$f" ] && source "$f"; done
 [ -f "$(dirname "$0")/smoke-weekend.sh" ] && source "$(dirname "$0")/smoke-weekend.sh"
 # Pay run day notes suite (ci/smoke-payrun-notes.sh, 0.2.17, admin notes on a person's day): same rules.
 [ -f "$(dirname "$0")/smoke-payrun-notes.sh" ] && source "$(dirname "$0")/smoke-payrun-notes.sh"
+# Job cards suite (ci/smoke-jobcards.sh, 0.2.22, order quantity, batch add, cards, bulk mark ordered): same rules.
+[ -f "$(dirname "$0")/smoke-jobcards.sh" ] && source "$(dirname "$0")/smoke-jobcards.sh"
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

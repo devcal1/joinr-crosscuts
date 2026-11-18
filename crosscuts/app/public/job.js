@@ -723,6 +723,11 @@
     }
   }
 
+  // Quantity as 24, 2.4, 2.45; blank when there is none.
+  function orderQty(q) {
+    return window.OrderUI && window.OrderUI.fmtQty ? window.OrderUI.fmtQty(q) : q == null ? "" : String(q);
+  }
+
   function renderOrders() {
     const body = $("ordersBody");
     if (!orders.length) {
@@ -734,7 +739,7 @@
     // (review 4.2). The line and its buttons row read as one (no rule between them).
     const showActs = orderActionsShown();
     const table = el("table", { class: "hs-table jo-table jo-orders" });
-    const heads = ["Supplier", "Description", "Status", "Expected", "Ordered", "Received"];
+    const heads = ["Supplier", "Description", "Qty", "Status", "Expected", "Ordered", "Received"];
     table.append(headRow(heads));
     const tb = el("tbody");
     for (const o of orders) {
@@ -766,6 +771,7 @@
         { class: o.status === "cancelled" ? "jo-cancelled" : "", "data-id": String(o.id), tabindex: "-1" },
         el("td", { class: "jo-strong", text: o.supplier || "No supplier yet" }),
         desc,
+        el("td", { class: "jo-dates" }, el("span", { text: orderQty(o.quantity) })),
         el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
         expected,
         el("td", { class: "jo-dates" }, o.orderedDate ? el("span", { text: fmtDate(o.orderedDate) }) : null),
@@ -947,16 +953,25 @@
     btn.disabled = true;
     setLine(status, "Adding...", "muted");
     try {
-      const r = await api("/api/job-records/" + jobId + "/orders", {
-        method: "POST",
-        body: JSON.stringify({
+      const qtyText = $("oQty").value.trim();
+      if (qtyText && !(/^\d+(\.\d{1,2})?$/.test(qtyText) && Number(qtyText) > 0 && Number(qtyText) <= 99999)) {
+        setLine(status, "Quantity must be a number above 0 and up to 99999, with at most 2 decimals", "err");
+        $("oQty").focus();
+        btn.disabled = false;
+        return;
+      }
+      const lineBody = {
           supplier,
           description: $("oDesc").value.trim(),
           expectedDate: $("oExpected").value || null,
           notes: $("oNotes").value.trim(),
-        }),
+      };
+      if (qtyText) lineBody.quantity = Number(qtyText);
+      const r = await api("/api/job-records/" + jobId + "/orders", {
+        method: "POST",
+        body: JSON.stringify(lineBody),
       });
-      for (const id of ["oSupplier", "oDesc", "oExpected", "oNotes"]) $(id).value = "";
+      for (const id of ["oSupplier", "oDesc", "oQty", "oExpected", "oNotes"]) $(id).value = "";
       applyJobState(r.job);
       setLine(status, "Line added.", "ok");
       loadSuppliers();

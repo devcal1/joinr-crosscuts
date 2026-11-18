@@ -95,6 +95,16 @@
     return el("a", { class: "dl-job", href: "/job.html?id=" + encodeURIComponent(l.jobId) + "#orders", text: l.jobName });
   }
 
+  // "Qty 24" under a line's description (blank when the line has no quantity).
+  function qtyText(l) {
+    const q = window.OrderUI && window.OrderUI.fmtQty ? window.OrderUI.fmtQty(l.quantity) : "";
+    return q ? "Qty " + q : "";
+  }
+  function qtyTag(l) {
+    const t = qtyText(l);
+    return t ? el("span", { class: "dl-qty", text: t }) : null;
+  }
+
   function headRow(cols) {
     return el("thead", null, el("tr", null, ...cols.map(([label, cls]) =>
       el("th", { scope: "col", class: cls }, label ? label : el("span", { class: "dl-sr", text: "Actions" })))));
@@ -125,6 +135,11 @@
     const kind = window.OrderUI.kindLabel(l);
     const desc = td("Description", "dl-c-desc" + (l.description ? "" : " dl-blank"), el("span", { text: l.description || "" }));
     if (kind) desc.append(kind);
+    const qt = qtyTag(l);
+    if (qt) {
+      desc.append(qt);
+      desc.classList.remove("dl-blank");
+    }
     return el("tr", { "data-id": String(l.id) },
       exp,
       td("Job", "dl-c-job", jobNode(l)),
@@ -313,7 +328,7 @@
         td("By", "dl-c-by" + (l.receivedBy ? "" : " dl-blank"), el("span", { text: l.receivedBy ? l.receivedBy.name : "" })),
         td("Job", "dl-c-job", jobNode(l)),
         td("Supplier", "dl-c-sup", el("span", { text: l.supplier || "No supplier yet" })),
-        td("Description", "dl-c-desc" + (l.description ? "" : " dl-blank"), el("span", { text: l.description || "" })),
+        td("Description", "dl-c-desc" + (l.description || l.quantity != null ? "" : " dl-blank"), el("span", { text: l.description || "" }), qtyTag(l)),
         td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
         cell);
     }));
@@ -585,7 +600,7 @@
         el("td", { class: "dl-p-nowrap", text: l.expectedDate ? fmtDate(l.expectedDate) : "" }),
         el("td", { class: "dl-p-strong", text: l.jobName }),
         el("td", { text: l.supplier }),
-        el("td", { text: l.description || "" }),
+        el("td", { text: (l.description || "") + (qtyText(l) ? (l.description ? ", " : "") + qtyText(l) : "") }),
         el("td", { class: "dl-p-note", text: (l.deliveryNote || "").trim() }))));
       out.push(el("section", { class: "dl-p-group" },
         el("h2", { class: "dl-p-h2", text: `${g.label} (${g.lines.length})` }),

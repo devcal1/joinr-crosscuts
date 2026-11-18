@@ -15,6 +15,8 @@ const PAGE_ACCESS = {
   "/pipeline.html": "jobs.view",
   "/orders.html": "orders.view",
   "/deliveries.html": "orders.receive",
+  // 0.2.22 (docs/plans/jobcards-plan.md): the supplier order list and job card print.
+  "/orderprint.html": "orders.view",
   "/users.html": "users.admin",
   "/audit.html": "audit.view",
   "/accounts.html": "accounts.view",

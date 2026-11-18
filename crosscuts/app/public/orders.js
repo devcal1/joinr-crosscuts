@@ -150,6 +150,7 @@
         jobCell(o),
         el("td", { class: "or-supplier", text: o.supplier || "No supplier yet" }),
         desc,
+        el("td", { class: "or-num", text: window.OrderUI.fmtQty(o.quantity) }),
         el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
         expected,
         el("td", { class: "or-date", text: fmtDate(o.orderedDate) }),
@@ -330,6 +331,49 @@
     setMessage("", "");
     load();
   });
+
+  // ---------------------------------------------------------------------- views ---
+  // 0.2.22 (job cards): the page opens on Job cards (jobcards.js); All order lines is the list
+  // above, unchanged; New supplier order (supplierorder.js) replaces both while it is open.
+  const $ = (id) => document.getElementById(id);
+  const VIEWS = { cards: $("viewCards"), lines: $("viewLines"), supplier: $("viewSupplier") };
+  const TABS = { cards: $("tabCards"), lines: $("tabLines") };
+  const hooks = { cards: null, lines: null, supplier: null };
+  let view = "cards";
+
+  function showView(name) {
+    if (!VIEWS[name]) return;
+    view = name;
+    for (const [k, node] of Object.entries(VIEWS)) node.hidden = k !== name;
+    for (const [k, tab] of Object.entries(TABS)) {
+      tab.setAttribute("aria-selected", k === name ? "true" : "false");
+      tab.tabIndex = k === name ? 0 : -1;
+    }
+    const inSupplier = name === "supplier";
+    $("jcTabs").hidden = inSupplier;
+    $("jcHeadBtns").hidden = inSupplier;
+    $("orTitle").textContent = inSupplier ? "New supplier order" : "Orders";
+    if (name === "lines") load();
+    if (hooks[name]) hooks[name]();
+  }
+
+  for (const [name, tab] of Object.entries(TABS)) {
+    tab.addEventListener("click", () => showView(name));
+    tab.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      const next = name === "cards" ? "lines" : "cards";
+      showView(next);
+      TABS[next].focus();
+    });
+  }
+
+  window.OrdersPage = {
+    el, can, fmtDate, ORDER_STATUS, jobFilter, showView,
+    currentView: () => view,
+    onShow: (name, fn) => { hooks[name] = fn; },
+    reloadLines: () => load(),
+  };
 
   // --------------------------------------------------------------------- start ---
   // Job links and buttons depend on the user's keys, so the first render waits for the shell.

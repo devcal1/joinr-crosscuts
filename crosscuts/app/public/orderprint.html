@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order print - Crosscuts</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="orderprint.css">
+  <script src="/shell/busy.js"></script>
+</head>
+<body class="op-body">
+  <div id="cc-shell"></div>
+
+  <!-- The supplier order list and the job card prints (orderprint.js; docs/plans/jobcards-plan.md
+       section 5): the sheet as it will print, on a white paper box. -->
+  <main class="op-page">
+    <div class="op-toolbar">
+      <button id="opPrint" class="hs-btn hs-btn-primary" type="button" disabled>Print</button>
+      <a id="opBack" class="hs-btn" href="/orders.html">Back to Orders</a>
+      <p id="opStatus" class="op-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="op-scroll">
+      <article id="opSheet" class="op-sheet" aria-label="Sheet">
+        <p class="op-loading">Loading...</p>
+      </article>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="/shell/shell.js"></script>
+  <script src="orderprint.js"></script>
+</body>
+</html>
