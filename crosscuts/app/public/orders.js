@@ -48,6 +48,8 @@
     { id: "undoOrdered", label: "Undo ordered", next: ["markOrdered", "edit"] },
     { id: "undoReceived", label: "Undo received", dialog: true, next: ["receive", "note", "edit"] },
     { id: "cancel", label: "Cancel", aria: "Cancel line", next: [] },
+    // 0.2.23: the Deleted view (users.admin) offers Restore only.
+    { id: "restore", label: "Restore", aria: "Restore line", primary: true, next: [] },
   ];
   const ACT = Object.fromEntries(ACTS.map((a) => [a.id, a]));
 
@@ -121,18 +123,32 @@
     return el("td", { class: "or-job" }, el("a", { href: "/job.html?id=" + encodeURIComponent(o.jobId) + "#orders", text: o.jobName }));
   }
 
+  // A UTC timestamp as its Sydney day, "18 Nov 2026".
+  function fmtStamp(iso) {
+    const t = Date.parse(iso || "");
+    if (!Number.isFinite(t)) return "";
+    return new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", day: "numeric", month: "short", year: "numeric" }).format(new Date(t));
+  }
+
   function render() {
-    const acts = showActions();
+    const deletedView = statusEl.value === "deleted";
+    const acts = deletedView ? can("users.admin") : showActions();
     actionsHead.hidden = !acts;
     rowsEl.replaceChildren();
     emptyEl.hidden = lines.length > 0;
-    if (!lines.length) emptyEl.textContent = statusEl.value === "open" ? "Nothing to order or waiting on delivery." : "No order lines match.";
+    if (!lines.length) emptyEl.textContent = statusEl.value === "open" ? "Nothing to order or waiting on delivery." : deletedView ? "No deleted lines." : "No order lines match.";
     countEl.textContent = lines.length + (lines.length === 1 ? " line" : " lines");
     for (const o of lines) {
       let [label, badge] = ORDER_STATUS[o.status] || [o.status, "hs-badge-na"];
       // 0.2.6 (Todd 2026-10-27): a line wholly reserved from stock isn't to order; a part-reserved one says how much.
       if (o.status === "to_order" && o.reservedFromStock) [label, badge] = ["Reserved from stock", "hs-badge-teal"];
       else if (o.status === "to_order" && o.reservedQty > 0) label = `${o.reservedQty} reserved from stock, rest to order`;
+      let statusCell = el("td", {}, el("span", { class: "hs-badge " + badge, text: label }));
+      if (deletedView) {
+        const when = fmtStamp(o.deletedAt);
+        statusCell = el("td", {}, el("span", { class: "hs-badge hs-badge-na", text: "Deleted" }),
+          el("span", { class: "or-by", text: "Deleted" + (when ? " " + when : "") + (o.deletedBy && o.deletedBy.name ? " by " + o.deletedBy.name : "") }));
+      }
       const expected = el("td", { class: "or-date" + (o.overdue ? " or-overdue" : "") });
       if (o.expectedDate) expected.append(document.createTextNode(fmtDate(o.expectedDate)));
       if (o.overdue) expected.append(el("span", { class: "or-overdue-tag", text: "Overdue" }));
@@ -151,14 +167,14 @@
         el("td", { class: "or-supplier", text: o.supplier || "No supplier yet" }),
         desc,
         el("td", { class: "or-num", text: window.OrderUI.fmtQty(o.quantity) }),
-        el("td", {}, el("span", { class: "hs-badge " + badge, text: label })),
+        statusCell,
         expected,
         el("td", { class: "or-date", text: fmtDate(o.orderedDate) }),
         received,
         el("td", { class: "or-text", text: o.notes })
       );
       if (acts) {
-        const may = window.OrderUI.actions(o);
+        const may = deletedView ? { restore: true } : window.OrderUI.actions(o);
         const box = el("div", { class: "or-actbox" });
         for (const a of ACTS) {
           if (!may[a.id]) continue;
@@ -256,6 +272,7 @@
       case "undoReceived": return "Back to ordered: " + name + ".";
       case "edit": return "Saved: " + name + ".";
       case "cancel": return "Line cancelled: " + name + ".";
+      case "restore": return "Restored: " + name + ".";
       default: return "Saved.";
     }
   }
@@ -299,7 +316,7 @@
         for (const b of rowsEl.querySelectorAll("button")) b.disabled = true;
         setMessage("Saving...", "");
         try {
-          if (act === "cancel") r = await api("/api/orders/" + encodeURIComponent(o.id) + "/cancel", { method: "POST", body: "{}" });
+          if (act === "cancel" || act === "restore") r = await api("/api/orders/" + encodeURIComponent(o.id) + "/" + act, { method: "POST", body: "{}" });
           else {
             const body = act === "markOrdered" ? { status: "ordered" } : { status: "to_order" };
             r = await api("/api/orders/" + encodeURIComponent(o.id), { method: "PATCH", body: JSON.stringify(body) });
@@ -336,14 +353,15 @@
   // 0.2.22 (job cards): the page opens on Job cards (jobcards.js); All order lines is the list
   // above, unchanged; New supplier order (supplierorder.js) replaces both while it is open.
   const $ = (id) => document.getElementById(id);
-  const VIEWS = { cards: $("viewCards"), lines: $("viewLines"), supplier: $("viewSupplier") };
-  const TABS = { cards: $("tabCards"), lines: $("tabLines") };
-  const hooks = { cards: null, lines: null, supplier: null };
+  const VIEWS = { cards: $("viewCards"), pos: $("viewPos"), lines: $("viewLines"), supplier: $("viewSupplier") };
+  const TABS = { cards: $("tabCards"), pos: $("tabPos"), lines: $("tabLines") };
+  const hooks = { cards: null, pos: null, lines: null, supplier: null };
   let view = "cards";
 
   function showView(name) {
     if (!VIEWS[name]) return;
     view = name;
+    $("poSaved").hidden = true; // the "PO saved" message goes with the next action
     for (const [k, node] of Object.entries(VIEWS)) node.hidden = k !== name;
     for (const [k, tab] of Object.entries(TABS)) {
       tab.setAttribute("aria-selected", k === name ? "true" : "false");
@@ -362,14 +380,16 @@
     tab.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       e.preventDefault();
-      const next = name === "cards" ? "lines" : "cards";
+      const order = Object.keys(TABS);
+      const at = order.indexOf(name) + (e.key === "ArrowRight" ? 1 : -1);
+      const next = order[(at + order.length) % order.length];
       showView(next);
       TABS[next].focus();
     });
   }
 
   window.OrdersPage = {
-    el, can, fmtDate, ORDER_STATUS, jobFilter, showView,
+    el, can, fmtDate, ORDER_STATUS, jobFilter, showView, confirmDialog,
     currentView: () => view,
     onShow: (name, fn) => { hooks[name] = fn; },
     reloadLines: () => load(),
@@ -381,6 +401,11 @@
     const ready = window.cc && window.cc.ready ? window.cc.ready : Promise.resolve();
     loadSuppliers();
     await ready;
+    if (can("users.admin")) {
+      const d = $("statusDeleted");
+      d.hidden = false;
+      d.disabled = false;
+    }
     load();
   })();
   // The one-job filter: "Showing <job> only" and a way back to every job.

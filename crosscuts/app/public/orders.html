@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="orderui.css">
 <link rel="stylesheet" href="orders.css">
 <link rel="stylesheet" href="jobcards.css">
+<link rel="stylesheet" href="supplierorders.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body>
@@ -23,8 +24,12 @@
       </div>
     </div>
 
+    <!-- 0.2.23: shown after Mark ordered on a supplier order (supplierorder.js). -->
+    <div id="poSaved" class="po-ok" role="status" hidden></div>
+
     <div class="jc-tabs" id="jcTabs" role="tablist" aria-label="Orders views">
       <button type="button" role="tab" id="tabCards" class="jc-tab" aria-selected="true" aria-controls="viewCards">Job cards</button>
+      <button type="button" role="tab" id="tabPos" class="jc-tab" aria-selected="false" aria-controls="viewPos" tabindex="-1">Supplier orders</button>
       <button type="button" role="tab" id="tabLines" class="jc-tab" aria-selected="false" aria-controls="viewLines" tabindex="-1">All order lines</button>
     </div>
 
@@ -49,6 +54,39 @@
       <section id="jcPanel" class="jc-panel" aria-label="Job card" hidden></section>
     </section>
 
+    <!-- ===================== Supplier orders (saved purchase orders, 0.2.23) ===================== -->
+    <section id="viewPos" role="tabpanel" aria-labelledby="tabPos" hidden>
+      <div class="jc-tools">
+        <div class="or-filter jc-find">
+          <label for="poFind">Find an order</label>
+          <input id="poFind" class="hs-input" type="search" placeholder="PO number, supplier ref or job" autocomplete="off">
+        </div>
+        <div class="or-filter">
+          <label for="poSupplier">Supplier</label>
+          <select id="poSupplier" class="hs-input">
+            <option value="">All suppliers</option>
+          </select>
+        </div>
+      </div>
+      <p id="poCount" class="or-count" role="status" aria-live="polite">Loading...</p>
+      <p id="poMessage" class="or-message" role="status"></p>
+      <div class="jc-panel po-list" id="poListBox" hidden>
+        <div class="jc-pwrap">
+          <table class="hs-table jc-table po-table">
+            <thead>
+              <tr>
+                <th scope="col">Order</th><th scope="col">Supplier</th><th scope="col">Order date</th><th scope="col">Expected</th>
+                <th scope="col">Supplier ref</th><th scope="col" class="jc-num">Items</th><th scope="col">Jobs</th><th scope="col">By</th>
+                <th scope="col"><span class="jc-sr">Open</span></th>
+              </tr>
+            </thead>
+            <tbody id="poRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <section id="poPanel" class="jc-panel" aria-label="Supplier order" hidden></section>
+    </section>
+
     <!-- ===================== All order lines (today's list) ===================== -->
     <section id="viewLines" role="tabpanel" aria-labelledby="tabLines" hidden>
       <div class="or-tools">
@@ -61,6 +99,7 @@
             <option value="received">Received</option>
             <option value="cancelled">Cancelled</option>
             <option value="all">All</option>
+            <option value="deleted" id="statusDeleted" hidden disabled>Deleted</option>
           </select>
         </div>
         <div class="or-filter">
@@ -107,7 +146,7 @@
           <table class="hs-table jc-table so-table">
             <thead>
               <tr>
-                <th scope="col" class="so-tick"><input type="checkbox" id="soAll" checked aria-label="Tick all"></th>
+                <th scope="col" class="so-tick"><input type="checkbox" id="soAll" aria-label="Tick all"></th>
                 <th scope="col">Hardware</th><th scope="col" class="jc-num">Qty</th><th scope="col">Added</th><th scope="col">Notes</th>
               </tr>
             </thead>
@@ -143,5 +182,6 @@
   <script src="orders.js"></script>
   <script src="jobcards.js"></script>
   <script src="supplierorder.js"></script>
+  <script src="supplierorders.js"></script>
 </body>
 </html>

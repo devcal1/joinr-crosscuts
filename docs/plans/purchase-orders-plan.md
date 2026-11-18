@@ -77,3 +77,37 @@ Board files (CLAUDE.md non-negotiable 7), `public/shared.js`, migrations 001 to 
 - Update `ci/smoke-jobcards.sh` where 0.2.22's `Ref:` note format changes.
 - Docs: update `docs/how-to-job-cards.md` (a Supplier orders section) and add a STATUS "Start here" entry.
 - Version **0.2.23**, bumped once (`crosscuts/app/package.json` and both versions in `crosscuts/app/package-lock.json`). The next migration after this is 065.
+
+## Delete lines and cards (Todd 2026-11-18)
+
+Added to 0.2.23 by Todd on 2026-11-18 (same version, no extra bump).
+
+### Todd's decisions (binding)
+
+1. **Delete line on a job card** (and on the job page's order lines). Only lines with status `to_order` can be deleted. Ordered and received lines can't be; the confirm or error says to Undo ordered first.
+2. **Delete is a soft delete.** Nothing is erased:
+   - The line gets `deleted_at` (UTC ISO) and `deleted_by`.
+   - It disappears everywhere: job cards and their counts, the job page, All order lines, the supplier order list and its counts, Deliveries, `GET /api/orders` and the cards endpoint.
+   - It is audited (`order.delete` with job, supplier and description).
+3. **Delete card** works only when every non-cancelled, non-deleted line on the job is still `to_order`. Then it deletes them all (soft) in one transaction after a confirm naming the job and line count, and the card disappears. If any line is ordered or received, it refuses with a 409 saying so (e.g. "2 items on this card are already ordered or received"). The page then offers "Delete the N To order items instead", which deletes just those.
+
+### Lead's defaults (binding)
+
+- Access: `orders.edit` for deleting a line or a card. Every rule lives in `lib/orders.js`.
+- Data: a new migration `065_order_soft_delete.sql` (additive): `orders.deleted_at TEXT`, `orders.deleted_by INTEGER REFERENCES users(id)`. The status CHECK is not touched.
+- Deleting a job's last outstanding to_order line behaves exactly like cancelling it today (`markMaterialsOrdered` and `onAllOrdered`). Deleted lines count like cancelled ones in `allOrdered`. A deleted line can't be edited, ordered or received (409).
+- Restore (admins only): the All order lines tab's status filter gets a "Deleted" option, visible to `users.admin` only. It lists deleted lines with who and when, and a **Restore** button (`users.admin`). Restore clears `deleted_at`/`deleted_by`, audits `order.restore`, and puts the line back as to_order. If the job had become all-ordered because of the delete, that step stays done: invoices and hand-offs are not reversed.
+- Routes through `defineRoutes`: `POST /api/orders/:id/delete` (`orders.edit`); `POST /api/job-records/:id/orders/delete-card` with body `{onlyToOrder?: true}` (`orders.edit`); `POST /api/orders/:id/restore` (`users.admin`); `GET /api/orders?status=deleted` (`users.admin`, enforced in lib).
+- UI: the open job card gets a **Delete** text button on each To order line (`hs-btn-stop`); the card header gets **Delete card** (`hs-btn-stop`). Confirm dialogs in the existing house dialog style, no icons. After deleting a card, return to the cards list with a message.
+- Purchase orders: a deleted line can't be on a new PO (only to_order lines can be deleted and a PO only takes to_order lines). PO snapshots are untouched.
+- Smoke and docs: covered in the smokes; a short "Deleting items and cards" section in `docs/how-to-job-cards.md`.
+
+## New supplier order starts unticked (Todd 2026-11-18)
+
+On New supplier order every item starts unticked (0.2.22 ticked them all). The tick-all box starts unticked; "Mark N ordered" and Print list are disabled until at least one item is ticked, and the count reads "0 of N items"; changing the supplier resets every item to unticked; tick-all still ticks or unticks everything.
+
+## Lead's decisions on the build's open questions (2026-11-18, binding)
+
+- **PO link reflects the current ordered state.** A job card's PO link (an order line's `poId`/`poNumber`) shows a saved order only while the line's latest move to `ordered` came from that saved order. A line that was undone, or undone and then ordered singly, has no link. This is kept in a new additive migration **`066_order_po_link.sql`** (`orders.supplier_order_id`): `markOrderedMany` sets it, and a move back to To order, a cancel, or a single re-order clears it (received keeps it). The old order's detail still shows the line as "Undone since" (or "now on PO-n" via `laterPo`); `supplier_order_lines` keeps the history.
+- **One supplier per supplier order.** `markOrderedMany` refuses lines from more than one supplier with a 400, "A supplier order is for one supplier" (names compared trimmed, any case), before any write. The snapshot's supplier is the first item's.
+- The next migration after this release is **067**.

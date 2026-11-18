@@ -1,0 +1,37 @@
+/* Supplier orders tab (supplierorders.js), the "PO saved" message (supplierorder.js) and the PO
+   link on job cards (jobcards.js), 0.2.23 (docs/plans/purchase-orders-plan.md). Tokens from
+   tokens.css, hs- components from components.css; the table and panel frames reuse jobcards.css
+   (jc-). Classes here are prefixed po-. */
+
+/* the message after Mark ordered */
+.po-ok { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin: 0 0 18px; padding: 12px 16px; background: var(--teal-8); border: 1px solid var(--teal); border-radius: var(--r-card); color: var(--body); }
+.po-ok b { color: var(--white); }
+.po-ok > span { flex: 1 1 280px; min-width: 0; overflow-wrap: anywhere; }
+.po-push { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+
+.po-no { color: var(--teal-tint); font-weight: 700; white-space: nowrap; }
+.po-bigno { font-size: 18px; }
+.po-link, .po-link:visited { color: var(--teal-tint); font-weight: 700; text-decoration: none; }
+.po-link:hover { text-decoration: underline; }
+.po-undone { color: var(--orange-tint); font-size: 12px; }
+
+.po-list { margin-top: 0; }
+.po-table tbody tr.po-row { cursor: pointer; }
+.po-table tbody tr.po-row:hover, .po-table tbody tr.po-sel { background: var(--raised); }
+.po-table td.jc-sup { min-width: 110px; }
+.po-table td.jc-text { min-width: 90px; }
+
+.po-items tr.po-group td { background: var(--raised); color: var(--white); font-weight: 700; font-size: 13px; }
+.po-items tr.po-group .jc-jno { margin-right: 8px; font-size: 12px; }
+.po-items td.po-now { white-space: normal; }
+
+@media (max-width: 760px) {
+  .po-push { margin-left: 0; width: 100%; }
+  .po-push .hs-btn { flex: 1 1 auto; padding: 10px 12px; }
+  .po-table tbody tr.po-row { margin: 0 10px 10px; }
+  .po-table td.jc-acts { padding-top: 6px; }
+  .po-table td.jc-acts .hs-btn { width: 100%; }
+  .po-items tbody tr.po-group { margin: 12px 10px 6px; padding: 0; background: none; border: 0; }
+  .po-items tr.po-group td { display: block; padding: 8px 10px; background: var(--raised); border-radius: var(--r-callout); }
+  .po-items td.po-now { grid-template-columns: 90px minmax(0, 1fr); }
+}

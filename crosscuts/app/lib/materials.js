@@ -58,7 +58,7 @@ function requireJob(db, jobId) {
   return job;
 }
 
-const SELECT = `SELECT m.*, o.status AS order_status
+const SELECT = `SELECT m.*, CASE WHEN o.deleted_at IS NOT NULL THEN 'cancelled' ELSE o.status END AS order_status
                   FROM job_materials m LEFT JOIN orders o ON o.id = m.order_id`;
 
 // The line as the API shows it. `ordered` is true while its order line is not cancelled.

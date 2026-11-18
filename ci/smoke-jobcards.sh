@@ -350,8 +350,14 @@ req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":$JC_PART,\"orderedDate\
 expect_status 200 "ordr marks all but one line of job 1 ordered"
 expect_jq ".count == $((JC_J1_N - 1)) and .jobCount == 1 and (.orders | length) == $((JC_J1_N - 1))" "the count, the job count and the lines"
 expect_jq ".orders | all(.[]; .status == \"ordered\" and .orderedDate == \"$JC_YESTERDAY\" and .expectedDate == \"$JC_NEXTWEEK\")" "every line has the order and expected dates"
-expect_jq "[.orders[] | select(.id == $JC_Q2)][0].notes == \"existing note\\nRef: PO-4471\"" "the Ref is appended after existing notes on a new line"
-expect_jq "[.orders[] | select(.id == $JC_Q1)][0].notes == \"Ref: PO-4471\"" "a line with no notes gets just the Ref"
+# 0.2.23: every supplier order is a saved order (PO-NNNN); its number is the first part of the notes line.
+# The number isn't known in advance in a shared database, so it is read from the response.
+JC_PO=$(jqr '.supplierOrder.poNumber')
+[[ $JC_PO =~ ^PO-[0-9]{4,}$ ]] || fail "the response names the saved order (got '$JC_PO')"
+ok
+expect_jq ".supplierOrder.id | type == \"number\"" "the response carries the saved order's id"
+expect_jq "[.orders[] | select(.id == $JC_Q2)][0].notes == \"existing note\\n$JC_PO \\u00b7 Ref: PO-4471\"" "the PO number and Ref are appended after existing notes on a new line"
+expect_jq "[.orders[] | select(.id == $JC_Q1)][0].notes == \"$JC_PO \\u00b7 Ref: PO-4471\"" "a line with no notes gets just the PO number and Ref"
 expect_eq "$(jc_audit_total order.status "$JC_Q2")" "$((JC_AUD_Q2 + 1))" "one order.status audit row per line"
 expect_eq "$(jc_audit_total order.update "$JC_Q2")" "$((JC_AUDU_Q2 + 1))" "one order.update audit row for the expected date and notes"
 req GET "/api/audit?action=order.status&entityType=order&entityId=$JC_Q2&limit=1" "$ADMIN"
@@ -377,9 +383,20 @@ expect_jq "[.cards[] | select(.jobId == $JC_J1)] | length == 1 and .[0].toOrder 
 
 echo "--- mark ordered in bulk: two jobs at once, default date ---"
 # Job 2 has L1 (to order), L2 cancelled, L3 ordered singly, L4 (S_NEW); job 3 is archived with A1.
+# 0.2.23: one supplier order is for one supplier: L1 and A1 are $JC_S1, L4 is $JC_NEW.
 req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":[$JC_L1,$JC_L4,$JC_A1]}"
-expect_status 200 "ordr marks lines of two jobs (one archived)"
-expect_jq ".count == 3 and .jobCount == 2 and (.orders | all(.[]; .orderedDate == \"$JC_TODAY\"))" "the date defaults to today (Sydney); two jobs"
+expect_status 400 "a call that mixes suppliers is refused"
+expect_jq '.error == "A supplier order is for one supplier"' "with that sentence"
+req GET "/api/job-records/$JC_J2/orders" "$ADMIN"
+expect_jq "[.[] | select(.id == $JC_L1 or .id == $JC_L4)] | all(.[]; .status == \"to_order\")" "nothing was ordered by it"
+req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":[$JC_L1,$JC_A1]}"
+expect_status 200 "ordr marks lines of one supplier on two jobs (one archived)"
+expect_jq ".count == 2 and .jobCount == 2 and (.orders | all(.[]; .orderedDate == \"$JC_TODAY\"))" "the date defaults to today (Sydney); two jobs"
+req GET "/api/job-records/$JC_J2" "$ADMIN"
+expect_jq '.materialsOrderedDate == null' "job 2 still has a line to order"
+req POST /api/orders/mark-ordered "$ORDR" "{\"orderIds\":[$JC_L4]}"
+expect_status 200 "ordr marks the other supplier's line"
+expect_jq ".count == 1 and .jobCount == 1 and .orders[0].orderedDate == \"$JC_TODAY\"" "separately"
 req GET "/api/job-records/$JC_J2" "$ADMIN"
 expect_jq ".materialsOrderedDate == \"$JC_TODAY\"" "job 2's materials-ordered date is set when its last line goes"
 req GET "/api/invoices/job/$JC_J2" "$ADMIN"

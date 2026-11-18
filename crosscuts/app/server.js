@@ -25,8 +25,9 @@ app.use((err, req, res, next) => {
 });
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 // 0.2.13: the headless browser that prints an invoice PDF gets its one page in here, before the login
-// gate, on a single-use loopback token (lib/invoicepdf.js).
-app.use(require("./lib/invoicepdf").middleware(require("./db")));
+// gate, on a single-use loopback token bound to the kind and id (lib/pdfrender.js); 0.2.23: the same gate
+// serves the purchase order page (/orderprint.html?mode=po) to the PDF maker.
+app.use(require("./lib/pdfrender").middleware(require("./db")));
 app.use(auth.originCheck);
 app.use(auth.authenticate);
 app.use(auth.pageGate);
@@ -71,6 +72,8 @@ const routers = [
   require("./routes/notifications"),
   require("./routes/settings"),
   require("./routes/orders"),
+  // 0.2.23: saved supplier orders (purchase orders) and their frozen PDF (docs/plans/purchase-orders-plan.md).
+  require("./routes/supplierorders"),
   require("./routes/inspections"),
   require("./routes/people"),
   require("./routes/files"),

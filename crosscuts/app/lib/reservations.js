@@ -113,7 +113,7 @@ function forJob(db, req, jobId) {
     .prepare(
       `SELECT o.id AS order_id, o.status, o.description, o.supplier, m.id AS material_id, m.section, m.name, m.qty, m.unit
          FROM orders o JOIN job_materials m ON m.order_id = o.id
-        WHERE o.job_id = ? AND o.status <> 'cancelled' AND m.removed_at IS NULL AND m.section IN ('boards', 'edging')
+        WHERE o.job_id = ? AND o.status <> 'cancelled' AND o.deleted_at IS NULL AND m.removed_at IS NULL AND m.section IN ('boards', 'edging')
         ORDER BY m.section, m.position, m.id`
     )
     .all(jobId);
@@ -163,6 +163,7 @@ function reserve(db, req, jobId, body) {
       .get(b.orderId, jobId);
     if (!line) throw bad("That order line isn't on this job");
     if (!line.material_id || !SECTIONS.includes(line.section)) throw bad("Only a boards or edging line of the order list can be reserved from stock");
+    if (line.deleted_at) throw conflict("This item was deleted");
     if (line.status !== "to_order") throw conflict("That line is no longer to order");
     if (covers && db.prepare("SELECT 1 FROM stock_reservations WHERE order_id = ? AND covers = 1 AND status IN ('reserved','confirmed','cut')").get(line.id)) {
       throw conflict("That line is already wholly reserved from stock");

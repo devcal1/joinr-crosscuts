@@ -673,6 +673,8 @@
     { id: "undoOrdered", label: "Undo ordered", next: ["markOrdered", "edit"] },
     { id: "undoReceived", label: "Undo received", dialog: true, next: ["receive", "note", "edit"] },
     { id: "cancel", label: "Cancel", aria: "Cancel line", next: [] },
+    // 0.2.23: a soft delete of a To order line (orders.edit); the server refuses anything ordered or received.
+    { id: "delete", label: "Delete", aria: "Delete line", danger: true, next: [] },
   ];
   const ORDER_ACT = Object.fromEntries(ORDER_ACTS.map((a) => [a.id, a]));
 
@@ -782,12 +784,14 @@
         const may = window.OrderUI ? window.OrderUI.actions(o) : {};
         const box = el("div", { class: "jo-oacts" });
         for (const a of ORDER_ACTS) {
-          if (!may[a.id]) continue;
+          if (a.id === "delete") {
+            if (o.status !== "to_order" || !can("orders.edit")) continue;
+          } else if (!may[a.id]) continue;
           // A drawer line is ordered from the Drawer order page only (m11-contracts section 5.2).
           if (a.id === "markOrdered" && o.kind === "drawers") continue;
           box.append(el("button", {
             type: "button",
-            class: "hs-btn" + (a.primary ? " hs-btn-primary" : ""),
+            class: "hs-btn" + (a.primary ? " hs-btn-primary" : "") + (a.danger ? " hs-btn-stop" : ""),
             "data-act": a.id,
             "data-id": String(o.id),
             "aria-label": (a.aria || a.label) + ": " + orderLineName(o),
@@ -882,6 +886,7 @@
       case "undoReceived": return "Back to ordered: " + name + ".";
       case "edit": return "Saved: " + name + ".";
       case "cancel": return "Line cancelled: " + name + ".";
+      case "delete": return "Line deleted: " + name + ".";
       default: return "Saved.";
     }
   }
@@ -917,11 +922,18 @@
             return;
           }
         }
+        if (act === "delete") {
+          const ok = await confirmDialog("Delete this order line?", orderLineName(o) + ". It is removed from the job and the Orders page. Only an administrator can restore it.", "Delete line", "Keep line");
+          if (!ok) {
+            if (opener && opener.isConnected) opener.focus();
+            return;
+          }
+        }
         for (const b of $("ordersBody").querySelectorAll("button")) b.disabled = true;
         setLine(status, "Saving...", "muted");
         try {
-          r = act === "cancel"
-            ? await api("/api/orders/" + encodeURIComponent(o.id) + "/cancel", { method: "POST", body: "{}" })
+          r = act === "cancel" || act === "delete"
+            ? await api("/api/orders/" + encodeURIComponent(o.id) + "/" + act, { method: "POST", body: "{}" })
             : await api("/api/orders/" + encodeURIComponent(o.id), {
               method: "PATCH",
               body: JSON.stringify({ status: act === "markOrdered" ? "ordered" : "to_order" }),

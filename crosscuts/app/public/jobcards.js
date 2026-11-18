@@ -8,7 +8,7 @@
   "use strict";
   const P = window.OrdersPage;
   if (!P) return;
-  const { el, can, fmtDate, ORDER_STATUS } = P;
+  const { el, can, fmtDate, ORDER_STATUS, confirmDialog } = P;
   const $ = (id) => document.getElementById(id);
   const QTY_SENTENCE = "Quantity must be a number above 0 and up to 99999, with at most 2 decimals";
 
@@ -516,6 +516,19 @@
     return cell(label, "jc-date" + (extra ? " " + extra : ""), iso ? document.createTextNode(fmtDate(iso)) : dash());
   }
 
+  // 0.2.23: the saved order this line is on (its latest), as a link that opens it. None: blank.
+  function poCell(o) {
+    if (!o.poId || !o.poNumber) return cell("Order", "jc-blank", dash());
+    const a = el("a", { class: "po-link", href: "/orders.html?po=" + encodeURIComponent(o.poId), text: o.poNumber });
+    a.addEventListener("click", (e) => {
+      if (!window.SupplierOrders || e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;
+      e.preventDefault();
+      P.showView("pos");
+      window.SupplierOrders.open(o.poId);
+    });
+    return cell("Order", "jc-date", a);
+  }
+
   function renderPanel() {
     if (!open) {
       panelEl.hidden = true;
@@ -532,6 +545,7 @@
     }
     const buttons = el("div", { class: "jc-pbtns" });
     if (mayEdit) buttons.append(el("button", { type: "button", class: "hs-btn hs-btn-primary", "data-jc": "add", text: "Add items" }));
+    if (mayEdit) buttons.append(el("button", { type: "button", class: "hs-btn hs-btn-stop", "data-jc": "delcard", text: "Delete card" }));
     buttons.append(
       el("button", { type: "button", class: "hs-btn", "data-jc": "print", text: "Print card" }),
       el("button", { type: "button", class: "hs-btn hs-btn-quiet", "data-jc": "close", text: "Close" })
@@ -560,6 +574,8 @@
         const may = window.OrderUI.actions(o);
         const act = cell("", "jc-acts");
         if (may.edit) act.append(el("button", { type: "button", class: "hs-btn hs-btn-quiet", "data-act": "edit", "data-id": String(o.id), "aria-label": "Edit: " + lineName(o), text: "Edit" }));
+        // 0.2.23: a To order line can be deleted (soft; the server refuses anything ordered or received).
+        if (mayEdit && o.status === "to_order") act.append(el("button", { type: "button", class: "hs-btn hs-btn-stop", "data-act": "delete", "data-id": String(o.id), "aria-label": "Delete line: " + lineName(o), text: "Delete" }));
         if (!act.childElementCount) act.classList.add("jc-blank");
         tb.append(el(
           "tr",
@@ -569,6 +585,7 @@
           cell("Qty", "jc-num" + (o.quantity == null ? " jc-blank" : ""), document.createTextNode(qtyText(o.quantity))),
           cell("Status", "", el("span", { class: "hs-badge " + badge, text: label })),
           dateCell("Ordered", o.orderedDate),
+          poCell(o),
           exp,
           dateCell("Received", o.receivedDate),
           notes,
@@ -581,7 +598,7 @@
         el(
           "table",
           { class: "hs-table jc-table" },
-          el("thead", {}, el("tr", {}, ...["Supplier", "Hardware", "Qty", "Status", "Ordered", "Expected", "Received", "Notes", ""].map((h) =>
+          el("thead", {}, el("tr", {}, ...["Supplier", "Hardware", "Qty", "Status", "Ordered", "Order", "Expected", "Received", "Notes", ""].map((h) =>
             el("th", { scope: "col", class: h === "Qty" ? "jc-num" : null }, h ? h : el("span", { class: "jc-sr", text: "Actions" }))))),
           tb
         )
@@ -642,6 +659,98 @@
     if (n) n.focus();
   }
 
+  // 0.2.23: delete a To order line, or the whole card (every line still To order). Soft deletes on
+  // the server (lib/orders.js), which decides; the confirm names what goes.
+  function jobTitle(j) {
+    return (j.jobNumber ? j.jobNumber + " " : "") + (j.name || "");
+  }
+
+  async function deleteLine(b) {
+    if (editing) return;
+    const id = Number(b.getAttribute("data-id"));
+    const line = (panelLines || []).find((l) => l.id === id);
+    if (!line) return;
+    editing = true;
+    try {
+      const ok = await confirmDialog("Delete this order line?", lineName(line) + ". It is removed from the job card and the job. Only an administrator can restore it.", "Delete line", "Keep line");
+      if (!ok) return;
+      for (const n of panelEl.querySelectorAll("button")) n.disabled = true;
+      try {
+        await api("/api/orders/" + encodeURIComponent(id) + "/delete", { method: "POST", body: "{}" });
+      } catch (e) {
+        setMessage(fail(e), "err");
+        await Promise.all([loadPanelLines(), loadCards()]);
+        return;
+      }
+      setMessage("Deleted: " + lineName(line) + ".", "ok");
+      await Promise.all([loadPanelLines(), loadCards()]);
+      P.reloadLines();
+      const first = panelEl.querySelector("button[data-act]");
+      if (first) first.focus();
+      else {
+        const h = $("jcPTitle");
+        if (h) h.focus({ preventScroll: true });
+      }
+    } finally {
+      editing = false;
+      renderPanel();
+    }
+  }
+
+  async function deleteCard(b) {
+    if (editing || !open || !panelLines) return;
+    const job = open;
+    const toOrder = panelLines.filter((l) => l.status === "to_order").length;
+    editing = true;
+    try {
+      const title = jobTitle(job);
+      const ok = await confirmDialog(
+        "Delete this card?",
+        (panelLines.length === 1
+          ? "The 1 item on the card for " + title + " will be deleted. Only an administrator can restore it."
+          : "All " + panelLines.length + " items on the card for " + title + " will be deleted. Only an administrator can restore them."),
+        "Delete card",
+        "Keep card"
+      );
+      if (!ok) return;
+      let onlyToOrder = false;
+      let r;
+      for (;;) {
+        try {
+          r = await api("/api/job-records/" + encodeURIComponent(job.jobId) + "/orders/delete-card", { method: "POST", body: JSON.stringify(onlyToOrder ? { onlyToOrder: true } : {}) });
+          break;
+        } catch (e) {
+          if (onlyToOrder || e instanceof TypeError || toOrder < 1) {
+            setMessage(fail(e), "err");
+            return;
+          }
+          const again = await confirmDialog(
+            e.message,
+            "Undo ordered first on those items to delete the whole card, or delete only the items still to order.",
+            "Delete the " + toOrder + " To order " + (toOrder === 1 ? "item" : "items") + " instead",
+            "Keep card"
+          );
+          if (!again) {
+            setMessage(e.message, "err");
+            return;
+          }
+          onlyToOrder = true;
+        }
+      }
+      const count = r && Number.isFinite(r.count) ? r.count : onlyToOrder ? toOrder : panelLines.length;
+      setMessage("Deleted " + count + (count === 1 ? " item" : " items") + " from " + title + ".", "ok");
+      open = null;
+      panelLines = null;
+      renderPanel();
+      await loadCards();
+      P.reloadLines();
+      const h = $("jcCount");
+      if (h) h.scrollIntoView({ block: "start" });
+    } finally {
+      editing = false;
+    }
+  }
+
   // The card's buttons and its Edit.
   panelEl.addEventListener("click", async (e) => {
     const b = e.target.closest && e.target.closest("button");
@@ -656,6 +765,8 @@
       addItemsFlow(open);
       return;
     }
+    if (jc === "delcard") return deleteCard(b);
+    if (b.getAttribute("data-act") === "delete") return deleteLine(b);
     if (b.getAttribute("data-act") === "edit") {
       if (editing) return;
       const id = Number(b.getAttribute("data-id"));
