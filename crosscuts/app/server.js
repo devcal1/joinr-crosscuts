@@ -71,6 +71,8 @@ const routers = [
   require("./routes/notifications"),
   require("./routes/settings"),
   require("./routes/orders"),
+  // 0.2.23: saved supplier orders (purchase orders) and their frozen PDF (docs/plans/purchase-orders-plan.md).
+  require("./routes/supplierorders"),
   require("./routes/inspections"),
   require("./routes/people"),
   require("./routes/files"),
