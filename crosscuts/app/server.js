@@ -49,6 +49,12 @@ app.use(
 );
 // 0.2.0 (Todd, 2026-10-24): the Projects dashboard now sits under the Projects notes wall.
 app.get("/design.html", (req, res) => res.redirect(302, "/notes.html?dept=design"));
+// 0.2.24: Intake moved to the foot of the Projects page. Old alerts and links keep working:
+// /intake.html?item=N lands on that card (the page gate above has already refused anyone without design.view).
+app.get("/intake.html", (req, res) => {
+  const item = /^\d{1,9}$/.test(String(req.query.item || "")) ? "&item=" + req.query.item : "";
+  res.redirect(302, "/notes.html?dept=design" + item + "#intake");
+});
 app.use(express.static(path.join(__dirname, "public")));
 
 // Each router module is a defineRoutes() router and carries its own prefix.

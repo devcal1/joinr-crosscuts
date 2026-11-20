@@ -7,6 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="notes.css">
+<link rel="stylesheet" href="intake.css">
   <script src="/shell/busy.js"></script>
 </head>
 <body class="nt-body">
@@ -118,25 +119,19 @@
       </div>
     </section>
 
-    <!-- The Projects dashboard (0.2.0, Todd 2026-10-24): only on ?dept=design and only with
-         design.view; projectsdash.js shows it. House style, not the notes paper. -->
-    <section id="pjDash" class="pj-dash" aria-labelledby="pjNowH" hidden>
-      <div class="hs-sectionbar"><h2 id="pjNowH">Available now</h2></div>
-      <div class="pj-tiles">
-        <article class="pj-tile hs-card" id="joinrTile">
-          <h3 class="pj-tile-title">New from Joinr</h3>
-          <p class="pj-tile-text">Quotes won in Joinr become jobs by themselves. This page shows the history and any quote waiting for a person.</p>
-          <p class="pj-tile-stat" id="joinrStat" hidden></p>
-          <div class="pj-tile-links"><a class="hs-btn hs-btn-primary" href="/intake.html">Open New from Joinr</a></div>
-        </article>
-        <article class="pj-tile hs-card" id="stoneTile">
-          <h3 class="pj-tile-title">Benchtops</h3>
-          <p class="pj-tile-text">Stone benchtop orders still to send: drafts, changes not yet sent, and their installs coming up.</p>
-          <p class="pj-tile-stat" id="stoneStat" hidden></p>
-          <p class="pj-tile-stat" id="stoneSoon" hidden></p>
-          <div class="pj-tile-links"><a class="hs-btn hs-btn-primary" href="/stone.html">Open Benchtops</a></div>
-        </article>
+    <!-- Intake (0.2.24, docs/plans/badges-plan.md section 1): the won Joinr quotes that need a person.
+         Only on ?dept=design and only with design.view; intake.js shows it. It was intake.html. -->
+    <section id="intake" class="pj-dash" aria-labelledby="inH" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="inH">Intake</h2>
+        <button id="in-syncBtn" class="hs-btn" type="button" hidden>Sync now</button>
       </div>
+      <p class="in-intro">Quotes won in Joinr become jobs by themselves. Only the exceptions wait here.</p>
+      <p id="in-syncLine" class="in-sync-line" role="status" aria-live="polite">Checking...</p>
+      <div id="in-tabs" class="in-tabs" role="group" aria-label="Show"></div>
+      <p id="in-message" class="in-message" role="status" aria-live="polite"></p>
+      <div id="in-list" class="in-list"></div>
+      <div id="in-empty" class="in-empty" hidden></div>
     </section>
   </main>
 
@@ -144,6 +139,7 @@
   <script src="notes.js"></script>
   <script src="/shell/shell.js"></script>
   <script src="projectsdash.js"></script>
+  <script src="intake.js"></script>
   <script src="schedulingdash.js"></script>
   <script src="morningcheck.js"></script>
 </body>

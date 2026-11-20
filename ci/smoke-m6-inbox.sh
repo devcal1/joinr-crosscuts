@@ -87,9 +87,17 @@ for pair in "SHOW:$SHOW" "SCHED:$SCHED" "ACCT:$ACCT"; do
   expect_status 403 "$who GET /intake.html"
 done
 req GET /intake.html "$DPM"
-expect_status 200 "dpm GET /intake.html"
-case $BODY in *"New from Joinr"*) ok ;; *) fail "/intake.html has no 'New from Joinr' title" ;; esac
-case $BODY in *"two or more jobs have it"*) ok ;; *) fail "/intake.html does not explain the two-or-more-jobs case" ;; esac
+expect_status 302 "dpm GET /intake.html redirects (0.2.24: Intake moved to the Projects page)"
+case $(hdr location) in "/notes.html?dept=design#intake") ok ;; *) fail "/intake.html redirects to '$(hdr location)'" ;; esac
+req GET "/intake.html?item=5" "$DPM"
+expect_status 302 "dpm GET /intake.html?item=5 redirects"
+case $(hdr location) in "/notes.html?dept=design&item=5#intake") ok ;; *) fail "/intake.html?item=5 redirects to '$(hdr location)'" ;; esac
+req GET "/intake.html?item=5x" "$DPM"
+case $(hdr location) in "/notes.html?dept=design#intake") ok ;; *) fail "a non-numeric item is dropped, got '$(hdr location)'" ;; esac
+req GET "/notes.html?dept=design" "$DPM"
+expect_status 200 "dpm GET the Projects page"
+case $BODY in *'id="in-syncBtn"'*) ok ;; *) fail "the Projects page has no Intake section" ;; esac
+case $BODY in *"Only the exceptions wait here"*) ok ;; *) fail "the Intake section has no one-line intro" ;; esac
 req GET /api/joinr/job/1 "$SHOW"
 expect_status 403 "show GET /api/joinr/job/:id"
 req GET /api/joinr/intake

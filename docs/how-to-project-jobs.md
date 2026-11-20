@@ -4,7 +4,7 @@ A won job comes to Projects with one owner. The owner pins down the colours, fin
 
 ## Give the job an owner
 
-- **When you accept it from Joinr:** on Projects > Intake, pick the owner beside **Accept**, then click Accept. You can leave it as "No owner yet" and set it later.
+- **When you accept it from Joinr:** in the Intake section at the foot of the Projects page, pick the owner beside **Accept**, then click Accept. You can leave it as "No owner yet" and set it later.
 - **Later:** open the job. Under the name, **Project owner** has a picker. Choose a name or "No owner".
 
 Anyone with Projects access can be the owner. Admins can set the owner, and so can anyone who edits jobs and has Projects access.

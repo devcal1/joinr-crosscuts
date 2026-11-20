@@ -1,26 +1,11 @@
-/* New from Joinr (intake.html): the inbox of won quotes. Tokens come from tokens.css, hs-
+/* Intake (the section at the foot of notes.html?dept=design; it was intake.html): the inbox of won quotes. Tokens come from tokens.css, hs-
    components from components.css, and the dialog frame from the shell's cc-dialog. Page
    classes here are prefixed in-. */
-html, body { margin: 0; min-height: 100%; background: var(--ink); }
+#intake a { color: var(--teal-tint); text-decoration: none; }
+#intake a:hover { text-decoration: underline; }
+#intake a.hs-btn:hover { text-decoration: none; }
 
-body {
-  color: var(--body);
-  font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.5;
-}
-[hidden] { display: none !important; }
-
-a { color: var(--teal-tint); text-decoration: none; }
-a:hover { text-decoration: underline; }
-a.hs-btn:hover { text-decoration: none; }
-
-.in-page { max-width: 1000px; margin: 0 auto; padding: 22px 16px 48px; }
-.in-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
-.in-head h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 700; color: var(--white); }
-
-.in-sync { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 14px; }
-.in-sync-line { margin: 0; flex: 1 1 auto; color: var(--label); }
+.in-sync-line { margin: 0 0 14px; color: var(--label); }
 .in-sync-line .in-err { color: var(--orange-tint); }
 
 .in-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -71,7 +56,6 @@ a.hs-btn:hover { text-decoration: none; }
 .cc-dialog.in-dialog { width: min(94vw, 460px); }
 
 @media (max-width: 640px) {
-  .in-head h1 { font-size: 20px; }
   .in-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .in-fact-wide { grid-column: 1 / -1; }
   .in-acts .hs-btn, .in-linkbox .hs-btn { flex: 1 1 auto; }
