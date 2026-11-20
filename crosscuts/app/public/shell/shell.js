@@ -776,10 +776,11 @@
     "job.unassigned": "meta",
   };
   function sectionOf(row) {
+    var k = row.kind || "", p = linkParts(row.link).path;
+    // An Intake link is the Intake section whatever its kind (joinr-sync uses several kinds).
+    if (p === "/intake.html") return "intake";
     var s = KIND_SECTION[row.kind];
     if (s) return s;
-    var k = row.kind || "", p = linkParts(row.link).path;
-    if (p === "/intake.html") return "intake";
     if (/^invoice\./.test(k) && p === "/job.html") return "invoices";
     if (/^task\./.test(k)) return "tasks";
     return "";
@@ -803,12 +804,28 @@
   }
   // The keys that count as "this page". On the Projects landing page an Intake card opened by
   // ?item=N is also where the old /intake.html?item=N alerts point.
+  // The page as opened (busy.js keeps it before page scripts rewrite the address) and as it is now.
   function hereKeys() {
-    var here = linkParts(location.pathname + location.search);
-    var keys = [here.key];
-    var item = here.params.get("item");
-    if (here.path === "/notes.html" && here.params.get("dept") === "design" && item) keys.push(linkParts("/intake.html?item=" + item).key);
+    var keys = [];
+    [window.ccLandingUrl, location.pathname + location.search].forEach(function (u) {
+      if (!u) return;
+      var k = linkParts(u).key;
+      if (keys.indexOf(k) < 0) keys.push(k);
+    });
     return keys;
+  }
+  // The Projects landing page holds Intake (0.2.24), so every Intake alert is "here" on it.
+  function onProjectsHome() {
+    return [window.ccLandingUrl, location.pathname + location.search].some(function (u) {
+      if (!u) return false;
+      var p = linkParts(u);
+      return p.path === "/notes.html" && p.params.get("dept") === "design";
+    });
+  }
+  function isHere(link, keys) {
+    var p = linkParts(link);
+    if (keys.indexOf(p.key) >= 0) return true;
+    return p.path === "/intake.html" && onProjectsHome();
   }
   function discEl() {
     return h("span", { class: "cc-new", hidden: true, "aria-hidden": "true", text: "0" });
@@ -851,7 +868,7 @@
   function drawBadges() {
     var all = visibleRows();
     var keys = hereKeys();
-    var pageRows = all.filter(function (r) { return keys.indexOf(linkParts(r.link).key) >= 0; });
+    var pageRows = all.filter(function (r) { return isHere(r.link, keys); });
     // Section headings.
     Array.prototype.forEach.call(document.querySelectorAll("[data-cc-badge]"), function (el) {
       var section = el.getAttribute("data-cc-badge");
@@ -912,7 +929,7 @@
         if (!r.ok) return;
         var rows = Array.isArray(r.body.rows) ? r.body.rows : [];
         var keys = hereKeys();
-        var fresh = rows.filter(function (x) { return !badges.seen[x.id] && keys.indexOf(linkParts(x.link).key) >= 0; });
+        var fresh = rows.filter(function (x) { return !badges.seen[x.id] && isHere(x.link, keys); });
         fresh.forEach(function (x) { badges.seen[x.id] = x; });
         badges.rows = rows.filter(function (x) { return !badges.seen[x.id]; });
         badges.loaded = true;

@@ -27,6 +27,9 @@
 // Nothing here changes layout, print or exportJpg(): the cursor is not drawn in any of them.
 (function () {
   "use strict";
+  // 0.2.24: the address the page was opened at, before any page script rewrites it with
+  // history.replaceState (notes.js does). The red badges (shell.js) clear alerts that point here.
+  try { if (!window.ccLandingUrl) window.ccLandingUrl = location.pathname + location.search; } catch (e) { /* ignore */ }
   if (window.ccBusy) return;
 
   var SAFETY_MS = 20000;   // busy can never stick longer than this
