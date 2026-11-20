@@ -1847,7 +1847,7 @@
     for (const t of rows) {
       const open = t.status === "open";
       const openIt = () => openTaskDialog(t.id);
-      const title = el("button", { type: "button", class: "jo-linkbtn", text: t.title });
+      const title = el("button", { type: "button", class: "jo-linkbtn", "data-cc-badge-link": `/tasks.html?task=${t.id}`, text: t.title });
       title.addEventListener("click", (ev) => {
         ev.stopPropagation();
         openIt();
@@ -1874,6 +1874,7 @@
     }
     table.append(tb);
     $("tasksBody").replaceChildren(tableWrap(table));
+    if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
   }
 
   async function loadTasks() {
