@@ -267,6 +267,32 @@
   line-height: 1;
   text-align: center;
 }
+/* The red "new" disc (0.2.24, the ninth named exception in CLAUDE.md): a solid red count, white
+   bold, no shadow. Only the shell sets it, on the menu, the bell, section headings, list rows and
+   job tabs. It means "new for you here"; red otherwise stays for overdue and destructive. */
+.cc-new {
+  --cc-new-bg: var(--stop);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 6px;
+  border-radius: 8px;
+  background: var(--cc-new-bg);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+  vertical-align: 2px;
+}
+.cc-new[hidden] { display: none; }
+@media print { .cc-new { display: none; } }
 /* M4: Tasks and Messages are links with the same badge; orange when a task is overdue. */
 .cc-count { text-decoration: none; }
 .cc-count[aria-current="page"] { border-color: var(--teal); color: var(--teal-tint); }

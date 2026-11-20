@@ -237,3 +237,67 @@ expect_eq "$(db_value "SELECT value FROM app_settings WHERE key = 'roundup.last_
 expect_eq "$(should_run "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$N_LAST_RUN")" "null" "nothing is due after the restart"
 expect_eq "$(roundup_count "$ADMIN")" "$N_ROUNDUP_ADMIN_BEFORE" "no new round-up for admin after the restart"
 expect_eq "$(roundup_count "$ACCT")" "$N_ROUNDUP_ACCT_BEFORE" "no new round-up for acct after the restart"
+
+# ============================================================================
+step "m2-b. red badges: unread-places and read-link (0.2.24)"
+# ============================================================================
+# docs/plans/badges-plan.md section 2. Rows are inserted straight into the live database for the
+# admin and acct users (the links use job ids nothing else uses), then read back through the API.
+
+req GET /api/auth/me "$ADMIN"
+expect_status 200 "badges: me as admin"
+BG_ADMIN_ID=$(jqr '.user.id')
+req GET /api/auth/me "$ACCT"
+expect_status 200 "badges: me as acct"
+BG_ACCT_ID=$(jqr '.user.id')
+
+docker exec "$CONTAINER" node -e '
+const D = require("better-sqlite3");
+const d = new D("/data/db/photos.db");
+const ins = d.prepare("INSERT INTO notifications (user_id, kind, title, body, link) VALUES (?, ?, ?, ?, ?)");
+const [admin, acct] = [Number(process.argv[1]), Number(process.argv[2])];
+ins.run(admin, "job.issue", "BG issue", "", "/job.html?id=9001#issues");
+ins.run(admin, "comment.new", "BG comment", "", "/job.html?id=9001#comments");
+ins.run(admin, "job.issue", "BG other job", "", "/job.html?id=9002#issues");
+ins.run(acct, "job.issue", "BG acct issue", "", "/job.html?id=9001#issues");
+' "$BG_ADMIN_ID" "$BG_ACCT_ID"
+
+bg_count() { # jar, regex on the link -> how many unread-places rows match
+  req GET /api/notifications/unread-places "$1"
+  expect_status 200 "GET /api/notifications/unread-places"
+  jqr "[.rows[] | select(.link | test(\"$2\"))] | length"
+}
+
+echo "--- unread-places: own rows only ---"
+req GET /api/notifications/unread-places "$ADMIN"
+expect_status 200 "admin GET unread-places"
+expect_jq '.rows | type == "array" and length <= 500 and all(.[]; has("id") and has("kind") and has("link"))' "rows are {id, kind, link}"
+expect_eq "$(bg_count "$ADMIN" 'id=900[12]')" "3" "admin sees his three badge rows"
+expect_eq "$(bg_count "$ACCT" 'id=900[12]')" "1" "acct sees only its own badge row"
+req GET /api/notifications/unread-places
+expect_status 401 "unread-places needs a login"
+
+echo "--- read-link: exact link, own rows, hash ignored ---"
+req POST /api/notifications/read-link "$ADMIN" '{}'
+expect_status 400 "read-link without a link"
+req POST /api/notifications/read-link "$ADMIN" '{"link":5}'
+expect_status 400 "read-link with a non-string link"
+req POST /api/notifications/read-link "$ADMIN" '{"link":"https://example.com/job.html?id=9001"}'
+expect_status 400 "read-link with an absolute URL"
+req POST /api/notifications/read-link "$ADMIN" '{"link":"//example.com/x"}'
+expect_status 400 "read-link with a protocol-relative URL"
+req POST /api/notifications/read-link "$ADMIN" '{"link":"/job.html?id=900"}'
+expect_status 204 "read-link with a link that only prefixes"
+expect_eq "$(bg_count "$ADMIN" 'id=900[12]')" "3" "a prefix of the link marked nothing"
+req POST /api/notifications/read-link "$ADMIN" '{"link":"/job.html?id=9001#orders"}'
+expect_status 204 "read-link for job 9001 (a different hash)"
+expect_eq "$(bg_count "$ADMIN" 'id=9001')" "0" "admin's two 9001 rows are read"
+expect_eq "$(bg_count "$ADMIN" 'id=9002')" "1" "the other job's row is still unread"
+expect_eq "$(bg_count "$ACCT" 'id=9001')" "1" "acct's row with the same link is untouched"
+req GET "/api/notifications?limit=100" "$ADMIN"
+expect_jq '[.rows[] | select(.title == "BG issue")] | .[0].readAt != null' "the read row carries a read time in the bell list"
+
+echo "--- the routes are declared with an access value ---"
+req GET /api/meta/routes "$ADMIN"
+expect_status 200 "GET /api/meta/routes"
+expect_jq '[.[] | select((.fullPath // "") | test("notifications/(unread-places|read-link)$")) | select(.access == "login")] | length == 2' "unread-places and read-link are declared with access login"

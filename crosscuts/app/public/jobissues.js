@@ -71,6 +71,7 @@
     const open = d.issues.filter((i) => i.status === "open").length;
     const h = document.getElementById("issues-h");
     if (h) h.textContent = open ? `Issues (${open} open)` : "Issues";
+    if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges(); // the heading text was replaced
     list.replaceChildren(...d.issues.map(item));
     if (!d.issues.length) list.append(el("li", { class: "muted", text: "No issues raised." }));
     sec.hidden = false;

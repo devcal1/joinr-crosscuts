@@ -127,6 +127,9 @@
   const fromHash = tabOf(hashId());
   const saved = store(true);
   select(fromHash || (saved && tabs.has(saved) ? saved : "overview"));
+  // The tab buttons exist now: the shell puts the red new-count discs on them (0.2.24).
+  if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
+  else document.addEventListener("cc:ready", () => window.cc.refreshBadges && window.cc.refreshBadges(), { once: true });
 
   window.addEventListener("hashchange", () => {
     const id = hashId();

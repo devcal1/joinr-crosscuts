@@ -205,7 +205,7 @@
       el(
         "div",
         { class: "in-card-head" },
-        el("span", { class: "in-qn", text: it.quoteNumber || "No quote number" }),
+        el("span", { class: "in-qn", "data-cc-badge-link": "/intake.html?item=" + it.id, text: it.quoteNumber || "No quote number" }),
         el("span", { class: "in-site", text: q.siteAddress || q.label || q.clientName || "" }),
         badges
       )
@@ -309,6 +309,7 @@
     emptyEl.hidden = rows.length > 0;
     if (!rows.length) emptyEl.textContent = EMPTY[view] || "Nothing to show.";
     for (const it of rows) listEl.append(buildCard(it));
+    if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
     if (highlight != null) {
       const card = document.getElementById("item-" + highlight);
       if (card) {

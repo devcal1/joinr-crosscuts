@@ -183,13 +183,14 @@
       const a = el("a", { href: "/job.html?id=" + j.id, "data-id": String(j.id) },
         el("span", { class: "jd-rowtop" },
           j.jobNumber ? el("span", { class: "jd-rowno", text: j.jobNumber }) : null,
-          el("span", { class: "jd-rowname", text: j.name })),
+          el("span", { class: "jd-rowname", "data-cc-badge-link": "/job.html?id=" + j.id, text: j.name })),
         el("span", { class: "jd-rowstage" + (ATTEND.has(st) ? " is-attend" : ""), text: (STAGE_LABEL[st] || "No stage") + (j.boardOrdering ? " (ordering)" : "") }));
       if (open) a.setAttribute("aria-current", "page");
       li.append(a);
       return li;
     }));
     countEl.textContent = `${jobs.length} job${jobs.length === 1 ? "" : "s"}`;
+    if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
     if (pendingScroll != null) {
       listEl.scrollTop = pendingScroll;
       pendingScroll = null;
