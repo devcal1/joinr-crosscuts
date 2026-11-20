@@ -47,7 +47,6 @@
       items: [
         { label: "Jobs", href: "/jobs.html", key: "jobs.view" },
         { label: "Pipeline", href: "/pipeline.html", key: "jobs.view" },
-        { label: "Intake", href: "/intake.html", key: "design.view" },
         // M12 (docs/plans/m12-contracts.md section 8).
         { label: "Benchtops", href: "/stone.html", key: "design.view" },
         // 2026-10-18 (Todd): the tools page holds the batten calculator (and later tools).

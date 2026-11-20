@@ -131,6 +131,10 @@ function present(db, user, row, today) {
     following,
     canEdit: row.status === "open",
     recurring,
+    // 0.2.24: see lib/tasks.js present().
+    maintenance: !!db
+      .prepare("SELECT 1 FROM recurring_occurrences o JOIN recurring_tasks r ON r.id = o.recurring_id WHERE o.task_id = ? AND r.kind = 'maintenance'")
+      .get(row.id),
   };
 }
 
@@ -375,7 +379,10 @@ function setStatus(db, req, id, action) {
       if (row.status !== "done") throw conflict("Only a finished task can be reopened");
       db.prepare(`UPDATE ${tableOf(id)} SET status = 'open', done_at = NULL, done_by = NULL, updated_at = ? WHERE id = ?`).run(ts, id);
       audit.log(req, { action: "task.reopen", entityType: "task", entityId: id, before: { status: "done" }, after: { status: "open", team: row.team } });
-      notify.toUsers(
+      if (notify.isQuickUndo(row, user)) {
+        // 0.2.24: undone within a minute by the person who finished it: take back the creator's unread alert, send no "reopened".
+        if (row.created_by != null) notify.retractUnread(db, row.created_by, "task.done", "task", id);
+      } else notify.toUsers(
         db,
         memberIds(db, row.team),
         {

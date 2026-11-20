@@ -1,7 +1,13 @@
-// New from Joinr: the inbox of won quotes. Talks to /api/joinr (routes/joinr.js,
+// Intake: the inbox of won quotes, the section at the foot of the Projects page (notes.html?dept=design;
+// 0.2.24, docs/plans/badges-plan.md section 1; it was intake.html). It does nothing unless that section is
+// on the page, dept=design and the user has design.view. Talks to /api/joinr (routes/joinr.js,
 // docs/plans/m6-contracts.md sections 3, 5 and 6). All text from Joinr goes in through
 // textContent; links are only http(s).
 (function () {
+  const section = document.getElementById("intake");
+  const params = new URLSearchParams(location.search);
+  if (!section || params.get("dept") !== "design") return;
+
   function can(key) {
     return window.cc && typeof window.cc.can === "function" ? !!window.cc.can(key) : true;
   }
@@ -71,14 +77,13 @@
     withdrawn: "No withdrawn quotes.",
   };
 
-  const tabsEl = document.getElementById("tabs");
-  const syncLineEl = document.getElementById("syncLine");
-  const syncBtn = document.getElementById("syncBtn");
-  const messageEl = document.getElementById("message");
-  const listEl = document.getElementById("list");
-  const emptyEl = document.getElementById("empty");
+  const tabsEl = document.getElementById("in-tabs");
+  const syncLineEl = document.getElementById("in-syncLine");
+  const syncBtn = document.getElementById("in-syncBtn");
+  const messageEl = document.getElementById("in-message");
+  const listEl = document.getElementById("in-list");
+  const emptyEl = document.getElementById("in-empty");
 
-  const params = new URLSearchParams(location.search);
   const wantItem = Number(params.get("item")) > 0 ? Number(params.get("item")) : null;
   let highlight = wantItem;
 
@@ -312,12 +317,13 @@
       }
       highlight = null;
     }
+    if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
   }
 
   // ---- actions ---------------------------------------------------------------------------
 
   function busy(on) {
-    for (const b of document.querySelectorAll(".in-list button, #syncBtn")) b.disabled = on;
+    for (const b of document.querySelectorAll(".in-list button, #in-syncBtn")) b.disabled = on;
   }
 
   async function act(it, path, body, done) {
@@ -495,8 +501,18 @@
     await load();
   }
 
-  start();
-  // The shell may finish loading permissions after first paint.
+  // Shown only with design.view; the shell finishes loading permissions after first paint.
+  let started = false;
+  function begin() {
+    if (started || !can("design.view")) return;
+    started = true;
+    section.hidden = false;
+    start().then(() => {
+      if (!wantItem && location.hash === "#intake") section.scrollIntoView({ block: "start" });
+    });
+  }
+  if (window.cc && window.cc.ready && typeof window.cc.ready.then === "function") window.cc.ready.then(begin);
+  else document.addEventListener("cc:ready", begin);
   document.addEventListener("cc:ready", () => {
     if (loaded) render();
   });

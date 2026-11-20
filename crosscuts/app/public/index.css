@@ -133,4 +133,11 @@ body {
 .ix-side { grid-column: 2; grid-row: 1; color: var(--label); font-size: 12px; white-space: nowrap; }
 .ix-side.ix-overdue { color: var(--stop-tint); font-weight: 700; }
 .ix-side.ix-unread { color: var(--teal-tint); font-weight: 700; }
+/* Done on a My tasks row (0.2.24): the row link and an outlined Done button side by side; one inline line for Undo. */
+.ix-li.ix-li-done { display: flex; align-items: center; gap: 8px; }
+.ix-li-done .ix-item { flex: 1 1 auto; min-width: 0; }
+.ix-li-done .hs-btn { flex: 0 0 auto; }
+.ix-note { margin: 6px 0 0; color: var(--go-tint); font-size: 13px; }
+.ix-note.err { color: var(--stop-tint); }
+.ix-note .hs-btn { margin-left: 6px; vertical-align: middle; }
 .ix-empty { margin: 4px 0 0; color: var(--label); font-size: 14px; }

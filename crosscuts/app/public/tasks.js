@@ -46,6 +46,7 @@
   const rowsEl = document.getElementById("rows");
   const emptyEl = document.getElementById("empty");
   const statusHead = document.getElementById("statusHead");
+  const doneHead = document.getElementById("doneHead");
   const newBtn = document.getElementById("newTask");
 
   let rows = [];
@@ -55,6 +56,13 @@
   function setMessage(msg, kind) {
     messageEl.textContent = msg || "";
     messageEl.className = "tk-pagemsg " + (kind || "");
+  }
+
+  // The message line for Done / Undo: text, or a node holding the Undo button; null clears it.
+  function sayDone(what, kind) {
+    if (what == null) return setMessage("", "");
+    messageEl.className = "tk-pagemsg " + (kind || "");
+    messageEl.replaceChildren(what);
   }
 
   function renderViews() {
@@ -83,6 +91,7 @@
   function render() {
     const showStatus = view === "done";
     statusHead.hidden = !showStatus;
+    doneHead.hidden = showStatus;
     rowsEl.replaceChildren();
     emptyEl.hidden = rows.length > 0;
     if (!rows.length) emptyEl.textContent = EMPTY[view];
@@ -116,9 +125,16 @@
         const [label, badge] = STATUS[t.status] || [t.status, "hs-badge-na"];
         tr.append(el("td", {}, el("span", { class: "hs-badge " + badge, text: label })));
       }
+      // 0.2.24: Done on the row (open tasks only; not in the Done view).
+      if (!showStatus) {
+        const doneCell = el("td", { class: "tk-donecell" });
+        const btn = window.ccTasks && window.ccTasks.doneButton(t, { onChange: load, say: sayDone });
+        if (btn) doneCell.append(btn);
+        tr.append(doneCell);
+      }
       // The whole row opens the task; links inside it do their own thing.
       tr.addEventListener("click", (e) => {
-        if (e.target.closest("a")) return;
+        if (e.target.closest("a") || e.target.closest("button")) return;
         openTask(t.id);
       });
       rowsEl.append(tr);
@@ -141,6 +157,7 @@
     setMessage("", "");
     rows = data.rows;
     render();
+    if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
   }
 
   function openTask(id, scrollToComments) {

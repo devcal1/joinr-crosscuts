@@ -71,4 +71,20 @@ function toUsers(db, userIds, payload, opts = {}) {
   })();
 }
 
-module.exports = { toUser, toKey, toUsers, usersWithKey };
+// 0.2.24 (docs/plans/badges-plan.md section 3): Undo within a minute of marking a task done. True when
+// the same person who finished the task (`row.done_by`) is reopening it within 60 seconds of `row.done_at`.
+function isQuickUndo(row, user, windowMs) {
+  if (!row || !user || row.done_by == null || Number(row.done_by) !== Number(user.id)) return false;
+  const at = Date.parse(row.done_at || "");
+  return Number.isFinite(at) && Date.now() - at <= (windowMs || 60000);
+}
+
+// Removes a person's still-unread alerts of one kind about one thing (an alert read already stays).
+function retractUnread(db, userId, kind, entityType, entityId) {
+  if (userId == null) return;
+  db.prepare(
+    "DELETE FROM notifications WHERE user_id = ? AND kind = ? AND entity_type = ? AND entity_id = ? AND read_at IS NULL"
+  ).run(userId, kind, entityType, String(entityId));
+}
+
+module.exports = { toUser, toKey, toUsers, usersWithKey, isQuickUndo, retractUnread };

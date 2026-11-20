@@ -1827,6 +1827,14 @@
     return t.dueDate ? fmtDate(t.dueDate) : "No date";
   }
 
+  // The Tasks section's message line for Done / Undo: text, or a node holding the Undo button; null clears it.
+  function sayTaskDone(what, kind) {
+    const line = $("tasksStatus");
+    if (what == null) return setLine(line, "", "muted");
+    setLine(line, "", kind === "err" ? "err" : "ok");
+    line.append(what);
+  }
+
   function renderTasks(rows) {
     const body = $("tasksBody");
     if (!rows.length) {
@@ -1834,7 +1842,7 @@
       return;
     }
     const table = el("table", { class: "hs-table jo-table jo-tasks" });
-    table.append(headRow(["Task", "For", "Due", "Status"]));
+    table.append(headRow(["Task", "For", "Due", "Status", ""]));
     const tb = el("tbody");
     for (const t of rows) {
       const open = t.status === "open";
@@ -1856,6 +1864,11 @@
         due,
         el("td", {}, el("span", { class: "hs-badge " + badge, text: label }))
       );
+      // 0.2.24: Done on the row (open tasks; ccTasks.canMarkDone decides), with Undo for 8 seconds.
+      const doneCell = el("td", { class: "jo-donecell" });
+      const doneBtn = window.ccTasks && window.ccTasks.doneButton(t, { onChange: loadTasks, say: sayTaskDone });
+      if (doneBtn) doneCell.append(doneBtn);
+      tr.append(doneCell);
       tr.addEventListener("click", openIt);
       tb.append(tr);
     }

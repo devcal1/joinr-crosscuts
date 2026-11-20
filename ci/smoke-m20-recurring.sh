@@ -35,6 +35,7 @@ case $M20_SHELL in *'label: "Projects",'*) ok ;; *) fail "shell.js: no Projects 
 case $M20_SHELL in *'Design/PM'*) fail "shell.js still says Design/PM" ;; *) ok ;; esac
 case $M20_SHELL in *'href: "/design.html"'*) fail "shell.js still lists the Design/PM page" ;; *) ok ;; esac
 case $M20_SHELL in *'{ label: "Benchtops", href: "/stone.html", key: "design.view" }'*) ok ;; *) fail "shell.js: no Benchtops item" ;; esac
+case $M20_SHELL in *'href: "/intake.html"'*) fail "shell.js still lists Intake in the menu" ;; *) ok ;; esac
 case $M20_SHELL in *'{ label: "Overdue client invoices", href: "/accounts.html", key: "accounts.view" }'*) ok ;; *) fail "shell.js: no Overdue client invoices item" ;; esac
 case $M20_SHELL in *'{ label: "Tasks", href: "/admintasks.html", key: "users.admin" }'*) ok ;; *) fail "shell.js: no Admin > Tasks item" ;; esac
 req GET /design.html "$DPM"
@@ -44,7 +45,9 @@ req GET /design.html "$ACCT"
 expect_status 403 "acct GET /design.html (no design.view)"
 req GET "/notes.html?dept=design" "$DPM"
 expect_status 200 "dpm GET the Projects notes page"
-case $BODY in *'id="pjDash"'*'projectsdash.js'*) ok ;; *) fail "notes.html carries no Projects dashboard" ;; esac
+case $BODY in *'id="pjMine"'*'projectsdash.js'*) ok ;; *) fail "notes.html carries no Projects dashboard" ;; esac
+case $BODY in *'id="intake"'*'intake.js'*) ok ;; *) fail "notes.html carries no Intake section" ;; esac
+case $BODY in *'id="joinrTile"'*) fail "notes.html still has the New from Joinr tile" ;; *) ok ;; esac
 req GET "/notes.html?dept=design" "$ORDR"
 expect_status 200 "ordr (design.view, no notes.design) GET the Projects page for its dashboard"
 req GET /stone.html "$DPM"
