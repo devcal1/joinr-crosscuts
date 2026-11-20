@@ -152,12 +152,15 @@ function listFor(db, user, view, { jobId, limit, today }) {
   const inTeams = `t.team IN (${teams.map(() => "?").join(",")})`;
   let sql;
   let args;
+  // The open views are cut in queue order (overdue, then by due date), as lib/tasks.js merges and cuts
+  // them, so the limit never drops an urgent task for an older one.
+  const queueOrder = `ORDER BY (t.due_date IS NOT NULL AND t.due_date < ?) DESC, (t.due_date IS NULL), t.due_date, t.id`;
   if (view === "mine" || view === "open") {
-    sql = `${SELECT} WHERE ${inTeams} AND t.status = 'open' ORDER BY t.id LIMIT ?`;
-    args = [...teams, limit];
+    sql = `${SELECT} WHERE ${inTeams} AND t.status = 'open' ${queueOrder} LIMIT ?`;
+    args = [...teams, today, limit];
   } else if (view === "raised") {
-    sql = `${SELECT} WHERE ${inTeams} AND t.created_by = ? AND t.status = 'open' ORDER BY t.id LIMIT ?`;
-    args = [...teams, user.id, limit];
+    sql = `${SELECT} WHERE ${inTeams} AND t.created_by = ? AND t.status = 'open' ${queueOrder} LIMIT ?`;
+    args = [...teams, user.id, today, limit];
   } else if (view === "done") {
     sql = `${SELECT} WHERE ${inTeams} AND t.status IN ('done','cancelled') ORDER BY t.updated_at DESC, t.id DESC LIMIT ?`;
     args = [...teams, limit];

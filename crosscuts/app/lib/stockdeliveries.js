@@ -66,7 +66,7 @@ function rows(db, since, today) {
     .all(since);
   for (const g of groups) {
     const id = `${g.period}:${g.supplier}`;
-    const label = `Stock order ${Periods.longLabel(g.period)}`;
+    const label = `Stock order ${Periods.stockLabel(g.period)}`;
     out.push(entry("stock", { ...g, id, label, link: `/stock.html?period=${g.period}` }, today));
   }
   const paints = db

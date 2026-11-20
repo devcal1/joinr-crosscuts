@@ -97,6 +97,9 @@ const PRIVATE_ENTITY_TYPES = Object.freeze({
   alarm_company: "alarms.manage",
   alarm_times: "alarms.manage",
   loan: "loans.manage",
+  // AMEX has the AMEX page's access (lib/pages.js): either key may read its rows.
+  amex_transaction: ["loans.manage", "loans.maintain"],
+  amex_repayment: ["loans.manage", "loans.maintain"],
 });
 
 // The private entity types the user may NOT read (perms: a Set or an array of keys).
@@ -107,7 +110,7 @@ function hiddenEntityTypes(perms) {
       : Array.isArray(perms)
         ? (k) => perms.includes(k)
         : () => false;
-  return Object.keys(PRIVATE_ENTITY_TYPES).filter((t) => !has(PRIVATE_ENTITY_TYPES[t]));
+  return Object.keys(PRIVATE_ENTITY_TYPES).filter((t) => ![].concat(PRIVATE_ENTITY_TYPES[t]).some(has));
 }
 
 // Department notes (Todd, 2026-10-17): a note's audit rows (entity dept_note: note.create, update,

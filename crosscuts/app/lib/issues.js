@@ -77,7 +77,10 @@ function openCount(db, jobId) {
 // Who hears about an issue: the owner (else design.view holders) and board.edit holders.
 function recipients(db, job) {
   const ids = new Set();
-  if (job.project_owner_id != null) ids.add(Number(job.project_owner_id));
+  // A disabled owner (someone who has left) can't act on it, so design.view holders hear instead.
+  const ownerLive =
+    job.project_owner_id != null && db.prepare("SELECT 1 FROM users WHERE id = ? AND disabled = 0").get(job.project_owner_id);
+  if (ownerLive) ids.add(Number(job.project_owner_id));
   else for (const id of notify.usersWithKey(db, "design.view")) ids.add(Number(id));
   for (const id of notify.usersWithKey(db, "board.edit")) ids.add(Number(id));
   return [...ids];

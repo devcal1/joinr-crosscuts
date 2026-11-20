@@ -460,6 +460,10 @@ function saveLine(db, req, period, supplierId, body) {
     // 0.2.7 (docs/plans/m28-contracts.md section 2): on Supplier accounts, Paid is ticked by
     // users.admin holders only. Admin accounts stays as it is.
     if (KIND === "supplier" && "paid" in after && !can(req, "users.admin")) throw forbidden();
+    // Nor can anyone else change the total of a line already ticked Paid.
+    if (KIND === "supplier" && was.paid && next.paid !== false && "totalCents" in after && !can(req, "users.admin")) {
+      throw conflict("This line is marked paid, so its total can't be changed");
+    }
 
     upsertLine(db, req, period, supplierId, line, next, undefined);
     audit.log(req, {

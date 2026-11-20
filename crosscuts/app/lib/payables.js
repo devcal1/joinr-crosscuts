@@ -287,6 +287,10 @@ function update(db, req, id, body) {
       }
     }
     const cols = Object.keys(after);
+    // A paid invoice's amount, payee and month stay as paid; only whoever may tick Paid can change them.
+    if (r.paid_date && cols.some((c) => ["amount_cents", "payee", "period"].includes(c)) && !can(req, PAY_KEY)) {
+      throw conflict("This invoice is marked paid, so its amount, payee and month can't be changed");
+    }
     if (cols.length) {
       db.prepare(`UPDATE payables SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ? WHERE id = ?`).run(
         ...cols.map((c) => after[c]),

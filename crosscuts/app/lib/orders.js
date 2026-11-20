@@ -523,6 +523,10 @@ function updateLine(db, orderId, patch, req, opts = {}) {
     if (key === "to_order>ordered" && !String("supplier" in changes ? changes.supplier : line.supplier).trim()) {
       throw conflict("Choose a supplier first");
     }
+    // As markOrderedMany: a line wholly covered by stock is not ordered from a supplier as well.
+    if (key === "to_order>ordered" && db.prepare(`SELECT 1 FROM orders WHERE id = ? AND ${COVERED_SQL}`).get(orderId)) {
+      throw conflict("This line is wholly reserved from stock");
+    }
     if (key === "to_order>ordered") changes.ordered_date = orderedDateIn || todayStr;
     else if (key === "ordered>received") {
       changes.received_date = receivedDateIn || todayStr;
@@ -686,6 +690,7 @@ function cancelLine(db, orderId, req, opts = {}) {
   if (link && link.kind === "paint" && !opts.via) {
     throw conflict(`This line is part of paint order ${link.paintOrderId}; change it there`);
   }
+  if (hasLiveReservation(db, orderId)) throw conflict(RESERVED_MSG);
   return db.transaction(() => {
     db.prepare("UPDATE orders SET status = 'cancelled', supplier_order_id = NULL, updated_at = ?, updated_by = ? WHERE id = ?").run(
       nowIso(),
@@ -717,7 +722,15 @@ function deleteRefusal(db, line) {
   const link = links.linkOf(db, line.id);
   if (link && link.kind === "paint") return `This line is part of paint order ${link.paintOrderId}; change it there`;
   if (link && link.kind === "drawers") return "This line is part of a Drawer order; change it on the Drawer order page";
+  if (hasLiveReservation(db, line.id)) return RESERVED_MSG;
   return null;
+}
+
+// Stock reserved (not yet cut) for a line: deleting or cancelling the line would leave it live, and
+// the cut would later take that stock off for a line that no longer exists.
+const RESERVED_MSG = "Stock is reserved for this line. Release the reservation first.";
+function hasLiveReservation(db, orderId) {
+  return !!db.prepare("SELECT 1 FROM stock_reservations WHERE order_id = ? AND status IN ('reserved', 'confirmed')").get(orderId);
 }
 
 function softDelete(db, line, req) {

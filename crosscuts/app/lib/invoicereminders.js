@@ -537,6 +537,22 @@ function prepare(db, { today, now = new Date(), req = SYSTEM, how = "auto run" }
       }
       if (claimStep(db, inv.id, ev.dueStep, ev.daysOverdue, "queued", null, cfg.mode === "auto" ? "auto" : null)) {
         out.queued++;
+        // A lower step still waiting (unapproved, or held by retries) is superseded, so the client
+        // never gets two reminders at once.
+        const superseded = db
+          .prepare("SELECT step FROM invoice_reminders WHERE invoice_id = ? AND step < ? AND state = 'queued'")
+          .all(inv.id, ev.dueStep);
+        for (const { step } of superseded) {
+          const note = `superseded by reminder ${ev.dueStep}`;
+          db.prepare("UPDATE invoice_reminders SET state = 'skipped', note = ?, updated_at = ? WHERE invoice_id = ? AND step = ? AND state = 'queued'").run(
+            note,
+            nowIso(),
+            inv.id,
+            step
+          );
+          out.skipped++;
+          audit.log(req, { action: "invoice.reminder_skipped", entityType: "invoice", entityId: inv.id, after: { step, reason: note } });
+        }
         audit.log(req, {
           action: "invoice.reminder_queued",
           entityType: "invoice",

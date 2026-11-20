@@ -397,7 +397,7 @@ function run(db, opts = {}) {
     : db.prepare("SELECT * FROM recurring_tasks WHERE deleted_at IS NULL AND active = 1 ORDER BY id").all();
   let made = 0;
   for (const r of rules) {
-    const dates = dueDates(r, r.created_from, addDays(today, Number(r.lead_days))).slice(0, PER_RULE_MAX);
+    const dates = dueDates(r, r.created_from, addDays(today, Number(r.lead_days))).slice(-PER_RULE_MAX); // the newest: the oldest are made already
     for (const due of dates) if (makeOccurrence(db, r, due) != null) made++;
   }
   // 0.2.6: maintenance occurrences 7 or more days overdue bell admin once a week (lib/maintenance.js).

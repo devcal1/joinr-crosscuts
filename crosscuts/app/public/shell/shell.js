@@ -805,9 +805,12 @@
   // The keys that count as "this page". On the Projects landing page an Intake card opened by
   // ?item=N is also where the old /intake.html?item=N alerts point.
   // The page as opened (busy.js keeps it before page scripts rewrite the address) and as it is now.
-  function hereKeys() {
+  // The opening address counts only for the first look (badges.landingDone): once the page has moved
+  // on (a dialog closed, a filter changed), a later alert for that old address is new: the poll stops
+  // marking it read (the discs drawn for the opening visit still count it).
+  function hereKeys(withLanding) {
     var keys = [];
-    [window.ccLandingUrl, location.pathname + location.search].forEach(function (u) {
+    [withLanding ? window.ccLandingUrl : null, location.pathname + location.search].forEach(function (u) {
       if (!u) return;
       var k = linkParts(u).key;
       if (keys.indexOf(k) < 0) keys.push(k);
@@ -867,7 +870,7 @@
   }
   function drawBadges() {
     var all = visibleRows();
-    var keys = hereKeys();
+    var keys = hereKeys(true);
     var pageRows = all.filter(function (r) { return isHere(r.link, keys); });
     // Section headings.
     Array.prototype.forEach.call(document.querySelectorAll("[data-cc-badge]"), function (el) {
@@ -928,7 +931,8 @@
         if (r.status === 401) return stopAlerts();
         if (!r.ok) return;
         var rows = Array.isArray(r.body.rows) ? r.body.rows : [];
-        var keys = hereKeys();
+        var keys = hereKeys(!badges.landingDone);
+        badges.landingDone = true;
         var fresh = rows.filter(function (x) { return !badges.seen[x.id] && isHere(x.link, keys); });
         fresh.forEach(function (x) { badges.seen[x.id] = x; });
         badges.rows = rows.filter(function (x) { return !badges.seen[x.id]; });
