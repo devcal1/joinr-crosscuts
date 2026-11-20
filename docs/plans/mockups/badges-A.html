@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup A: red badges, Intake, Done</title>
+<style>
+  :root { --ink:#101019; --surface:#191A24; --raised:#262735; --hair:#24252F; --body:#D3D4DC; --label:#9A9BA8; --muted:#6F7080;
+    --teal:#17C8A0; --teal-tint:#6EE7C9; --orange:#F97316; --red:#EF4444; --violet:#8B5CF6; --fuchsia:#D946EF; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--ink); color:var(--body); font:14px/1.45 Arial, Helvetica, sans-serif; }
+  .spectrum { height:2px; background:linear-gradient(90deg,var(--teal),var(--violet),var(--fuchsia),var(--orange)); }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 60px; }
+  .cap { color:var(--label); font-size:11px; text-transform:uppercase; letter-spacing:.14em; font-weight:700; margin:40px 0 10px; }
+  .cap:first-child { margin-top:0; }
+  .note { color:var(--muted); font-size:12px; margin:8px 0 0; }
+  .frame { border:1px solid var(--hair); border-radius:8px; background:var(--ink); overflow:hidden; }
+  /* the red disc: the new exception */
+  .new { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; margin-left:6px;
+    border-radius:8px; background:var(--red); color:#fff; font-size:10px; font-weight:700; line-height:1; vertical-align:2px; letter-spacing:0; }
+  /* menu bar */
+  .bar { display:flex; align-items:center; gap:4px; padding:0 12px; height:48px; background:var(--surface); border-bottom:1px solid var(--hair); }
+  .word { color:#fff; font-weight:700; letter-spacing:.14em; text-transform:uppercase; font-size:13px; margin-right:16px; }
+  .b { color:#fff; padding:8px 10px; font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; position:relative; white-space:nowrap; }
+  .b.dept::after { content:""; position:absolute; left:10px; right:10px; bottom:2px; height:2px; }
+  .b.sch::after { background:var(--fuchsia); } .b.des::after { background:var(--violet); } .b.ord::after { background:var(--orange); } .b.acc::after { background:#B8B9C4; }
+  .sp { flex:1; }
+  .teal { display:inline-flex; min-width:18px; padding:2px 5px; margin-left:6px; border:1px solid var(--teal); background:rgba(23,200,160,.16); color:var(--teal-tint); border-radius:8px; font-size:10px; justify-content:center; }
+  .menuarea { position:relative; height:190px; }
+  .menu { position:absolute; left:250px; top:0; width:220px; background:var(--surface); border:1px solid var(--hair); border-left:2px solid var(--violet); padding:6px 0; }
+  .menu a { display:block; padding:8px 14px; color:var(--body); text-decoration:none; }
+  .menu a.gone { color:var(--muted); text-decoration:line-through; }
+  /* job page */
+  .jhead { padding:16px 20px 0; } .jhead h1 { color:#fff; font-size:20px; margin:0 0 12px; }
+  .tabs { display:flex; gap:2px; border-bottom:1px solid var(--hair); padding:0 20px; flex-wrap:wrap; }
+  .tab { padding:10px 12px; color:var(--label); font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; border-bottom:2px solid transparent; }
+  .tab.on { color:#fff; border-bottom-color:var(--teal); }
+  .sec { padding:16px 20px; }
+  .sbar { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--hair); padding-bottom:8px; margin-bottom:10px; }
+  .sbar.orange { border-bottom:2px solid var(--orange); }
+  h2 { color:#fff; font-size:13px; text-transform:uppercase; letter-spacing:.14em; margin:0; }
+  .row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--hair); }
+  .muted { color:var(--muted); }
+  /* buttons */
+  .btn { display:inline-block; border:1px solid #3A3B4A; background:transparent; color:#fff; padding:6px 12px; font:700 11px Arial; letter-spacing:.12em; text-transform:uppercase; border-radius:4px; }
+  .btn.p { border-color:var(--teal); color:var(--teal-tint); }
+  .btn.sm { padding:4px 10px; }
+  /* tables */
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; color:var(--label); font-size:11px; text-transform:uppercase; letter-spacing:.12em; padding:8px 10px; border-bottom:1px solid var(--hair); }
+  td { padding:10px; border-bottom:1px solid var(--hair); vertical-align:middle; }
+  td a { color:#fff; text-decoration:none; font-weight:700; }
+  .sub { display:block; color:var(--muted); font-size:12px; }
+  .msg { display:flex; align-items:center; gap:12px; padding:8px 12px; margin:0 0 10px; background:var(--surface); border-left:2px solid var(--teal); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+  .b-teal { border:1px solid var(--teal); color:var(--teal-tint); }
+  .b-stop { border:1px solid var(--red); color:#FCA5A5; }
+  .b-check { border:1px solid var(--orange); color:#FDBA74; }
+  /* intake */
+  .itabs { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 14px; }
+  .itabs .btn[aria-pressed=true] { border-color:var(--teal); color:var(--teal-tint); }
+  .card { background:var(--surface); border:1px solid var(--hair); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  .card h3 { color:#fff; margin:0 0 4px; font-size:15px; }
+  .card .acts { margin-top:10px; display:flex; gap:8px; }
+  .faded { opacity:.45; }
+  .gone-box { border:1px dashed #4A4B5A; border-radius:8px; padding:12px 16px; color:var(--muted); margin-bottom:16px; }
+</style>
+</head>
+<body>
+<div class="spectrum"></div>
+<div class="wrap">
+
+  <p class="cap">1 · Menu bar: the department carries the total, the open menu shows which page</p>
+  <div class="frame">
+    <div class="bar">
+      <span class="word">Crosscuts</span>
+      <span class="b">Dashboard</span>
+      <span class="b dept sch">Scheduling</span>
+      <span class="b dept des">Projects<span class="new">3</span></span>
+      <span class="b dept ord">Ordering<span class="new">1</span></span>
+      <span class="b dept acc">Accounts</span>
+      <span class="b">Admin</span>
+      <span class="sp"></span>
+      <span class="b">Planner</span>
+      <span class="b">Tasks<span class="teal">4</span></span>
+      <span class="b">Messages</span>
+      <span class="b">Alerts<span class="new">5</span></span>
+      <span class="b">Todd</span>
+    </div>
+    <div class="menuarea">
+      <div class="menu">
+        <a>Jobs<span class="new">2</span></a>
+        <a>Pipeline</a>
+        <a class="gone">Intake</a>
+        <a>Benchtops</a>
+        <a>Tools</a>
+      </div>
+    </div>
+  </div>
+  <p class="note">Intake leaves the Projects menu (struck through here). Alerts turns red to match; Tasks and Messages keep their teal counts because they count open work, not new things. The alert for a new quote in Intake counts on the Projects name itself, since clicking it opens the landing page.</p>
+
+  <p class="cap">2 · On the page: the tab and the heading where the alert is</p>
+  <div class="frame">
+    <div class="jhead"><h1>Smith kitchen · 24 Hill St</h1></div>
+    <div class="tabs">
+      <span class="tab">Overview</span><span class="tab">Quote</span><span class="tab">Notes</span><span class="tab">Photos</span>
+      <span class="tab">Invoices</span><span class="tab">Orders &amp; materials<span class="new">1</span></span>
+      <span class="tab">Planner &amp; tasks</span><span class="tab on">Workshop<span class="new">1</span></span>
+    </div>
+    <div class="sec">
+      <div class="sbar"><h2>Benchtops</h2></div>
+      <p class="muted" style="margin:0 0 18px">Order BT-0042 sent 12 Nov.</p>
+      <div class="sbar orange"><h2>Issues<span class="new">1</span></h2></div>
+      <div class="row"><span><strong style="color:#fff">Pantry door 3 mm short</strong><span class="sub">Raised by Michael from the shift page, 20 min ago</span></span><span class="badge b-check">Open</span></div>
+    </div>
+  </div>
+  <p class="note">Opening this job marks its two alerts read (the bell and the menu counts drop at once). The red discs stay on this visit so you can see what was new, and are gone next time.</p>
+
+  <p class="cap">3 · Tasks: a red disc on the new task's row, and Done on every open row</p>
+  <div class="frame" style="padding:16px 20px">
+    <div class="msg">Marked done: Order hinges for Lee laundry. <button class="btn sm">Undo</button></div>
+    <table>
+      <thead><tr><th>Task</th><th>Assignee</th><th>Due</th><th>Job</th><th>Raised by</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><a>Check site measure for Patel ensuite</a><span class="new">1</span><span class="sub">1 comment</span></td><td>Todd</td><td>21 Nov</td><td><a>Patel ensuite</a></td><td>Chloe</td><td style="text-align:right"><button class="btn sm">Done</button></td></tr>
+        <tr><td><a>Call client about handles</a></td><td>Todd</td><td><span class="badge b-stop">18 Nov</span></td><td><a>Smith kitchen</a></td><td>Todd</td><td style="text-align:right"><button class="btn sm">Done</button></td></tr>
+        <tr><td><a>Monthly forklift check</a><span class="sub">Recurring</span></td><td>Todd</td><td>30 Nov</td><td></td><td>Todd</td><td style="text-align:right"><button class="btn sm">Done</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">One click marks it done and the row leaves the list; Undo stays for 8 seconds. The same Done button is on the job page's Tasks section and the dashboard's My tasks tile. Clicking the row still opens the task.</p>
+
+  <p class="cap">4 · Projects landing page: Intake at the bottom, in place of Available now</p>
+  <div class="frame" style="padding:16px 20px">
+    <div class="sbar"><h2>My projects</h2><span class="btn sm">Show all owners</span></div>
+    <p class="muted" style="margin:0 0 20px">(unchanged: one line per owned job)</p>
+    <div class="gone-box">Available now (New from Joinr and Benchtops tiles) removed. Benchtops stays in the Projects menu.</div>
+    <div class="sbar"><h2>Intake<span class="new">1</span></h2><button class="btn sm">Sync now</button></div>
+    <p class="muted" style="margin:0">Quotes won in Joinr become jobs by themselves. Only the exceptions wait here. Last synced 4 minutes ago.</p>
+    <div class="itabs">
+      <button class="btn sm" aria-pressed="true">Waiting for a person (2)</button>
+      <button class="btn sm">Changed</button><button class="btn sm">Made into jobs</button><button class="btn sm">Ignored</button><button class="btn sm">Withdrawn</button>
+    </div>
+    <div class="card">
+      <h3>Q-1187 · Nguyen kitchen<span class="new">1</span> <span class="badge b-teal">New</span></h3>
+      <div class="muted">Won 2 hours ago · $18,450.00 · two jobs already have this quote number: choose one to link</div>
+      <div class="acts"><button class="btn sm p">Link</button><button class="btn sm">Accept as new job</button><button class="btn sm">Ignore</button></div>
+    </div>
+    <div class="card">
+      <h3>Q-1179 · Brown vanity <span class="badge b-teal">New</span></h3>
+      <div class="muted">Won yesterday · $3,920.00 · no client match</div>
+      <div class="acts"><button class="btn sm p">Accept</button><button class="btn sm">Link</button><button class="btn sm">Ignore</button></div>
+    </div>
+  </div>
+  <p class="note">The same cards, tabs and buttons as the Intake page today, with the long intro cut to one line. Old intake links and alerts open this page at the Intake section, on the right card.</p>
+
+</div>
+</body>
+</html>
