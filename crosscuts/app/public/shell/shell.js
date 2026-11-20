@@ -554,7 +554,7 @@
     alerts.stopped = true;
     if (alerts.timer) clearInterval(alerts.timer);
     alerts.timer = null;
-    window.removeEventListener("focus", pollCount);
+    window.removeEventListener("focus", pollAll);
   }
   function pollCount() {
     if (alerts.stopped || !alerts.btn) return Promise.resolve();
@@ -590,9 +590,9 @@
   function startAlerts() {
     if (alerts.running || devMode || onAuthPage) return;
     alerts.running = true;
-    alerts.timer = setInterval(pollCount, ALERT_POLL_MS);
-    window.addEventListener("focus", pollCount);
-    pollCount();
+    alerts.timer = setInterval(pollAll, ALERT_POLL_MS);
+    window.addEventListener("focus", pollAll);
+    pollAll();
   }
 
   function markRead(id) {
@@ -694,7 +694,8 @@
   }
 
   function buildBell() {
-    var badge = h("span", { class: "cc-bell-badge", hidden: true, "aria-hidden": "true", text: "0" });
+    // 0.2.24: the Alerts count is the red "new" disc (ninth named exception).
+    var badge = h("span", { class: "cc-new", hidden: true, "aria-hidden": "true", text: "0" });
     var btn = h(
       "button",
       {
@@ -728,7 +729,13 @@
       if (e.key === "ArrowDown" && !alertsOpen()) { e.preventDefault(); openAlerts(); }
     });
     readAll.addEventListener("click", function () {
-      post("/api/notifications/read-all").then(function () { setUnread(0); loadAlerts(); }).catch(function () {});
+      post("/api/notifications/read-all").then(function () {
+        setUnread(0);
+        loadAlerts();
+        badges.rows = [];
+        badges.seen = {};
+        drawBadges();
+      }).catch(function () {});
     });
     panel.addEventListener("keydown", function (e) {
       var stops = Array.prototype.slice.call(panel.querySelectorAll("button:not(:disabled), a[href]"));
@@ -744,6 +751,182 @@
     setUnread(alerts.unread);
     return { btn: btn, panel: panel };
   }
+
+  // ---------- red "new" badges (0.2.24, docs/plans/badges-plan.md section 2) ----------
+  // Every unread alert links to a page. GET /api/notifications/unread-places says where; the badge
+  // follows the link: the department and its page in the menu, the section heading on the page
+  // (data-cc-badge="issues"), the row on a list (data-cc-badge-link="/tasks.html?task=12") and the
+  // job tab holding the sections. Opening the page marks its alerts read (bell and menu drop at once);
+  // the badges on that page stay until you leave ("seen this visit"). The disc is the ninth named
+  // exception in CLAUDE.md; only this shell sets it.
+  var KIND_SECTION = {
+    "job.issue": "issues",
+    "comment.new": "comments",
+    "materials.in": "orders",
+    "job.all_ordered": "orders",
+    "order.delivery_note": "orders",
+    "orders.eta_nudge": "orders",
+    "drawers.check": "orders",
+    "inspection.booked": "inspection",
+    "inspection.moved": "inspection",
+    "inspection.cancelled": "inspection",
+    "stock.reserve": "reservations",
+    "joinr.job": "joinr",
+    "job.installed": "meta",
+    "job.pm_assigned": "meta",
+    "job.unassigned": "meta",
+  };
+  function sectionOf(row) {
+    var s = KIND_SECTION[row.kind];
+    if (s) return s;
+    var k = row.kind || "", p = linkParts(row.link).path;
+    if (p === "/intake.html") return "intake";
+    if (/^invoice\./.test(k) && p === "/job.html") return "invoices";
+    if (/^task\./.test(k)) return "tasks";
+    return "";
+  }
+  var badges = { rows: [], seen: {}, loaded: false, menu: [], deptDiscs: {} };
+
+  // A link as {path, params, key}: no #hash, query parameters in sorted order.
+  function linkParts(link) {
+    var u;
+    try { u = new URL(String(link || ""), location.origin); } catch (e) { return { path: "", params: new URLSearchParams(), key: "" }; }
+    var pairs = [];
+    u.searchParams.forEach(function (v, k) { pairs.push([k, v]); });
+    pairs.sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0; });
+    var q = pairs.map(function (p) { return encodeURIComponent(p[0]) + "=" + encodeURIComponent(p[1]); }).join("&");
+    return { path: u.pathname, params: u.searchParams, key: u.pathname + (q ? "?" + q : "") };
+  }
+  function bareLink(link) {
+    var s = String(link || "");
+    var i = s.indexOf("#");
+    return i >= 0 ? s.slice(0, i) : s;
+  }
+  // The keys that count as "this page". On the Projects landing page an Intake card opened by
+  // ?item=N is also where the old /intake.html?item=N alerts point.
+  function hereKeys() {
+    var here = linkParts(location.pathname + location.search);
+    var keys = [here.key];
+    var item = here.params.get("item");
+    if (here.path === "/notes.html" && here.params.get("dept") === "design" && item) keys.push(linkParts("/intake.html?item=" + item).key);
+    return keys;
+  }
+  function discEl() {
+    return h("span", { class: "cc-new", hidden: true, "aria-hidden": "true", text: "0" });
+  }
+  function setDisc(el, n) {
+    el.hidden = n < 1;
+    el.textContent = n > 9 ? "9+" : String(n);
+    el.setAttribute("data-cc-count", String(n));
+    if (n > 0) el.title = n + " new"; else el.removeAttribute("title");
+  }
+  // The disc that is the last child of el (made when missing).
+  function discIn(el) {
+    var d = el.lastElementChild;
+    if (d && d.classList.contains("cc-new") && d.hasAttribute("data-cc-disc")) return d;
+    d = discEl();
+    d.setAttribute("data-cc-disc", "1");
+    el.appendChild(d);
+    return d;
+  }
+  function visibleRows() {
+    var out = [], ids = {};
+    Object.keys(badges.seen).forEach(function (id) { out.push(badges.seen[id]); ids[id] = 1; });
+    badges.rows.forEach(function (r) { if (!ids[r.id]) out.push(r); });
+    return out;
+  }
+  // Which menu target (a page item, or a department's home) an alert counts toward: the first that
+  // matches, preferring Projects for the pages Scheduling shares with it.
+  function menuTargetFor(row) {
+    var lp = linkParts(row.link);
+    var p = PAGE_ALIASES[lp.path] || lp.path;
+    var dept = lp.params.get("dept");
+    if (lp.path === "/intake.html") { p = "/notes.html"; dept = "design"; }
+    var hits = badges.menu.filter(function (t) {
+      return t.home ? p === "/notes.html" && dept === t.dept : p === t.path;
+    });
+    if (!hits.length) return null;
+    for (var i = 0; i < hits.length; i++) if (hits[i].deptId === "design") return hits[i];
+    return hits[0];
+  }
+  function drawBadges() {
+    var all = visibleRows();
+    var keys = hereKeys();
+    var pageRows = all.filter(function (r) { return keys.indexOf(linkParts(r.link).key) >= 0; });
+    // Section headings.
+    Array.prototype.forEach.call(document.querySelectorAll("[data-cc-badge]"), function (el) {
+      var section = el.getAttribute("data-cc-badge");
+      setDisc(discIn(el), pageRows.filter(function (r) { return sectionOf(r) === section; }).length);
+    });
+    // List rows.
+    var byKey = {};
+    all.forEach(function (r) { var k = linkParts(r.link).key; byKey[k] = (byKey[k] || 0) + 1; });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-cc-badge-link]"), function (el) {
+      setDisc(discIn(el), byKey[linkParts(el.getAttribute("data-cc-badge-link")).key] || 0);
+    });
+    // Job tabs: the sum of the headings in the tab's panel.
+    Array.prototype.forEach.call(document.querySelectorAll(".jo-tab[aria-controls]"), function (btn) {
+      var panel = document.getElementById(btn.getAttribute("aria-controls"));
+      var sum = 0;
+      if (panel) Array.prototype.forEach.call(panel.querySelectorAll("[data-cc-badge] > .cc-new[data-cc-disc]"), function (d) { sum += Number(d.getAttribute("data-cc-count")) || 0; });
+      setDisc(discIn(btn), sum);
+    });
+    // The menu: unread alerts only (the ones just opened are already read).
+    var perTarget = new Map(), perDept = {};
+    badges.rows.forEach(function (r) {
+      var t = menuTargetFor(r);
+      if (!t) return;
+      perTarget.set(t, (perTarget.get(t) || 0) + 1);
+      perDept[t.deptId] = (perDept[t.deptId] || 0) + 1;
+    });
+    badges.menu.forEach(function (t) { t.discs.forEach(function (d) { setDisc(d, perTarget.get(t) || 0); }); });
+    Object.keys(badges.deptDiscs).forEach(function (id) {
+      badges.deptDiscs[id].forEach(function (d) { setDisc(d, perDept[id] || 0); });
+    });
+  }
+  // Post read-link for each distinct stored link.
+  function postReadLinks(rows) {
+    var done = {}, calls = [];
+    rows.forEach(function (r) {
+      var b = bareLink(r.link);
+      if (!b || done[b]) return;
+      done[b] = 1;
+      calls.push(post("/api/notifications/read-link", { link: b }).catch(function () {}));
+    });
+    return Promise.all(calls);
+  }
+  // Opening an item in the page (a task dialog, a card): its alerts read, its disc kept for this visit.
+  function markLinkRead(link) {
+    var key = linkParts(link).key;
+    var moved = badges.rows.filter(function (r) { return linkParts(r.link).key === key; });
+    if (!moved.length) return Promise.resolve();
+    moved.forEach(function (r) { badges.seen[r.id] = r; });
+    badges.rows = badges.rows.filter(function (r) { return !badges.seen[r.id]; });
+    drawBadges();
+    return postReadLinks(moved).then(function () { return pollCount(); });
+  }
+  function pollPlaces() {
+    if (alerts.stopped) return Promise.resolve();
+    return getJson("/api/notifications/unread-places", true)
+      .then(function (r) {
+        if (r.status === 401) return stopAlerts();
+        if (!r.ok) return;
+        var rows = Array.isArray(r.body.rows) ? r.body.rows : [];
+        var keys = hereKeys();
+        var fresh = rows.filter(function (x) { return !badges.seen[x.id] && keys.indexOf(linkParts(x.link).key) >= 0; });
+        fresh.forEach(function (x) { badges.seen[x.id] = x; });
+        badges.rows = rows.filter(function (x) { return !badges.seen[x.id]; });
+        badges.loaded = true;
+        drawBadges();
+        if (fresh.length) postReadLinks(fresh).then(function () { return pollCount(); });
+      })
+      .catch(function () { /* offline: try again next time */ });
+  }
+  function pollAll() {
+    return Promise.all([pollCount(), pollPlaces()]);
+  }
+  cc.refreshBadges = function () { drawBadges(); };
+  cc.markLinkRead = markLinkRead;
 
   // ---------- render ----------
   function isCurrent(href) {
@@ -783,13 +966,18 @@
     var head = home
       ? h("a", { class: "cc-dept-head", id: "cc-dh-" + d.id, href: home, "aria-current": isCurrent(home) ? "page" : false, text: d.label })
       : h("span", { class: "cc-dept-head", id: "cc-dh-" + d.id, text: d.label });
+    // Red "new" discs: on the department's name (its total) and on each page item.
+    var deptDiscs = (badges.deptDiscs[d.id] = []);
+    var bd = discEl(); btn.appendChild(bd); deptDiscs.push(bd);
+    var hd = discEl(); head.appendChild(hd); deptDiscs.push(hd);
+    if (home) badges.menu.push({ deptId: d.id, home: true, dept: new URLSearchParams(home.slice(home.indexOf("?"))).get("dept"), discs: [] });
     var list = h("ul", { class: "cc-dept-list" });
     allowed.forEach(function (it) {
-      list.appendChild(
-        h("li", null, [
-          h("a", { class: "cc-dept-link", href: it.href, "aria-current": isCurrent(it.href) ? "page" : false, text: it.label }),
-        ])
-      );
+      var link = h("a", { class: "cc-dept-link", href: it.href, "aria-current": isCurrent(it.href) ? "page" : false, text: it.label });
+      var id = discEl();
+      link.appendChild(id);
+      badges.menu.push({ deptId: d.id, home: false, path: it.href.split("?")[0], discs: [id] });
+      list.appendChild(h("li", null, [link]));
     });
     var panel = h("div", { class: "cc-dept-panel", id: panelId, role: "group", "aria-labelledby": "cc-dh-" + d.id }, [list]);
     var li = h("li", { class: "cc-dept" + (d.dept ? " cc-dept-" + d.dept : "") }, [btn, head, panel]);
@@ -850,6 +1038,8 @@
 
   function render(root, user) {
     root.textContent = "";
+    badges.menu = [];
+    badges.deptDiscs = {};
     // The spectrum rule sits above the bar, so it sticks with it.
     root.appendChild(h("div", { class: "hs-rule", "aria-hidden": "true" }));
     var bar = h("header", { class: "cc-bar" });

@@ -88,7 +88,7 @@
     if (!rows.length) emptyEl.textContent = EMPTY[view];
     countEl.textContent = rows.length + (rows.length === 1 ? " task" : " tasks");
     for (const t of rows) {
-      const link = el("a", { class: "tk-title-link", href: `/tasks.html?task=${t.id}`, text: t.title });
+      const link = el("a", { class: "tk-title-link", href: `/tasks.html?task=${t.id}`, "data-cc-badge-link": `/tasks.html?task=${t.id}`, text: t.title });
       link.addEventListener("click", (e) => {
         if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
         e.preventDefault();
@@ -123,6 +123,7 @@
       });
       rowsEl.append(tr);
     }
+    window.cc && window.cc.refreshBadges && window.cc.refreshBadges();
   }
 
   async function load() {
@@ -146,6 +147,8 @@
   function openTask(id, scrollToComments) {
     if (!window.ccTasks) return;
     dialogOpen = true;
+    // Opening a task clears its red new disc's alert (the disc stays until you leave the page).
+    window.cc && window.cc.markLinkRead && window.cc.markLinkRead(`/tasks.html?task=${id}`);
     window.ccTasks.openTask(id, {
       onChange: load,
       scrollToComments: !!scrollToComments,

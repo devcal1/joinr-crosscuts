@@ -71,6 +71,7 @@ const RULES = [
   ["cursor image outside the loading cursor rule", /\bcursor\s*:[^;{}]*\burl\(/, f => f !== CURSOR_FILE],
   ["loading cursor image outside the shell", /cursor-dot/, f => !CURSOR_DOT_OK.has(f)],
   ["inline SVG icon outside the Benchtop designer's Add piece buttons and the Notes react marks", /<svg/, f => !SHAPE_ICON_OK.has(f) && !NOTES_SVG_OK.has(f)],
+  ["red new-badge class outside the shell (exception nine)", /\bcc-new\b/, f => !f.startsWith("shell/")],
   ["Benchtop shape diagram class outside the Benchtop designer", /bt-shapeicon/, f => !SHAPE_ICON_OK.has(f)],
   ["icon (Phosphor) outside the board", /phosphor|["'\s]ph ph-|["'\s]ph-[a-z]/, f => !PHOSPHOR_OK.has(f)],
 ];

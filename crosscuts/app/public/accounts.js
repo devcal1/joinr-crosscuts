@@ -230,7 +230,7 @@
       const { invoice: inv, daysOverdue } = item;
       sum += inv.totalCents;
       const tr = el("tr");
-      const numBtn = el("button", { type: "button", class: "ac-linkbtn", text: inv.number || "Open" });
+      const numBtn = el("button", { type: "button", class: "ac-linkbtn", "data-cc-badge-link": "/accounts.html?invoice=" + inv.id, text: inv.number || "Open" });
       numBtn.addEventListener("click", () => openInvoice(inv.id));
       tr.append(el("td", {}, numBtn));
       tr.append(el("td", {}, el("a", { href: "/job.html?id=" + inv.job.id, text: inv.job.name })));
@@ -271,6 +271,7 @@
       body.append(tr);
     }
     if (REM) REM.renderStrip();
+    if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
     $("overdueEmpty").hidden = list.length > 0;
     const s = $("overdueSummary");
     s.replaceChildren();
@@ -417,6 +418,7 @@
   }
 
   async function openInvoice(id) {
+    if (window.cc && window.cc.markLinkRead) window.cc.markLinkRead("/accounts.html?invoice=" + id);
     try {
       const d = await api("/api/invoices/" + id);
       showDetail(d);

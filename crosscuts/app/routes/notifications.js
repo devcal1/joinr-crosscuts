@@ -81,6 +81,36 @@ r.post("/read-all", "login", (req, res) => {
   res.status(204).end();
 });
 
+// Badges (0.2.24, docs/plans/badges-plan.md section 2): where the caller's unread alerts point.
+r.get("/unread-places", "login", (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT id, kind, link FROM notifications
+        WHERE user_id = ? AND read_at IS NULL AND link IS NOT NULL
+        ORDER BY id DESC LIMIT 500`
+    )
+    .all(req.user.id);
+  res.json({ rows });
+});
+
+// Opening a page marks the caller's unread alerts that point at it read. The link is compared
+// exactly (path and query); a #hash is dropped from both sides. Never touches another user's rows.
+r.post("/read-link", "login", (req, res) => {
+  const link = req.body && req.body.link;
+  if (typeof link !== "string" || !/^\/(?![\/\\])/.test(link) || link.length > 1000) {
+    res.status(400).json({ error: "link must be a site-relative path" });
+    return;
+  }
+  const hash = link.indexOf("#");
+  const bare = hash >= 0 ? link.slice(0, hash) : link;
+  db.prepare(
+    `UPDATE notifications SET read_at = ?
+      WHERE user_id = ? AND read_at IS NULL AND link IS NOT NULL
+        AND (CASE WHEN instr(link, '#') > 0 THEN substr(link, 1, instr(link, '#') - 1) ELSE link END) = ?`
+  ).run(new Date().toISOString(), req.user.id, bare);
+  res.status(204).end();
+});
+
 r.post("/roundup/run", "users.admin", (req, res) => {
   res.json(roundup.run(db, { force: true }));
 });

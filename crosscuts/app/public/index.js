@@ -229,7 +229,9 @@
         rows.forEach(function (t) {
           var a = el("a", "ix-item");
           a.href = "/tasks.html?task=" + encodeURIComponent(t.id);
-          a.appendChild(el("span", "ix-main", t.title));
+          var mainEl = el("span", "ix-main", t.title);
+          mainEl.setAttribute("data-cc-badge-link", "/tasks.html?task=" + t.id);
+          a.appendChild(mainEl);
           var meta = [];
           if (t.job && t.job.name) meta.push(t.job.name);
           if (meta.length) a.appendChild(el("span", "ix-sub", meta.join(" · ")));
@@ -239,6 +241,7 @@
           li.appendChild(a);
           list.appendChild(li);
         });
+        if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
       })
       .catch(function () {
         empty.textContent = "Tasks could not be loaded.";
