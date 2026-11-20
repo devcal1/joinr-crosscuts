@@ -306,7 +306,7 @@ async function pollInFlight(db, { invoiceId = null, now = Date.now() } = {}) {
       .prepare(
         `SELECT e.*, i.number AS inv_number FROM invoice_emails e JOIN invoices i ON i.id = e.invoice_id
          WHERE e.status = 'sent' AND e.resend_id IS NOT NULL AND e.sent_at >= ? ${invoiceId ? "AND e.invoice_id = ?" : ""}
-         ORDER BY e.id LIMIT ${POLL_BATCH}`
+         ORDER BY e.status_checked_at IS NOT NULL, e.status_checked_at, e.id LIMIT ${POLL_BATCH}`
       )
       .all(...(invoiceId ? [cutoff, invoiceId] : [cutoff]));
     const gap = Number(process.env.INVOICE_EMAIL_POLL_GAP_MS);

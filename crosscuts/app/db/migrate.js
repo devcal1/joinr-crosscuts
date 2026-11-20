@@ -13,6 +13,7 @@ const crypto = require("crypto");
 
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
 const FILE_RE = /^(\d{3,})_([A-Za-z0-9_]+)\.(sql|js)$/;
+const REUSE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // a crash loop's reboots come minutes apart
 
 function checksumOf(file) {
   const text = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
@@ -53,14 +54,25 @@ function hasUserTables(db) {
 function backupBefore(db, dbDir, firstPendingVersion) {
   const dir = path.join(dbDir, "backups");
   fs.mkdirSync(dir, { recursive: true });
-  // A failed migration rolls back, so an earlier backup for this same version
+  // A failed migration rolls back, so a backup just written for this same version
   // is still the pristine copy: reuse it rather than writing one per crash-loop boot.
+  // Only a recent one, newer than the database file: an older one (a cutover rehearsal,
+  // a restore, an earlier upgrade) may be of other data, so a fresh backup is written.
   const prefix = `photos-pre-${String(firstPendingVersion).padStart(3, "0")}-`;
   const existing = fs.readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith(".db")).sort();
   if (existing.length > 0) {
-    const reused = path.join(dir, existing[0]);
-    console.log(`[migrate] backup for migration ${firstPendingVersion} already exists, reusing: ${reused}`);
-    return reused;
+    const reused = path.join(dir, existing[existing.length - 1]);
+    const at = fs.statSync(reused).mtimeMs;
+    let dbAt = 0;
+    try {
+      dbAt = fs.statSync(path.join(dbDir, "photos.db")).mtimeMs;
+    } catch (e) {
+      /* no file to compare with: the age rule alone */
+    }
+    if (Date.now() - at < REUSE_MAX_AGE_MS && at >= dbAt) {
+      console.log(`[migrate] backup for migration ${firstPendingVersion} already exists, reusing: ${reused}`);
+      return reused;
+    }
   }
   const dest = path.join(dir, `${prefix}${utcStamp()}.db`);
   db.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);

@@ -813,6 +813,15 @@ function restoreLine(db, orderId, req) {
   const line = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   if (!line) throw notFound();
   if (!line.deleted_at) throw conflict("This item isn't deleted");
+  // Sent to Orders again since (a newer live line for the same item on the job): restoring would
+  // make two lines for one item, which could be ordered twice.
+  const again = db
+    .prepare(
+      `SELECT 1 FROM orders WHERE job_id = ? AND id > ? AND deleted_at IS NULL AND status <> 'cancelled'
+         AND lower(trim(description)) = lower(trim(?))`
+    )
+    .get(line.job_id, line.id, line.description || "");
+  if (again) throw conflict("This item has been sent to Orders again since it was deleted, so it can't be restored");
   return db.transaction(() => {
     db.prepare("UPDATE orders SET deleted_at = NULL, deleted_by = NULL, status = 'to_order', updated_at = ?, updated_by = ? WHERE id = ?").run(
       nowIso(),

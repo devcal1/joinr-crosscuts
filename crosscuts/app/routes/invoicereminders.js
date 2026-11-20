@@ -10,6 +10,20 @@ const invoices = require("../lib/invoices");
 
 const r = defineRoutes("/api/invoice-reminders");
 
+// today? (the smoke tests' clock): never before the Sydney today. A later day is taken only on a test
+// server (the reminder sweep off, or dry run), so real reminders can't be sent early with made-up
+// days-overdue figures. Returns the date, or undefined for the real today.
+function testToday(t) {
+  if (t === undefined || t === null) return undefined;
+  if (typeof t !== "string" || !invoices.validDate(t)) throw bad("today must be a valid YYYY-MM-DD date");
+  const real = sydneyToday();
+  if (t < real) throw bad("today can't be before today");
+  if (t === real) return undefined;
+  const testServer = process.env.INVOICE_REMINDERS_SWEEP_DISABLED === "1" || process.env.INVOICE_REMINDERS_DRY_RUN === "1";
+  if (!testServer) throw bad("today can only be changed on a test server");
+  return t;
+}
+
 function wrap(fn) {
   return async (req, res) => {
     try {
@@ -58,14 +72,7 @@ r.get("/queue", "accounts.view", wrap((req, res) => {
 // {ids: [...]}: Approve and send, one at a time.
 r.post("/queue/send", "invoices.edit", wrap(async (req, res) => {
   const ids = body(req).ids;
-  // today? (the smoke tests' clock, same checks as POST /run): never before the Sydney today.
-  let today;
-  const t = body(req).today;
-  if (t !== undefined && t !== null) {
-    if (typeof t !== "string" || !invoices.validDate(t)) throw bad("today must be a valid YYYY-MM-DD date");
-    if (t < sydneyToday()) throw bad("today can't be before today");
-    today = t;
-  }
+  const today = testToday(body(req).today);
   if (!Array.isArray(ids) || ids.length < 1 || ids.length > 50) throw bad("ids must be a list of 1 to 50 reminder ids");
   if (!ids.every((n) => Number.isInteger(n) && n > 0)) throw bad("ids must be positive whole numbers");
   const seen = new Set();
@@ -99,13 +106,7 @@ r.post("/queue/:id/skip", "invoices.edit", wrap((req, res) => {
 
 // {today?}: prepare the queue now (in Automatic it also sends). today is never before the Sydney today.
 r.post("/run", "invoices.edit", wrap(async (req, res) => {
-  const b = body(req);
-  let today;
-  if (b.today !== undefined && b.today !== null) {
-    if (typeof b.today !== "string" || !invoices.validDate(b.today)) throw bad("today must be a valid YYYY-MM-DD date");
-    if (b.today < sydneyToday()) throw bad("today can't be before today");
-    today = b.today;
-  }
+  const today = testToday(body(req).today);
   const out = await reminders.run(db, { force: true, today, req });
   // queue()'s `queued` (the waiting list) wins over the run's count, which moves to `queuedNow`.
   res.json({ ...out, ...reminders.queue(db, today ? { today } : undefined), queuedNow: out.queued });

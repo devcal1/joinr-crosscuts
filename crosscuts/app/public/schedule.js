@@ -453,19 +453,19 @@
       rowDiv.classList.add("has-notes-row"); // drives the print-only marker
     }
     actions.appendChild(notesBtn);
-    actions.appendChild(iconBtn("ph-copy", "Copy to next week", guarded(async () => {
+    actions.appendChild(iconBtn("ph-copy", "Copy to next week", oneAtATime(async () => {
       await api(`/api/rows/${row.rowId}/duplicate`, { method: "POST", body: JSON.stringify({}) });
       toast("Copied to next week");
       await refresh();
     })));
     // Move (not copy) to the adjacent week. Assignments and flags hang off
     // week_row_id, which the server leaves alone — the workers come along.
-    actions.appendChild(iconBtn("ph-arrow-square-left", "Move to previous week", guarded(async () => {
+    actions.appendChild(iconBtn("ph-arrow-square-left", "Move to previous week", oneAtATime(async () => {
       await api(`/api/rows/${row.rowId}/move`, { method: "PATCH", body: JSON.stringify({ week: "prev" }) });
       toast("Moved to previous week");
       await refresh();
     })));
-    actions.appendChild(iconBtn("ph-arrow-square-right", "Move to next week", guarded(async () => {
+    actions.appendChild(iconBtn("ph-arrow-square-right", "Move to next week", oneAtATime(async () => {
       await api(`/api/rows/${row.rowId}/move`, { method: "PATCH", body: JSON.stringify({ week: "next" }) });
       toast("Moved to next week");
       await refresh();
@@ -617,6 +617,21 @@
     el.className = "job-print-marks";
     el.textContent = parts.join("  ");
     return el;
+  }
+
+  // As guarded(), but a second click while the first is still saving is ignored (a double click
+  // must not move a row two weeks, or copy it twice). Nothing on screen changes.
+  function oneAtATime(fn) {
+    let busy = false;
+    return guarded(async (...args) => {
+      if (busy) return;
+      busy = true;
+      try {
+        await fn(...args);
+      } finally {
+        busy = false;
+      }
+    });
   }
 
   function iconBtn(icon, title, onClick) {
@@ -809,7 +824,7 @@
     addBtn.type = "button";
     addBtn.className = "btn btn-primary";
     addBtn.textContent = "+ Add";
-    const submitAdd = guarded(async () => {
+    const submitAdd = oneAtATime(async () => {
       const name = input.value.trim();
       if (!name) return;
       const existing = state.jobs.find((j) => j.name.toLowerCase() === name.toLowerCase());
@@ -963,7 +978,7 @@
     addBtn.type = "button";
     addBtn.className = "btn btn-primary";
     addBtn.textContent = "+ Add";
-    const submitAdd = guarded(async () => {
+    const submitAdd = oneAtATime(async () => {
       const name = input.value.trim();
       if (!name) return;
       await api("/api/jobs/backlog", { method: "POST", body: JSON.stringify({ name }) });
@@ -1296,8 +1311,12 @@
   async function refreshNow() {
     // jobs included so a rename can't leave the add-job autocomplete offering
     // stale names (which silently creates duplicate jobs server-side).
+    // Any refresh on a new day re-anchors as the rollover tick does, so a click after a
+    // weekend's sleep can't mark Monday rendered while the board still shows last week.
+    const now = localTodayStr();
+    if (now !== renderedToday && state.weekStart === mondayOf(renderedToday)) state.weekStart = mondayOf(now);
     await Promise.all([loadWorkers(), loadJobs(), loadSchedule()]);
-    renderedToday = localTodayStr();
+    renderedToday = now;
     renderLegend();
     renderWeeks();
     renderBacklog();
@@ -1450,7 +1469,11 @@
     // the board), and 132px left a two-column day unreadable.
     const dayW = 150;
     const jobW = 190;
-    const panelW = jobW + dayW * DAY_KEYS.length;
+    // Mirrors the board's grid (schedule.css): the Weekend column, last, is 1.3 times a weekday.
+    const wkndW = Math.round(dayW * 1.3);
+    const lastDay = DAY_KEYS.length - 1;
+    const widthOf = (i) => (i === lastDay ? wkndW : dayW);
+    const panelW = jobW + dayW * lastDay + wkndW;
     const gap = 28;
     const margin = 24;
     const chipH = 22;
@@ -1561,7 +1584,7 @@
         // Mirrors .weekend-col: the Weekend column's slightly lighter ground, header and rows.
         const weekendX = x + jobW + (DAY_KEYS.length - 1) * dayW;
         ctx.fillStyle = C.weekend;
-        ctx.fillRect(weekendX, py, dayW, headerH);
+        ctx.fillRect(weekendX, py, wkndW, headerH);
         ctx.strokeStyle = C.na;
         ctx.fillStyle = C.label;
         ctx.font = `700 10px ${FONT}`;
@@ -1577,7 +1600,7 @@
         alignedWeeks[wi][key].forEach((row, li) => {
           const h = weekLines[wi][li];
           ctx.fillStyle = C.weekend;
-          ctx.fillRect(weekendX, py, dayW, h);
+          ctx.fillRect(weekendX, py, wkndW, h);
           if (row) {
             const hasNotes = !!(row.notes && row.notes.trim());
             const midY = py + h / 2;
@@ -1620,7 +1643,7 @@
               if (key === "installing" && row.flags && row.flags[day]) {
                 // Mirrors .sched-cell.flagged: orange-8 wash plus a 3px orange left bar.
                 ctx.fillStyle = C.orange8;
-                ctx.fillRect(cellX, py, dayW, h);
+                ctx.fillRect(cellX, py, widthOf(i), h);
                 ctx.fillStyle = C.orange;
                 ctx.fillRect(cellX, py, 3, h);
               }
@@ -1630,7 +1653,7 @@
               // exactly like the board's ellipsis does.
               const chips = row.cells[day];
               const chipCols = Math.max(1, Math.ceil(chips.length / CHIP_ROWS));
-              const colW = (dayW - 8) / chipCols;
+              const colW = (widthOf(i) - 8) / chipCols;
               chips.forEach((chip, k) => {
                 const cx = cellX + 4 + Math.floor(k / CHIP_ROWS) * colW;
                 const cy = py + rowPad + (k % CHIP_ROWS) * chipH;
