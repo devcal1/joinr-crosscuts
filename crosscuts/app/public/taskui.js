@@ -2,6 +2,13 @@
 //
 //   ccTasks.openTask(id, { onChange, onClose, scrollToComments })
 //   ccTasks.newTask({ jobId, jobName, onChange, onClose })
+//   ccTasks.canMarkDone(task)         whether the task's Done shows (an open task; a maintenance occurrence
+//                                     only for maintenance.manage). The list endpoints carry `maintenance`.
+//   ccTasks.doneButton(task, { onChange, say })   the outlined Done button for a list row, or null.
+//   ccTasks.markDone(task, { onChange, say })     POST /api/tasks/:id/done; then a "Marked done" line with
+//                                     Undo for 8 seconds (Undo = POST /api/tasks/:id/reopen). onChange reloads
+//                                     the list (may return a promise); say(nodeOrText | null, 'ok' | 'err')
+//                                     writes the page's message line.
 //
 // One dialog at a time. It shows the task's fields (editable for the creator, the assignee and
 // admins while the task is open), Done / Reopen / Cancel task, files, and the comment thread
@@ -639,5 +646,68 @@
     show({ task: null, jobId: o.jobId ? Number(o.jobId) : null, jobName: o.jobName || "", onChange: o.onChange, onClose: o.onClose });
   }
 
-  window.ccTasks = { openTask: openTask, newTask: newTask };
+  // ---- Done on a list row (0.2.24, docs/plans/badges-plan.md section 3) ----
+
+  var UNDO_MS = 8000;
+
+  function canMarkDone(task) {
+    return !!task && task.status === "open" && (!task.maintenance || can("maintenance.manage"));
+  }
+
+  function markDone(task, o) {
+    var opts = o || {};
+    var say = typeof opts.say === "function" ? opts.say : function () {};
+    var reload = function () { return Promise.resolve(typeof opts.onChange === "function" ? opts.onChange() : null); };
+    return call("POST", "/api/tasks/" + encodeURIComponent(task.id) + "/done")
+      .then(function () {
+        refreshCounts();
+        return reload();
+      })
+      .then(
+        function () {
+          var span = el("span", { class: "tk-undoline" });
+          span.append(document.createTextNode("Marked done: " + task.title + ". "));
+          var undo = el("button", { type: "button", class: "hs-btn hs-btn-sm", text: "Undo" });
+          var timer = setTimeout(function () {
+            if (span.parentNode) say(null);
+          }, UNDO_MS);
+          undo.addEventListener("click", function () {
+            clearTimeout(timer);
+            undo.disabled = true;
+            call("POST", "/api/tasks/" + encodeURIComponent(task.id) + "/reopen")
+              .then(function () {
+                refreshCounts();
+                return reload();
+              })
+              .then(
+                function () { say("Reopened: " + task.title + ".", "ok"); },
+                function (e) { say(e.message, "err"); }
+              );
+          });
+          span.append(undo);
+          say(span, "ok");
+          return true;
+        },
+        function (e) {
+          say(e.message, "err");
+          return false;
+        }
+      );
+  }
+
+  function doneButton(task, o) {
+    if (!canMarkDone(task)) return null;
+    var b = el("button", { type: "button", class: "hs-btn hs-btn-sm tk-rowdone", text: "Done", "aria-label": "Mark done: " + task.title });
+    b.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      ev.preventDefault();
+      b.disabled = true;
+      markDone(task, o).then(function (ok) {
+        if (!ok) b.disabled = false;
+      });
+    });
+    return b;
+  }
+
+  window.ccTasks = { openTask: openTask, newTask: newTask, canMarkDone: canMarkDone, markDone: markDone, doneButton: doneButton };
 })();

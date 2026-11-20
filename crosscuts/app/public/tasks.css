@@ -109,3 +109,8 @@ span.tk-file-name { color: var(--body); }
   .cc-dialog.tk-dialog { width: 96vw; }
   .cm-hint { display: none; }
 }
+
+/* Done on a list row (0.2.24): the outlined button at the end of each open row, and the Undo line. */
+.tk-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.tk-table td.tk-donecell { width: 1%; white-space: nowrap; text-align: right; }
+.tk-undoline .hs-btn { margin-left: 6px; vertical-align: middle; }

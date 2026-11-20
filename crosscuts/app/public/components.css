@@ -76,6 +76,7 @@
 .hs-btn-check:hover { background: var(--orange-16); color: var(--orange-tint); border-color: var(--orange); }
 .hs-btn-stop { color: var(--stop-tint); }
 .hs-btn-stop:hover { border-color: var(--stop); color: var(--stop-tint); background: var(--stop-16); }
+.hs-btn-sm { padding: 5px 10px; font-size: 10px; }
 .hs-btn-quiet { border-color: transparent; color: var(--label); }
 .hs-btn-quiet:hover { border-color: var(--teal); color: var(--teal-tint); }
 .hs-btn:disabled,

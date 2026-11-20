@@ -219,12 +219,23 @@
     var tile = document.getElementById("ix-tasks");
     var list = document.getElementById("ix-tasks-list");
     var empty = document.getElementById("ix-tasks-empty");
+    var msg = document.getElementById("ix-tasks-msg");
+    // 0.2.24: Done / Undo write one inline line in the tile; text, or a node holding the Undo button; null clears it.
+    function say(what, kind) {
+      msg.className = "ix-note" + (kind === "err" ? " err" : "");
+      if (what == null) { msg.textContent = ""; msg.hidden = true; return; }
+      msg.replaceChildren(what);
+      msg.hidden = false;
+    }
     document.getElementById("work-section").hidden = false;
     tile.hidden = false;
-    api("/api/tasks?view=mine&limit=8")
+    function load() {
+      return api("/api/tasks?view=mine&limit=8")
       .then(function (data) {
         if (!data) return;
         var rows = (data.rows || []).slice(0, 8);
+        list.replaceChildren();
+        empty.textContent = "Nothing assigned to you.";
         empty.hidden = rows.length > 0;
         rows.forEach(function (t) {
           var a = el("a", "ix-item");
@@ -237,13 +248,21 @@
           a.appendChild(due);
           var li = el("li", "ix-li");
           li.appendChild(a);
+          var done = window.ccTasks && window.ccTasks.doneButton(t, { onChange: load, say: say });
+          if (done) {
+            li.className += " ix-li-done";
+            li.appendChild(done);
+          }
           list.appendChild(li);
         });
+        if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
       })
       .catch(function () {
         empty.textContent = "Tasks could not be loaded.";
         empty.hidden = false;
       });
+    }
+    load();
   }
 
   // Planner (M7, docs/plans/m7-contracts.md section 14.2): the first six items on today and

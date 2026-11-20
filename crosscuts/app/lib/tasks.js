@@ -166,6 +166,10 @@ function present(db, user, row, today) {
     canEdit: canEditRow(user, row),
     // 0.2.0: made by a recurring task (Admin > Tasks).
     recurring: !!db.prepare("SELECT 1 FROM recurring_occurrences WHERE task_id = ?").get(row.id),
+    // 0.2.24: a maintenance occurrence is finished only by maintenance.manage holders (the Done button on a row checks it).
+    maintenance: !!db
+      .prepare("SELECT 1 FROM recurring_occurrences o JOIN recurring_tasks r ON r.id = o.recurring_id WHERE o.task_id = ? AND r.kind = 'maintenance'")
+      .get(row.id),
   };
 }
 
@@ -430,7 +434,11 @@ function setStatus(db, req, id, action) {
       if (row.status !== "done") throw conflict("Only a finished task can be reopened");
       db.prepare("UPDATE tasks SET status = 'open', done_at = NULL, done_by = NULL, updated_at = ? WHERE id = ?").run(ts, id);
       audit.log(req, { action: "task.reopen", entityType: "task", entityId: id, before: { status: "done" }, after: { status: "open" } });
-      if (Number(row.assignee_id) !== Number(user.id)) {
+      if (notify.isQuickUndo(row, user)) {
+        // Undone within a minute by the person who finished it: take back the creator's unread
+        // "finished a task" alert and don't send a "reopened" one (0.2.24).
+        notify.retractUnread(db, row.created_by, "task.done", "task", id);
+      } else if (Number(row.assignee_id) !== Number(user.id)) {
         notify.toUser(db, row.assignee_id, {
           kind: "task.reopened",
           title: `${user.displayName} reopened a task`,

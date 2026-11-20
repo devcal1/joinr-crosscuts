@@ -169,6 +169,44 @@ req GET "/api/audit?entityType=task&entityId=$M4A_T1&limit=50" "$ADMIN"
 expect_status 200 "GET /api/audit for the task"
 expect_jq '[.rows[].action] | (index("task.create") != null and index("task.update") != null and index("task.done") != null and index("task.reopen") != null and index("task.cancel") != null)' "every task change is audited"
 
+echo "--- quick undo (0.2.24: Done on a list row, Undo for 8 seconds) ---"
+req GET "/api/tasks?view=open" "$ADMIN"
+expect_jq '[.rows[] | select(.maintenance == null)] | length == 0' "every task in the list carries a maintenance flag"
+m4a_task "$ACCT" "m4 quick undo" "$M4A_ADMIN_ID"; M4A_QU=$M4A_TASK
+req POST "/api/tasks/$M4A_QU/done" "$DPM"
+expect_status 200 "dpm marks it done"
+m4a_notifs "$ACCT" task.done "/tasks.html?task=$M4A_QU" 1
+expect_eq "$M4A_N" 1 "the creator has an unread task.done"
+req POST "/api/tasks/$M4A_QU/reopen" "$DPM"
+expect_status 200 "dpm undoes it at once"
+m4a_notifs "$ACCT" task.done "/tasks.html?task=$M4A_QU"
+expect_eq "$M4A_N" 0 "a quick undo takes back the creator's unread task.done"
+m4a_notifs "$ADMIN" task.reopened "/tasks.html?task=$M4A_QU"
+expect_eq "$M4A_N" 0 "and sends no task.reopened"
+# Someone else reopening it is not an undo: the creator's alert stays, the assignee is told.
+req POST "/api/tasks/$M4A_QU/done" "$DPM"
+expect_status 200 "dpm marks it done again"
+req POST "/api/tasks/$M4A_QU/reopen" "$SCHED"
+expect_status 200 "sched reopens it (not the person who finished it)"
+m4a_notifs "$ACCT" task.done "/tasks.html?task=$M4A_QU" 1
+expect_eq "$M4A_N" 1 "another person's reopen leaves the task.done alert"
+m4a_notifs "$ADMIN" task.reopened "/tasks.html?task=$M4A_QU"
+expect_eq "$M4A_N" 1 "and the assignee is told"
+# The same person reopening after the minute has passed leaves the alert alone.
+req POST "/api/tasks/$M4A_QU/done" "$DPM"
+expect_status 200 "dpm marks it done a third time"
+docker exec "$CONTAINER" node -e '
+const Database = require("better-sqlite3");
+const db = new Database("/data/db/photos.db");
+db.prepare("UPDATE tasks SET done_at = ? WHERE id = ?").run(new Date(Date.now() - 120000).toISOString(), Number(process.argv[1]));
+' "$M4A_QU"
+req POST "/api/tasks/$M4A_QU/reopen" "$DPM"
+expect_status 200 "dpm reopens it after two minutes"
+m4a_notifs "$ACCT" task.done "/tasks.html?task=$M4A_QU" 1
+expect_eq "$M4A_N" 2 "a late reopen leaves the unread task.done alerts (one from the other person's reopen, one now)"
+req POST "/api/tasks/$M4A_QU/cancel" "$ACCT"
+expect_status 200 "acct tidies the task away"
+
 echo "--- comments and follows ---"
 m4a_task "$ACCT" "CI comment target" "$M4A_DPM_ID"
 M4A_T2=$M4A_TASK
