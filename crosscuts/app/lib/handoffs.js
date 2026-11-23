@@ -52,6 +52,15 @@ function onSent(db, req, jobId) {
   return { deposit, placed };
 }
 
+// Read-only, for the Send to orders preview: whether Send would raise the deposit (the same test as
+// invoices.onOrderListSent) and the Monday of the board week autoPlace would use (null: none placed).
+function previewSent(db, jobId) {
+  const deposit = !db.prepare("SELECT 1 AS x FROM invoices WHERE job_id = ? AND kind = 'deposit' LIMIT 1").get(jobId);
+  const lead = leadWeeks(db);
+  const weekStart = lead === 0 || jobstage.hasCurrentOrFutureRows(db, jobId) ? null : addDays(sydneyMonday(), 7 * lead);
+  return { deposit, weekStart };
+}
+
 // ---- On board (ordering) -------------------------------------------------------------------
 
 // True while a job on the board still has order lines to order.
@@ -165,4 +174,4 @@ function etaNudge(db, today = sydneyToday()) {
   );
 }
 
-module.exports = { leadWeeks, autoPlace, onSent, boardOrdering, onAllOrdered, needsInstall, confirmInstall, etaNudge };
+module.exports = { leadWeeks, autoPlace, onSent, previewSent, boardOrdering, onAllOrdered, needsInstall, confirmInstall, etaNudge };

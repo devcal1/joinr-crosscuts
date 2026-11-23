@@ -95,6 +95,24 @@
       <ul id="jnList" class="jn-list"></ul>
     </section>
 
+    <!-- The Joinr quote PDF (jobquote.js; docs/plans/jobpage-contracts.md section B). Shows prices: jobs.value holders only. -->
+    <section id="quotepdf" class="jo-sec" aria-labelledby="quotepdf-h" hidden>
+      <div class="hs-sectionbar">
+        <h2 id="quotepdf-h">Quote</h2>
+      </div>
+      <div id="qpBar" class="qp-bar">
+        <p id="qpFacts" class="qp-facts muted" role="status"></p>
+        <div class="qp-acts">
+          <button id="qpRefresh" class="hs-btn" type="button">Refresh</button>
+          <a id="qpDownload" class="hs-btn" href="#" hidden>Download</a>
+          <a id="qpJoinr" class="hs-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>Open in Joinr</a>
+        </div>
+      </div>
+      <p id="qpMsg" class="qp-msg muted" role="status"></p>
+      <iframe id="qpFrame" class="qp-frame" title="Joinr quote PDF" hidden></iframe>
+      <a id="qpOpen" class="hs-btn hs-btn-primary qp-open" href="#" target="_blank" rel="noopener" hidden>Open PDF</a>
+    </section>
+
     <section id="joinr" class="jo-sec" aria-labelledby="joinr-h" hidden>
       <div class="hs-sectionbar">
         <h2 id="joinr-h" data-cc-badge="joinr">From Joinr</h2>
@@ -106,7 +124,7 @@
     <!-- The whole Joinr quote (jobquote.js; task J4). Money in it only for jobs.value holders (the server leaves it out). -->
     <section id="fullquote" class="jo-sec" aria-labelledby="fullquote-h" hidden>
       <div class="hs-sectionbar">
-        <h2 id="fullquote-h">From Joinr quote</h2>
+        <h2 id="fullquote-h">Breakdown: rooms, hours, options, totals</h2>
       </div>
       <div id="fqBody"></div>
     </section>
@@ -118,14 +136,14 @@
         <button id="jmFill" class="hs-btn hs-btn-primary" type="button" hidden>Fill from Joinr</button>
       </div>
       <p id="jmStatus" class="jo-status muted" role="status"></p>
+      <!-- 0.2.26 (docs/plans/jobpage-contracts.md section C): the summary and Send to orders, the progress
+           by supplier once sent, the list, then the lines left out of the order. -->
+      <div id="jmSummary" class="jm-summary hs-card"></div>
+      <div id="jmProgress" class="jm-progress"></div>
       <div id="jmBody"></div>
-      <div id="jmOrderBar" class="jm-orderbar" hidden>
-        <label for="jmSupplier" class="jm-orderlabel">Supplier (optional)</label>
-        <input id="jmSupplier" class="hs-input" type="text" list="jmSuppliers" maxlength="200" autocomplete="off">
-        <datalist id="jmSuppliers"></datalist>
-        <button id="jmToOrders" class="hs-btn hs-btn-primary" type="button" disabled>Create order lines</button>
-        <p class="jm-hint muted">Drawers from Joinr are also on the Drawer order. Take care not to order them twice.</p>
-      </div>
+      <div id="jmFoot"></div>
+      <datalist id="jmSuppliers"></datalist>
+      <p class="jm-addrow"><button id="jmAddBtn" class="hs-btn" type="button" aria-expanded="false" aria-controls="jmForm" hidden>Add a line</button></p>
       <form id="jmForm" class="jo-form" novalidate hidden>
         <h3 class="jo-formh">Add a line</h3>
         <div class="jm-addgrid">

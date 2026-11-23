@@ -39,12 +39,26 @@
   .fq-table { min-width: 460px; }
 }
 
+/* The Quote tab's PDF (jobquote.js startPdf) and the folds under it. Prefixes qp- and fq-. */
+.qp-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.qp-facts { margin: 0; font-size: 13px; }
+.qp-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.qp-msg { margin: 0 0 8px; font-size: 13px; }
+.qp-frame { display: block; width: 100%; height: calc(100vh - 230px); min-height: 520px; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
+.qp-open { margin: 4px 0 12px; }
+.fq-fold.is-folded > :not(.hs-sectionbar) { display: none; }
+.fq-fold > .hs-sectionbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+@media (min-width: 721px) { .qp-open { display: none !important; } }
+@media (max-width: 720px) { .qp-frame { display: none !important; } }
+
 /* Print: black on white, every room open, no screen buttons. */
 /* style-check: print-start */
 @media print {
   #fullquote, #fullquote * { color: #000 !important; background: transparent !important; border-color: #888 !important; }
   .fq-roombody[hidden] { display: block !important; }
   .fq-toggle { display: none !important; }
+  .fq-fold.is-folded > :not(.hs-sectionbar) { display: block !important; }
+  .fq-foldbtn, #qpFrame, #qpOpen { display: none !important; }
   .fq-room { break-inside: avoid-page; border-radius: 0; }
   .fq-wrap { overflow: visible; border-radius: 0; }
   .fq-table { min-width: 0; }

@@ -13,6 +13,10 @@
 //   - a Joinr line the quote no longer has is marked gone_from_joinr ("No longer in Joinr"), never
 //     deleted, unless a person has overridden it.
 // Manual lines are never touched by a sync.
+//
+// 0.2.26 (docs/plans/jobpage-contracts.md section C; migration 067): prefill() suggests a supplier and
+// details for lines that have none, from the last ordered line with the same name or the section's
+// default supplier; skip_order lines (Joinr drawers) are left out of the order list.
 const audit = require("./audit");
 const joinrQuote = require("./joinr-quote");
 const { bad, notFound, conflict } = require("./httperror");
@@ -46,6 +50,8 @@ const DETAIL_MAX = 100;
 // The project fields a person may set on any line (m22 section 3). Editing them never marks a Joinr
 // line overridden: a sync doesn't write them, so it can keep refreshing the rest.
 const DETAILS = [["colour", DETAIL_MAX], ["finish", DETAIL_MAX], ["brand", DETAIL_MAX], ["code", DETAIL_MAX], ["supplier", SUPPLIER_MAX]];
+// The fields prefill may fill, in the order the page joins them ("Brand, code, colour, finish").
+const PREFILL_FIELDS = ["supplier", "brand", "code", "colour", "finish"];
 
 const nowIso = () => new Date().toISOString();
 const userId = (req) => (req && req.user && req.user.id != null ? req.user.id : null);
@@ -58,8 +64,17 @@ function requireJob(db, jobId) {
   return job;
 }
 
-const SELECT = `SELECT m.*, CASE WHEN o.deleted_at IS NOT NULL THEN 'cancelled' ELSE o.status END AS order_status
+const SELECT = `SELECT m.*, CASE WHEN o.deleted_at IS NOT NULL THEN 'cancelled' ELSE o.status END AS order_status, o.expected_date AS order_expected
                   FROM job_materials m LEFT JOIN orders o ON o.id = m.order_id`;
+
+function parseSuggested(v) {
+  try {
+    const a = JSON.parse(v || "[]");
+    return Array.isArray(a) ? a.filter((k) => PREFILL_FIELDS.includes(k)) : [];
+  } catch (_) {
+    return [];
+  }
+}
 
 // The line as the API shows it. `ordered` is true while its order line is not cancelled.
 function present(r) {
@@ -79,6 +94,10 @@ function present(r) {
     brand: r.brand || null,
     code: r.code || null,
     supplier: r.supplier || null,
+    // 0.2.26: the detail fields still shown as a suggestion, when prefill looked, and "left out of the order".
+    suggested: parseSuggested(r.suggested),
+    prefilledAt: r.prefilled_at || null,
+    skipOrder: !!r.skip_order,
     source: r.source,
     overridden: !!r.overridden,
     // JOINR (as the quote has it), EDITED (a Joinr line a person changed) or TYPED (added by hand).
@@ -86,6 +105,7 @@ function present(r) {
     goneFromJoinr: !!r.gone_from_joinr,
     orderId: r.order_id,
     orderStatus: r.order_status || null,
+    orderExpected: r.order_expected || null,
     ordered,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -209,6 +229,7 @@ function create(db, req, jobId, body) {
       entityId: id,
       after: { jobId, ...auditShape({ section, name, qty, unit, notes }), ...det },
     });
+    prefill(db, req, jobId);
     return present(db.prepare(`${SELECT} WHERE m.id = ?`).get(id));
   })();
 }
@@ -229,22 +250,42 @@ function update(db, req, jobId, id, patch) {
   if (has("notes")) next.notes = textOf("notes", patch.notes, NOTES_MAX);
   const det = {};
   for (const [k, max] of DETAILS) if (has(k)) det[k] = textOf(k, patch[k], max) || null;
+  // 0.2.26: Include / Leave out. Not a quote field, so it never marks a Joinr line overridden.
+  let skip;
+  if (has("skipOrder")) {
+    if (typeof patch.skipOrder !== "boolean") throw bad("skipOrder must be true or false");
+    skip = patch.skipOrder ? 1 : 0;
+    if (skip && present(line).ordered) throw conflict("This line has already been ordered");
+  }
   const changes = {};
   for (const [k, v] of Object.entries(next)) if (v !== line[k]) changes[k] = v;
   for (const [k, v] of Object.entries(det)) if (v !== (line[k] || null)) changes[k] = v;
+  if (skip !== undefined && skip !== (line.skip_order ? 1 : 0)) changes.skip_order = skip;
   if (!Object.keys(changes).length) return present(line);
   return db.transaction(() => {
     const sets = Object.keys(changes);
-    const makeOverridden = line.source === "joinr" && !line.overridden && sets.some((c) => !DETAILS.some(([k]) => k === c));
+    const isDetail = (c) => DETAILS.some(([k]) => k === c);
+    const makeOverridden = line.source === "joinr" && !line.overridden && sets.some((c) => !isDetail(c) && c !== "skip_order");
     const cols = [...sets.map((c) => `${c} = ?`), "updated_at = ?", "updated_by = ?"];
     const args = [...sets.map((c) => changes[c]), nowIso(), userId(req)];
     if (makeOverridden) cols.push("overridden = 1");
+    // A person's edit to a detail field ends its suggestion, and prefill never looks at the line again.
+    const edited = sets.filter(isDetail);
+    if (edited.length) {
+      const left = parseSuggested(line.suggested).filter((k) => !edited.includes(k));
+      cols.push("suggested = ?");
+      args.push(JSON.stringify(left));
+      if (!line.prefilled_at) {
+        cols.push("prefilled_at = ?");
+        args.push(nowIso());
+      }
+    }
     db.prepare(`UPDATE job_materials SET ${cols.join(", ")} WHERE id = ?`).run(...args, line.id);
     const before = {};
     const after = {};
     for (const c of sets) {
-      before[c] = line[c];
-      after[c] = changes[c];
+      before[c] = c === "skip_order" ? !!line[c] : line[c];
+      after[c] = c === "skip_order" ? !!changes[c] : changes[c];
     }
     if (makeOverridden) {
       before.overridden = false;
@@ -369,7 +410,7 @@ function linesFromPayload(payload, quote) {
   for (const t of textList(raw.benchtops)) add("benchtop:" + t.toLowerCase(), "benchtop", t, null, null, "");
 
   // A two-pac finish.
-  if (spec.twoPac === true) add("twopac", "paint", "Two-pac finish", null, null, "");
+  if (spec.twoPac === true) add("twopac", "paint", "Two-pac finish", 1, "job", "");
 
   // Drawer lines (contract version 2): the quote's drawers and inner drawers, with their counts.
   if (Array.isArray(p.drawers) && !quote) {
@@ -449,6 +490,7 @@ function fillFromJoinr(db, jobId, payload, req, opts = {}) {
         after: { ...stat, lineIds: ids },
       });
     }
+    prefill(db, req, jobId);
     return stat;
   })();
 }
@@ -465,6 +507,116 @@ function syncFromJoinr(db, req, jobId, { action = "material.fill" } = {}) {
   const snap = joinrQuote.latest(db, rec.id);
   const summary = fillFromJoinr(db, jobId, rec.payload, req, { action, quote: snap ? snap.quote : null });
   return { summary, ...list(db, jobId) };
+}
+
+// ---- prefill (0.2.26) ------------------------------------------------------------------------
+
+function sectionDefaults(db) {
+  return new Map(db.prepare("SELECT section, supplier FROM material_section_suppliers").all().map((r) => [r.section, r.supplier]));
+}
+
+// The most recent line on ANOTHER job with the same section and name (trimmed, case-folded) that has a
+// supplier and a live order line (sent or ordered, not cancelled or deleted). Its details come together.
+function historyFor(db, jobId, line) {
+  return db
+    .prepare(
+      `SELECT m.supplier, m.brand, m.code, m.colour, m.finish
+         FROM job_materials m JOIN orders o ON o.id = m.order_id
+        WHERE m.job_id <> ? AND m.section = ? AND lower(trim(m.name)) = ?
+          AND m.supplier IS NOT NULL AND trim(m.supplier) <> ''
+          AND o.deleted_at IS NULL AND o.status <> 'cancelled'
+        ORDER BY m.updated_at DESC, m.id DESC LIMIT 1`
+    )
+    .get(jobId, line.section, String(line.name).trim().toLowerCase());
+}
+
+// Fills only EMPTY supplier, brand, code, colour and finish on live, unordered lines prefill has not
+// looked at (prefilled_at NULL), then stamps them, so a field a person later clears is never refilled
+// and an edit is never overwritten. History first (see historyFor), else the section's default
+// supplier. A history line is used only when the line has no supplier, or the same one (a typed
+// supplier is never joined to another supplier's brand and code). Joinr drawers lines are left out of
+// the order (skip_order = 1): they are on the drawer order. It does nothing while the latest revision
+// is current and unchanged, because it would change that revision's fingerprint.
+function prefill(db, req, jobId) {
+  return db.transaction(() => {
+    requireJob(db, jobId);
+    const todo = db
+      .prepare(`${SELECT} WHERE m.job_id = ? AND m.removed_at IS NULL AND m.prefilled_at IS NULL`)
+      .all(jobId)
+      .filter((r) => !present(r).ordered);
+    if (!todo.length) return { filled: 0, lines: 0, held: false };
+    const st = require("./projectjobs").listState(db, jobId);
+    if (st.current && st.changed === false) return { filled: 0, lines: 0, held: true };
+    const defaults = sectionDefaults(db);
+    const now = nowIso();
+    const uid = userId(req);
+    const touched = [];
+    for (const r of todo) {
+      const sets = {};
+      const suggested = parseSuggested(r.suggested);
+      if (r.source === "joinr" && r.section === "drawers") {
+        sets.skip_order = 1;
+      } else {
+        const hist = historyFor(db, jobId, r);
+        const sameSupplier = hist && (!r.supplier || String(r.supplier).trim().toLowerCase() === String(hist.supplier).trim().toLowerCase());
+        if (hist && sameSupplier) {
+          for (const k of PREFILL_FIELDS) if (!r[k] && hist[k] && String(hist[k]).trim()) sets[k] = String(hist[k]).trim();
+        } else if (!r.supplier && defaults.has(r.section)) {
+          sets.supplier = defaults.get(r.section);
+        }
+        for (const k of Object.keys(sets)) if (!suggested.includes(k)) suggested.push(k);
+      }
+      const cols = Object.keys(sets);
+      db.prepare(
+        `UPDATE job_materials SET ${[...cols.map((c) => `${c} = ?`), "suggested = ?", "prefilled_at = ?", "updated_at = ?", "updated_by = ?"].join(", ")} WHERE id = ?`
+      ).run(...cols.map((c) => sets[c]), JSON.stringify(suggested), now, now, uid, r.id);
+      if (cols.length) touched.push({ id: r.id, fields: cols });
+    }
+    if (touched.length) {
+      audit.log(req, { action: "material.prefill", entityType: "job", entityId: jobId, after: { lines: touched } });
+    }
+    return { filled: touched.length, lines: todo.length, held: false };
+  })();
+}
+
+// ---- section default suppliers (0.2.26) -------------------------------------------------------
+
+function listSectionSuppliers(db) {
+  const have = new Map(db.prepare("SELECT section, supplier FROM material_section_suppliers").all().map((r) => [r.section, r.supplier]));
+  return { sections: SECTIONS.map((s) => ({ section: s.id, label: s.label, supplier: have.get(s.id) || null })) };
+}
+
+// body: {sections: {boards: "Supplier A", handles: ""}}: a blank clears the default.
+function setSectionSuppliers(db, req, body) {
+  if (!body || typeof body !== "object" || Array.isArray(body) || !body.sections || typeof body.sections !== "object" || Array.isArray(body.sections)) {
+    throw bad("sections must be an object of section: supplier");
+  }
+  const entries = Object.entries(body.sections);
+  for (const [sec, v] of entries) {
+    sectionOf(sec);
+    if (v !== null) textOf(sec, v, SUPPLIER_MAX);
+  }
+  return db.transaction(() => {
+    const now = nowIso();
+    const before = listSectionSuppliers(db).sections;
+    const changed = {};
+    for (const [sec, v] of entries) {
+      const sup = v === null ? "" : v.trim();
+      const was = (before.find((b) => b.section === sec) || {}).supplier || "";
+      if (sup === was) continue;
+      if (!sup) db.prepare("DELETE FROM material_section_suppliers WHERE section = ?").run(sec);
+      else
+        db.prepare(
+          `INSERT INTO material_section_suppliers (section, supplier, updated_at, updated_by) VALUES (?, ?, ?, ?)
+           ON CONFLICT(section) DO UPDATE SET supplier = excluded.supplier, updated_at = excluded.updated_at, updated_by = excluded.updated_by`
+        ).run(sec, sup, now, userId(req));
+      changed[sec] = { from: was || null, to: sup || null };
+    }
+    if (Object.keys(changed).length) {
+      audit.log(req, { action: "material.section_suppliers", entityType: "settings", entityId: 0, after: changed });
+    }
+    return listSectionSuppliers(db);
+  })();
 }
 
 // ---- feeding Ordering ------------------------------------------------------------------------
@@ -509,6 +661,10 @@ function toOrders(db, req, jobId, body) {
         skipped.push({ id, reason: "already ordered" });
         continue;
       }
+      if (row.skip_order) {
+        skipped.push({ id, reason: "left out of the order" });
+        continue;
+      }
       const r = orders.createLine(
         db,
         jobId,
@@ -550,6 +706,9 @@ module.exports = {
   fillFromJoinr,
   syncFromJoinr,
   toOrders,
+  prefill,
+  listSectionSuppliers,
+  setSectionSuppliers,
   linesFromPayload,
   orderDescription,
 };

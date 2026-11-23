@@ -1,34 +1,73 @@
-/* The job page's Materials section (jobmaterials.js; docs/plans/materials-contracts.md).
-   Loaded by job.html after jobs.css. Prefix jm-. */
-.jm-table { min-width: 0; width: 100%; }
-.jm-table td.jm-sec { color: var(--white); font-weight: 700; min-width: 70px; max-width: 110px; vertical-align: top; }
-.jm-table td.jm-name { color: var(--white); min-width: 150px; vertical-align: top; }
-.jm-table td.jm-notes { min-width: 90px; color: var(--label); }
-.jm-table th.jm-num, .jm-table td.jm-num { text-align: right; white-space: nowrap; }
-.jm-table td.jm-acts { white-space: nowrap; text-align: right; }
-.jm-table td.jm-acts .hs-btn { padding: 6px 10px; margin-left: 6px; }
-.jm-table th.jm-tick, .jm-table td.jm-tick { width: 1%; padding-right: 0; }
-.jm-table tr.jm-gone td.jm-name > span, .jm-table tr.jm-gone td.jm-notes { opacity: 0.7; }
-.jm-table tr.jm-editing td { vertical-align: top; }
-.jm-table .hs-input { width: 100%; min-width: 0; color-scheme: dark; }
-.jm-table .jm-qty { min-width: 64px; }
-.jm-table .jm-unit { min-width: 64px; }
-.jm-table .jm-section { min-width: 110px; }
+/* The job page's Orders & materials list (jobmaterials.js; docs/plans/jobpage-contracts.md section C).
+   Loaded by job.html after jobs.css. Prefix jm-. Teal text is a suggestion, orange needs a person. */
+.jm-summary { padding: 12px 16px; margin: 0 0 12px; }
+.jm-sumrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 28px; }
+.jm-sumleft { flex: 1 1 260px; min-width: 0; }
+.jm-sumhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.jm-sumtitle { color: var(--white); font-size: 16px; }
+.jm-install { display: flex; flex-direction: column; gap: 4px; width: 170px; }
+.jm-install .hs-input { width: 100%; color-scheme: dark; }
+.jm-sumacts { display: flex; flex-wrap: wrap; gap: 8px; }
+.jm-why { flex: 1 0 100%; margin: 10px 0 0; font-size: 12px; color: var(--label); }
+.jm-sub { font-size: 12px; color: var(--label); }
+.jm-orderlabel { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
 
-/* The marker words sit under the item, one small badge each. */
+.jm-table { min-width: 0; width: 100%; }
+.jm-table td { vertical-align: middle; padding: 5px 8px; }
+.jm-table td .hs-input { font-size: 14px; padding: 5px 8px; min-height: 32px; }
+.jm-more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.jm-table td.jm-item { min-width: 150px; }
+.jm-table .jm-name { color: var(--white); }
+.jm-table td.jm-c-qty { min-width: 70px; width: 70px; }
+.jm-table td.jm-c-unit { min-width: 76px; width: 76px; }
+.jm-table td.jm-c-sup { min-width: 130px; width: 150px; }
+.jm-table td.jm-c-det { min-width: 150px; width: 180px; max-width: 180px; }
+.jm-table td.jm-state { width: 120px; }
+.jm-table td.jm-state .hs-badge { white-space: normal; }
+.jm-table td.jm-acts { text-align: right; }
+.jm-table td.jm-acts .hs-btn { padding: 6px 10px; margin-left: 4px; }
+.jm-table td.jm-num { text-align: right; white-space: nowrap; }
+.jm-table td.jm-strong { color: var(--white); font-weight: 700; }
+.jm-table tr.jm-gone td.jm-item > span, .jm-table tr.jm-gone td.jm-item .jm-sub { opacity: 0.7; }
+.jm-table .hs-input { width: 100%; min-width: 0; color-scheme: dark; }
+.jm-table tr.jm-sechead th { background: var(--raised); color: var(--white); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; text-align: left; }
+.jm-seccount { margin-left: 8px; color: var(--label); font-weight: 400; }
 .jm-marks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 
-.jm-orderbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; margin-top: 12px; }
-.jm-orderlabel { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
-.jm-hint { flex: 1 0 100%; margin: 0; text-align: right; font-size: 12px; color: var(--muted); }
-.jm-orderbar .hs-input { width: 220px; max-width: 100%; }
+/* Suggested (teal text) and needs-a-person (orange border). */
+.jm-table .jm-sug, .jm-table .jm-sug:disabled { color: var(--teal-tint); border-color: var(--teal); }
+.jm-table .jm-att { border-color: var(--orange); }
+.jm-detbtn { display: block; text-align: left; cursor: pointer; font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jm-detbtn.jm-empty { color: var(--muted); }
+
+.jm-detrow td, .jm-editing td { background: var(--surface); }
+.jm-detgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
+.jm-editgrid { display: grid; grid-template-columns: 160px minmax(0, 2fr) 90px 100px; gap: 8px 12px; align-items: end; }
+.jm-editgrid .jm-wide { grid-column: span 2; }
+.jm-editacts { display: flex; gap: 8px; grid-column: 1 / -1; }
+.jm-detfield { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.jm-detlabel { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+
+.jm-progress { margin: 0 0 12px; }
+.jm-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; background: var(--raised); border-left: 3px solid var(--teal); border-radius: 4px; padding: 6px 12px; margin: 0 0 8px; }
+.jm-barh { margin: 0; color: var(--white); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.jm-foothead { margin: 18px 0 6px; color: var(--white); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.jm-leftout td { vertical-align: middle; }
+.jm-addrow { margin: 12px 0 0; }
 
 .jm-addgrid { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr) 90px 100px; gap: 12px 16px; }
 .jm-addgrid .jm-addnotes { grid-column: 1 / -1; }
 .jm-addgrid .hs-input { width: 100%; color-scheme: dark; }
 
 @media (max-width: 720px) {
-  .jm-table { min-width: 640px; }
+  .jm-table { min-width: 720px; }
+  .jm-detgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jm-editgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jm-editgrid .jm-wide { grid-column: 1 / -1; }
   .jm-addgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .jm-addgrid .jm-addname { grid-column: 1 / -1; }
+}
+
+@media print {
+  #jmSend, #jmUpdate, #jmAddBtn, .jm-acts, #jmFill { display: none !important; }
 }

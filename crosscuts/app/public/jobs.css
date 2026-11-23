@@ -284,3 +284,41 @@ a.hs-btn:hover { text-decoration: none; }
   .jo-filters .hs-btn, .jobs-tools .hs-input { min-height: 44px; }
   .jo-list td.jobs-empty { text-align: center; }
 }
+
+/* ---- Overview cards (0.2.26): read first, edit one card at a time ---- */
+.jobform .ov-top { display: block; }
+.jobform .ov-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; margin-top: 12px; }
+.ov-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 10px 14px; min-width: 0; }
+.ov-card.is-editing { border-color: var(--teal); }
+.ov-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.ov-h { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--white); }
+.ov-k { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label); }
+.ov-kv { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 4px 10px; align-items: baseline; }
+.ov-v { min-width: 0; overflow-wrap: anywhere; color: var(--body); }
+.ov-v a { color: var(--teal-tint); }
+.ov-pre { white-space: pre-wrap; }
+.ov-steps { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.ov-step { border-top: 2px solid var(--teal); padding-top: 6px; min-width: 0; }
+.ov-step.is-off { border-top-color: var(--hairline); }
+.ov-stepv { display: block; color: var(--white); font-size: 13px; font-weight: 400; }
+.ov-step.is-off .ov-stepv { color: var(--muted); }
+.ov-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.jobform > .status { margin: 0 0 8px; font-size: 14px; min-height: 0; }
+.jobform > .status:empty { display: none; }
+.jobform > .status.err { color: var(--stop-tint); }
+.jobform > .status.ok { color: var(--go-tint); }
+.jd .jobform .ov-card .grid, .jobform .ov-card .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 720px) {
+  .jobform .ov-cols { grid-template-columns: minmax(0, 1fr); }
+  .ov-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ov-kv { grid-template-columns: 110px minmax(0, 1fr); }
+  .jd .jobform .ov-card .grid, .jobform .ov-card .grid { grid-template-columns: minmax(0, 1fr); }
+}
+/* style-check: print-start */
+@media print {
+  .ov-card { background: none; border-color: #000; color: #000; }
+  .ov-h, .ov-k, .ov-v, .ov-v a, .ov-stepv, .ov-step.is-off .ov-stepv { color: #000; }
+  .ov-step, .ov-step.is-off { border-top-color: #000; }
+  .ov-edit, .ov-actions { display: none !important; }
+}
+/* style-check: print-end */

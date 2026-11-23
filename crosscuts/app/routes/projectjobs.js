@@ -45,6 +45,13 @@ r.put("/job-records/:id/owner", ["jobs.edit", "users.admin"], handle((req, res) 
   const id = jobIdOf(req);
   const b = body(req);
   if (!Object.prototype.hasOwnProperty.call(b, "ownerId")) throw bad("ownerId is required (a user id or null)");
+  // 0.2.26: {ownerId: null, undo: true} takes back this user's assignment of the last 60 seconds,
+  // and the Won to Projects move it caused (lib/intake.js undoOwner).
+  if (b.undo === true) {
+    if (b.ownerId !== null) throw bad("undo needs ownerId null");
+    const undone = require("../lib/intake").undoOwner(db, req, id);
+    return res.json({ ...projectjobs.summary(db, id), undone });
+  }
   projectjobs.setOwner(db, req, id, b.ownerId);
   res.json(projectjobs.summary(db, id));
 }));
@@ -77,6 +84,19 @@ r.get("/job-records/:id/project/order-lists/:rev", "jobs.view", handle((req, res
 
 r.post("/job-records/:id/project/send", "orders.edit", handle((req, res) => {
   res.json(projectjobs.send(db, req, jobIdOf(req)));
+}));
+
+// 0.2.26: Send to orders in one step. The preview is read-only; send-now needs jobs.edit AND orders.edit
+// and is one transaction (lib/projectjobs.js sendNow).
+r.get("/job-records/:id/project/send-preview", "jobs.view", handle((req, res) => {
+  const out = projectjobs.sendPreview(db, jobIdOf(req));
+  out.can = { send: can(req, "jobs.edit") && can(req, "orders.edit") };
+  res.json(out);
+}));
+
+r.post("/job-records/:id/project/send-now", "jobs.edit", handle((req, res) => {
+  if (!can(req, "orders.edit")) throw new HttpError(403, "Forbidden");
+  res.json(projectjobs.sendNow(db, req, jobIdOf(req), body(req).fingerprint));
 }));
 
 module.exports = r.router;

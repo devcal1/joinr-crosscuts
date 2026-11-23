@@ -13,7 +13,7 @@ const { HttpError, bad, notFound, conflict } = require("./httperror");
 const { DATE_RE, sydneyToday } = require("./time");
 
 const BENCHTOPS = new Set(["laminate", "stone", "none"]);
-const VIEWS = ["new", "changed", "decided", "ignored", "withdrawn", "all"];
+const VIEWS = ["unassigned", "new", "changed", "decided", "ignored", "withdrawn", "all"];
 const LIST_LIMIT = 500;
 
 // The actor for a decision Crosscuts makes itself (2026-10-18): a won quote becomes a job with no
@@ -189,8 +189,16 @@ function loadRow(db, id) {
   return row;
 }
 
+// 0.2.26 (docs/plans/jobpage-contracts.md section A): a decided record whose job is live and has no
+// project manager. One row per job (its latest record).
+const UNASSIGNED_WHERE = `i.state IN ('accepted','linked') AND i.job_id IS NOT NULL
+  AND j.project_owner_id IS NULL AND j.archived = 0
+  AND j.stage NOT IN ('complete','invoiced','lost','archived')
+  AND i.id = (SELECT MAX(i2.id) FROM joinr_intake i2 WHERE i2.job_id = i.job_id)`;
+
 function viewWhere(state) {
   switch (state) {
+    case "unassigned": return UNASSIGNED_WHERE;
     case "new": return "i.state = 'new'";
     case "changed": return "i.changed = 1";
     case "decided": return "i.state IN ('accepted','linked')";
@@ -204,8 +212,9 @@ function viewWhere(state) {
 function list(db, user, opts) {
   const state = opts && opts.state != null && opts.state !== "" ? String(opts.state) : "new";
   const where = viewWhere(state);
+  const order = state === "unassigned" ? "COALESCE(j.won_date, '') DESC, i.id DESC" : "i.last_seen_at DESC, i.id DESC";
   const rows = db
-    .prepare(`${SELECT} WHERE ${where} ORDER BY i.last_seen_at DESC, i.id DESC LIMIT ${LIST_LIMIT}`)
+    .prepare(`${SELECT} WHERE ${where} ORDER BY ${order} LIMIT ${LIST_LIMIT}`)
     .all();
   return rows.map((r) => toObject(db, user, r));
 }
@@ -223,7 +232,11 @@ function counts(db) {
        FROM joinr_intake`
     )
     .get();
+  const un = db
+    .prepare(`SELECT COUNT(*) AS n FROM joinr_intake i JOIN jobs j ON j.id = i.job_id WHERE ${UNASSIGNED_WHERE}`)
+    .get();
   return {
+    unassigned: Number(un.n),
     new: Number(r.n_new),
     changed: Number(r.n_changed),
     decided: Number(r.n_decided),
@@ -566,6 +579,69 @@ function autoDecide(db, id) {
   })();
 }
 
+// ---- undo an assignment (0.2.26) -------------------------------------------------------------
+
+const UNDO_WINDOW_MS = 60 * 1000;
+const parseJson = (t) => {
+  try {
+    return JSON.parse(t);
+  } catch (_) {
+    return null;
+  }
+};
+
+// Takes back the assignment this user has just made from the Needs a project manager list: clears the
+// owner and, when that assignment is what moved the job from Won to Projects and it is still there,
+// moves it back to Won. Only the same user, only within 60 seconds of the assignment, only while it
+// is the job's latest owner change; otherwise 409. Audited (job.owner with undo, and the stage move).
+function undoOwner(db, req, jobId) {
+  const user = req && req.user;
+  return db.transaction(() => {
+    const job = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
+    if (!job) throw notFound();
+    const gone = () => conflict("Undo is no longer available. Set the project manager by hand if you need to.");
+    if (job.project_owner_id == null || !user) throw gone();
+    const last = db
+      .prepare("SELECT * FROM audit_log WHERE action = 'job.owner' AND entity_type = 'job' AND entity_id = ? ORDER BY id DESC LIMIT 1")
+      .get(String(jobId));
+    if (!last || Number(last.actor_user_id) !== Number(user.id)) throw gone();
+    const before = parseJson(last.before_json) || {};
+    const after = parseJson(last.after_json) || {};
+    if (before.ownerId != null || after.undo || Number(after.ownerId) !== Number(job.project_owner_id)) throw gone();
+    const age = Date.now() - Date.parse(last.at);
+    if (!(age >= -5000 && age <= UNDO_WINDOW_MS)) throw gone();
+
+    // The stage move this assignment caused, logged right after it by the same user.
+    const moveRow = db
+      .prepare("SELECT * FROM audit_log WHERE action = 'job.stage' AND entity_type = 'job' AND entity_id = ? ORDER BY id DESC LIMIT 1")
+      .get(String(jobId));
+    let restore = false;
+    if (moveRow && moveRow.id > last.id && Number(moveRow.actor_user_id) === Number(user.id)) {
+      const mb = parseJson(moveRow.before_json) || {};
+      const ma = parseJson(moveRow.after_json) || {};
+      restore = mb.stage === "won" && ma.stage === "design_ordering" && jobstage.pipelineStage(job) === "projects";
+    }
+    let restored = false;
+    if (restore) {
+      try {
+        restored = jobstage.moveStage(db, jobId, { stage: "won", from: "projects" }, req).changed;
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+      }
+    }
+    const prev = db.prepare("SELECT display_name FROM users WHERE id = ?").get(job.project_owner_id);
+    db.prepare("UPDATE jobs SET project_owner_id = NULL, updated_at = ? WHERE id = ?").run(new Date().toISOString(), jobId);
+    audit.log(req, {
+      action: "job.owner",
+      entityType: "job",
+      entityId: jobId,
+      before: { ownerId: job.project_owner_id, name: prev ? prev.display_name : null },
+      after: { ownerId: null, name: null, undo: true, stageRestored: restored },
+    });
+    return { stageRestored: restored };
+  })();
+}
+
 function ignore(db, req, id) {
   const user = req && req.user;
   db.transaction(() => {
@@ -602,4 +678,4 @@ function acknowledge(db, req, id) {
   return get(db, user, id);
 }
 
-module.exports = { list, counts, get, matches, accept, link, autoDecide, ignore, acknowledge, forJob, quoteOf, httpUrl, SYSTEM_REQ, VIEWS };
+module.exports = { list, counts, get, matches, accept, link, autoDecide, ignore, acknowledge, undoOwner, forJob, quoteOf, httpUrl, SYSTEM_REQ, VIEWS };

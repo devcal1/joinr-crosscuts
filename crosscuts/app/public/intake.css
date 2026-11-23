@@ -62,3 +62,23 @@
   .in-tab { flex: 1 1 auto; }
 }
 .in-acts .in-owner { width: auto; min-width: 160px; }
+
+/* Needs a project manager (0.2.26): one line per job. */
+.in-table td { vertical-align: middle; }
+.in-table .in-r { text-align: right; font-variant-numeric: tabular-nums; }
+.in-table td.in-qn { font-size: 13px; letter-spacing: 0.08em; white-space: nowrap; }
+.in-table .in-jobname { color: var(--white); font-weight: 700; }
+.in-table .in-owner { width: 100%; min-width: 180px; }
+.in-table th:last-child { width: 240px; }
+.in-assigned { color: var(--teal-tint); }
+.in-undo { margin-left: 4px; }
+@media (max-width: 720px) {
+  .in-table, .in-table tbody, .in-table tr, .in-table td { display: block; width: 100%; }
+  .in-table thead { display: none; }
+  .in-table tr { border-bottom: 1px solid var(--hairline); padding: 10px 0; }
+  .in-table td { display: flex; gap: 12px; justify-content: space-between; border: 0; padding: 3px 4px; text-align: right; }
+  .in-table td::before { content: attr(data-label); color: var(--label); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: left; flex: 0 0 auto; padding-top: 3px; }
+  .in-table td.in-qn { white-space: normal; }
+  .in-table th:last-child { width: auto; }
+  .in-table .in-owner { min-width: 0; }
+}

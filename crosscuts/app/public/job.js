@@ -276,37 +276,41 @@
     return job != null && "valueCents" in job; // server omits it without jobs.value
   }
 
+  // One field: its label, input (registered in `inputs`), hint and link-out.
+  function buildField(f) {
+    const node = buildInput(f);
+    inputs[f.key] = node;
+    const field = el("div", { class: "field" + (f.wide ? " wide" : "") });
+    if (f.type === "archived") {
+      field.append(
+        el("label", { for: node.id, class: "jobs-check" }, node, document.createTextNode(" " + f.label))
+      );
+    } else {
+      field.append(el("label", { for: node.id, text: f.label + (f.required ? " *" : "") }), node);
+    }
+    if (f.hint) field.append(el("div", { class: "hint muted", text: f.hint }));
+    if (f.type === "url") {
+      const out = el("a", { class: "linkout", target: "_blank", rel: "noopener noreferrer", hidden: true, text: "Open link" });
+      field.append(out);
+      const sync = () => {
+        const v = node.value.trim();
+        out.hidden = !/^https?:\/\/\S+$/i.test(v);
+        if (!out.hidden) out.href = v;
+      };
+      node.addEventListener("input", sync);
+      node.__sync = sync;
+    }
+    return field;
+  }
+
   function buildForm() {
+    if (!isNew) return buildCards();
     formEl.replaceChildren();
     inputs = {};
     for (const g of GROUPS) {
       if (g.valueOnly && !showValueField()) continue;
       const grid = el("div", { class: "grid" });
-      for (const f of g.fields) {
-        const node = buildInput(f);
-        inputs[f.key] = node;
-        const field = el("div", { class: "field" + (f.wide ? " wide" : "") });
-        if (f.type === "archived") {
-          field.append(
-            el("label", { for: node.id, class: "jobs-check" }, node, document.createTextNode(" " + f.label))
-          );
-        } else {
-          field.append(el("label", { for: node.id, text: f.label + (f.required ? " *" : "") }), node);
-        }
-        if (f.hint) field.append(el("div", { class: "hint muted", text: f.hint }));
-        if (f.type === "url") {
-          const out = el("a", { class: "linkout", target: "_blank", rel: "noopener noreferrer", hidden: true, text: "Open link" });
-          field.append(out);
-          const sync = () => {
-            const v = node.value.trim();
-            out.hidden = !/^https?:\/\/\S+$/i.test(v);
-            if (!out.hidden) out.href = v;
-          };
-          node.addEventListener("input", sync);
-          node.__sync = sync;
-        }
-        grid.append(field);
-      }
+      for (const f of g.fields) grid.append(buildField(f));
       formEl.append(el("fieldset", {}, el("legend", { class: "hs-sectionbar", text: g.title }), grid));
     }
 
@@ -316,6 +320,204 @@
     actions.append(statusEl, el("a", { class: "hs-btn hs-btn-quiet", href: "/jobs.html", text: "Cancel" }), saveBtn);
     formEl.append(actions);
   }
+
+  // ---- Overview cards (0.2.26, docs/plans/jobpage-contracts.md section A) ---------------------------
+  // An existing job reads as cards: Dates across the top as a progress line, then Job, Client, Spec and
+  // value, Links and notes. Each card has Edit (jobs.edit): its fields, Save and Cancel for that card
+  // only, PATCHing only its changed fields. One card is open at a time; unsaved edits ask before
+  // switching or leaving. A new job keeps the full form above.
+  const CARDS = [
+    { key: "dates", title: "Dates", fields: ["enquiryDate", "quotedDate", "wonDate", "designSignedOffDate", "materialsOrderedDate", "readyToCutDate", "promisedInstallDate", "completedDate"] },
+    { key: "job", title: "Job", fields: ["name", "stage", "jobType", "quoteNumber", "requestedInstallDate"] },
+    { key: "client", title: "Client", fields: ["clientName", "clientPhone", "clientEmail", "clientAbn", "siteAddress"] },
+    { key: "spec", title: "Spec and value", fields: ["sheetCount", "isTwoPac", "benchtop", "valueCents"] },
+    { key: "links", title: "Links and notes", fields: ["designFolderUrl", "joinrQuoteUrl", "externalRef", "notes", "archived"] },
+  ];
+  const FIELD = {};
+  for (const g of GROUPS) for (const f of g.fields) FIELD[f.key] = f;
+  const SHORT_LABEL = { designSignedOffDate: "Design signed off", archived: "Archived", valueCents: "Value inc GST" };
+  let cardBoxes = {}; // card key -> section element
+  let openCard = null; // the card being edited, or null
+
+  const cardOf = (key) => CARDS.find((c) => c.key === key);
+  function cardFields(c) {
+    return c.fields.filter((k) => !(k === "valueCents" && !showValueField())).map((k) => FIELD[k]);
+  }
+
+  // The read-mode text for one field, or null when it is empty.
+  function readNode(f) {
+    const v = job ? job[f.key] : null;
+    switch (f.type) {
+      case "stage": {
+        let st = shownStage(job);
+        if (st === "lead") st = "quoted";
+        const hit = STAGES.find((s) => s[0] === st);
+        return document.createTextNode(hit ? hit[1] : st || "");
+      }
+      case "date":
+        return v ? document.createTextNode(fmtDate(v)) : null;
+      case "materials":
+        return document.createTextNode(job.materialsOrderedDate ? fmtDate(job.materialsOrderedDate) : "Not yet");
+      case "money":
+        return v == null ? null : document.createTextNode(fmtMoneyCents(v));
+      case "bool3":
+        return v == null ? null : document.createTextNode(v ? "Yes" : "No");
+      case "benchtop":
+        return v ? document.createTextNode(String(v).charAt(0).toUpperCase() + String(v).slice(1)) : null;
+      case "archived":
+        return document.createTextNode(v ? "Yes" : "No");
+      case "url":
+        if (!v) return null;
+        if (/^https?:\/\/\S+$/i.test(v)) return el("a", { href: v, target: "_blank", rel: "noopener noreferrer", title: v, text: f.key === "joinrQuoteUrl" ? "Open in Joinr" : "Open link" });
+        return document.createTextNode(String(v));
+      case "textarea":
+        return v ? el("span", { class: "ov-pre", text: String(v) }) : null;
+      default:
+        return v == null || v === "" ? null : document.createTextNode(String(v));
+    }
+  }
+
+  function readBody(c) {
+    if (c.key === "dates") {
+      const line = el("div", { class: "ov-steps" });
+      for (const f of cardFields(c)) {
+        const node = readNode(f);
+        const set = f.type === "materials" ? !!job.materialsOrderedDate : !!node;
+        const v = el("b", { class: "ov-stepv" });
+        if (set) v.append(node);
+        else v.textContent = "Not yet";
+        line.append(el("div", { class: "ov-step" + (set ? "" : " is-off") }, el("span", { class: "ov-k", text: SHORT_LABEL[f.key] || f.label }), v));
+      }
+      return line;
+    }
+    const kv = el("div", { class: "ov-kv" });
+    for (const f of cardFields(c)) {
+      const node = readNode(f);
+      const val = el("span", { class: "ov-v" });
+      if (node) val.append(node);
+      else val.append(el("span", { class: "muted", text: "Not set" }));
+      kv.append(el("span", { class: "ov-k", text: SHORT_LABEL[f.key] || f.label }), val);
+    }
+    return kv;
+  }
+
+  function editBody(c) {
+    inputs = {};
+    const grid = el("div", { class: "grid" });
+    for (const f of cardFields(c)) grid.append(buildField(f));
+    saveBtn = el("button", { type: "submit", class: "hs-btn hs-btn-primary", text: "Save" });
+    const cancel = el("button", { type: "button", class: "hs-btn hs-btn-quiet", text: "Cancel" });
+    cancel.addEventListener("click", () => cancelEdit());
+    return el("div", { class: "ov-editbody" }, grid, el("div", { class: "ov-actions" }, cancel, saveBtn));
+  }
+
+  function renderCard(c) {
+    const box = cardBoxes[c.key];
+    if (!box) return;
+    const editing = openCard === c.key;
+    box.classList.toggle("is-editing", editing);
+    const head = el("div", { class: "ov-head" }, el("h2", { class: "ov-h", text: c.title }));
+    if (!editing && can("jobs.edit")) {
+      const b = el("button", { type: "button", class: "hs-btn hs-btn-quiet ov-edit", text: "Edit", "aria-label": "Edit " + c.title });
+      b.addEventListener("click", () => openEdit(c.key));
+      head.append(b);
+    }
+    box.replaceChildren(head, editing ? editBody(c) : readBody(c));
+  }
+
+  // Redraws every card that is not being edited (after a save, a permission change, a refill).
+  function refreshCards() {
+    for (const c of CARDS) if (openCard !== c.key) renderCard(c);
+  }
+
+  function buildCards() {
+    formEl.replaceChildren();
+    inputs = {};
+    openCard = null;
+    cardBoxes = {};
+    saveBtn = null;
+    statusEl = el("div", { class: "status muted ov-status", role: "status" });
+    const top = el("div", { class: "ov-top" });
+    const cols = el("div", { class: "ov-cols" });
+    for (const c of CARDS) {
+      const box = el("section", { class: "ov-card", "aria-label": c.title });
+      cardBoxes[c.key] = box;
+      (c.key === "dates" ? top : cols).append(box);
+    }
+    formEl.append(statusEl, top, cols);
+    refreshCards();
+  }
+
+  // True when the open card holds something not saved.
+  function isDirty() {
+    if (isNew || !openCard || !job) return false;
+    try {
+      if (Object.keys(collect()).length) return true;
+    } catch (e) {
+      return true; // a half-typed value is still an edit
+    }
+    if (inputs.stage) {
+      const cur = shownStage(job) === "lead" ? "quoted" : shownStage(job);
+      const picked = fromInput({ type: "stage" }, inputs.stage);
+      if (picked && picked !== cur) return true;
+    }
+    return false;
+  }
+
+  function closeCard() {
+    const k = openCard;
+    openCard = null;
+    inputs = {};
+    saveBtn = null;
+    if (k) renderCard(cardOf(k));
+  }
+
+  function cancelEdit() {
+    setStatus("", "muted");
+    closeCard();
+  }
+
+  async function openEdit(key) {
+    if (openCard === key) return;
+    const was = openCard;
+    if (was && isDirty()) {
+      const ok = await confirmDialog("Discard your changes?", "The " + cardOf(was).title + " card has changes that are not saved.", "Discard", "Keep editing");
+      if (!ok || openCard !== was) return;
+    }
+    setStatus("", "muted");
+    closeCard();
+    openCard = key;
+    renderCard(cardOf(key));
+    fill();
+    const first = formEl.querySelector(".ov-card.is-editing .hs-input");
+    if (first && first.focus) first.focus();
+  }
+
+  // The install date saved from Orders & materials (jobmaterials.js): keep this copy and card in step.
+  document.addEventListener("cc:job-changed", (ev) => {
+    if (isNew || !job || !ev.detail || !("requestedInstallDate" in ev.detail)) return;
+    job.requestedInstallDate = ev.detail.requestedInstallDate;
+    refreshCards();
+  });
+
+  // The Notes tab's "Edit on Overview" button opens the card that holds the notes.
+  window.JobOverview = {
+    async editNotes() {
+      if (isNew) return;
+      await openEdit("links");
+      const f = document.getElementById("f-notes");
+      if (f) {
+        f.scrollIntoView({ block: "center" });
+        f.focus();
+      }
+    },
+  };
+  window.addEventListener("beforeunload", (e) => {
+    if (isDirty()) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
 
   function fill() {
     for (const g of GROUPS) {
@@ -367,6 +569,7 @@
       }
     }
     if (saveBtn) saveBtn.hidden = !editable;
+    if (!isNew) refreshCards();
     bannerEl.replaceChildren(
       ...(editable ? [] : [el("div", { class: "hs-callout ro-banner", text: "You can view this job but not edit it." })])
     );
@@ -517,7 +720,8 @@
       setStatus("No changes to save.", "muted");
       return;
     }
-    saveBtn.disabled = true;
+    const btn = saveBtn;
+    btn.disabled = true;
     setStatus("Saving...", "muted");
     try {
       if (isNew) {
@@ -549,6 +753,8 @@
       }
       titleEl.textContent = job.name;
       document.title = job.name + " - Crosscuts";
+      // 0.2.26: the card goes back to read mode; it stays open when the stage was refused.
+      if (!stageError) closeCard();
       fill();
       renderMeta();
       renderInspection(); // two-pac may have changed
@@ -561,7 +767,7 @@
     } catch (e) {
       setStatus(e.message, "err");
     } finally {
-      saveBtn.disabled = false;
+      btn.disabled = false;
     }
   }
 

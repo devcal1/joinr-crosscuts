@@ -773,6 +773,41 @@
   );
   guarded(loadMail)();
 
+  // --- Default suppliers by section (docs/plans/jobpage-contracts.md section C) ---
+  let msShown = [];
+  function showMsError(msg) {
+    $("msError").textContent = msg || "";
+    $("msError").hidden = !msg;
+  }
+  function fillMs(d) {
+    msShown = d.sections;
+    $("msGrid").replaceChildren(
+      ...d.sections.map((s) => {
+        const field = h("div", { class: "field" });
+        const input = h("input", { class: "hs-input", id: "ms-" + s.section, type: "text", maxlength: "200", autocomplete: "off", value: s.supplier || "" });
+        input.value = s.supplier || "";
+        field.append(h("label", { for: "ms-" + s.section, text: s.label }), input);
+        return field;
+      })
+    );
+  }
+  $("msSave").addEventListener("click", async () => {
+    showMsError("");
+    const btn = $("msSave");
+    btn.disabled = true;
+    try {
+      const sections = {};
+      for (const s of msShown) sections[s.section] = $("ms-" + s.section).value.trim();
+      fillMs(await api("/api/material-section-suppliers", { method: "PUT", body: JSON.stringify({ sections }) }));
+      toast("Saved");
+    } catch (err) {
+      showMsError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  guarded(async () => fillMs(await api("/api/material-section-suppliers")))();
+
   // --- Backups (docs/plans/backup-contracts.md section 10) ---
   // Everything shown comes from GET /api/backup/status: states and fixed sentences only, never a
   // passphrase, password or address. All text goes in through textContent (h() with text).

@@ -9,7 +9,7 @@
   // [key, label, top-level section ids in order]
   const TABS = [
     ["overview", "Overview", ["meta", "form", "people"]],
-    ["quote", "Quote", ["joinr", "fullquote"]],
+    ["quote", "Quote", ["quotepdf", "fullquote", "joinr"]],
     ["notes", "Notes", ["jobNotes"]],
     ["photos", "Photos", ["photos", "jnPhotos"]],
     ["invoices", "Invoices", ["invoices"]],

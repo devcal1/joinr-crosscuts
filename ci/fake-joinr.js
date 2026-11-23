@@ -48,6 +48,18 @@
 //   POST /_control/oqfail    {"fail": 400 | 401 | 404 | 429 | 500 | 503 | "garbage" | "badcontract" |
 //                             null, "count": N (default 1), "retryAfter": seconds (429; default 60)}:
 //                            the next N open-quotes calls fail that way. null or count 0 clears.
+//   GET /api/integrations/crosscuts/quote-pdf?quoteId={uuid}  (wire contract version 5, "Quote PDF")
+//     Bearer <key> required (401 otherwise); exactly one parameter, quoteId, a uuid (else 400); 404
+//     until a test turns it on, or for a quoteId listed in "missing"; then a small PDF
+//     (application/pdf, private no-store, nosniff) whose text holds the quoteId and the current tag.
+//   POST /_control/pdf       {"enabled": true|false, "tag": "text put in the PDF" (default "v1"),
+//                            "missing": [quoteId...], "mode": "pdf" | "redirect" (a Joinr before version 5: a 302 to its sign-in page) | "nonpdf" (a 200 PDF-typed body
+//                            that does not start %PDF-) | "html" (a 200 text/html page) | "big"
+//                            (a PDF over 20 MB) | "bigheader" (declares 21 MB)}: sets how the PDF
+//                            route answers.
+//   POST /_control/pdffail   {"fail": 400 | 401 | 404 | 429 | 500 | 503 | "redirect" | null, "count": N (default
+//                            1), "retryAfter": seconds (429; default 60)}: the next N quote-pdf
+//                            calls fail that way. null or count 0 clears.
 //   POST /_control/clear     forgets the request log.
 //   POST /_control/stop      exits.
 "use strict";
@@ -73,6 +85,9 @@ let pageMax = null;
 const hung = new Set();
 let oq = { enabled: false, quotes: [], truncated: false };
 let oqFail = { mode: null, count: 0, retryAfter: 60 };
+const PDF_ENDPOINT = "/api/integrations/crosscuts/quote-pdf";
+let pdf = { enabled: false, tag: "v1", missing: [], mode: "pdf" };
+let pdfFail = { mode: null, count: 0, retryAfter: 60 };
 
 // J4 (contract version 4, "The quote object"): a realistic whole quote. `opts` (all optional):
 //   pricedAt   'snapshot' (default) or 'live'
@@ -438,6 +453,67 @@ function openQuotes(req, res, url) {
   return send(res, 200, { contract: 3, generatedAt: new Date().toISOString(), truncated: oq.truncated, quotes: oq.quotes });
 }
 
+// Wire contract version 5. A Joinr before version 5 has no such route and answers with a redirect to
+// its sign-in page whatever key is sent: "pdf.mode": "redirect" (or "fail": "redirect") is that Joinr.
+const PDF_ERRORS = { 400: "bad_request", 401: "unauthorised", 404: "not_found", 429: "rate_limited", 503: "unavailable" };
+function quotePdf(req, res, url) {
+  if (pdf.mode === "redirect") {
+    res.writeHead(302, { Location: "/login", "Cache-Control": "no-store" });
+    return res.end();
+  }
+  if (!sameKey(req.headers.authorization)) return send(res, 401, { error: "unauthorised" });
+  if (pdfFail.mode && pdfFail.count > 0) {
+    pdfFail.count--;
+    const mode = pdfFail.mode;
+    const retryAfter = pdfFail.retryAfter;
+    if (pdfFail.count <= 0) pdfFail = { mode: null, count: 0, retryAfter };
+    if (mode === "redirect") {
+      res.writeHead(302, { Location: "/login", "Cache-Control": "no-store" });
+      return res.end();
+    }
+    const status = Number(mode) || 500;
+    return send(res, status, { error: PDF_ERRORS[status] || "forced failure" }, status === 429 ? { "Retry-After": String(retryAfter) } : {});
+  }
+  const keys = [...url.searchParams.keys()];
+  const id = url.searchParams.get("quoteId");
+  if (keys.length !== 1 || keys[0] !== "quoteId" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "")) {
+    return send(res, 400, { error: "quote-pdf takes exactly one parameter, quoteId, a quote id" });
+  }
+  if (!pdf.enabled || pdf.missing.includes(id.toLowerCase())) return send(res, 404, { error: "not_found" });
+  const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": 'inline; filename="quote.pdf"' };
+  if (pdf.mode === "html") {
+    res.writeHead(200, { ...headers, "Content-Type": "text/html" });
+    return res.end("<html>not a pdf</html>");
+  }
+  if (pdf.mode === "nonpdf") {
+    res.writeHead(200, { ...headers, "Content-Type": "application/pdf" });
+    return res.end("<html>this is not a pdf</html>");
+  }
+  if (pdf.mode === "bigheader") {
+    res.writeHead(200, { ...headers, "Content-Type": "application/pdf", "Content-Length": String(21 * 1024 * 1024) });
+    return res.end("%PDF-1.4\n"); // the declared length is enough to refuse it; the socket closes short
+  }
+  // One blank A4 page, so a browser really renders it; the comment line carries the quoteId and tag.
+  const text = `%PDF-1.4
+% fake quote pdf quoteId=${id.toLowerCase()} tag=${pdf.tag}
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj
+trailer<</Root 1 0 R/Size 4>>
+%%EOF
+`;
+  if (pdf.mode === "big") {
+    // Over 20 MB, sent in chunks with no Content-Length (the cap must hold as it streams).
+    res.writeHead(200, { ...headers, "Content-Type": "application/pdf" });
+    res.write(text);
+    const chunk = Buffer.alloc(1024 * 1024, 0x20);
+    for (let i = 0; i < 22; i++) res.write(chunk);
+    return res.end();
+  }
+  res.writeHead(200, { ...headers, "Content-Type": "application/pdf", "Content-Length": String(Buffer.byteLength(text)) });
+  return res.end(text);
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   try {
@@ -485,6 +561,22 @@ const server = http.createServer(async (req, res) => {
         }
         return send(res, 200, { oqFail });
       }
+      if (url.pathname === "/_control/pdf") {
+        if (body.enabled !== undefined) pdf.enabled = !!body.enabled;
+        if (typeof body.tag === "string") pdf.tag = body.tag;
+        if (Array.isArray(body.missing)) pdf.missing = body.missing.map((s) => String(s).toLowerCase());
+        if (typeof body.mode === "string") pdf.mode = body.mode;
+        return send(res, 200, pdf);
+      }
+      if (url.pathname === "/_control/pdffail") {
+        const count = body.count === undefined ? 1 : Number(body.count);
+        if (body.fail === null || body.fail === undefined || !count) {
+          pdfFail = { mode: null, count: 0, retryAfter: pdfFail.retryAfter };
+        } else {
+          pdfFail = { mode: body.fail, count, retryAfter: body.retryAfter === undefined ? 60 : Number(body.retryAfter) };
+        }
+        return send(res, 200, { pdfFail });
+      }
       if (url.pathname === "/_control/pagesize") {
         const max = Number(body.max);
         pageMax = Number.isInteger(max) && max > 0 ? max : null;
@@ -512,6 +604,11 @@ const server = http.createServer(async (req, res) => {
     });
     if (req.method === "GET" && url.pathname === ENDPOINT) return wonQuotes(req, res, url);
     if (req.method === "GET" && url.pathname === OQ_ENDPOINT) return openQuotes(req, res, url);
+    if (url.pathname === PDF_ENDPOINT && pdf.mode !== "redirect" && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      res.writeHead(405);
+      return res.end();
+    }
+    if (req.method === "GET" && url.pathname === PDF_ENDPOINT) return quotePdf(req, res, url);
     return send(res, 404, { error: "not found" });
   } catch (e) {
     return send(res, 500, { error: String((e && e.message) || e) });

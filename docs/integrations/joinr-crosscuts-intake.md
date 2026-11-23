@@ -1,4 +1,4 @@
-# Joinr → Crosscuts intake: shared contract (version 4, 2026-10-18)
+# Joinr → Crosscuts intake: shared contract (version 5, 2026-11-23)
 
 This document is committed, identical, in both repos: `devcal1/joinr-crosscuts` (`docs/integrations/joinr-crosscuts-intake.md`) and `devcal1/tenon-quotr` (`docs/integrations/joinr-crosscuts-intake.md`). Change it only in both at once, with a version bump here, and with Todd's OK. Approved by Todd 2026-10-11 (Crosscuts `docs/plans/m6-plan.md` §10).
 
@@ -9,6 +9,8 @@ This document is committed, identical, in both repos: `devcal1/joinr-crosscuts` 
 **Version 3 (task J3, Todd's two yeses 2026-10-17)** adds a second, separate endpoint: the **open-quotes list** (`GET {base}/api/integrations/crosscuts/open-quotes`), the current state of every quote that is sent or won, so Crosscuts can list sent quotes beside won ones in its pipeline's Quoted column. It is the section "Open-quotes list (version 3)" below. **Nothing above that section changes**: the won-quotes endpoint, its items and its wire `contract` number (**1**) are as in versions 1 and 2, and an older Crosscuts that never calls the new endpoint works as before. The new endpoint's own wire `contract` number is **3**. Version 3 was written in `tenon-quotr` first, from the Crosscuts copy of version 2, so the two copies will be identical once the Crosscuts copy is updated to version 3: this text already carries the M13 `estimatedHours` line and the version 2 `drawers` text. Joinr does not yet send `drawers` (task J2 is not built); by version 2's own rule that reads as "not reported".
 
 **Version 4 (task J4, Todd's two yeses 2026-10-18)** adds one optional won-quotes item field, `quote`: the **whole quote** — every room, every priced line of every section, the additional items, the labour, the options and the totals, money figures included (Todd, 2026-10-18: "Send all materials and labour, preferably everything, from Joinr's quote; we can work with it (or disregard it) in Crosscuts"; he chose to include rates, costs, markups, the tier and the margin, and Crosscuts shows them only to its job-value holders). It is the section "The quote object (version 4)" below, with one paging note under "Response". **Every other field and rule is unchanged**, the won-quotes wire `contract` number stays **1** (the field is optional, as version 2's `drawers` was: an older Crosscuts ignores it, and a Joinr that does not send it is read as "not reported"), and the open-quotes list (version 3) is untouched. Version 4 was written in `tenon-quotr` first, from version 3; the two copies are identical once the Crosscuts copy is updated to it.
+
+**Version 5 (task J5, Todd's two yeses 2026-11-23)** adds a third, separate endpoint: the **quote PDF** (`GET {base}/api/integrations/crosscuts/quote-pdf?quoteId={uuid}`), a won quote's customer document as a file. It is the section "Quote PDF (version 5)" below. **Nothing above that section changes**: both earlier endpoints, their items and their wire `contract` numbers (**1** and **3**) are as before, and an older Crosscuts that never calls the new endpoint works as before. The answer is a file, so it carries no `contract` number. Version 5 was written in `tenon-quotr` first; the two copies are identical once the Crosscuts copy is updated to it.
 
 ## Purpose
 
@@ -354,7 +356,46 @@ Example line:
 
 ### Revoking
 
-The key is the one created on Joinr's Settings › Integrations tab. Revoking it there stops both endpoints on the next request.
+The key is the one created on Joinr's Settings › Integrations tab. Revoking it there stops every endpoint on the next request.
+
+## Quote PDF (version 5)
+
+The customer PDF of one **won** quote of the key's organisation: the document Joinr's own Quote PDF button opens. Read-only.
+
+### Request
+
+```
+GET {base}/api/integrations/crosscuts/quote-pdf?quoteId={quoteId}
+Authorization: Bearer {org API key}
+Accept: application/pdf
+```
+
+- `quoteId` is the won-quotes item's `quoteId` (that revision's id, not `rootQuoteId`). It is the **only** parameter, given exactly once: a missing, repeated or malformed `quoteId`, or any other parameter, is 400.
+- **Authentication:** the same org API key as the other two endpoints. The key alone identifies the org; the request never names one. Behind the endpoint, Joinr's database also demands Joinr's own server-side secret before it reads anything; Crosscuts never holds or sends that secret.
+- **Rate limit:** up to 12 requests per minute per key, counted separately from the other endpoints' windows; beyond that 429 with `Retry-After`.
+
+### Which quotes are served
+
+A quote of the key's organisation whose status is `won` now and which is not deleted in Joinr. Archived quotes and every standing are served, as the won-quotes backfill does. Anything else (an id that does not exist, another organisation's quote, a quote that is not won, a deleted one) is **one and the same 404**, so nothing can be told apart.
+
+### Response
+
+`200`, `Content-Type: application/pdf`, `Content-Disposition: inline` with a file name, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`; the body is the PDF.
+
+- **The same document as Joinr's quote PDF: same loader, same renderer.** It is made when it is asked for: the quote as it is now, its frozen rates where it has them, the organisation's chosen document design, and today's letterhead and GST setting. It carries what the customer's PDF carries (prices to the customer), and none of Joinr's costs, markups or margins.
+- **Not byte-stable.** Every PDF carries its own creation time, so two requests for an unchanged quote return different bytes. Never use a hash or size of the file to tell whether the quote changed; the won-quotes items are the edit signal.
+
+### Errors
+
+Every error body is JSON.
+
+- `401 {"error":"unauthorised"}`: missing, malformed, unknown or revoked key (a caller without a live key learns nothing about parameters or quotes).
+- `400 {"error":"quote-pdf takes exactly one parameter, quoteId, a quote id"}`: see "Request". Only a live key is told.
+- `404 {"error":"not_found"}`: nothing to serve, for any of the reasons above.
+- `429 {"error":"rate_limited"}` with `Retry-After` seconds.
+- `503 {"error":"unavailable"}` or another `5xx`: Joinr isn't configured, its database is unavailable, or the PDF couldn't be made. The body never says why.
+- `405` (no body) for any method but `GET` (and `HEAD`, `OPTIONS`).
+- A Joinr before version 5 has no such endpoint and answers with a redirect to its sign-in page, so Crosscuts must not follow redirects.
 
 ## Version history
 
@@ -362,3 +403,4 @@ The key is the one created on Joinr's Settings › Integrations tab. Revoking it
 - **Version 2 (2026-10-14):** the optional `drawers` field. The wire `contract` stays 1.
 - **Version 3 (2026-10-17):** the open-quotes list, `GET /api/integrations/crosscuts/open-quotes` (wire `contract` 3), for sent and won quotes that are not archived, one line per job with the revision rule, at most 200 lines. The won-quotes endpoint and its items are unchanged (wire `contract` still 1). The two copies of this document are identical once the Crosscuts copy is updated to this version.
 - **Version 4 (2026-10-18):** the optional won-quotes item field `quote` (the whole quote: rooms, every priced line, additional items, labour, options and totals, money figures included, priced as Joinr's quote page prices it), and a page that may end early (`more: true`) to stay under about 1 MB of items, an item over about 1.5 MB going with `quote: null`, so no page passes 2 MB. `quote` is as priced when the item is read, not an edit signal. The wire `contract` stays 1; the open-quotes list is unchanged. The two copies of this document are identical once the Crosscuts copy is updated to this version.
+- **Version 5 (2026-11-23):** the quote PDF, `GET /api/integrations/crosscuts/quote-pdf?quoteId=`, for a won quote that is not deleted: the same document as Joinr's quote PDF, not byte-stable, one 404 for everything else, 12 requests a minute per key. The two earlier endpoints are unchanged (wire `contract` still 1 and 3). The two copies of this document are identical once the Crosscuts copy is updated to this version.

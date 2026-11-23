@@ -21,6 +21,9 @@ const NOTES_MAX = 5000;
 const DESCRIPTION_MAX = 500;
 const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, wknd: 5 }; // Weekend counts as one person-day, dated Saturday
 
+// The stages a job can be sent to Ordering from (send() and the send preview).
+const SENDABLE_STAGES = ["won", "projects", "ordering", "on_board", "ready_to_cut"];
+
 const nowIso = () => new Date().toISOString();
 const userId = (req) => (req && req.user && req.user.id != null ? req.user.id : null);
 
@@ -135,8 +138,15 @@ function hours(db, jobId) {
 
 // ---- the lines -----------------------------------------------------------------------------------
 
+// The lines an order list is made of: live and not left out (skip_order, 0.2.26). A left-out line is
+// in none of finalise, problems, the fingerprint or send; notInOrder() lists them.
 function liveLines(db, jobId) {
-  const rows = db.prepare(`${materials.SELECT} WHERE m.job_id = ? AND m.removed_at IS NULL`).all(jobId);
+  const rows = db.prepare(`${materials.SELECT} WHERE m.job_id = ? AND m.removed_at IS NULL AND m.skip_order = 0`).all(jobId);
+  return materials.sortLines(rows.map(materials.present));
+}
+
+function notInOrder(db, jobId) {
+  const rows = db.prepare(`${materials.SELECT} WHERE m.job_id = ? AND m.removed_at IS NULL AND m.skip_order = 1`).all(jobId);
   return materials.sortLines(rows.map(materials.present));
 }
 
@@ -245,6 +255,7 @@ function summary(db, jobId) {
     materials: lines.filter((l) => !HARDWARE_SECTIONS.has(l.section)),
     hardware: lines.filter((l) => HARDWARE_SECTIONS.has(l.section)),
     sections: materials.SECTIONS,
+    notInOrder: notInOrder(db, jobId),
     problems: problemsOf(lines),
     orderList: {
       current: latest ? presentList(latest) : null,
@@ -362,7 +373,7 @@ function send(db, req, jobId) {
     const job = requireJob(db, jobId);
     const shown = jobstage.pipelineStage(job);
     // M24: a job already placed on the board (or at Ready to cut) can still send a later revision.
-    if (!["won", "projects", "ordering", "on_board", "ready_to_cut"].includes(shown)) {
+    if (!SENDABLE_STAGES.includes(shown)) {
       throw conflict("Only a job at Won, Projects, Ordering, Ready to cut or On board can be sent to Ordering");
     }
     // 0.2.2 (m23-contracts section 4).
@@ -422,7 +433,70 @@ function send(db, req, jobId) {
   })();
 }
 
+// ---- send to orders, in one step (0.2.26) -------------------------------------------------------
+
+// Read-only: what Send to orders would do, and why it cannot yet. `fingerprint` is the live list's, the
+// token send-now wants back. The rules themselves stay in finalise() and send(); `reasons` only reads
+// the same facts (problemsOf, the stage list, the dates) so the page can say so before the press.
+function sendPreview(db, jobId) {
+  const job = requireJob(db, jobId);
+  const lines = liveLines(db, jobId);
+  const revs = revisions(db, jobId);
+  const latest = revs.length ? revs[revs.length - 1] : null;
+  const fp = fingerprint(lines);
+  const changed = !latest || latest.fingerprint !== fp;
+  const problems = problemsOf(lines);
+  const shown = jobstage.pipelineStage(job);
+  const reasons = [];
+  if (!lines.length) reasons.push("Add materials before sending.");
+  if (problems.length) reasons.push(`${problems.length} line${problems.length === 1 ? " needs" : "s need"} a supplier and a quantity.`);
+  if (!job.requested_install_date) reasons.push("Enter a requested install date.");
+  if (!SENDABLE_STAGES.includes(shown)) reasons.push("This job's stage cannot be sent to Ordering.");
+  if (!changed && latest.sent_at) reasons.push(`Revision ${latest.revision} has already been sent. Change a line to send another.`);
+  const suppliers = [...new Set(lines.map((l) => l.supplier).filter(Boolean))].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+  const ready = reasons.length === 0;
+  const place = require("./handoffs").previewSent(db, jobId);
+  return {
+    lines,
+    lineCount: lines.length,
+    problems,
+    suppliers,
+    ready,
+    reasons,
+    fingerprint: fp,
+    latest: latest ? { revision: latest.revision, sentAt: latest.sent_at || null, changed } : null,
+    revision: changed ? nextRevision(revs.length) : latest.revision,
+    willFinalise: changed,
+    requestedInstallDate: job.requested_install_date || null,
+    depositWillBeRaised: place.deposit,
+    depositWaitsForValue: place.deposit && job.value_cents == null,
+    boardWeek: place.weekStart,
+    stage: shown,
+  };
+}
+
+// One transaction: the fingerprint must still be the live list's (409), the list is finalised when it
+// changed or has no revision (finalise()), then the existing send(). Any refusal from either rolls
+// everything back: no revision, no stage move, no deposit, no order lines. A repeat press with the same
+// fingerprint finds the revision already sent and send() refuses it.
+function sendNow(db, req, jobId, fp) {
+  if (typeof fp !== "string" || !fp) throw bad("fingerprint is required");
+  return db.transaction(() => {
+    requireJob(db, jobId);
+    const revs = revisions(db, jobId);
+    const latest = revs.length ? revs[revs.length - 1] : null;
+    const now = fingerprint(liveLines(db, jobId));
+    if (fp !== now) throw conflict("The list changed. Review it and send again.");
+    if (!latest || latest.fingerprint !== now) finalise(db, req, jobId);
+    return send(db, req, jobId);
+  })();
+}
+
 module.exports = {
+  SENDABLE_STAGES,
+  sendPreview,
+  sendNow,
+  notInOrder,
   HARDWARE_SECTIONS,
   owners,
   checkOwner,

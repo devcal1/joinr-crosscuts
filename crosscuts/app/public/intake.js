@@ -56,6 +56,7 @@
   const num = (n) => String(Math.round(n * 100) / 100);
 
   const VIEWS = [
+    ["unassigned", "Needs a project manager"],
     ["new", "Waiting for a person"],
     ["changed", "Changed"],
     ["decided", "Made into jobs"],
@@ -70,6 +71,7 @@
     withdrawn: ["Withdrawn", "hs-badge-violet"],
   };
   const EMPTY = {
+    unassigned: "Every job from Joinr has a project manager.",
     new: "Nothing is waiting. Won quotes become jobs by themselves; only a quote the system could not handle waits here.",
     changed: "Nothing has changed in Joinr since you decided.",
     decided: "No quotes have become jobs yet.",
@@ -87,7 +89,7 @@
   const wantItem = Number(params.get("item")) > 0 ? Number(params.get("item")) : null;
   let highlight = wantItem;
 
-  let view = "new";
+  let view = "unassigned";
   let rows = [];
   let counts = {};
   let sync = null;
@@ -296,6 +298,93 @@
     return card;
   }
 
+  // ---- Needs a project manager (0.2.26, docs/plans/jobpage-contracts.md section A) ----------------
+
+  // Lines just assigned stay for a few seconds with Undo: id -> {it, name, timer}.
+  const pending = new Map();
+  const UNDO_SHOW_MS = 8000;
+
+  function ownerCell(it) {
+    const td = el("td", { "data-label": "Project manager" });
+    const p = pending.get(it.id);
+    if (p) {
+      const undo = button("Undo", "hs-btn in-undo", () => undoAssign(it));
+      td.append(el("span", { class: "in-assigned", text: "Assigned to " + p.name + "." }), document.createTextNode(" "), undo);
+      return td;
+    }
+    if (!can("jobs.edit") || !canSetOwner()) {
+      td.append(el("span", { class: "in-muted", text: "Needs someone with Projects access to assign." }));
+      return td;
+    }
+    const sel = el("select", { class: "hs-input in-owner", "aria-label": "Project manager for " + ((it.job && it.job.name) || "this job") }, el("option", { value: "", text: "Choose..." }));
+    for (const o of owners) sel.append(el("option", { value: String(o.id), text: o.name }));
+    sel.addEventListener("change", () => {
+      if (sel.value) assign(it, Number(sel.value), sel);
+    });
+    td.append(sel);
+    return td;
+  }
+
+  function buildTable() {
+    const showValue = can("jobs.value");
+    const head = el("tr", {});
+    const cols = ["Quote", "Job", "Client", "Spec"];
+    if (showValue) cols.push("Value inc GST");
+    cols.push("Won", "Project manager");
+    for (const c of cols) head.append(el("th", { scope: "col", class: c === "Value inc GST" ? "in-r" : "", text: c }));
+    const body = el("tbody", {});
+    for (const it of rows) {
+      const q = it.quote || {};
+      const s = q.spec || {};
+      const bits = [];
+      if (s.sheetCount != null) bits.push(s.sheetCount + (s.sheetCount === 1 ? " sheet" : " sheets"));
+      if (s.twoPac) bits.push("two-pac");
+      if (s.benchtop && s.benchtop !== "none") bits.push(s.benchtop);
+      const tr = el("tr", { id: "item-" + it.id });
+      tr.append(
+        el("td", { class: "in-qn", "data-label": "Quote", "data-cc-badge-link": "/intake.html?item=" + it.id, text: it.quoteNumber || "No number" }),
+        el("td", { "data-label": "Job" }, it.job ? el("a", { class: "in-jobname", href: "/job.html?id=" + encodeURIComponent(it.job.id), text: it.job.name || "Job " + it.job.id }) : null),
+        el("td", { "data-label": "Client", text: q.clientName || "" }),
+        el("td", { class: "in-muted", "data-label": "Spec", text: bits.join(", ") })
+      );
+      if (showValue) tr.append(el("td", { class: "in-r", "data-label": "Value inc GST", text: q.valueIncGstCents != null ? fmtMoney(q.valueIncGstCents) : "" }));
+      tr.append(el("td", { "data-label": "Won", text: fmtInstant(q.wonAt) }), ownerCell(it));
+      body.append(tr);
+    }
+    return el("table", { class: "hs-table in-table" }, el("thead", {}, head), body);
+  }
+
+  async function assign(it, ownerId, sel) {
+    sel.disabled = true;
+    setMessage("", "");
+    try {
+      await api("/api/job-records/" + it.job.id + "/owner", { method: "PUT", body: JSON.stringify({ ownerId }) });
+      const o = owners.find((x) => x.id === ownerId);
+      const entry = { it, name: o ? o.name : "the project manager", timer: null };
+      entry.timer = setTimeout(() => {
+        pending.delete(it.id);
+        load();
+      }, UNDO_SHOW_MS);
+      pending.set(it.id, entry);
+    } catch (e) {
+      setMessage(e.message, "err");
+    }
+    await load();
+  }
+
+  async function undoAssign(it) {
+    const p = pending.get(it.id);
+    if (p) clearTimeout(p.timer);
+    pending.delete(it.id);
+    try {
+      await api("/api/job-records/" + it.job.id + "/owner", { method: "PUT", body: JSON.stringify({ ownerId: null, undo: true }) });
+      setMessage("Undone. " + ((it.job && it.job.name) || "The job") + " has no project manager again.", "ok");
+    } catch (e) {
+      setMessage(e.message, "err");
+    }
+    await load();
+  }
+
   function button(label, cls, onClick) {
     const b = el("button", { type: "button", class: cls, text: label });
     b.addEventListener("click", onClick);
@@ -308,7 +397,11 @@
     listEl.replaceChildren();
     emptyEl.hidden = rows.length > 0;
     if (!rows.length) emptyEl.textContent = EMPTY[view] || "Nothing to show.";
-    for (const it of rows) listEl.append(buildCard(it));
+    if (view === "unassigned") {
+      if (rows.length) listEl.append(buildTable());
+    } else {
+      for (const it of rows) listEl.append(buildCard(it));
+    }
     if (window.cc && window.cc.refreshBadges) window.cc.refreshBadges();
     if (highlight != null) {
       const card = document.getElementById("item-" + highlight);
@@ -462,6 +555,11 @@
     }
     if (mine !== seq) return;
     rows = res.rows || [];
+    if (view === "unassigned") {
+      // A line just assigned stays, with Undo, until its few seconds are up.
+      const have = new Set(rows.map((r) => r.id));
+      for (const [id, p] of pending) if (!have.has(id)) rows.unshift(p.it);
+    }
     counts = res.counts || {};
     sync = res.sync || null;
     syncFailed = !sync;

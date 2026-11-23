@@ -910,6 +910,7 @@ function reset(db) {
   // The open-quotes list belongs to the old address too (lib/joinr-open-quotes.js). Required here,
   // not at the top: that module requires this one.
   require("./joinr-open-quotes").reset(db);
+  require("./joinr-pdf").reset(db); // and the quote PDF's guard and back-off
 }
 
 module.exports = {

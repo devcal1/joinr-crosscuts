@@ -51,6 +51,22 @@ r.post("/job-records/:id/materials/to-orders", "orders.edit", handle((req, res) 
   res.json(materials.toOrders(db, req, jobIdOf(req), body(req)));
 }));
 
+// 0.2.26: suggest a supplier and details for lines that have none (lib/materials.js prefill). Idempotent.
+r.post("/job-records/:id/materials/prefill", "jobs.edit", handle((req, res) => {
+  const id = jobIdOf(req);
+  const out = materials.prefill(db, req, id);
+  res.json({ ...out, ...materials.list(db, id) });
+}));
+
+// 0.2.26: the default supplier per section, edited on the Users admin page.
+r.get("/material-section-suppliers", "jobs.view", handle((req, res) => {
+  res.json(materials.listSectionSuppliers(db));
+}));
+
+r.put("/material-section-suppliers", "users.admin", handle((req, res) => {
+  res.json(materials.setSectionSuppliers(db, req, body(req)));
+}));
+
 r.patch("/job-records/:id/materials/:lineId", "jobs.edit", handle((req, res) => {
   res.json(materials.update(db, req, jobIdOf(req), req.params.lineId, body(req)));
 }));

@@ -1304,6 +1304,10 @@ for f in "$(dirname "$0")"/smoke-m28-*.sh; do [ -f "$f" ] && source "$f"; done
 [ -f "$(dirname "$0")/smoke-purchase-orders.sh" ] && source "$(dirname "$0")/smoke-purchase-orders.sh"
 # Delete order lines and cards suite (ci/smoke-order-delete.sh, 0.2.23, soft delete and restore): same rules.
 [ -f "$(dirname "$0")/smoke-order-delete.sh" ] && source "$(dirname "$0")/smoke-order-delete.sh"
+# Job page suites (0.2.26, docs/plans/jobpage-contracts.md: Intake and Undo, Quote PDF, Orders & materials): same rules.
+for f in intake quotepdf materials; do
+  [ -f "$(dirname "$0")/smoke-jobpage-$f.sh" ] && source "$(dirname "$0")/smoke-jobpage-$f.sh"
+done
 # Backup suite (ci/smoke-backup.sh, docs/plans/backup-contracts.md section 16.3): same rules.
 [ -f "$(dirname "$0")/smoke-backup.sh" ] && source "$(dirname "$0")/smoke-backup.sh"
 

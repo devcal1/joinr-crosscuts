@@ -241,7 +241,7 @@
     return url ? el("a", { href: url, target: "_blank", rel: "noopener noreferrer", text }) : null;
   }
 
-  async function start(opts) {
+  async function startBreakdown(opts) {
     const section = $("fullquote");
     if (!section) return false;
     let data;
@@ -268,5 +268,162 @@
   }
 
   // Printing shows every room, whatever is folded away: jobquote.css's print rules.
+
+  // ---- the quote PDF (docs/plans/jobpage-contracts.md section B; GET .../joinr-quote/pdf-status) ----------
+  // The PDF shows prices: the server answers 403 unless the caller holds jobs.view AND jobs.value.
+
+  function fmtWhen(iso) {
+    const d = new Date(iso);
+    if (!iso || Number.isNaN(d.getTime())) return "";
+    return new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Sydney", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",
+    }).format(d);
+  }
+
+  const httpOnly = (u) => (typeof u === "string" && /^https?:\/\/\S+$/i.test(u) ? u : null);
+
+  // A section whose body folds away under its bar (Show / Hide). Printing shows it open (jobquote.css).
+  function makeFold(section, open) {
+    const bar = section.querySelector(".hs-sectionbar");
+    if (!bar || section.classList.contains("fq-fold")) return null;
+    section.classList.add("fq-fold");
+    const btn = el("button", { class: "hs-btn hs-btn-quiet fq-foldbtn", type: "button", "aria-expanded": "true", text: "Hide" });
+    bar.append(btn);
+    const api2 = {
+      touched: false,
+      set(isOpen) {
+        section.classList.toggle("is-folded", !isOpen);
+        btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        btn.textContent = isOpen ? "Hide" : "Show";
+      },
+      isOpen: () => !section.classList.contains("is-folded"),
+    };
+    btn.addEventListener("click", () => {
+      api2.touched = true;
+      api2.set(!api2.isOpen());
+    });
+    api2.set(open);
+    return api2;
+  }
+
+  async function startPdf(opts, folds) {
+    const section = $("quotepdf");
+    if (!section) return;
+    const msg = $("qpMsg");
+    const facts = $("qpFacts");
+    const frame = $("qpFrame");
+    const openBtn = $("qpOpen");
+    const dl = $("qpDownload");
+    const joinrBtn = $("qpJoinr");
+    const refresh = $("qpRefresh");
+    const base = "/api/job-records/" + opts.jobId + "/joinr-quote";
+    let shownFor = null;
+
+    function draw(st, note) {
+      section.hidden = false;
+      const hasPdf = !!st.has;
+      const bits = [];
+      if (st.quoteNumber) bits.push("Quote " + st.quoteNumber + ".");
+      if (hasPdf && st.fetchedAt) bits.push("Fetched from Joinr " + fmtWhen(st.fetchedAt) + ".");
+      facts.textContent = bits.join(" ");
+      const link = httpOnly(st.joinrUrl);
+      joinrBtn.hidden = !link;
+      if (link) joinrBtn.href = link;
+      dl.hidden = !hasPdf;
+      if (hasPdf) dl.href = st.pdfUrl + "?download=1";
+      let line = note || "";
+      if (!hasPdf && !line) {
+        if (st.unavailable) line = st.error;
+        else if (!st.configured) line = "Joinr is not set up, so there is no PDF.";
+        else if (st.error) line = "The PDF could not be fetched: " + st.error;
+        else line = "No PDF yet.";
+      } else if (hasPdf && !line) {
+        if (st.error && !st.unavailable) line = "The last refresh failed (" + st.error + "). Showing the copy fetched " + fmtWhen(st.fetchedAt) + ".";
+        else if (st.error) line = st.error + " Showing the copy fetched " + fmtWhen(st.fetchedAt) + ".";
+        else if (st.outdated) line = "This copy may be out of date. Press Refresh to fetch the current one.";
+      }
+      msg.textContent = line;
+      msg.hidden = !line;
+      frame.hidden = !hasPdf;
+      openBtn.hidden = !hasPdf;
+      if (hasPdf) {
+        openBtn.href = st.pdfUrl;
+        const key = st.fetchedAt;
+        if (shownFor !== key) {
+          frame.src = st.pdfUrl + "?v=" + encodeURIComponent(key || "");
+          shownFor = key;
+        }
+      } else if (shownFor !== null) {
+        frame.removeAttribute("src");
+        shownFor = null;
+      }
+      // The breakdown opens by itself when there is no PDF to read instead (unless a person chose).
+      if (folds.breakdown && !folds.breakdown.touched) folds.breakdown.set(!hasPdf);
+    }
+
+    let st;
+    try {
+      const res = await fetch(base + "/pdf-status", { headers: { Accept: "application/json" } });
+      if (res.status === 403) {
+        // jobs.view without jobs.value: the PDF has prices. Say so when the job has a Joinr quote.
+        const q = await fetch(base, { headers: { Accept: "application/json" } }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (q && q.status && q.status !== "not-linked") {
+          section.hidden = false;
+          $("qpBar").hidden = true;
+          msg.textContent = "The quote PDF shows prices, so it is only for people who can see job values.";
+        }
+        return;
+      }
+      if (!res.ok) return; // not from Joinr (404) or nothing to show
+      st = await res.json();
+    } catch (e) {
+      return;
+    }
+    draw(st);
+
+    refresh.addEventListener("click", async () => {
+      refresh.disabled = true;
+      msg.textContent = "Asking Joinr...";
+      msg.hidden = false;
+      try {
+        const res = await fetch(base + "/pdf/refresh", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: "{}" });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          msg.textContent = body.error || "Could not refresh (" + res.status + ")";
+        } else {
+          let note = "";
+          if (body.fetch === "ok") note = "Up to date.";
+          else if (body.fetch === "fresh") note = "";
+          else if (body.fetch === "recent" || body.fetch === "limited") {
+            const n = body.retryAfterSeconds || 60;
+            note = (body.fetch === "limited" ? "Joinr asked us to wait. " : "Refreshed a moment ago. ") + "Try again in " + n + " second" + (n === 1 ? "" : "s") + ".";
+          } else if (body.fetch === "not-set-up") note = "Joinr is not set up.";
+          draw(body, note || undefined);
+        }
+      } catch (e) {
+        msg.textContent = "Could not reach Crosscuts. Try again.";
+      }
+      refresh.disabled = false;
+    });
+  }
+
+  function start(opts) {
+    const folds = {};
+    folds.breakdown = makeFold($("fullquote"), true);
+    // "From Joinr" is folded unless it has a change waiting to be acknowledged (job.js draws it, after we do).
+    folds.joinr = makeFold($("joinr"), false);
+    const body = $("joinrBody");
+    if (folds.joinr && body) {
+      const check = () => {
+        if (!folds.joinr.touched && body.querySelector(".jo-joinr-changed")) folds.joinr.set(true);
+      };
+      new MutationObserver(check).observe(body, { childList: true });
+      check();
+    }
+    // The PDF can take a while on first view: it runs on its own and never holds the page's start-up.
+    startPdf(opts, folds).catch(() => {});
+    return startBreakdown(opts);
+  }
+
   window.JobQuote = { start };
 })();

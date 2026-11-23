@@ -80,6 +80,8 @@
       edit = el("button", { class: "hs-btn hs-btn-quiet", type: "button", text: "Edit on Overview" });
       edit.addEventListener("click", () => {
         if (window.JobTabs) window.JobTabs.open("overview");
+        // 0.2.26: Overview is cards now; the Links and notes card opens for editing.
+        if (window.JobOverview) { window.JobOverview.editNotes(); return; }
         const f = $("f-notes");
         if (f) { f.scrollIntoView({ block: "center" }); f.focus(); }
       });

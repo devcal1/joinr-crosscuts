@@ -379,23 +379,25 @@ req POST "/api/job-records/$M18_JA/materials/to-orders" "$DPM" "{\"ids\":[999999
 expect_status 404 "a line that does not exist"
 req POST "/api/job-records/$M18_JA/materials/to-orders" "$DPM" "{\"ids\":[$M18_SHEETS,$M18_DRAWER,$M18_HANDLE],\"supplier\":\"CI M18 Supplier\"}"
 expect_status 200 "dpm creates order lines for three materials"
-expect_jq '(.created | length) == 3 and (.skipped | length) == 0' "three created, none skipped"
+# 0.2.26 (jobpage-contracts section C): a Joinr drawers line is left out of the order (skip_order, set by
+# prefill when the list was filled), so it is skipped here instead of ordered a second time.
+expect_jq '(.created | length) == 2 and (.skipped | length) == 1 and .skipped[0].id == '"$M18_DRAWER"' and .skipped[0].reason == "left out of the order"' "two created; the Joinr drawers line is left out, not ordered"
 expect_jq '(.lines[] | select(.id == '"$M18_SHEETS"') | .ordered == true and .orderId != null and .orderStatus == "to_order")' "the sheets line is ORDERED, pointing at a to_order line"
 M18_ORDER_SHEETS=$(jqr '.lines[] | select(.id == '"$M18_SHEETS"') | .orderId')
 M18_ORDER_HANDLE=$(jqr '.lines[] | select(.id == '"$M18_HANDLE"') | .orderId')
 expect_jq '.job.materialsOrderedDate == null' "creating to_order lines does not mark the job's materials ordered"
 req GET "/api/job-records/$M18_JA/orders" "$DPM"
 expect_status 200 "GET the job's orders"
-expect_jq '[.[] | select(.supplier == "CI M18 Supplier" and .status == "to_order")] | length == 3' "three to_order lines with the chosen supplier"
+expect_jq '[.[] | select(.supplier == "CI M18 Supplier" and .status == "to_order")] | length == 2' "two to_order lines with the chosen supplier"
 expect_jq '.[] | select(.id == '"$M18_ORDER_SHEETS"') | .description == "Board sheets, 26 sheets" and .status == "to_order" and .orderedDate == null' "the description is the name, quantity and unit"
 expect_jq '.[] | select(.id == '"$M18_ORDER_HANDLE"') | .description == "Bar handle 160mm, 14 each" and .notes == "Black"' "a typed line's notes ride along"
 req GET "/api/job-records/$M18_JA" "$DPM"
 expect_jq '.materialsOrderedDate == null and .materialsInDate == null' "the job's materials dates are untouched"
 req POST "/api/job-records/$M18_JA/materials/to-orders" "$DPM" "{\"ids\":[$M18_SHEETS,$M18_DRAWER,$M18_HANDLE],\"supplier\":\"CI M18 Supplier\"}"
 expect_status 200 "the same request again"
-expect_jq '(.created | length) == 0 and (.skipped | length) == 3' "idempotent: nothing created, three skipped"
+expect_jq '(.created | length) == 0 and (.skipped | length) == 3' "idempotent: nothing created, three skipped (two already ordered, one left out)"
 req GET "/api/job-records/$M18_JA/orders" "$DPM"
-expect_jq '[.[] | select(.supplier == "CI M18 Supplier")] | length == 3' "still three order lines"
+expect_jq '[.[] | select(.supplier == "CI M18 Supplier")] | length == 2' "still two order lines"
 expect_eq "$(m18_audits material.to_order "$M18_JA")" "1" "one material.to_order audit row (the repeat wrote none)"
 
 echo "--- a line with a live order line cannot be removed; a cancelled one can be ordered again ---"

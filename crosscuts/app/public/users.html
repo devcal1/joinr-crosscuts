@@ -235,6 +235,17 @@
       <p class="hint">The round-up is also sent automatically on Friday at noon, to everyone who can edit invoices.</p>
     </form>
 
+    <!-- 0.2.26 (docs/plans/jobpage-contracts.md section C): the default supplier per materials section. -->
+    <section class="card hs-card" id="msCard" aria-labelledby="msTitle">
+      <div class="hs-sectionbar"><h2 id="msTitle">Default suppliers by section</h2></div>
+      <p class="text-muted small">A job's materials line with no supplier is suggested the supplier last used for that item, or else the default for its section here. A person can always change it.</p>
+      <div class="form-grid" id="msGrid"></div>
+      <p class="form-error" id="msError" role="alert" hidden></p>
+      <div class="actions">
+        <button class="hs-btn hs-btn-primary" type="button" id="msSave">Save</button>
+      </div>
+    </section>
+
     <section class="card hs-card" id="joinrCard" aria-labelledby="joinrTitle">
       <div class="hs-sectionbar"><h2 id="joinrTitle">Joinr</h2></div>
       <p class="text-muted small">Won quotes are pulled from Joinr every few minutes and appear on the New from Joinr page. The key is kept on this server and is never shown again.</p>
