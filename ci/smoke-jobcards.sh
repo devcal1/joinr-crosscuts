@@ -438,7 +438,7 @@ ok
 req GET /orderprint.html "$WSMGR"
 expect_status 200 "wsmgr (orders.view) GET /orderprint.html"
 req GET /orderprint.html "$SHOW"
-expect_status 403 "showroom GET /orderprint.html"
+expect_status 200 "showroom GET /orderprint.html (0.2.27)"
 req GET /orderprint.html
 expect_status 302 "logged out GET /orderprint.html redirects to login"
 req GET /orderprint.js "$ORDR"
