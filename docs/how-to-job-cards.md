@@ -10,13 +10,14 @@ Who does what:
 
 ## The Stock section
 
-Above the job cards on **Orders** (Job cards tab) is the **Stock** section: **one stock order per calendar month**, with no job attached. It is for the hardware counted each fortnight on the Stock order page, plus anything Ordering adds by hand. Stock items never affect a job's materials or progress invoices.
+Above the job cards on **Orders** (Job cards tab) is the **Stock** section: **one stock order per calendar month**, with no job attached. It is for the hardware counted each fortnight on the Stock order page, plus anything people add by hand. Stock items never affect a job's materials or progress invoices.
 
 - **Months.** Three month cards (last, this, next) with **Previous month** and **Next month**. Each card shows how many items are to order, ordered and received. Press one to open it. The month is kept in the address (`/orders.html?stock=2026-11`), so a link opens it.
 - **The open month** shows one block per supplier. Each item has its name, quantity, ordered date and status. Items that came from a count carry a small **COUNT** mark; ordered items link to their PO. Items still to order are orange.
 - **Finishing a count** adds its items here. The quantity is target less have less what is already ordered and not received (rule A in how-to-do-the-stocktake.md), so two counts in a month never order the same thing twice. A count can change an item that is still To order, and moves it to the current month. Items you add by hand are never changed by a count.
-- **Add item** (`orders.edit`): pick or type the supplier and the item (the stock list, past order lines and Supplier accounts names are offered; a new name is fine) and a quantity. Picking an item from the stock list links the line to it. Only this month and next month take new items.
-- **Press an item** to change its quantity, supplier, item or notes, delete it (only while To order) or **Undo** ordered (`orders.mark_ordered`). A received item must be undone on Deliveries first.
+- **Add item** (anyone who can open Orders, which since 0.2.27 is every role): pick or type the supplier and the item (the stock list, past order lines and Supplier accounts names are offered; a new name is fine) and a quantity. Picking an item from the stock list links the line to it. Only this month and next month take new items.
+- Each item shows **who added it and when**. On a shared login (the showroom device) that is the shared login's name.
+- **Press an item** to change or delete it while it is To order: your own (items you added by hand), or any item for Ordering and admin. Only Ordering and admin can order items or **Undo** ordered (`orders.mark_ordered`). A received item must be undone on Deliveries first.
 - **Print month** prints the month's stock order (black on white).
 - **Order** on a supplier block opens **New supplier order** for that supplier with this month's stock items ticked.
 - Unordered items stay in their month, orange, until ordered, deleted or picked up by the next count.

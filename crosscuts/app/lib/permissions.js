@@ -89,10 +89,12 @@ const PRESETS = {
     "scheduling.view", "leave.edit", "tasks.use", "messages.use",
     "planner.view", "planner.edit", "orders.view", "notes.scheduling",
   ],
-  showroom: ["photos.search"],
+  // 0.2.27 (Todd 2026-11-25): every role opens Orders, so anyone can add a stock item. Ordering stays
+  // orders.mark_ordered (Ordering and admin).
+  showroom: ["photos.search", "orders.view"],
   // M7: the workshop TV and workshop logins (docs/plans/m7-contracts.md section 4).
   // 0.2.2: and the Workshop notes wall. 0.2.4: and the end-of-shift page.
-  workshop: ["board.view", "planner.view", "notes.workshop", "shift.report"],
+  workshop: ["board.view", "orders.view", "planner.view", "notes.workshop", "shift.report"],
   // M10 (docs/plans/m10-contracts.md section 3): Ordering places orders (marking a job's last line
   // ordered makes its progress invoice due); the Workshop Manager receives them, without the job pages.
   ordering: [

@@ -203,9 +203,16 @@ function create(db, req, input, today = sydneyToday()) {
   return loadLine(db, id, today);
 }
 
-// PATCH /api/stock-lines/:id. The route admits orders.edit, orders.mark_ordered or orders.receive; each
+// Who may change or delete a line (Todd 2026-11-25): Ordering and admin (orders.mark_ordered) any line;
+// anyone else only one they added by hand, while it is still to order.
+function mayEdit(req, line) {
+  if (can(req, "orders.mark_ordered")) return true;
+  return line.source === "hand" && line.status === "to_order" && line.created_by != null && line.created_by === userId(req);
+}
+
+// PATCH /api/stock-lines/:id. The route admits orders.view, orders.mark_ordered or orders.receive; each
 // field needs its own key (checked here, the whole patch before anything is written):
-//   supplier, item, quantity, notes: orders.edit (supplier, item and quantity only while to_order, else 409)
+//   supplier, item, quantity, notes: mayEdit above (supplier, item and quantity only while to_order, else 409)
 //   status: ordered>to_order (Undo) orders.mark_ordered; ordered>received and received>ordered orders.receive;
 //     to_order>ordered is refused (only a supplier order does it); to_order>received and received>to_order 409
 //   expectedDate (while ordered): orders.mark_ordered
@@ -237,7 +244,7 @@ function update(db, req, id, patch, today = sydneyToday()) {
     if (col === "quantity" ? Number(line.quantity) !== v : v !== line[col]) changes[col] = v;
   }
   const edits = Object.keys(changes);
-  if (edits.length && !can(req, "orders.edit")) throw forbidden();
+  if (edits.length && !mayEdit(req, line)) throw forbidden();
   if (edits.some((c) => c !== "notes") && line.status !== "to_order") {
     throw conflict("Only an item still to order can change its supplier, item or quantity");
   }
@@ -368,6 +375,7 @@ function remove(db, req, id, today = sydneyToday()) {
   const line = db.prepare("SELECT * FROM stock_lines WHERE id = ?").get(id);
   if (!line) throw notFound();
   if (line.deleted_at) throw conflict("This item was already deleted");
+  if (line.status === "to_order" && !mayEdit(req, line)) throw forbidden();
   if (line.status !== "to_order") throw conflict("This item is already ordered or received. Undo ordered first.");
   db.transaction(() => softDelete(db, req, line, { by: "user" }))();
   return { id, deleted: true };

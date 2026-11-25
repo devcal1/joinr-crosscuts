@@ -43,15 +43,15 @@ r.get("/", "orders.view", handle((req, res) => {
   res.json(stocklines.list(db, { month: single(req.query, "month"), status: single(req.query, "status") }));
 }));
 
-r.post("/", "orders.edit", handle((req, res) => {
+r.post("/", "orders.view", handle((req, res) => {
   res.status(201).json(stocklines.create(db, req, req.body));
 }));
 
-r.patch("/:id", ["orders.edit", "orders.mark_ordered", "orders.receive"], handle((req, res) => {
+r.patch("/:id", ["orders.view", "orders.mark_ordered", "orders.receive"], handle((req, res) => {
   res.json(stocklines.update(db, req, idOr404(req.params.id), req.body));
 }));
 
-r.delete("/:id", "orders.edit", handle((req, res) => {
+r.delete("/:id", "orders.view", handle((req, res) => {
   res.json(stocklines.remove(db, req, idOr404(req.params.id)));
 }));
 

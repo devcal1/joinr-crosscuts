@@ -65,7 +65,7 @@ req GET /pipeline.html "$SHOW"
 expect_status 403 "show GET /pipeline.html"
 # /orders.html is Wave 2's page: 403 for the showroom either way, 200 once the file exists.
 req GET /orders.html "$SHOW"
-expect_status 403 "show GET /orders.html"
+expect_status 200 "show GET /orders.html (0.2.27)"
 if [ -f "$APP_SRC/public/orders.html" ]; then
   req GET /orders.html "$DPM"
   expect_status 200 "dpm GET /orders.html"

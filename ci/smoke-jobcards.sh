@@ -211,7 +211,7 @@ expect_jq '.error == "This job is archived; add items to an open job"' "the arch
 
 echo "--- supplier suggestions ---"
 req GET /api/orders/suppliers "$SHOW"
-expect_status 403 "showroom GET /api/orders/suppliers"
+expect_status 200 "showroom GET /api/orders/suppliers (0.2.27)"
 req GET "/api/orders/suppliers?q=JC%20Hinge" "$ORDR"
 expect_status 200 "ordr GET /api/orders/suppliers?q="
 expect_jq "index(\"$JC_S1\") != null" "a name used on order lines is suggested"
@@ -246,7 +246,7 @@ expect_jq 'length <= 50' "at most 50 names"
 
 echo "--- job cards ---"
 req GET /api/orders/cards "$SHOW"
-expect_status 403 "showroom GET /api/orders/cards"
+expect_status 200 "showroom GET /api/orders/cards (0.2.27)"
 req GET /api/orders/cards "$WSMGR"
 expect_status 200 "wsmgr (orders.view) GET /api/orders/cards"
 req GET "/api/orders/cards?finished=2" "$ORDR"

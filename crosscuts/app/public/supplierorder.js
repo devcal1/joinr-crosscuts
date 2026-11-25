@@ -149,7 +149,7 @@
           el("td", { class: "so-tick" }, el("input", { type: "checkbox", "data-sid": String(l.id), "aria-label": "In this order, stock: " + name })),
           hardware,
           el("td", { class: "jc-num", "data-label": "Qty" }, document.createTextNode(window.OrderUI.fmtQty(l.quantity))),
-          el("td", { class: "jc-date", "data-label": "Added" }, document.createTextNode(fmtDay(l.createdAt))),
+          el("td", { class: "jc-date", "data-label": "Added" }, document.createTextNode(fmtDay(l.createdAt) + (l.createdBy && l.createdBy.name ? ", " + l.createdBy.name : ""))),
           el("td", { class: "jc-text jc-notes" + (l.notes ? "" : " jc-blank"), "data-label": "Notes" }, el("span", { text: l.notes || "" }))
         ));
       }

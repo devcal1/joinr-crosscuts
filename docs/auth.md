@@ -66,7 +66,7 @@ A role is a preset: a set of feature keys. A user's effective permissions are th
 | `planner.edit` | Yes | Yes | Yes | Yes | | | Yes | Yes |
 | `users.admin` | Yes | | | | | | | |
 | `audit.view` | Yes | | | | | | | |
-| `orders.view` | Yes | Yes | Yes | Yes | | | Yes | Yes |
+| `orders.view` | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | `orders.receive` | Yes | | Yes | | | | Yes | Yes |
 | `stock.count` | Yes | | | | | | Yes | Yes |
 | `stock.order` | Yes | | | | | | Yes | |

@@ -63,11 +63,11 @@ expect_status 200 "sched GET /api/orders"
 req GET /api/orders "$ACCT"
 expect_status 200 "acct GET /api/orders"
 req GET /api/orders "$SHOW"
-expect_status 403 "show GET /api/orders"
+expect_status 200 "show GET /api/orders (0.2.27)"
 req GET "/api/orders?status=bogus" "$ADMIN"
 expect_status 400 "a bad status filter"
 req GET /api/orders/suppliers "$SHOW"
-expect_status 403 "show GET /api/orders/suppliers"
+expect_status 200 "show GET /api/orders/suppliers (0.2.27)"
 
 m3b_job "CI M3 Orders Job" true
 M3B_J=$M3B_JOB

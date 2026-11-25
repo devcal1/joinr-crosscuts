@@ -63,7 +63,7 @@ The fortnightly count on the Stock order page feeds the order. Ordering can add 
 
 ## Who
 
-No new key. See and print: `orders.view`. Add, edit, delete: `orders.edit`. Order and undo ordered: `orders.mark_ordered`. Receive: `orders.receive`. Finishing the count stays `stock.count`. Delete only while To order; received must be undone first.
+Changed by Todd 2026-11-25 (after the first build): **anyone can add** a stock item, and each shows **who added it and when**. `orders.view` joins the Workshop and Showroom presets, so every role opens Orders. Change or delete while To order: the person who added it by hand, Ordering and admin. **Only Ordering and admin order** or undo ordered (`orders.mark_ordered`). Receive: `orders.receive`. Finishing the count stays `stock.count`. No new key.
 
 Finishing a count writes to the order on the counter's behalf; the audit rows name them.
 

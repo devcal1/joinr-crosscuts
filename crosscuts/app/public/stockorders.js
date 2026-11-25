@@ -70,6 +70,13 @@
     return Number(m[3]) + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m[2]) - 1];
   }
 
+  // "25 Nov, 11:14 am" (Sydney) from a UTC stamp: when an item was added.
+  function addedAt(iso) {
+    const t = Date.parse(iso || "");
+    if (!Number.isFinite(t)) return "";
+    return new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }).format(new Date(t));
+  }
+
   // The Sydney calendar month, for when the months call has not answered.
   function sydneyMonth() {
     const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit" }).format(new Date());
@@ -82,8 +89,11 @@
     return { current: cur, first: cur, last: Per.addMonths(cur, 1), months: [] };
   }
 
-  const canEdit = () => can("orders.edit");
+  // Anyone here can add (orders.view). Ordering and admin change any item; the person who added one by hand
+  // changes or deletes it while it is still to order. The server enforces the same.
+  const canEdit = (l) => canMark() || (l.source === "hand" && l.status === "to_order" && !!l.createdBy && l.createdBy.id === myId());
   const canMark = () => can("orders.mark_ordered");
+  const myId = () => (window.cc && window.cc.me ? window.cc.me.id : null);
 
   // ------------------------------------------------------------------ data ---
 
@@ -198,8 +208,8 @@
   // -------------------------------------------------------------- the month ---
 
   function actionable(l) {
-    if (l.status === "to_order") return canEdit();
-    if (l.status === "ordered") return canEdit() || canMark();
+    if (l.status === "to_order") return canEdit(l);
+    if (l.status === "ordered") return canMark();
     return false;
   }
 
@@ -234,6 +244,8 @@
     const sub = el("div", { class: "sk-sub" });
     if (l.code) sub.append(el("span", { text: l.code }));
     if (l.source === "count") sub.append(el("span", { class: "sk-src", text: "Count" }));
+    const by = [l.createdBy && l.createdBy.name, addedAt(l.createdAt)].filter(Boolean).join(", ");
+    if (by) sub.append(el("span", { text: (l.source === "count" ? "by " : "Added by ") + by }));
     const po = poLink(l);
     if (po) sub.append(po);
     if (l.notes) sub.append(el("span", { class: "sk-note", text: l.notes }));
@@ -264,7 +276,7 @@
     tagEl.textContent = month === range().current ? "This month" : "";
     openEl.hidden = false;
     const r = range();
-    const canAdd = canEdit() && Per.compare(month, r.current) >= 0 && Per.compare(month, Per.addMonths(r.current, 1)) <= 0;
+    const canAdd = Per.compare(month, r.current) >= 0 && Per.compare(month, Per.addMonths(r.current, 1)) <= 0;
     addForm.hidden = !canAdd;
     addForm.setAttribute("aria-label", "Add an item to the " + longLabel(month) + " stock order");
     printBtn.disabled = false;
@@ -486,7 +498,7 @@
 
   async function editLine(line, opener) {
     const toOrder = line.status === "to_order";
-    const full = toOrder && canEdit();
+    const full = toOrder && canEdit(line);
     const r = await modal("Edit stock item", false, (dlg, form, ctl) => {
       const sup = el("input", { class: "hs-input", type: "text", maxlength: "200", autocomplete: "off" });
       const item = el("input", { class: "hs-input", type: "text", maxlength: "500", autocomplete: "off" });
@@ -497,13 +509,13 @@
       qty.value = qtyText(line.quantity);
       notes.value = line.notes || "";
       for (const n of [sup, item, qty]) n.disabled = !full;
-      notes.disabled = !canEdit();
+      notes.disabled = !canEdit(line);
       const err = el("p", { class: "cc-dialog-error", role: "alert" });
       const cancel = el("button", { type: "button", class: "hs-btn", text: "Close" });
       const actions = el("div", { class: "cc-dialog-actions" }, cancel);
-      const del = toOrder && canEdit() ? el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Delete" }) : null;
+      const del = toOrder && canEdit(line) ? el("button", { type: "button", class: "hs-btn hs-btn-stop", text: "Delete" }) : null;
       const undo = line.status === "ordered" && canMark() ? el("button", { type: "button", class: "hs-btn", text: "Undo ordered" }) : null;
-      const save = canEdit() ? el("button", { type: "submit", class: "hs-btn hs-btn-primary", text: "Save" }) : null;
+      const save = canEdit(line) ? el("button", { type: "submit", class: "hs-btn hs-btn-primary", text: "Save" }) : null;
       for (const b of [del, undo, save]) if (b) actions.append(b);
       const note = !full
         ? line.status === "ordered"
@@ -555,7 +567,7 @@
           ctl.busy(false);
           for (const x of form.querySelectorAll("button, input, textarea")) x.disabled = false;
           for (const x of [sup, item, qty]) x.disabled = !full;
-          notes.disabled = !canEdit();
+          notes.disabled = !canEdit(line);
           err.textContent = fail(ex);
           return;
         }

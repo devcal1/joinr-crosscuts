@@ -1,5 +1,7 @@
 # Monthly stock orders: build contracts (0.2.27)
 
+Access changed by Todd 2026-11-25 after the build: see Who in the plan (add and delete: `orders.view`, edits: the adder or `orders.mark_ordered`).
+
 Binding with `stock-orders-plan.md` (approved by Todd 2026-11-25) and `mockups/stock-C.html`. If a contract looks wrong, report it, don't work around it. Follow CLAUDE.md. Nobody commits, pushes, bumps versions (the lead does) or runs the full smoke (fixed ports; the lead does).
 
 ## File ownership

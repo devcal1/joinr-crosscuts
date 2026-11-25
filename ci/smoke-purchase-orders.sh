@@ -198,11 +198,11 @@ for jar in "$ADMIN" "$ORDR"; do
   expect_status 200 "orders.view reads the PDF"
 done
 req GET /api/supplier-orders "$SHOW"
-expect_status 403 "a login without orders.view can't list"
+expect_status 200 "showroom lists (0.2.27)"
 req GET "/api/supplier-orders/$PO1_ID" "$SHOW"
-expect_status 403 "or read one"
+expect_status 200 "and reads one"
 req GET "/api/supplier-orders/$PO1_ID/pdf" "$SHOW"
-expect_status 403 "or its PDF"
+expect_status 200 "and its PDF"
 req GET /api/supplier-orders ""
 expect_status 401 "logged out list"
 req POST /api/supplier-orders "$ADMIN" '{}'
