@@ -1,6 +1,6 @@
 # Monthly stock orders on the Orders page (0.2.27)
 
-Asked for by Todd on 2026-11-25. Mockup: `docs/plans/mockups/stock-C.html`. **Status: waiting for Todd's approval. Nothing is built.**
+Asked for by Todd on 2026-11-25. Mockup: `docs/plans/mockups/stock-C.html`. **Status: approved by Todd 2026-11-25; built as 0.2.27, not pushed.**
 
 ## What it is
 
@@ -16,7 +16,7 @@ The fortnightly count on the Stock order page feeds the order. Ordering can add 
 4. **Combined purchase orders.** Stock items appear on New supplier order with job items, so one PO can hold both.
 5. **The Order tab on the Stock order page goes.** Count and List stay. Fortnights already ordered there stay viewable, read-only.
 
-## Rules proposed here (for Todd's approval)
+## Rules (approved with the plan)
 
 **A. Two counts must not order the same thing twice.** Most months have two counts, and an item ordered after the first may not have arrived by the second. On Finish count, for each item with a target:
 
@@ -31,7 +31,7 @@ The fortnightly count on the Stock order page feeds the order. Ordering can add 
 
 **C. Items with no target** are counted but send nothing. Ordering adds them by hand.
 
-**D. Reopen count** leaves the order as it is. Finishing again applies rule A again.
+**D. Reopen count** leaves the order as it is. Finishing again applies rule A again. (Added in review: refused once a newer count has been sent or any of its stock has been received; a late older count is kept but not sent.)
 
 **E. Unordered items stay in their month**, orange, until ordered, deleted or picked up by the next count. Hand-added items don't roll over.
 
