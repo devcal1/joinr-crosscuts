@@ -98,6 +98,8 @@ const routers = [
   // M11 (docs/plans/m11-contracts.md sections 6-8).
   require("./routes/drawers"),
   require("./routes/stock"),
+  // 0.2.27: monthly stock order lines on the Orders page (docs/plans/stock-orders-contracts.md).
+  require("./routes/stocklines"),
   require("./routes/boards"),
   require("./routes/paint"),
   // M12 (docs/plans/m12-contracts.md section 5).

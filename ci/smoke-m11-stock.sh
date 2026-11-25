@@ -7,6 +7,9 @@
 # (notifications by their link or title, deliveries by their id). Made-up names only (this repo is
 # public). Today is the server's.
 # Contract: docs/plans/m11-contracts.md sections 7, 8, 9, 11.8 and 12.2.
+# 0.2.27 (docs/plans/stock-orders-contracts.md): the Order tab is closed (marking a group ordered, typing
+# Order and "nothing to order" are 409), so the fortnights "ordered" here are made as a database from before
+# the change would hold them (m11_st_ordered); ci/smoke-stock-orders.sh covers the monthly stock order.
 
 # ============================================================================
 step "m11. stock order, board stocktake, stock deliveries"
@@ -45,6 +48,25 @@ m11_st_notifs() {
   req GET "/api/notifications?limit=100" "$1"
   expect_status 200 "GET /api/notifications"
   M11_ST_N=$(jqr "[.rows[] | select(.kind == \"$2\" and .link == \"$3\")] | length")
+}
+
+# m11_st_sql SQL: runs SQL against the database (an old ordered group can't be made through the API now).
+m11_st_sql() {
+  docker exec "$CONTAINER" node -e '
+const D = require("better-sqlite3");
+const d = new D("/data/db/photos.db");
+d.pragma("busy_timeout = 5000");
+d.pragma("foreign_keys = ON");
+try { d.exec(process.argv[1]); process.stdout.write("ok"); }
+catch (e) { process.stdout.write(String(e.message)); }
+d.close();' "$1" | tr -d '\r'
+}
+
+# m11_st_ordered PERIOD SUPPLIER ORDER_QTY ITEM_ID DATE: the old Order tab's result: an order quantity on
+# the item's line and the supplier's group ordered on DATE (expected the same day).
+m11_st_ordered() {
+  m11_st_sql "UPDATE stock_order_lines SET order_qty = $3 WHERE stock_item_id = $4 AND stock_order_id = (SELECT id FROM stock_orders WHERE period = '$1');
+INSERT INTO stock_order_groups (stock_order_id, supplier, ordered_date, ordered_by, expected_date) VALUES ((SELECT id FROM stock_orders WHERE period = '$1'), '$2', '$5', (SELECT MIN(id) FROM users), '$5');" >/dev/null
 }
 
 # m11_st_me JAR: sets M11_ST_ID to that user's id.
@@ -117,15 +139,15 @@ req PUT "/api/stock/orders/$M11_ST_P/have" "$WSMGR" \
 expect_status 200 "wsmgr types Have"
 expect_jq "[.groups[].lines[] | select(.itemId == $M11_ST_IA) | .have] == [3]" "item A has 3"
 expect_jq "[.groups[].lines[] | select(.itemId == $M11_ST_IB) | .have] == [10]" "item B has 10"
-m11_st_notifs "$ORDR" stock.counted "/stock.html?period=$M11_ST_P"
-expect_eq "$M11_ST_N" 0 "no stock.counted notice before the count is finished"
+m11_st_notifs "$ORDR" stock.counted "/orders.html?stock=$M11_ST_THIS"
+M11_ST_N0=$M11_ST_N
 req POST "/api/stock/orders/$M11_ST_P/counted" "$WSMGR"
 expect_status 200 "wsmgr finishes the count"
 expect_jq ".state == \"counted\" and .counted.by.id == $M11_ST_WSMGR_ID and .nothingToOrder == null" "the month is counted, by wsmgr, and stays counted until Ordering acts (section 15.19)"
-m11_st_notifs "$ORDR" stock.counted "/stock.html?period=$M11_ST_P"
-expect_eq "$M11_ST_N" 1 "ordr is told the stock is counted"
-expect_jq "[.rows[] | select(.kind == \"stock.counted\" and .link == \"/stock.html?period=$M11_ST_P\") | .title] == [\"Stock counted: $M11_ST_PL\"]" \
-  "the notice names the month"
+m11_st_notifs "$ORDR" stock.counted "/orders.html?stock=$M11_ST_THIS"
+expect_eq "$M11_ST_N" "$((M11_ST_N0 + 1))" "ordr is told the stock is counted (0.2.27: the link is the month on the Orders page)"
+expect_jq "[.rows[] | select(.kind == \"stock.counted\" and .link == \"/orders.html?stock=$M11_ST_THIS\" and .title == \"Stock counted: $M11_ST_PL\") | .body] | length == 1 and .[0] == \"Nothing to add to the stock order from the count.\"" \
+  "the notice names the count and says nothing was added (the items have no targets)"
 req PUT "/api/stock/orders/$M11_ST_P/have" "$WSMGR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"have\":4}]}"
 expect_status 409 "wsmgr Have after counting"
 expect_jq '.error == "The count is finished; ask Ordering to reopen it"' "and says who reopens it"
@@ -140,29 +162,26 @@ req POST "/api/stock/orders/$M11_ST_P/counted" "$WSMGR"
 expect_status 200 "wsmgr finishes the count again"
 expect_jq "[.groups[].lines[] | select(.itemId == $M11_ST_IA) | .have] == [4]" "the corrected Have stands"
 
-echo "--- ordering ---"
+echo "--- ordering (closed here since 0.2.27) ---"
 req PUT "/api/stock/orders/$M11_ST_P/order" "$WSMGR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":5}]}"
 expect_status 403 "wsmgr types Order"
 req PUT "/api/stock/orders/$M11_ST_P/order" "$ORDR" \
   "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":5},{\"itemId\":$M11_ST_IB,\"order\":0}]}"
-expect_status 200 "ordr types Order"
-expect_jq "[.groups[].lines[] | select(.itemId == $M11_ST_IA) | .order] == [5]" "item A orders 5"
-expect_jq '.state == "counted"' "still counted (nothing ordered yet)"
-req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" "{\"supplier\":\"$M11_ST_SUPB\"}"
-expect_status 400 "marking a group with nothing to order"
+expect_status 409 "ordr can't type Order any more"
+expect_jq '.error == "Stock is ordered on the Orders page now"' "and is told where stock is ordered"
 req POST "/api/stock/orders/$M11_ST_P/groups" "$WSMGR" "{\"supplier\":\"$M11_ST_SUPA\"}"
 expect_status 403 "wsmgr marks a group ordered"
+req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" "{\"supplier\":\"$M11_ST_SUPA\"}"
+expect_status 409 "ordr can't mark a group ordered any more"
+expect_jq '.error == "Stock is ordered on the Orders page now"' "with the same sentence"
+req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" "{\"supplier\":\"$M11_ST_SUPA\",\"undo\":true}"
+expect_status 409 "undoing a group that was never ordered"
 req GET /api/orders/deliveries "$WSMGR"
 expect_status 200 "wsmgr GET deliveries"
 M11_ST_TODAY_N=$(jqr '.counts.today')
-M11_ST_YDAY=$(date -u -d "$M11_ST_TODAY -1 day" +%F)
-req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" \
-  "{\"supplier\":\"$M11_ST_SUPA\",\"expectedDate\":\"$M11_ST_YDAY\"}"
-expect_status 400 "an expected date before the ordered date (section 15 nit)"
-expect_jq '.error | test("^The expected date can.t be before it was ordered")' "and says so"
-req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" \
-  "{\"supplier\":\"$M11_ST_SUPA\",\"expectedDate\":\"$M11_ST_TODAY\"}"
-expect_status 200 "ordr marks group A ordered, expected today"
+# An old fortnight's ordered group, as the old Order tab left it: A orders 5, expected today.
+m11_st_ordered "$M11_ST_P" "$M11_ST_SUPA" 5 "$M11_ST_IA" "$M11_ST_TODAY"
+req GET "/api/stock/orders/$M11_ST_P" "$WSMGR"
 expect_jq ".state == \"ordered\"" "group B has no quantities, so group A alone takes the month to ordered (section 15.19)"
 expect_jq "[.groups[] | select(.supplier == \"$M11_ST_SUPA\") | .ordered.date] == [\"$M11_ST_TODAY\"]" "ordered today"
 req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" "{\"supplier\":\"$M11_ST_SUPA\"}"
@@ -176,15 +195,14 @@ expect_eq "$(jqr '.counts.today')" "$((M11_ST_TODAY_N + 1))" "counts.today inclu
 expect_jq '.stock.counts.today >= 1' "and so does stock.counts.today"
 req PUT "/api/stock/orders/$M11_ST_P/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":6}]}"
 expect_status 409 "changing a line in an ordered group"
-expect_jq ".error == \"$M11_ST_SUPA has already been ordered\"" "and names the supplier"
+expect_jq '.error == "Stock is ordered on the Orders page now"' "is refused with the new sentence"
 req POST "/api/stock/orders/$M11_ST_P/reopen" "$ORDR"
 expect_status 409 "reopening the count once a group is ordered"
 req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" "{\"supplier\":\"$M11_ST_SUPA\",\"undo\":true}"
-expect_status 200 "ordr undoes group A"
+expect_status 200 "ordr undoes group A (still allowed for an old group)"
 expect_jq '.state == "counted"' "back to counted"
-req POST "/api/stock/orders/$M11_ST_P/groups" "$ORDR" \
-  "{\"supplier\":\"$M11_ST_SUPA\",\"orderedDate\":\"$M11_ST_TODAY\",\"expectedDate\":\"$M11_ST_TODAY\"}"
-expect_status 200 "ordr marks group A ordered again"
+m11_st_ordered_again() { m11_st_sql "INSERT INTO stock_order_groups (stock_order_id, supplier, ordered_date, ordered_by, expected_date) VALUES ((SELECT id FROM stock_orders WHERE period = '$M11_ST_P'), '$M11_ST_SUPA', '$M11_ST_TODAY', (SELECT MIN(id) FROM users), '$M11_ST_TODAY');" >/dev/null; }
+m11_st_ordered_again
 
 echo "--- receiving ---"
 req POST "/api/stock/orders/$M11_ST_P/groups/received" "$WSMGR" \
@@ -215,61 +233,31 @@ expect_jq "[.groups[] | select(.supplier == \"$M11_ST_SUPA\") | .deliveryNote] =
 m11_st_notifs "$ORDR" stock.delivery_note "/stock.html?period=$M11_ST_P"
 expect_eq "$M11_ST_N" 1 "receiving again with the same note sends no second notice"
 
-echo "--- a month that needs nothing: counted until Ordering closes it (section 15.19) ---"
+echo "--- a month that needs nothing (closing it here is gone since 0.2.27) ---"
 m11_st_free /api/stock/orders
 M11_ST_P2=$M11_ST_FREE
 req PUT "/api/stock/orders/$M11_ST_P2/have" "$WSMGR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"have\":7}]}"
 expect_status 200 "wsmgr types a Have in another month"
 expect_jq '.state == "counting"' "still counting"
 req POST "/api/stock/orders/$M11_ST_P2/nothing" "$ORDR" '{}'
-expect_status 409 "marking nothing to order before the count is finished"
+expect_status 409 "marking nothing to order is closed"
+expect_jq '.error == "Stock is ordered on the Orders page now"' "with the new sentence"
 req POST "/api/stock/orders/$M11_ST_P2/counted" "$WSMGR"
-expect_status 200 "wsmgr finishes the count; no group has anything to order"
-expect_jq '.state == "counted" and .nothingToOrder == null' "the month is counted, to order (not done)"
+expect_status 200 "wsmgr finishes the count; nothing to order from it"
+expect_jq '.state == "counted" and .nothingToOrder == null and .sent.period != null and .sentResult.added == 0' "the month is counted and sent, and added nothing"
 req GET /api/stock/summary "$ORDR"
 expect_status 200 "ordr GET /api/stock/summary"
-expect_jq "[.stockToOrder[] | select(.period == \"$M11_ST_P2\" and .state == \"counted\")] | length == 1" "the dashboard lists it"
+expect_jq "(.stockToOrder | type) == \"array\" and (.stockToSend | type) == \"array\" and ([.stockToSend[] | select(.period == \"$M11_ST_P2\")] | length == 0)" "the dashboard has no send for it (nothing to order)"
 req POST "/api/stock/orders/$M11_ST_P2/nothing" "$WSMGR" '{}'
 expect_status 403 "wsmgr marks nothing to order"
 req POST "/api/stock/orders/$M11_ST_P2/nothing" "$ORDR" '{"undo":true}'
-expect_status 409 "undoing a month that isn't marked"
+expect_status 409 "undoing it is closed too"
 req PUT "/api/stock/orders/$M11_ST_P2/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":2}]}"
-expect_status 200 "ordr types an Order"
-req POST "/api/stock/orders/$M11_ST_P2/nothing" "$ORDR" '{}'
-expect_status 409 "marking nothing to order with a quantity present"
-expect_jq '.error == "Some items have an order quantity. Clear them, or mark their groups ordered."' "and says what to do"
-req PUT "/api/stock/orders/$M11_ST_P2/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":0}]}"
-expect_status 200 "ordr takes it back to 0"
-expect_jq '.state == "counted"' "still counted (quantities cleared, nothing closed)"
-req POST "/api/stock/orders/$M11_ST_P2/nothing" "$ORDR" '{}'
-expect_status 200 "ordr marks the month nothing to order"
-expect_jq ".state == \"nothing\" and .nothingToOrder.by.id != null and (.nothingToOrder.at | length > 0)" "the month is closed, with who and when"
-req GET /api/stock/summary "$ORDR"
-expect_jq "all(.stockToOrder[]; .period != \"$M11_ST_P2\")" "the dashboard no longer lists it"
+expect_status 409 "typing an Order quantity is closed"
 req GET /api/stock/orders "$ORDR"
-expect_jq "[.months[] | select(.period == \"$M11_ST_P2\") | .state] == [\"nothing\"]" "the months list shows nothing"
-req POST "/api/stock/orders/$M11_ST_P2/nothing" "$ORDR" '{}'
-expect_status 409 "marking it twice"
-req PUT "/api/stock/orders/$M11_ST_P2/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":2}]}"
-expect_status 409 "saving an Order quantity while marked"
-expect_jq '.error == "This month is marked nothing to order. Undo that first."' "and says to undo"
-req POST "/api/stock/orders/$M11_ST_P2/reopen" "$ORDR"
-expect_status 409 "reopening the count while marked"
-req POST "/api/stock/orders/$M11_ST_P2/nothing" "$WSMGR" '{"undo":true}'
-expect_status 403 "wsmgr undoes nothing to order"
-req POST "/api/stock/orders/$M11_ST_P2/nothing" "$ORDR" '{"undo":true}'
-expect_status 200 "ordr undoes it"
-expect_jq '.state == "counted" and .nothingToOrder == null' "back to counted"
-req GET /api/stock/summary "$ORDR"
-expect_jq "[.stockToOrder[] | select(.period == \"$M11_ST_P2\")] | length == 1" "and back on the dashboard"
-req PUT "/api/stock/orders/$M11_ST_P2/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":2}]}"
-expect_status 200 "an Order quantity saves again"
-req PUT "/api/stock/orders/$M11_ST_P2/order" "$ORDR" "{\"lines\":[{\"itemId\":$M11_ST_IA,\"order\":0}]}"
-expect_status 200 "and clears again"
-req POST "/api/stock/orders/$M11_ST_P2/nothing" "$ORDR" '{}'
-expect_status 200 "ordr closes the run's month as nothing to order"
+expect_jq "[.months[] | select(.period == \"$M11_ST_P2\") | .state] == [\"counted\"]" "the months list shows it counted"
 req GET /api/stock/orders "$WSMGR"
-expect_jq "[.months[] | select(.period == \"$M11_ST_P\") | .state] == [\"received\"]" "the months list shows it received"
+expect_jq "[.months[] | select(.period == \"$M11_ST_P\") | .state] == [\"received\"]" "the months list shows the old fortnight received"
 
 echo "--- periods ---"
 req GET "/api/stock/orders/$M11_ST_NEXT" "$WSMGR"

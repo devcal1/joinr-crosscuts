@@ -93,7 +93,7 @@
         textOrDash("Expected", "jc-date", fmtDate(o.expectedDate)),
         textOrDash("Supplier ref", "jc-text", o.supplierRef),
         cell("Items", "jc-num", document.createTextNode(String(o.itemCount))),
-        textOrDash("Jobs", "jc-text", (o.jobNumbers || []).join(", ") || (o.jobs || []).map((j) => j.jobName).join(", ")),
+        textOrDash("Jobs", "jc-text", [...(o.hasStock ? ["STOCK"] : []), ...((o.jobNumbers || []).length ? o.jobNumbers : (o.jobs || []).map((j) => j.jobName))].join(", ")),
         textOrDash("By", "", o.orderedBy),
         cell("", "jc-acts", btn)
       ));
@@ -182,18 +182,25 @@
       const tb = el("tbody");
       const seen = new Set();
       for (const it of items) {
-        const key = it.jobId;
+        const key = it.stock ? "stock" : it.jobId;
         if (!seen.has(key)) {
           seen.add(key);
           const g = el("td", { colspan: "3" });
-          if (it.jobNumber) g.append(el("span", { class: "jc-jno", text: it.jobNumber }));
-          g.append(document.createTextNode(it.jobName || ""));
+          if (it.stock) g.append(el("span", { class: "jc-jno", text: "STOCK" }));
+          else {
+            if (it.jobNumber) g.append(el("span", { class: "jc-jno", text: it.jobNumber }));
+            g.append(document.createTextNode(it.jobName || ""));
+          }
           tb.append(el("tr", { class: "po-group" }, g));
         }
+        const hardware = el("span", { text: it.description || "" });
+        const monthTag = it.stock && it.month && window.Periods && window.Periods.validPeriod(it.month)
+          ? el("span", { class: "so-month", text: " " + window.Periods.longLabel(it.month) })
+          : null;
         tb.append(el(
           "tr",
           { class: "po-line" },
-          cell("Hardware", "jc-sup", el("span", { text: it.description || "" })),
+          cell("Hardware", "jc-sup", hardware, monthTag),
           cell("Qty", "jc-num" + (it.quantity == null ? " jc-blank" : ""), document.createTextNode(window.OrderUI.fmtQty(it.quantity))),
           stateCell(it)
         ));

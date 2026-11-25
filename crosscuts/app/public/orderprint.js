@@ -5,6 +5,10 @@
 //       the order list for one supplier: only the listed lines (still to order), grouped by job,
 //       with Hardware and Qty. date and ref are optional and go in the header.
 //       GET /api/orders?status=to_order&supplier=<name>
+//       0.2.27: &stock=1,2,3 adds monthly stock items (stock_lines ids, still to order) under a STOCK
+//       heading first; ids may then be left out. GET /api/stock-lines?status=to_order
+//   ?mode=stock&month=YYYY-MM
+//       the month's stock order: items by supplier with status and dates. GET /api/stock-lines?month=
 //   ?mode=card&job=<jobId>
 //       the job card: that job's lines (cancelled ones left out) with supplier, hardware, qty,
 //       status and the ordered, expected and received dates.
@@ -102,6 +106,16 @@
     return el(tag, { class: cls || null, text: value });
   }
 
+  // "November 2026" from a stock line's YYYY-MM month.
+  function monthText(m) {
+    return window.Periods && window.Periods.validPeriod(m) ? window.Periods.longLabel(m) : text(m);
+  }
+
+  function idList(raw) {
+    const parts = text(raw).split(",").map((s) => s.trim());
+    return parts.length && parts.every((s) => /^[1-9]\d*$/.test(s)) ? parts.map(Number) : null;
+  }
+
   function jobLabel(o) {
     return [text(o.jobNumber), text(o.jobName)].filter(Boolean).join("  ") || "Job " + o.jobId;
   }
@@ -111,10 +125,12 @@
   async function startSupplier(q) {
     const supplier = text(q.get("supplier"));
     const idsRaw = text(q.get("ids"));
+    const stockRaw = text(q.get("stock"));
     const date = text(q.get("date"));
     const ref = text(q.get("ref"));
-    const ids = idsRaw.split(",").map((s) => s.trim());
-    if (!supplier || !idsRaw || !ids.every((s) => /^[1-9]\d*$/.test(s))) {
+    const jobIds = idsRaw ? idList(idsRaw) : [];
+    const stockIds = stockRaw ? idList(stockRaw) : [];
+    if (!supplier || !jobIds || !stockIds || !(jobIds.length || stockIds.length)) {
       refuse("That isn't an order list. Open Orders, choose a supplier and press Print list.");
       return;
     }
@@ -122,16 +138,24 @@
       refuse("That order date isn't a date. Open Orders, choose a supplier and press Print list.");
       return;
     }
-    const want = new Set(ids.map(Number));
-    let rows;
+    const want = new Set(jobIds);
+    const wantStock = new Set(stockIds);
+    let rows = [];
+    let stockRows = [];
     try {
-      rows = await api("/api/orders?status=to_order&supplier=" + encodeURIComponent(supplier));
+      if (want.size) rows = await api("/api/orders?status=to_order&supplier=" + encodeURIComponent(supplier));
+      if (wantStock.size) {
+        const r = await api("/api/stock-lines?status=to_order");
+        stockRows = r && Array.isArray(r.lines) ? r.lines : [];
+      }
     } catch (e) {
       refuse(failText(e, "order list for " + supplier));
       return;
     }
     const lines = (Array.isArray(rows) ? rows : []).filter((o) => want.has(o.id) && !o.kind);
-    if (!lines.length) {
+    const stock = stockRows.filter((l) => wantStock.has(l.id) && l.status === "to_order" && text(l.supplier).toLowerCase() === supplier.toLowerCase());
+    stock.sort((a, b) => text(a.month).localeCompare(text(b.month)) || a.id - b.id);
+    if (!lines.length && !stock.length) {
       refuse("None of those items are still to order for " + supplier + ". Go back to Orders and reload.");
       return;
     }
@@ -143,13 +167,17 @@
       groups.get(o.jobId).push(o);
     }
     const tbody = el("tbody");
+    if (stock.length) {
+      tbody.append(el("tr", { class: "op-group" }, el("td", { colspan: "2", text: "STOCK" })));
+      for (const l of stock) tbody.append(el("tr", {}, cell("td", text(l.item)), cell("td", fmtQty(l.quantity), "op-num")));
+    }
     for (const list of groups.values()) {
       tbody.append(el("tr", { class: "op-group" }, el("td", { colspan: "2", text: jobLabel(list[0]) })));
       for (const o of list) tbody.append(el("tr", {}, cell("td", text(o.description)), cell("td", fmtQty(o.quantity), "op-num")));
     }
     const table = el("table", { class: "op-table" },
       el("thead", {}, el("tr", {}, cell("th", "Hardware"), cell("th", "Qty", "op-num"))), tbody);
-    const n = lines.length;
+    const n = lines.length + stock.length;
     show("Order list " + supplier, [
       banner(),
       el("div", { class: "op-titlerow" },
@@ -158,6 +186,58 @@
       table,
       el("p", { class: "op-foot", text: n + (n === 1 ? " item" : " items") }),
     ], "Printing this list does not mark anything ordered.");
+  }
+
+  // ---- the month's stock order ---------------------------------------------------------------
+
+  async function startStock(q) {
+    const month = text(q.get("month"));
+    if (!window.Periods || !window.Periods.validPeriod(month)) {
+      refuse("That isn't a stock order month. Open Orders and press Print month.");
+      return;
+    }
+    let r;
+    try {
+      r = await api("/api/stock-lines?month=" + encodeURIComponent(month));
+    } catch (e) {
+      refuse(failText(e, "stock order for " + monthText(month)));
+      return;
+    }
+    if (!r || r.month !== month) {
+      refuse("That stock order didn't load. Reload to try again.");
+      return;
+    }
+    const lines = Array.isArray(r.lines) ? r.lines : [];
+    const by = new Map();
+    for (const l of lines) {
+      const key = text(l.supplier).toLowerCase();
+      if (!by.has(key)) by.set(key, { name: text(l.supplier), list: [] });
+      by.get(key).list.push(l);
+    }
+    const tbody = el("tbody");
+    for (const g of by.values()) {
+      tbody.append(el("tr", { class: "op-group" }, el("td", { colspan: "5", text: g.name })));
+      for (const l of g.list) {
+        tbody.append(el("tr", {},
+          cell("td", text(l.item) + (text(l.code) ? " (" + text(l.code) + ")" : "") + (text(l.notes) ? " - " + text(l.notes) : "")),
+          cell("td", fmtQty(l.quantity), "op-num"),
+          cell("td", STATUS[l.status] || text(l.status), "op-nowrap"),
+          cell("td", fmtDate(l.orderedDate), "op-nowrap"),
+          cell("td", text(l.poNumber), "op-nowrap")));
+      }
+    }
+    if (!lines.length) tbody.append(el("tr", {}, el("td", { colspan: "5", text: "Nothing on the stock order for this month." })));
+    const heads = [["Item"], ["Qty", "op-num"], ["Status"], ["Ordered"], ["PO"]];
+    const table = el("table", { class: "op-table op-card" },
+      el("thead", {}, el("tr", {}, ...heads.map(([h, c]) => cell("th", h, c)))), tbody);
+    const n = lines.length;
+    show("Stock order " + monthText(month), [
+      banner(),
+      el("div", { class: "op-titlerow" },
+        el("div", {}, el("h1", { class: "op-h1", text: "Stock order" }), el("p", { class: "op-sub", text: monthText(month) }))),
+      table,
+      el("p", { class: "op-foot", text: n + (n === 1 ? " item" : " items") }),
+    ], "");
   }
 
   // ---- the job card -----------------------------------------------------------------------
@@ -252,15 +332,17 @@
     const items = Array.isArray(s.items) ? s.items : [];
     const groups = new Map();
     for (const it of items) {
-      const key = it.jobId == null ? "n:" + text(it.jobNumber) + "|" + text(it.jobName) : "j:" + it.jobId;
+      const key = it.stock ? "stock" : it.jobId == null ? "n:" + text(it.jobNumber) + "|" + text(it.jobName) : "j:" + it.jobId;
       if (!groups.has(key)) groups.set(key, { it, list: [] });
       groups.get(key).list.push(it);
     }
     const tbody = el("tbody");
     for (const { it, list } of groups.values()) {
-      const label = [text(it.jobNumber), text(it.jobName)].filter(Boolean).join(" · ") || "Job";
+      const label = it.stock ? "STOCK" : [text(it.jobNumber), text(it.jobName)].filter(Boolean).join(" · ") || "Job";
       tbody.append(el("tr", { class: "op-group" }, el("td", { colspan: "2", text: label })));
-      for (const o of list) tbody.append(el("tr", {}, cell("td", text(o.description)), cell("td", fmtQty(o.quantity), "op-num")));
+      for (const o of list) {
+        tbody.append(el("tr", {}, cell("td", text(o.description)), cell("td", fmtQty(o.quantity), "op-num")));
+      }
     }
     const table = el("table", { class: "op-table" },
       el("thead", {}, el("tr", {}, cell("th", "Item"), cell("th", "Qty", "op-num"))), tbody);
@@ -313,6 +395,7 @@
     const q = new URLSearchParams(location.search);
     const mode = q.get("mode");
     if (mode === "supplier") startSupplier(q);
+    else if (mode === "stock") startStock(q);
     else if (mode === "card") startCard(q);
     else if (mode === "po") startPo(q);
     else refuse("Nothing to print. Open Orders, then print a supplier list, a job card or a purchase order.");

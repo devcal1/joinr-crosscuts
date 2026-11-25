@@ -2,7 +2,7 @@
 
 For Todd, Ordering and the Workshop Manager. Four jobs live under the **Ordering** menu:
 
-- **Stock order:** the hardware order, counted **every fortnight** since 0.2.6. The Workshop Manager counts what's on the shelf against a **target** for each item; the order fills in as target minus have, and Ordering checks it and orders.
+- **Stock order:** the hardware count, done **every fortnight** since 0.2.6. The Workshop Manager counts what's on the shelf against a **target** for each item. Since 0.2.27 finishing the count puts what is below target on the **monthly stock order** on the **Orders** page, where Ordering orders it (see "The monthly stock order" below).
 - **Board stocktake:** the monthly count of sheets and edge tape rolls (it stays monthly). It is finished once it is counted, and it resets each item's **on hand**.
 - **Paint order:** paint, hardener, thinners, primer and sanding discs.
 - **Drawer order:** see [how-to-order-drawers.md](how-to-order-drawers.md).
@@ -10,7 +10,7 @@ For Todd, Ordering and the Workshop Manager. Four jobs live under the **Ordering
 Who does what:
 - **The Workshop Manager** (and Ordering and admin) counts: types **Have** on the stock order and quantities on the board stocktake. Counting needs the `stock.count` key.
 - **The Workshop Manager** keeps the stock list and its targets, and the board and edge tape list (not the prices) and its on hand amounts (0.2.6).
-- **Ordering** (and admin) keeps the lists too, types what to order, marks it ordered, sets board prices and can reopen a finished board count. That needs the `stock.order` key.
+- **Ordering** (and admin) keeps the lists too, sets board prices and can reopen a finished board count. That needs the `stock.order` key. Ordering stock from suppliers is done on the Orders page (`orders.edit` to add or change items, `orders.mark_ordered` to order and undo).
 - **The Workshop Manager** (and Ordering, Projects and admin) marks deliveries received on **Deliveries**.
 
 The stock order and board stocktake are not order lines on jobs: they have no job and no effect on any invoice. Paint can be (see below).
@@ -25,37 +25,58 @@ Each page has a **List** tab (the paint page has **Paint list**). Type the lists
 
 A new item or board appears on the month that's still being counted, not on months already finished. Editing a list doesn't change a month that's already counted.
 
-## The stock order
+## The stock order page (counting)
 
-Open **Ordering**, then **Stock order**. The page opens on the current **fortnight** (for example "26 Oct – 8 Nov 2026"); **Previous**, **Next** and the box change it. The fortnight's state shows in words at the top.
+Open **Ordering**, then **Stock order**. The page opens on the current **fortnight** (for example "26 Oct – 8 Nov 2026"); **Previous**, **Next** and the box change it. The fortnight's state shows in words at the top. The page has two tabs, **Count** and **List**. (The **Order** tab is gone: ordering is on the Orders page now.)
 
 - Fortnights are counted from **Monday 26 October 2026** (Todd, 2026-10-27). The count is **due from the Thursday** of each fortnight (the first was due from Thursday 29 October) and shows on the dashboard until it is finished; a fortnight left uncounted shows as overdue in the next.
 - Months counted before 0.2.6 still open from the box, as months. Ordering can change the cycle (monthly or fortnightly) and the Monday it starts from with `PUT /api/stock/settings`; there is no screen for it.
 
-### 1. Count (Workshop Manager)
+### Count (Workshop Manager)
 
 1. On the **Count** tab, type the **Have** for each item (a whole number). Each saves when you leave the box. The **Target** shows beside it.
 2. To count on paper first, press **Print blank count sheet**: every active item with an empty Have box and a "Counted by" line.
-3. When every item is done, press **Finish count**. This sends the order list to Ordering: they are told "Stock counted: <fortnight>" with how many lines and suppliers there are to order.
+3. When every item is done, press **Finish count**. The page then says how many items went on which month's stock order, for example "7 items are on the November 2026 stock order (5 added, 2 changed, 0 removed)", with a link that opens that month on the Orders page. Ordering is told "Stock counted" with the same link.
 
-Once the count is finished, Have can't be changed. Ordering can reopen it (below).
+Once the count is finished, Have can't be changed. Ordering can press **Reopen count** to take it back to counting; the Workshop Manager then changes a Have and finishes again. Reopening leaves the order as it is, and finishing again works the order out afresh (rule A below). Reopen works only while no old supplier group is marked ordered.
 
-### 2. Order (Ordering)
+### The month the count goes to
 
-1. On the **Order** tab, each item with a target already has its **Order** filled in: the target less the Have, never below nothing. It fills in when Have is saved and again when the count is finished. Change any quantity you want: a number you type is kept even if Have changes later. An empty Order with a target shows the suggestion faintly. You can start before the count is finished.
-2. For each supplier group, press **Mark ordered**. Set the date it was ordered and, if you know it, the expected date. A group can be marked once the count is finished and at least one of its items has an Order above zero.
-3. **Print order** prints one supplier group: only its items with an Order above zero (code, item, quantity). **Print all orders** prints one page per supplier group.
+The order for the **month (Sydney time) in which Finish count is pressed**. A count finished just after midnight on 1 November goes to November.
 
-- A finished count stays "counted, to order" on the dashboard until Ordering acts. Once you mark a supplier group ordered, any group with nothing to order (every Order empty or zero) needs no action, so the month is finished (ordered) once **every group that has something to order** is marked ordered.
-- If the month needs nothing at all (no Order quantity anywhere), press **Nothing to order this month** on the Order tab. The month is closed, the page shows "Nothing to order: <name>, <date>", and the dashboard line goes. **Undo** brings it back to counted. The button only shows while no quantity is typed and no group is ordered; while the month is marked, Order quantities can't be typed and the count can't be reopened until you undo it.
-- A group that's marked ordered is locked: **Undo** it first to change its quantities ("<supplier> has already been ordered").
-- **Reopen count** takes the count back to counting, so the Workshop Manager can change a Have and finish it again. It works only while no supplier is marked ordered.
+### How the order is worked out (rule A)
 
-### 3. Received (Workshop Manager)
+Most months have two counts, and something ordered after the first may not have arrived by the second. So the order is not simply target less have. For each item with a target:
 
-Receiving isn't done on the stock page. Each ordered supplier group is an item in the **Stock and paint** group on **Deliveries**. Press **Received**, set the date, add a delivery note if something is worth recording, and save. The dates then show on the stock order page, read-only. **Undo** is under **Received recently** (the last 14 days).
+**order = target - have - what is already ordered and not yet received** (never below nothing).
 
-When every ordered group has arrived, the month is **received**.
+"Already ordered and not yet received" includes anything ordered on the Orders page, and any supplier group ordered on the old Order tab and not yet received, so nothing is doubled in the changeover.
+
+- If the item already has a line from an earlier count still **To order**, in any month, that line is set to the new figure and moved to the current month. It is not added twice. If the figure is zero the line is removed (hidden, kept in the audit log).
+- Otherwise a new **To order** line is made when the figure is above zero.
+- Lines added by hand are never changed by a count. They reduce the need only if they were picked from the stock list and are already ordered.
+- Items with **no target** are counted but put nothing on the order. Ordering adds them by hand.
+- If a supplier group in this fortnight was already ordered on the old Order tab, its items are skipped.
+
+**Example.** Target 20, have 5: 15 goes on the order, and it is ordered. At the next count there are 3 on the shelf and the 15 hasn't come: the order is 20 - 3 - 15 = 2. Once the 15 has arrived and the shelf holds 20, nothing is ordered.
+
+Ordering can change a counted quantity on the Orders page until the line is ordered. The next count replaces it.
+
+### Send to monthly order (fortnights counted before 0.2.27)
+
+A fortnight that was counted but not ordered when 0.2.27 went in is not converted automatically. Its page shows **Send to monthly order** (Ordering only), and the dashboard shows "Stock count <fortnight>: counted, not sent to the monthly order". Pressing it applies rule A once for that fortnight and says what it did. It refuses if the fortnight was already sent or a newer count has been sent. Groups already ordered on the old Order tab finish on Deliveries as before.
+
+### The Ordered view (old fortnights)
+
+A **past** fortnight that has supplier groups ordered on the old Order tab shows a read-only **Ordered** tab: each group, its dates, its delivery note and its items. **Undo** is still there for a group not yet received (Ordering), where the server allows it. Nothing else can be changed there.
+
+## The monthly stock order (Ordering)
+
+On the **Orders** page, **Job cards** tab, the **Stock** section sits above the job cards: one stock order per calendar month, with no job. See [how-to-job-cards.md](how-to-job-cards.md#the-stock-section) for adding, editing and ordering items there, and for ordering stock together with job items on a supplier order.
+
+### Received (Workshop Manager)
+
+Receiving is **per item**. Each ordered stock item is its own row in the **Stock and paint** group on **Deliveries**, labelled "Stock order November 2026" with the item, its code and the quantity. Press **Received**, set the date, add a delivery note if something is worth recording, and save. **Undo** is under **Received recently** (the last 14 days). Stock groups ordered on the old Order tab still show as one row per supplier.
 
 ## The board stocktake
 
@@ -106,11 +127,13 @@ Once ordered, an order can't be edited. Undo ordered first.
 - **The Workshop Manager and Ordering (counting):** from the **25th of a month to the 7th of the next**, the dashboard shows "Stock count: <Month> not done" and "Board count: <Month> not done" for the month just ending, until each count is finished. The link opens that month.
 - **Ordering (placing and confirming):** the dashboard also shows
   - "Drawers: N to order · N waiting for check" when there are any,
-  - "Stock order <Month>: counted, to order" once a count is finished and until Ordering acts: a supplier group is marked ordered (then it shows "ordering" until every group with something to order is), or the month is marked **Nothing to order this month**.
+  - "Stock order <Month>: N to order" for each month that has stock items still to order, linking to that month on the Orders page. It goes when every item is ordered or deleted. There is no "nothing to order" line any more: an empty month needs no action.
+  - "Stock count <fortnight>: counted, not sent to the monthly order", only for a fortnight counted before 0.2.27 (see Send to monthly order).
 
   These stay until the work is done. A finished board count leaves no line: it is done once it is counted.
-- **Deliveries:** ordered stock groups, paint orders and drawer stock rows add to the Deliveries line and the **Stock and paint** group.
+- **Alerts:** "Stock counted" tells Ordering how many stock lines the count added or changed and links to the month's order on the Orders page.
+- **Deliveries:** ordered stock items, old stock groups, paint orders and drawer stock rows add to the Deliveries line and the **Stock and paint** group.
 
 ## On Deliveries
 
-The **Stock and paint** group sits after the five date groups. Each item shows its label ("Stock order October 2026", "Paint order 7", "Drawer stock (EDGE)"), the supplier, the ordered and expected dates (overdue in orange) and any delivery note, with **Received** and, for people who can open the page, **Open**. **Print** prints one checklist: job lines, stock and paint items that are overdue or due in the next 7 days.
+The **Stock and paint** group sits after the five date groups. Each item shows its label ("Stock order November 2026" with the item, code and quantity underneath, "Paint order 7", "Drawer stock (EDGE)"), the supplier, the ordered and expected dates (overdue in orange) and any delivery note, with **Received** and, for people who can open the page, **Open** (a stock item opens its month on the Orders page). **Print** prints one checklist: job lines, stock and paint items that are overdue or due in the next 7 days.

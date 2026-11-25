@@ -355,7 +355,7 @@
   const $ = (id) => document.getElementById(id);
   const VIEWS = { cards: $("viewCards"), pos: $("viewPos"), lines: $("viewLines"), supplier: $("viewSupplier") };
   const TABS = { cards: $("tabCards"), pos: $("tabPos"), lines: $("tabLines") };
-  const hooks = { cards: null, pos: null, lines: null, supplier: null };
+  const hooks = { cards: [], pos: [], lines: [], supplier: [] }; // several files may hook one view (stockorders.js and jobcards.js both reload on cards)
   let view = "cards";
 
   function showView(name) {
@@ -372,7 +372,7 @@
     $("jcHeadBtns").hidden = inSupplier;
     $("orTitle").textContent = inSupplier ? "New supplier order" : "Orders";
     if (name === "lines") load();
-    if (hooks[name]) hooks[name]();
+    for (const fn of hooks[name]) fn();
   }
 
   for (const [name, tab] of Object.entries(TABS)) {
@@ -391,7 +391,7 @@
   window.OrdersPage = {
     el, can, fmtDate, ORDER_STATUS, jobFilter, showView, confirmDialog,
     currentView: () => view,
-    onShow: (name, fn) => { hooks[name] = fn; },
+    onShow: (name, fn) => { hooks[name].push(fn); },
     reloadLines: () => load(),
   };
 

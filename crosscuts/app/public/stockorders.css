@@ -1,0 +1,78 @@
+/* The Stock section on the Orders page (stockorders.js; docs/plans/stock-orders-plan.md, mockup
+   docs/plans/mockups/stock-C.html). Tokens from tokens.css, hs- components from components.css, the
+   month cards reuse the job cards' jc-card look from jobcards.css. Classes here are sk-. */
+
+.sk { margin-bottom: 28px; }
+.sk-bar, .sk-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sk-bar { margin-bottom: 12px; padding: 8px 12px; background: var(--raised); border-left: 4px solid var(--teal); border-radius: var(--r-callout); }
+.sk-bar h2 { margin: 0 8px 0 0; font-size: 15px; font-weight: 700; color: var(--white); }
+.sk-push { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.sk-jobsbar { margin-top: 4px; }
+.sk-count { margin: 0 0 8px; color: var(--label); font-size: 13px; }
+
+.sk-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; }
+.sk-h h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--white); overflow-wrap: anywhere; }
+.sk-h h3:focus { outline: none; }
+.sk-tag { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--teal-tint); }
+
+.sk-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.sk-cards .jc-card { text-align: left; font: inherit; color: var(--body); width: 100%; }
+.sk-cards .jc-card:disabled { opacity: 0.45; cursor: default; border-color: var(--hairline); }
+.sk-cards .sk-cur { border-color: var(--teal); }
+.sk-cards .jc-card .sk-h { margin-bottom: 0; }
+
+.sk-col { min-width: 0; padding: 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.sk-cur { border-color: var(--teal); }
+.sk-open { margin-top: 12px; }
+.sk-none { margin: 0; padding: 12px 0; color: var(--muted); font-size: 13px; }
+.sk-err { color: var(--stop-tint); }
+
+.sk-t { width: 100%; border-collapse: collapse; }
+.sk-t td { padding: 6px 4px; border-top: 1px solid var(--hairline); font-size: 13px; overflow-wrap: anywhere; vertical-align: top; }
+.sk-t td.n { color: var(--white); font-weight: 700; text-align: right; }
+.sk-t td.d { color: var(--label); text-align: right; }
+.sk-t .g td { padding: 5px 8px; background: var(--raised); color: var(--white); font-weight: 700; border-top: 0; }
+.sk-t .g div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sk-t .g .hs-btn { padding: 5px 8px; font-size: 10px; }
+.sk-sup { overflow-wrap: anywhere; }
+.sk-groups { columns: 3 320px; column-gap: 20px; }
+.sk-grp { break-inside: avoid; margin-bottom: 14px; }
+.sk-grp .sk-t { table-layout: auto; }
+.sk-grp .n { width: 1%; padding-left: 8px; }
+.sk-grp .d { width: 1%; white-space: nowrap; padding-left: 10px; }
+.sk-grp .s { width: 1%; white-space: nowrap; padding-left: 10px; text-align: right; }
+.sk-grp td { overflow-wrap: break-word; }
+
+.sk-item { display: inline; padding: 0; background: none; border: 0; text-align: left; cursor: pointer; font-family: var(--font); font-size: 13px; font-weight: 400; color: var(--white); overflow-wrap: anywhere; }
+.sk-item:hover { color: var(--teal-tint); text-decoration: underline; }
+.sk-item-plain { color: var(--body); }
+.sk-sub { display: flex; flex-wrap: wrap; gap: 0 8px; margin-top: 1px; color: var(--muted); font-size: 11px; }
+.sk-src { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.sk-sub .po-link { font-size: 11px; }
+.sk-note { color: var(--label); }
+
+.sk-add { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+.sk-addrow { display: grid; grid-template-columns: 1fr 1.4fr 90px auto; gap: 6px; align-items: start; }
+.sk-ta { position: relative; min-width: 0; }
+.sk-add .hs-input { min-width: 0; width: 100%; }
+.sk-add [aria-invalid="true"], .jc-dialog [aria-invalid="true"] { border-color: var(--orange); }
+.sk-add .cc-dialog-error { margin: 6px 0 0; }
+.sk-qtyfield { max-width: 140px; }
+
+@media (max-width: 900px) {
+  .sk-cards { gap: 6px; }
+  .sk-cards .jc-card { padding: 8px; }
+  .sk-cards .jc-counts { flex-direction: column; gap: 4px; }
+  .sk-addrow { grid-template-columns: minmax(0, 1fr) 90px; }
+  .sk-addrow .sk-ta { grid-column: 1 / -1; }
+  .sk-addrow .sk-qty { grid-column: 1; }
+  .sk-addrow .hs-btn { grid-column: 1 / -1; padding: 10px 12px; }
+  .sk-push { margin-left: 0; }
+  .sk-t td.d { display: none; }
+  .sk-item { padding: 6px 0; }
+  .sk-t .g .hs-btn { padding: 8px 10px; }
+  .sk-nav .hs-btn { flex: 1 1 auto; }
+}
+
+/* a stock item's month on New supplier order and in a saved order, in muted type */
+.so-month { color: var(--muted); font-size: 12px; font-weight: 400; }

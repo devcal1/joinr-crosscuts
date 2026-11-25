@@ -8,6 +8,10 @@
 // are ordered (`stock.items`), each received through its own route; their recent receipts join
 // Received recently with Undo, and those due within 7 days join the printed checklist. A drawer
 // line stays in the job groups, labelled by its description.
+//
+// 0.2.27 (docs/plans/stock-orders-contracts.md): a "stock_line" entry is one item on a monthly
+// stock order (Orders page), received item by item through PATCH /api/stock-lines/:id. Stock
+// groups ordered on the old Order tab still arrive as "stock" entries.
 (function () {
   "use strict";
 
@@ -167,6 +171,7 @@
   // Whether the user may open the item's own page (lib/pages.js).
   function mayOpen(it) {
     if (it.type === "stock") return can("stock.count") || can("stock.order");
+    if (it.type === "stock_line") return can("orders.view");
     if (it.type === "paint") return can("stock.order") || can("orders.receive");
     if (it.type === "drawer_stock") return can("stock.order");
     return false;
@@ -178,12 +183,36 @@
 
   // The name in dialogs, aria labels and messages: "Stock order October 2026: Supplier".
   function itemName(it) {
+    if (it.type === "stock_line") return it.label + ": " + it.item;
     return it.label + (it.supplier ? ": " + it.supplier : "");
+  }
+
+  // "Qty 24" for a stock line (quantities may have decimals).
+  function lineQty(it) {
+    const q = window.OrderUI && window.OrderUI.fmtQty ? window.OrderUI.fmtQty(it.quantity) : "";
+    return q ? "Qty " + q : "";
+  }
+
+  // What a stock line is, under its order's label: the item, its code and the quantity.
+  function stockWhat(it) {
+    if (it.type !== "stock_line") return null;
+    const bits = [it.item, it.code ? "(" + it.code + ")" : "", lineQty(it) ? "· " + lineQty(it) : ""].filter(Boolean);
+    return el("span", { class: "dl-qty", text: bits.join(" ") });
+  }
+
+  // Printed: the item for a stock line, else the order's label.
+  function printLabel(it) {
+    if (it.type !== "stock_line") return it.label;
+    return it.label + ": " + it.item + (it.code ? " (" + it.code + ")" : "") + (lineQty(it) ? ", " + lineQty(it) : "");
   }
 
   // Posts to the item's own receive route (section 9); the body is {receivedDate?, deliveryNote?}
   // or {undo: true}.
   function sendReceived(it, body) {
+    if (it.type === "stock_line") {
+      const patch = body && body.undo ? { status: "ordered" } : Object.assign({ status: "received" }, body);
+      return api("/api/stock-lines/" + encodeURIComponent(it.id), { method: "PATCH", body: JSON.stringify(patch) });
+    }
     if (it.type === "stock") {
       // "<period>:<supplier>": the supplier may itself hold a colon, so split at the first.
       const s = String(it.id);
@@ -237,7 +266,7 @@
     const note = itemNote(it, true);
     return el("tr", { "data-sid": key },
       exp,
-      td("Order", "dl-c-what", itemNode(it)),
+      td("Order", "dl-c-what", itemNode(it), stockWhat(it)),
       td("Supplier", "dl-c-sup", el("span", { text: it.supplier || "" })),
       td("Ordered", "dl-c-date" + (it.orderedDate ? "" : " dl-blank"), el("span", { text: fmtDate(it.orderedDate) })),
       td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
@@ -292,7 +321,7 @@
     return el("tr", { "data-sid": key },
       td("Received", "dl-c-date", el("span", { text: fmtDate(it.receivedDate) })),
       td("By", "dl-c-by" + (it.receivedBy ? "" : " dl-blank"), el("span", { text: it.receivedBy ? it.receivedBy.name || "" : "" })),
-      td("Order", "dl-c-job", itemNode(it)),
+      td("Order", "dl-c-job", itemNode(it), stockWhat(it)),
       td("Supplier", "dl-c-sup", el("span", { text: it.supplier || "" })),
       td("Description", "dl-c-desc dl-blank", el("span", { text: "" })),
       td("Delivery note", "dl-c-note" + (note ? "" : " dl-blank"), note),
@@ -613,7 +642,7 @@
         el("td", { class: "dl-p-tick" }, el("span", { class: "dl-p-box" })),
         el("td", null, el("span", { class: "dl-p-nowrap", text: fmtDate(it.expectedDate) }),
           it.overdue ? el("span", { class: "dl-p-over", text: "Overdue" }) : null),
-        el("td", { class: "dl-p-strong", text: it.label }),
+        el("td", { class: "dl-p-strong", text: printLabel(it) }),
         el("td", { text: it.supplier || "" }),
         el("td", { class: "dl-p-nowrap", text: fmtDate(it.orderedDate) }),
         el("td", { class: "dl-p-note", text: (it.deliveryNote || "").trim() }))));

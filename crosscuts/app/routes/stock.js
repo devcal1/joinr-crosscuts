@@ -90,12 +90,17 @@ r.post("/orders/:period/counted", "stock.count", handle((req, res) => {
   res.json(stock.counted(db, req, periodOr400(req.params.period)));
 }));
 
+// 0.2.27 (rule G): a count finished before the monthly order existed goes to it, once.
+r.post("/orders/:period/send", "stock.order", handle((req, res) => {
+  res.json(stock.send(db, req, periodOr400(req.params.period)));
+}));
+
 r.post("/orders/:period/reopen", "stock.order", handle((req, res) => {
   res.json(stock.reopen(db, req, periodOr400(req.params.period)));
 }));
 
 r.put("/orders/:period/order", "stock.order", handle((req, res) => {
-  res.json(stock.saveOrder(db, req, periodOr400(req.params.period), body(req).lines));
+  res.json(stock.saveOrder()); // 0.2.27: always 409, stock is ordered on the Orders page now
 }));
 
 r.post("/orders/:period/nothing", "stock.order", handle((req, res) => {

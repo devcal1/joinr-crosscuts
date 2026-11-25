@@ -4,9 +4,22 @@ For Todd, Ordering and Projects. A **job card** is a job's order lines, the same
 
 Who does what:
 - **Seeing** cards and lines, and **printing**, needs `orders.view` (Ordering, and anyone else with Orders on their menu).
-- **Adding items and editing lines** needs `orders.edit` (Ordering, Projects, admin).
+- **Adding items and editing lines** needs `orders.edit` (Ordering, Projects, admin). The same key adds, edits and deletes stock items.
 - **Marking lines ordered** needs `orders.mark_ordered` (Ordering, admin).
 - **Receiving** still happens on **Deliveries**, as before (see `how-to-receive-deliveries.md`).
+
+## The Stock section
+
+Above the job cards on **Orders** (Job cards tab) is the **Stock** section: **one stock order per calendar month**, with no job attached. It is for the hardware counted each fortnight on the Stock order page, plus anything Ordering adds by hand. Stock items never affect a job's materials or progress invoices.
+
+- **Months.** Three month cards (last, this, next) with **Previous month** and **Next month**. Each card shows how many items are to order, ordered and received. Press one to open it. The month is kept in the address (`/orders.html?stock=2026-11`), so a link opens it.
+- **The open month** shows one block per supplier. Each item has its name, quantity, ordered date and status. Items that came from a count carry a small **COUNT** mark; ordered items link to their PO. Items still to order are orange.
+- **Finishing a count** adds its items here. The quantity is target less have less what is already ordered and not received (rule A in how-to-do-the-stocktake.md), so two counts in a month never order the same thing twice. A count can change an item that is still To order, and moves it to the current month. Items you add by hand are never changed by a count.
+- **Add item** (`orders.edit`): pick or type the supplier and the item (the stock list, past order lines and Supplier accounts names are offered; a new name is fine) and a quantity. Picking an item from the stock list links the line to it. Only this month and next month take new items.
+- **Press an item** to change its quantity, supplier, item or notes, delete it (only while To order) or **Undo** ordered (`orders.mark_ordered`). A received item must be undone on Deliveries first.
+- **Print month** prints the month's stock order (black on white).
+- **Order** on a supplier block opens **New supplier order** for that supplier with this month's stock items ticked.
+- Unordered items stay in their month, orange, until ordered, deleted or picked up by the next count.
 
 ## Starting a card
 
@@ -26,13 +39,15 @@ Open a card to see its lines: supplier, hardware, quantity, status (To order, Or
 
 ## Ordering from a supplier
 
-1. On **Orders**, press **New supplier order** and pick the **supplier**. Its lines still to order are listed, grouped by job, with how many there are. Every item starts **unticked** and the count reads "0 of N items". Changing the supplier unticks everything again.
+1. On **Orders**, press **New supplier order** and pick the **supplier**. Its lines still to order are listed, grouped by job, with how many there are. A **STOCK** group sits above the job groups with the supplier's stock items from every month (each item's month in muted type); a supplier with only stock to order is listed too, and the counts include stock. Every item starts **unticked** and the count reads "0 of N items". Changing the supplier unticks everything again.
 2. **Tick** the items that are part of this order (the tick-all box ticks or unticks them all). **Print list** and **Mark N ordered** stay disabled until you tick at least one. Unticked lines stay To order.
 3. Set the **order date** (today unless you placed the order earlier; not in the future). Optionally add an **expected date** and the supplier's **ref** (their order or quote number). The expected date is put on every line. The PO number (see Supplier orders below) is added to each line's notes, with the ref after it when you gave one, e.g. `PO-0007 · Ref: BH-55120`.
 4. **Print list** prints the ticked items for the supplier, grouped by job, with the order date and ref. **Printing does not mark anything ordered.**
 5. After placing the order, press **Mark N ordered** (N is how many are ticked). Each line becomes **Ordered** with that order date, and the order is saved as a purchase order (see Supplier orders below).
 
 If someone else changed one of the lines in the meantime (marked it ordered, cancelled it, reserved it from stock), the whole order is refused with a sentence naming the line, nothing is changed, and the list reloads. Check it and try again.
+
+Mark N ordered marks stock items and job items in one step, under one PO number. If any ticked item has changed, nothing is marked and the list reloads. Stock items never touch a job's materials or invoices.
 
 Lines reserved from stock, drawer lines and paint lines are not on the supplier list: drawers and paint are ordered from their own pages.
 
@@ -44,7 +59,7 @@ The PO number is added to the notes of every item in the order: `PO-0007`, or `P
 
 **Finding an order.** On Orders, the **Supplier orders** tab (between Job cards and All order lines) lists every saved order, newest first: PO number, supplier, order date, expected date, supplier ref, how many items, the job numbers and who placed it. **Find** searches the PO number, the supplier ref and the job number or name. The **Supplier** filter narrows it to one supplier.
 
-**Opening an order** shows its items grouped by job, each with where it is now: **Ordered**, **Received** (with the date), or **Undone since** (with the date and who) if the item has been put back to To order or cancelled since. That is information only; it never changes the order.
+**Opening an order** shows its stock items first under a **STOCK** heading (the Jobs column shows STOCK), then its items grouped by job, each with where it is now: **Ordered**, **Received** (with the date), or **Undone since** (with the date and who) if the item has been put back to To order or cancelled since. That is information only; it never changes the order.
 
 **View PDF, Print and Download PDF** are on the open order. View PDF opens the PDF in a new tab. Print opens the same page ready to print, with only the items in that order. Download PDF saves it as a file named like `PO-0007 Blum Hardware.pdf`. All three need `orders.view`.
 
@@ -68,8 +83,12 @@ Marking is the same as marking one line on its own. When the **last** line of a 
 
 ## Undo
 
-**Undo** works on one line at a time, as before: open the line (on the card or the job's Orders & materials tab) and press **Undo** to put it back to To order. Undoing one line of a supplier order leaves the others Ordered.
+**Undo** works on one line at a time, as before (a stock item has its own Undo in the Stock section): open the line (on the card or the job's Orders & materials tab) and press **Undo** to put it back to To order. Undoing one line of a supplier order leaves the others Ordered.
 
 ## Receiving
 
-Receiving does not happen on cards. When the delivery arrives the Workshop Manager marks each line **Received** on **Deliveries**.
+Receiving does not happen on cards or in the Stock section. When the delivery arrives the Workshop Manager marks each line, and each stock item, **Received** on **Deliveries** (stock items are in the **Stock and paint** group, one row per item, with the date and a delivery note).
+
+## Reminders
+
+The dashboard shows "Stock order <Month>: N to order" for each month with stock items still waiting to be ordered. Finishing a count also sends Ordering a "Stock counted" alert that opens the month. A delivery note on a stock item alerts Ordering like one on a job line.

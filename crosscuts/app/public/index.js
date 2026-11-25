@@ -108,8 +108,15 @@
         if (d && (Number(d.toOrder) > 0 || Number(d.waiting) > 0)) {
           lines.push(stockLine("/drawers.html", "Drawers", (Number(d.toOrder) || 0) + " to order · " + (Number(d.waiting) || 0) + " waiting for check", "Open drawer order", false));
         }
+        // 0.2.27: one line per month with items still to order, linking to that month's stock order.
         (s.stockToOrder || []).forEach(function (m) {
-          lines.push(stockLine(periodHref("stock.html", m.period), "Stock order " + m.label, "counted, to order", "Open stock order", false));
+          var n = Number(m.toOrder) || 0;
+          if (!n) return;
+          lines.push(stockLine("/orders.html?stock=" + encodeURIComponent(m.month), "Stock order " + m.label, n + " to order", "Open stock order", false));
+        });
+        // A fortnight counted before 0.2.27 and never sent to a monthly order (Ordering).
+        (s.stockToSend || []).forEach(function (m) {
+          lines.push(stockLine(periodHref("stock.html", m.period), "Stock count " + m.label, "counted, not sent to the monthly order", "Open stock order", true));
         });
         lines.forEach(function (a) { host.appendChild(a); });
       })

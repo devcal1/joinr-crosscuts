@@ -25,6 +25,10 @@
 //       { orderId: 41, jobId: 12, jobNumber: "J-1042" | null, jobName: "Harlow kitchen",
 //         supplier: "Blum Hardware", description: "Soft-close hinge", quantity: 24 | null }
 //     ]
+//   0.2.27: monthly stock items (docs/plans/stock-orders-contracts.md) come first and carry
+//   { orderId: null, jobId: null, jobNumber: null, jobName: "", supplier, description, quantity,
+//     stock: true, stockLineId, month: "2026-11" }; job items are exactly as before (no stock key), and a
+//   snapshot without stock items is unchanged. Version stays 1.
 //   }
 //
 // Stored PDFs: <UPLOADS_DIR>/files/<PO-0007>.pdf, directly in files/ (not a subfolder). The NAS backup
@@ -69,7 +73,8 @@ function supplierOf(items) {
  * Called by markOrderedMany INSIDE its transaction, after every line has been updated.
  * @param db
  * @param {{orderedDate: string, expectedDate: string|null, supplierRef: string,
- *          lines: Array<{orderId:number}>}} what  lines in the screen's order
+ *          lines: Array<{orderId:number}>, stockLines?: Array<{stockLineId:number}>}} what  lines in the
+ *          screen's order; stockLines (0.2.27) are the monthly stock items, listed first in the snapshot
  * @param req  the request (req.user is the orderer)
  * @returns {{id: number, poSeq: number, poNumber: string}}
  * Also writes one audit row: action "supplier_order.create", entityType "supplier_order", entityId id,
@@ -81,7 +86,7 @@ function create(db, what, req) {
     `SELECT o.id AS order_id, o.job_id, o.supplier, o.description, o.quantity, j.name AS job_name, j.job_number
      FROM orders o LEFT JOIN jobs j ON j.id = o.job_id WHERE o.id = ?`
   );
-  const items = lines.map((l) => {
+  const jobItems = lines.map((l) => {
     const r = getItem.get(l.orderId);
     return {
       orderId: r.order_id,
@@ -93,6 +98,23 @@ function create(db, what, req) {
       quantity: r.quantity == null ? null : Number(r.quantity),
     };
   });
+  const getStock = db.prepare("SELECT id, month, supplier, item, quantity FROM stock_lines WHERE id = ?");
+  const stockItems = (what.stockLines || []).map((l) => {
+    const r = getStock.get(l.stockLineId);
+    return {
+      orderId: null,
+      jobId: null,
+      jobNumber: null,
+      jobName: "",
+      supplier: String(r.supplier || "").trim(),
+      description: r.item,
+      quantity: Number(r.quantity),
+      stock: true,
+      stockLineId: r.id,
+      month: r.month,
+    };
+  });
+  const items = [...stockItems, ...jobItems];
   const poSeq = nextPoSeq(db);
   const poNumber = poNumberOf(poSeq);
   const supplier = supplierOf(items);
@@ -132,12 +154,12 @@ function create(db, what, req) {
     .run(poSeq, supplier, what.orderedDate, what.expectedDate || null, what.supplierRef || "", userId, createdAt, JSON.stringify(snapshot));
   const id = Number(info.lastInsertRowid);
   const ins = db.prepare("INSERT INTO supplier_order_lines (supplier_order_id, order_id, sort) VALUES (?, ?, ?)");
-  items.forEach((it, i) => ins.run(id, it.orderId, i));
+  jobItems.forEach((it, i) => ins.run(id, it.orderId, stockItems.length + i));
   audit.log(req, {
     action: "supplier_order.create",
     entityType: "supplier_order",
     entityId: id,
-    after: { poNumber, lineCount: items.length, supplier },
+    after: { poNumber, lineCount: items.length, supplier, ...(stockItems.length ? { stockCount: stockItems.length } : {}) },
   });
   return { id, poSeq, poNumber };
 }
@@ -158,6 +180,7 @@ function listItem(row) {
   const seen = new Set();
   const jobNumbers = [];
   for (const it of items) {
+    if (it.stock) continue; // 0.2.27: stock items have no job
     if (!seen.has(it.jobId)) {
       seen.add(it.jobId);
       jobs.push({ jobId: it.jobId, jobNumber: it.jobNumber || null, jobName: it.jobName || "" });
@@ -177,6 +200,7 @@ function listItem(row) {
       orderedBy: snap.orderedBy || null,
       createdAt: row.created_at,
       itemCount: items.length,
+      hasStock: items.some((it) => it.stock === true),
       jobNumbers,
       jobs,
       pdfReady: pdfReadyOf(row),
@@ -247,9 +271,15 @@ function detail(db, id) {
     `SELECT o.status, o.received_date, o.updated_at, o.supplier_order_id, u.display_name AS updated_by_name
      FROM orders o LEFT JOIN users u ON u.id = o.updated_by WHERE o.id = ?`
   );
+  const getStockLine = db.prepare(
+    `SELECT s.status, s.received_date, s.updated_at, s.supplier_order_id, s.deleted_at, u.display_name AS updated_by_name
+     FROM stock_lines s LEFT JOIN users u ON u.id = s.updated_by WHERE s.id = ?`
+  );
   const getPo = db.prepare("SELECT id, po_seq FROM supplier_orders WHERE id = ?");
   const items = (snap.items || []).map((it) => {
-    const l = getLine.get(it.orderId);
+    // 0.2.27: a stock item's state comes from its stock line (a deleted one reads as gone, like a missing line).
+    let l = it.stock ? getStockLine.get(it.stockLineId) : getLine.get(it.orderId);
+    if (l && l.deleted_at) l = null;
     const status = l ? l.status : "cancelled";
     const live = status === "ordered" || status === "received";
     // The line is on THIS order only while its supplier_order_id is this order (set by Mark ordered, cleared

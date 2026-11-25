@@ -808,7 +808,8 @@
     else P.showView("lines");
   }
 
-  window.JobCards = { reload, setMessage, openCard, cardFor };
+  // typeahead, modal and field are shared with stockorders.js (the Stock section above the cards).
+  window.JobCards = { reload, setMessage, openCard, cardFor, ui: { typeahead, modal, field } };
   P.onShow("cards", reload);
 
   $("jcNew").addEventListener("click", newJobCard);

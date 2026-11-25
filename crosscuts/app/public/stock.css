@@ -71,7 +71,8 @@ a:hover { text-decoration: underline; }
   color: var(--body);
   font-size: 13px;
 }
-.st-nothing .hs-btn { margin-left: 12px; }
+.st-sendrow .hs-btn { margin-left: 12px; }
+.st-sent a { color: var(--teal-tint); }
 .st-empty {
   margin: 0 0 22px;
   padding: 18px 16px;
@@ -126,7 +127,7 @@ a:hover { text-decoration: underline; }
 }
 .st-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .st-table-count { min-width: 300px; }
-.st-table-order { min-width: 340px; }
+.st-table-ordered { min-width: 340px; }
 .st-table-list { min-width: 860px; }
 .st-table th {
   padding: 8px 10px;
@@ -150,7 +151,6 @@ a:hover { text-decoration: underline; }
 }
 .st-table tbody tr:last-child td { border-bottom: 0; }
 .st-table tbody tr:hover { background: var(--raised); }
-.st-row-on td { background: var(--teal-8); }
 .st-row-off td { color: var(--muted); }
 .st-row-off .st-item { color: var(--muted); }
 
@@ -201,13 +201,13 @@ td.st-c-linkfull a { font-size: 13px; overflow-wrap: anywhere; }
   .st-select { flex: 1 1 100%; min-width: 0; order: -1; }
   .st-picker .hs-btn { flex: 1 1 0; }
   .st-tab { padding: 8px 10px; }
-  .st-table-count .st-c-code, .st-table-order .st-c-code { display: none; }
-  .st-table-count .st-code-sub, .st-table-order .st-code-sub { display: block; }
+  .st-table-count .st-c-code, .st-table-ordered .st-c-code { display: none; }
+  .st-table-count .st-code-sub, .st-table-ordered .st-code-sub { display: block; }
   .st-c-link { width: 56px; }
   .st-c-qty { width: 82px; }
   .st-qty { width: 70px; }
   .st-table td, .st-table th { padding-left: 8px; padding-right: 8px; }
-  .st-table-order .st-c-have { width: 52px; }
+  .st-table-ordered .st-c-have { width: 52px; }
 }
 
 /* the sheets are built before printing and only shown on paper */
@@ -232,7 +232,6 @@ td.st-c-linkfull a { font-size: 13px; overflow-wrap: anywhere; }
 }
 .st-p-h1 { font-size: 16pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; }
 .st-p-sub { margin-top: 1mm; font-size: 12pt; font-weight: 700; }
-.st-p-meta { font-size: 10pt; text-align: right; }
 .st-p-signs { display: flex; flex-direction: column; gap: 2mm; width: 72mm; }
 .st-p-sign { display: flex; align-items: flex-end; gap: 3mm; }
 .st-p-label { width: 22mm; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
@@ -252,7 +251,6 @@ td.st-c-linkfull a { font-size: 13px; overflow-wrap: anywhere; }
 .st-pc-code { width: 34mm; }
 .st-pc-item { width: auto; }
 .st-pc-box { width: 24mm; }
-.st-pc-qty { width: 28mm; }
 .st-p-table th, .st-p-table td {
   padding: 1.6mm 1.5mm;
   text-align: left;
@@ -273,9 +271,6 @@ td.st-c-linkfull a { font-size: 13px; overflow-wrap: anywhere; }
 .st-p-table .st-p-num { text-align: right; }
 .st-p-box { border: 0.3mm solid #000; }
 .st-p-nowrap { white-space: nowrap; }
-.st-p-strong { font-weight: 700; font-size: 11pt; }
-.st-p-foot { margin-top: 3mm; font-size: 9pt; }
-.st-p-page + .st-p-page { break-before: page; page-break-before: always; }
 
 @page {
   size: A4 portrait;

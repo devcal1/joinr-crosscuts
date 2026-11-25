@@ -50,6 +50,31 @@ function entry(type, r, today) {
   return out;
 }
 
+// 0.2.27: monthly stock lines (docs/plans/stock-orders-contracts.md "Deliveries") add entries of type
+// "stock_line", one per ordered or recently received line; the page receives and undoes them through
+// PATCH /api/stock-lines/:id.
+function stockLineEntries(db, since, today) {
+  const lines = db
+    .prepare(
+      `SELECT s.*, u.display_name AS received_by_name
+         FROM stock_lines s
+         LEFT JOIN users u ON u.id = s.received_by
+        WHERE s.deleted_at IS NULL
+          AND (s.status = 'ordered' OR (s.status = 'received' AND s.received_date >= ?))`
+    )
+    .all(since);
+  return lines.map((l) => ({
+    ...entry(
+      "stock_line",
+      { ...l, label: `Stock order ${Periods.stockLabel(l.month)}`, link: `/orders.html?stock=${l.month}` },
+      today
+    ),
+    item: l.item,
+    code: l.code || "",
+    quantity: Number(l.quantity),
+  }));
+}
+
 // The entries for every stock group, paint order and drawer stock row that is ordered (waiting,
 // received_date null) or received on or after `since`.
 function rows(db, since, today) {
@@ -69,6 +94,7 @@ function rows(db, since, today) {
     const label = `Stock order ${Periods.stockLabel(g.period)}`;
     out.push(entry("stock", { ...g, id, label, link: `/stock.html?period=${g.period}` }, today));
   }
+  out.push(...stockLineEntries(db, since, today));
   const paints = db
     .prepare(
       `SELECT p.id, p.supplier, p.ordered_date, p.expected_date, p.received_date, p.received_by, p.delivery_note,

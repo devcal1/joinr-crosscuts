@@ -16,6 +16,7 @@ const { sydneyToday, DATE_RE, parseDateUTC, formatDateUTC } = require("./time");
 const audit = require("./audit");
 const notify = require("./notify");
 const { cutNote } = require("./orders");
+const stocklines = require("./stocklines");
 const Periods = require("../public/periods");
 const settings = require("./settings");
 
@@ -28,6 +29,9 @@ const DELIVERY_NOTE_MAX = 500; // as an order line's (m10-contracts.md section 4
 const REORDER_MAX = 5000;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const COUNT_DONE = "The count is finished; ask Ordering to reopen it";
+// 0.2.27: stock is ordered on the Orders page now (docs/plans/stock-orders-plan.md); the old Order tab's
+// writes are closed. Fortnights already ordered there are received and undone as before.
+const ORDERED_ELSEWHERE = "Stock is ordered on the Orders page now";
 
 // ---------------------------------------------------------------- helpers ---
 
@@ -404,6 +408,8 @@ function view(db, period, row) {
     kind: Periods.isFortnight(period) ? "fortnight" : "month",
     state: stateOf(row, lines, [...groupsBy.values()]),
     counted: countedOf(db, row),
+    // 0.2.27: when the count was sent to the monthly order (rule A) and the month its lines went to.
+    sent: row && row.sent_at ? { at: row.sent_at, period: row.sent_period } : null,
     nothingToOrder: nothingOf(db, row),
     groups,
   };
@@ -515,9 +521,11 @@ function fillOrders(db, req, row, haveBefore) {
   }
 }
 
+// 0.2.27: finishing the count applies rule A (lib/stocklines.js) and marks the count sent. The month view
+// carries sentResult {month, added, updated, removed}.
 function counted(db, req, period, today = sydneyToday()) {
   periodOk(period, today);
-  db.transaction(() => {
+  const sentResult = db.transaction(() => {
     const row = ensureOrder(db, period);
     if (row.counted_at) throw conflict("The count is already finished");
     // Every active item without a line gets an empty one: the month's list is now its own.
@@ -542,12 +550,15 @@ function counted(db, req, period, today = sydneyToday()) {
     );
     audit.log(req, { action: "stock_order.counted", entityType: "stock_order", entityId: period, after: { counted_at: now } });
     fillOrders(db, req, row, null);
-    // The order list sent to Ordering (m27-contracts.md section 3): how many lines and suppliers.
-    const n = db
-      .prepare("SELECT COUNT(*) AS lines, COUNT(DISTINCT supplier) AS suppliers FROM stock_order_lines WHERE stock_order_id = ? AND order_qty > 0")
-      .get(row.id);
-    const nLines = Number(n.lines) || 0;
-    const nSup = Number(n.suppliers) || 0;
+    // A count finished late, after a newer one was sent, must not replace the newer quantities: it is kept
+    // but not sent.
+    const stale = laterSent(db, period);
+    const result = stale
+      ? { month: today.slice(0, 7), added: 0, updated: 0, removed: 0, skipped: true }
+      : sendToMonth(db, req, row, today);
+    // The alert to Ordering (0.2.27): how many lines the count added or changed on the monthly order.
+    const nLines = result.added + result.updated;
+    const plural = (n) => `${n} ${n === 1 ? "line" : "lines"}`;
     notify.toKey(
       db,
       "stock.order",
@@ -555,16 +566,56 @@ function counted(db, req, period, today = sydneyToday()) {
         kind: "stock.counted",
         title: `Stock counted: ${Periods.stockLabel(period)}`,
         body: nLines
-          ? `${nLines} ${nLines === 1 ? "line" : "lines"} to order from ${nSup} ${nSup === 1 ? "supplier" : "suppliers"}.`
-          : "Nothing to order on the count.",
-        link: `/stock.html?period=${period}`,
+          ? `${plural(nLines)} added or changed on the ${Periods.stockLabel(result.month)} stock order.`
+          : result.removed
+            ? `${plural(result.removed)} taken off the ${Periods.stockLabel(result.month)} stock order.`
+            : stale
+              ? "Not sent to the stock order: a newer count has already been sent."
+              : "Nothing to add to the stock order from the count.",
+        link: `/orders.html?stock=${result.month}`,
         entityType: "stock_order",
         entityId: period,
       },
       { exceptUserId: userId(req) }
     );
+    return result;
   })();
-  return month(db, period, today);
+  return { ...month(db, period, today), sentResult };
+}
+
+function laterSent(db, period) {
+  return !!db.prepare("SELECT 1 AS x FROM stock_orders WHERE period > ? AND sent_at IS NOT NULL LIMIT 1").get(period);
+}
+
+// Rule A for a counted period, then the period is marked sent. Inside the caller's transaction.
+function sendToMonth(db, req, row, today) {
+  const result = stocklines.applyCount(db, req, row, today);
+  const now = nowIso();
+  db.prepare("UPDATE stock_orders SET sent_at = ?, sent_period = ?, updated_at = ? WHERE id = ?").run(now, result.month, now, row.id);
+  audit.log(req, {
+    action: "stock_order.sent",
+    entityType: "stock_order",
+    entityId: row.period,
+    after: { sent_at: now, sent_period: result.month, added: result.added, updated: result.updated, removed: result.removed },
+  });
+  return result;
+}
+
+// POST /api/stock/orders/:period/send (stock.order): a count that was finished before 0.2.27 and not
+// ordered (rule G) goes to the monthly order, once. 409 when it isn't counted, was already sent, or a
+// later period has been sent (so an old count never replaces a newer one's lines).
+function send(db, req, period, today = sydneyToday()) {
+  periodOk(period, today);
+  const sentResult = db.transaction(() => {
+    const row = orderRow(db, period);
+    if (!row || !row.counted_at) throw conflict("Finish the count first");
+    if (row.sent_at) throw conflict("This count has already been sent to the monthly order");
+    if (laterSent(db, period)) {
+      throw conflict("A newer count has already been sent to the monthly order");
+    }
+    return sendToMonth(db, req, row, today);
+  })();
+  return { ...month(db, period, today), sentResult };
 }
 
 function reopen(db, req, period) {
@@ -577,68 +628,43 @@ function reopen(db, req, period) {
     if (db.prepare("SELECT 1 AS x FROM stock_order_groups WHERE stock_order_id = ? LIMIT 1").get(row.id)) {
       throw conflict("A supplier has already been ordered; undo that first");
     }
+    if (laterSent(db, period)) throw conflict("A newer count has already been sent to the monthly order");
+    // Stock that has arrived since the count isn't in its Have, so finishing it again would order it twice.
+    if (
+      row.sent_at &&
+      db
+        .prepare(
+          `SELECT 1 AS x FROM stock_lines s JOIN stock_order_lines l ON l.stock_item_id = s.stock_item_id
+            WHERE l.stock_order_id = ? AND s.status = 'received' AND s.deleted_at IS NULL AND s.updated_at >= ? LIMIT 1`
+        )
+        .get(row.id, row.sent_at)
+    ) {
+      throw conflict("Some of this stock has been received since the count. Count it again next time.");
+    }
     db.prepare("DELETE FROM stock_order_lines WHERE stock_order_id = ? AND have IS NULL AND order_qty IS NULL").run(row.id);
-    db.prepare("UPDATE stock_orders SET counted_at = NULL, counted_by = NULL, updated_at = ? WHERE id = ?").run(nowIso(), row.id);
+    // 0.2.27: the monthly order keeps its lines; finishing the count again applies rule A again.
+    db.prepare("UPDATE stock_orders SET counted_at = NULL, counted_by = NULL, sent_at = NULL, sent_period = NULL, updated_at = ? WHERE id = ?").run(nowIso(), row.id);
     audit.log(req, {
       action: "stock_order.reopen",
       entityType: "stock_order",
       entityId: period,
-      before: { counted_at: row.counted_at, counted_by: row.counted_by },
+      before: { counted_at: row.counted_at, counted_by: row.counted_by, sent_at: row.sent_at, sent_period: row.sent_period },
     });
   })();
   return month(db, period, today);
 }
 
 // Order can be typed at any time; a line whose supplier group is ordered can't change.
-function saveOrder(db, req, period, lines, today = sydneyToday()) {
-  periodOk(period, today);
-  const list = lineList(lines, "order", "Order");
-  db.transaction(() => {
-    const row = ensureOrder(db, period);
-    if (row.nothing_at && list.some((l) => l.value > 0)) {
-      throw conflict("This month is marked nothing to order. Undo that first.");
-    }
-    const guard = (supplier) => {
-      if (groupRow(db, row.id, supplier)) throw conflict(`${supplier} has already been ordered`);
-    };
-    const { before, after } = writeColumn(db, row, list, "order_qty", guard);
-    if (!Object.keys(after).length) return;
-    touch(db, row.id);
-    audit.log(req, { action: "stock_order.order", entityType: "stock_order", entityId: period, before, after });
-  })();
-  return month(db, period, today);
+// 0.2.27: closed. Quantities are no longer typed here (the Order tab is gone); a count feeds the monthly
+// order on the Orders page (lib/stocklines.js) and Ordering edits it there.
+function saveOrder() {
+  throw conflict(ORDERED_ELSEWHERE);
 }
 
 // {} closes a counted month that needs nothing; {undo: true} takes it back (section 15.19).
-function nothingToOrder(db, req, period, body, today = sydneyToday()) {
-  periodOk(period, today);
-  const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
-  db.transaction(() => {
-    const row = orderRow(db, period);
-    if (b.undo === true) {
-      if (!row || !row.nothing_at) throw conflict("This month isn't marked nothing to order");
-      db.prepare("UPDATE stock_orders SET nothing_at = NULL, nothing_by = NULL, updated_at = ? WHERE id = ?").run(nowIso(), row.id);
-      audit.log(req, {
-        action: "stock_order.nothing_undo",
-        entityType: "stock_order",
-        entityId: period,
-        before: { nothing_at: row.nothing_at, nothing_by: row.nothing_by },
-      });
-      return;
-    }
-    if (!row || !row.counted_at) throw conflict("Finish the count first");
-    if (row.nothing_at) throw conflict("This month is already marked nothing to order");
-    if (db.prepare("SELECT 1 AS x FROM stock_order_groups WHERE stock_order_id = ? LIMIT 1").get(row.id)) {
-      throw conflict("A supplier has already been ordered");
-    }
-    if (db.prepare("SELECT 1 AS x FROM stock_order_lines WHERE stock_order_id = ? AND order_qty > 0 LIMIT 1").get(row.id)) {
-      throw conflict("Some items have an order quantity. Clear them, or mark their groups ordered.");
-    }
-    const now = nowIso();
-    db.prepare("UPDATE stock_orders SET nothing_at = ?, nothing_by = ?, updated_at = ? WHERE id = ?").run(now, userId(req), now, row.id);
-    audit.log(req, { action: "stock_order.nothing", entityType: "stock_order", entityId: period, after: { nothing_at: now } });
-  })();
-  return month(db, period, today);
+// 0.2.27: closed (an empty month needs no action now). Months already marked stay read-only.
+function nothingToOrder() {
+  throw conflict(ORDERED_ELSEWHERE);
 }
 
 function supplierField(b) {
@@ -668,33 +694,8 @@ function group(db, req, period, body, today = sydneyToday()) {
     })();
     return month(db, period, today);
   }
-  const orderedDate = dateOrNull("orderedDate", b.orderedDate) || today;
-  if (orderedDate > today) throw bad("The ordered date can't be in the future");
-  const expectedDate = dateOrNull("expectedDate", b.expectedDate);
-  if (expectedDate && expectedDate < orderedDate) {
-    throw bad(`The expected date can't be before it was ordered (${dayLabel(orderedDate)})`);
-  }
-  db.transaction(() => {
-    const row = orderRow(db, period);
-    if (!row || !row.counted_at) throw conflict("Finish the count first");
-    if (groupRow(db, row.id, supplier)) throw conflict(`${supplier} has already been ordered`);
-    const n = db
-      .prepare("SELECT COUNT(*) AS n FROM stock_order_lines WHERE stock_order_id = ? AND supplier = ? AND order_qty > 0")
-      .get(row.id, supplier).n;
-    if (!n) throw bad(`Nothing to order from ${supplier}`);
-    db.prepare(
-      `INSERT INTO stock_order_groups (stock_order_id, supplier, ordered_date, ordered_by, expected_date)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(row.id, supplier, orderedDate, userId(req), expectedDate);
-    touch(db, row.id);
-    audit.log(req, {
-      action: "stock_order.group_ordered",
-      entityType: "stock_order",
-      entityId: period,
-      after: { supplier, ordered_date: orderedDate, expected_date: expectedDate },
-    });
-  })();
-  return month(db, period, today);
+  // 0.2.27: marking a group ordered is closed; stock is ordered on the Orders page (undo above stays).
+  throw conflict(ORDERED_ELSEWHERE);
 }
 
 // {supplier, receivedDate?, deliveryNote?} or {supplier, undo: true}. Undoing keeps the note, as
@@ -807,8 +808,9 @@ function stockCountDue(db, today = sydneyToday()) {
 // GET /api/stock/summary: only the parts the user's keys allow (section 11.8). Each part is null
 // (or an empty list) when the dashboard has nothing to say.
 //   stock.count: stockCount, boardCount: {period, label} | null (a count due and not finished).
-//   stock.order: drawers {toOrder, waiting}; stockToOrder [{period, label, state}] (counted or
-//   ordering); newest first. (boardValue, the board value to confirm, was removed 2026-10-17.)
+//   stock.order: drawers {toOrder, waiting}; stockToOrder [{month, label, toOrder}] (0.2.27: the months with
+//   stock lines still to order, oldest first); stockToSend [{period, label}] (rule G: counted before 0.2.27,
+//   not sent, with an order quantity in a group not ordered). (boardValue was removed 2026-10-17.)
 function summary(db, user, today = sydneyToday()) {
   const out = { date: today };
   if (holds(user, "stock.count")) {
@@ -820,12 +822,19 @@ function summary(db, user, today = sydneyToday()) {
   }
   if (holds(user, "stock.order")) {
     out.drawers = require("./drawers").summary(db);
-    out.stockToOrder = db
-      .prepare("SELECT * FROM stock_orders WHERE counted_at IS NOT NULL ORDER BY period DESC")
+    out.stockToOrder = stocklines.toOrderMonths(db);
+    out.stockToSend = db
+      .prepare(
+        `SELECT o.period FROM stock_orders o
+          WHERE o.counted_at IS NOT NULL AND o.sent_at IS NULL
+            AND NOT EXISTS (SELECT 1 FROM stock_orders n WHERE n.period > o.period AND n.sent_at IS NOT NULL)
+            AND EXISTS (SELECT 1 FROM stock_order_lines l
+                         WHERE l.stock_order_id = o.id AND l.order_qty > 0
+                           AND NOT EXISTS (SELECT 1 FROM stock_order_groups g WHERE g.stock_order_id = o.id AND g.supplier = l.supplier))
+          ORDER BY o.period`
+      )
       .all()
-      .map((row) => ({ period: row.period, state: view(db, row.period, row).state }))
-      .filter((m) => m.state === "counted" || m.state === "ordering")
-      .map((m) => ({ period: m.period, label: Periods.stockLabel(m.period), state: m.state }));
+      .map((r) => ({ period: r.period, label: Periods.stockLabel(r.period) }));
   }
   return out;
 }
@@ -843,6 +852,7 @@ module.exports = {
   month,
   saveHave,
   counted,
+  send,
   reopen,
   saveOrder,
   nothingToOrder,

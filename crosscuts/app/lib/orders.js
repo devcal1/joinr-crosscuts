@@ -972,12 +972,22 @@ function createLines(db, jobId, lines, req) {
 // path (so its audit, the progress invoice and the hand-offs fire as for a single Mark ordered)
 // -> {count, jobCount, orders: [order...], supplierOrder: {id, poNumber}} (0.2.23: the saved order that
 // lib/purchaseorders.js create makes in this same transaction). 409 and nothing changed if any line is no longer to order.
-function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef } = {}, req) {
+// 0.2.27 (docs/plans/stock-orders-contracts.md): stockLineIds are monthly stock lines (lib/stocklines.js)
+// ordered in the same transaction on the same saved order; orderIds may then be empty or missing, but at
+// least one of the two is needed and the two together are at most 200. The result adds stockLines and
+// stockCount; count stays the number of job items. Stock lines never touch a job's materials or invoices.
+function markOrderedMany(db, orderIdsIn, { orderedDate, expectedDate, supplierRef, stockLineIds } = {}, req) {
   if (!can(req, "orders.mark_ordered")) throw forbidden();
-  if (!Array.isArray(orderIds) || orderIds.length < 1) throw bad("Tick at least one item");
-  if (orderIds.length > 200) throw bad("Mark at most 200 items at a time");
+  const stockIds = stockLineIds === undefined || stockLineIds === null ? [] : stockLineIds;
+  if (!Array.isArray(stockIds)) throw bad("stockLineIds must be a list");
+  const orderIds = orderIdsIn === undefined || orderIdsIn === null ? [] : orderIdsIn;
+  if (!Array.isArray(orderIds)) throw bad("Tick at least one item");
+  if (orderIds.length + stockIds.length < 1) throw bad("Tick at least one item");
+  if (orderIds.length + stockIds.length > 200) throw bad("Mark at most 200 items at a time");
   if (!orderIds.every((id) => Number.isInteger(id) && id > 0)) throw bad("orderIds must be positive whole numbers");
   if (new Set(orderIds).size !== orderIds.length) throw bad("orderIds must not repeat");
+  if (!stockIds.every((id) => Number.isInteger(id) && id > 0)) throw bad("stockLineIds must be positive whole numbers");
+  if (new Set(stockIds).size !== stockIds.length) throw bad("stockLineIds must not repeat");
   const todayStr = sydneyToday();
   const ordered = dateOrNull("orderedDate", orderedDate) || todayStr;
   if (ordered > todayStr) throw bad("The ordered date can't be in the future");
@@ -1014,30 +1024,54 @@ function markOrderedMany(db, orderIds, { orderedDate, expectedDate, supplierRef 
       patch.notes = notes;
       return { id, jobId: o.jobId, patch, supplier: o.supplier };
     });
+    const stocklines = require("./stocklines");
+    const stockRows = stocklines.planOrder(db, stockIds);
     // 0.2.23: one saved order is for one supplier (compared trimmed, any case). Checked before any write.
-    if (new Set(plan.map((p) => String(p.supplier || "").trim().toLowerCase())).size > 1) {
+    if (new Set([...plan.map((p) => p.supplier), ...stockRows.map((r) => r.supplier)].map((s) => String(s || "").trim().toLowerCase())).size > 1) {
       throw bad("A supplier order is for one supplier");
     }
     for (const p of plan) updateLine(db, p.id, p.patch, req);
     const saved = purchaseorders.create(
       db,
-      { orderedDate: ordered, expectedDate: expected || null, supplierRef: ref, lines: plan.map((p) => ({ orderId: p.id })) },
+      {
+        orderedDate: ordered,
+        expectedDate: expected || null,
+        supplierRef: ref,
+        lines: plan.map((p) => ({ orderId: p.id })),
+        stockLines: stockRows.map((r) => ({ stockLineId: r.id })),
+      },
       req
     );
     const link = db.prepare("UPDATE orders SET supplier_order_id = ? WHERE id = ?");
     for (const p of plan) link.run(saved.id, p.id);
+    stocklines.markOrdered(db, req, stockRows, { ordered, expected }, saved.id);
     const today = sydneyToday();
     return {
       count: plan.length,
       jobCount: new Set(plan.map((p) => p.jobId)).size,
       orders: plan.map((p) => present(loadLine(db, p.id), today)),
+      stockCount: stockRows.length,
+      stockLines: stockRows.map((r) => stocklines.loadLine(db, r.id, today)),
       supplierOrder: { id: saved.id, poNumber: saved.poNumber },
     };
   })();
 }
 
 
+// The helpers lib/stocklines.js shares with the order lines (0.2.27): the same field rules and limits.
+const fields = {
+  textField,
+  quantityField,
+  dateOrNull,
+  deliveryNoteField,
+  SUPPLIER_MAX,
+  DESCRIPTION_MAX,
+  NOTES_MAX,
+};
+
 module.exports = {
+  fields,
+  dayLabel,
   cards,
   createLines,
   markOrderedMany,

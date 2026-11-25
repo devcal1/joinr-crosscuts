@@ -116,7 +116,7 @@ r.post("/orders/mark-ordered", "orders.mark_ordered", handleAsync(async (req, re
   const out = orders.markOrderedMany(
     db,
     b.orderIds,
-    { orderedDate: b.orderedDate, expectedDate: b.expectedDate, supplierRef: b.supplierRef },
+    { orderedDate: b.orderedDate, expectedDate: b.expectedDate, supplierRef: b.supplierRef, stockLineIds: b.stockLineIds },
     req
   );
   let pdfReady = false;

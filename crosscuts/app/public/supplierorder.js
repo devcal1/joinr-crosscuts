@@ -3,6 +3,11 @@
 // untick any that are not in this order, set the order date (and an optional expected date and
 // supplier ref), then Mark N ordered (POST /api/orders/mark-ordered, one transaction) or Print
 // list (/orderprint.html, marks nothing). Who may do what is decided by the server. Text only.
+// 0.2.27 (docs/plans/stock-orders-plan.md): the monthly stock items to order from that supplier
+// (GET /api/stock-lines?status=to_order) sit in a STOCK group above the job groups, each with its
+// month; stock and job items are ordered together under one PO (stockLineIds in the same
+// POST /api/orders/mark-ordered). window.SupplierOrder.open({supplier, stockLineIds}) is how the
+// Stock section's Order button arrives, with that supplier chosen and those items ticked.
 (function () {
   "use strict";
   const P = window.OrdersPage;
@@ -23,7 +28,8 @@
   const markEl = $("soMark");
   const printEl = $("soPrint");
 
-  let groups = new Map(); // lower(trim(supplier)) -> {name, lines: [order...]}
+  let groups = new Map(); // lower(trim(supplier)) -> {name, lines: [order...], stock: [stock line...]}
+  let pending = null; // {supplier, ids} from window.SupplierOrder.open, applied once the list is in
   let seq = 0;
   let busy = false;
   let today = "";
@@ -57,8 +63,16 @@
   async function load() {
     const mine = ++seq;
     let list;
+    let stock = [];
+    let stockFailed = "";
     try {
-      list = await api("/api/orders?status=to_order");
+      [list, stock] = await Promise.all([
+        api("/api/orders?status=to_order"),
+        api("/api/stock-lines?status=to_order").then((r) => (r && Array.isArray(r.lines) ? r.lines : [])).catch((e) => {
+          stockFailed = "The stock items didn't load: " + fail(e);
+          return [];
+        }),
+      ]);
     } catch (e) {
       if (mine !== seq) return false;
       setMessage(fail(e), "err");
@@ -71,19 +85,29 @@
       const name = (o.supplier || "").trim();
       if (!name) continue;
       const key = name.toLowerCase();
-      if (!next.has(key)) next.set(key, { name, lines: [] });
+      if (!next.has(key)) next.set(key, { name, lines: [], stock: [] });
       next.get(key).lines.push(o);
     }
+    for (const l of stock) {
+      const name = (l.supplier || "").trim();
+      if (!name || l.status !== "to_order") continue;
+      const key = name.toLowerCase();
+      if (!next.has(key)) next.set(key, { name, lines: [], stock: [] });
+      next.get(key).stock.push(l);
+    }
     groups = next;
+    if (stockFailed) setMessage(stockFailed, "err");
     fillSelect();
     renderLines();
     return true;
   }
 
+  const total = (g) => (g ? g.lines.length + g.stock.length : 0);
+
   function fillSelect() {
     const keep = selEl.value;
     const sorted = [...groups.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, undefined, { sensitivity: "base" }));
-    selEl.replaceChildren(...sorted.map(([key, g]) => el("option", { value: key, text: g.name + " (" + g.lines.length + " to order)" })));
+    selEl.replaceChildren(...sorted.map(([key, g]) => el("option", { value: key, text: g.name + " (" + total(g) + " to order)" })));
     selEl.value = groups.has(keep) ? keep : sorted.length ? sorted[0][0] : "";
     const none = sorted.length === 0;
     emptyEl.hidden = !none;
@@ -97,12 +121,38 @@
     return [...rowsEl.querySelectorAll('input[type="checkbox"][data-id]:checked')].map((c) => Number(c.getAttribute("data-id")));
   }
 
+  function tickedStock() {
+    return [...rowsEl.querySelectorAll('input[type="checkbox"][data-sid]:checked')].map((c) => Number(c.getAttribute("data-sid")));
+  }
+
+  // "November 2026" from a stock line's YYYY-MM month.
+  function monthText(m) {
+    return window.Periods && window.Periods.validPeriod(m) ? window.Periods.longLabel(m) : m || "";
+  }
+
   function renderLines() {
     rowsEl.replaceChildren();
     const g = groups.get(selEl.value);
     if (!g) {
       refreshSummary();
       return;
+    }
+    if (g.stock.length) {
+      rowsEl.append(el("tr", { class: "so-group" }, el("td", {}), el("td", { colspan: "4", class: "so-grouphead" }, el("span", { class: "jc-jno", text: "STOCK" }))));
+      for (const l of g.stock.slice().sort((a, b) => a.month.localeCompare(b.month) || a.id - b.id)) {
+        const name = (l.item || "Item") + ", " + window.OrderUI.fmtQty(l.quantity);
+        const hardware = el("td", { class: "jc-sup", "data-label": "Hardware" }, el("span", { text: l.item || "" }));
+        hardware.append(el("span", { class: "so-month", text: " " + monthText(l.month) }));
+        rowsEl.append(el(
+          "tr",
+          { class: "so-line" },
+          el("td", { class: "so-tick" }, el("input", { type: "checkbox", "data-sid": String(l.id), "aria-label": "In this order, stock: " + name })),
+          hardware,
+          el("td", { class: "jc-num", "data-label": "Qty" }, document.createTextNode(window.OrderUI.fmtQty(l.quantity))),
+          el("td", { class: "jc-date", "data-label": "Added" }, document.createTextNode(fmtDay(l.createdAt))),
+          el("td", { class: "jc-text jc-notes" + (l.notes ? "" : " jc-blank"), "data-label": "Notes" }, el("span", { text: l.notes || "" }))
+        ));
+      }
     }
     const lines = g.lines.slice().sort((a, b) => a.id - b.id);
     const byJob = new Map();
@@ -135,13 +185,17 @@
 
   function refreshSummary() {
     const g = groups.get(selEl.value);
-    const total = g ? g.lines.length : 0;
+    const all = total(g);
     const ids = new Set(ticked());
-    const n = ids.size;
+    const sids = new Set(tickedStock());
+    const n = ids.size + sids.size;
     const jobs = new Set(g ? g.lines.filter((o) => ids.has(o.id)).map((o) => o.jobId) : []);
-    sumEl.replaceChildren(el("b", { text: n + " of " + total }), document.createTextNode(" items, " + plural(jobs.size, "job", "jobs")));
-    allEl.checked = total > 0 && n === total;
-    allEl.indeterminate = n > 0 && n < total;
+    sumEl.replaceChildren(
+      el("b", { text: n + " of " + all }),
+      document.createTextNode(" items, " + plural(jobs.size, "job", "jobs") + (sids.size ? ", " + sids.size + " stock" : ""))
+    );
+    allEl.checked = all > 0 && n === all;
+    allEl.indeterminate = n > 0 && n < all;
     markEl.textContent = "Mark " + n + " ordered";
     markEl.disabled = busy || n === 0;
     printEl.disabled = busy || n === 0;
@@ -152,7 +206,7 @@
     refreshSummary();
   });
   allEl.addEventListener("change", () => {
-    for (const c of rowsEl.querySelectorAll('input[type="checkbox"][data-id]')) c.checked = allEl.checked;
+    for (const c of rowsEl.querySelectorAll('input[type="checkbox"][data-id], input[type="checkbox"][data-sid]')) c.checked = allEl.checked;
     setMessage("", "");
     refreshSummary();
   });
@@ -188,8 +242,11 @@
   printEl.addEventListener("click", () => {
     const g = groups.get(selEl.value);
     const ids = ticked();
-    if (!g || !ids.length) return;
-    const qs = new URLSearchParams({ mode: "supplier", supplier: g.name, ids: ids.join(",") });
+    const sids = tickedStock();
+    if (!g || !(ids.length || sids.length)) return;
+    const qs = new URLSearchParams({ mode: "supplier", supplier: g.name });
+    if (ids.length) qs.set("ids", ids.join(","));
+    if (sids.length) qs.set("stock", sids.join(","));
     if (validDate(dateEl.value)) qs.set("date", dateEl.value);
     const ref = refEl.value.trim();
     if (ref) qs.set("ref", ref);
@@ -207,7 +264,8 @@
   markEl.addEventListener("click", async () => {
     if (busy) return;
     const ids = ticked();
-    if (!ids.length) return;
+    const sids = tickedStock();
+    if (!ids.length && !sids.length) return;
     const orderedDate = dateEl.value;
     if (!validDate(orderedDate)) {
       setMessage("Choose the order date.", "err");
@@ -226,6 +284,7 @@
     }
     const supplierName = (groups.get(selEl.value) || {}).name || "";
     const body = { orderIds: ids, orderedDate, expectedDate: expEl.value || null };
+    if (sids.length) body.stockLineIds = sids;
     const ref = refEl.value.trim();
     if (ref) body.supplierRef = ref;
     setBusy(true);
@@ -245,12 +304,16 @@
     setBusy(false);
     const count = r && Number.isFinite(r.count) ? r.count : ids.length;
     const jobCount = r && Number.isFinite(r.jobCount) ? r.jobCount : 0;
+    const stockCount = r && Number.isFinite(r.stockCount) ? r.stockCount : sids.length;
     P.showView("cards");
     const po = r && r.supplierOrder && r.supplierOrder.id ? r.supplierOrder : null;
-    const summary = plural(count, "item", "items") + " marked ordered for " + plural(jobCount, "job", "jobs");
+    const summary = stockCount
+      ? plural(count + stockCount, "item", "items") + " marked ordered (" + stockCount + " stock" + (count ? ", " + plural(count, "job item", "job items") + " for " + plural(jobCount, "job", "jobs") : "") + ")"
+      : plural(count, "item", "items") + " marked ordered for " + plural(jobCount, "job", "jobs");
     if (po) showSaved(po, summary, supplierName);
     else if (window.JobCards) window.JobCards.setMessage(summary + ".", "ok");
     P.reloadLines();
+    if (window.StockOrders) window.StockOrders.reload();
   });
 
   // ------------------------------------------------------------------ start ---
@@ -266,8 +329,37 @@
     $("soRefBox").hidden = !edit;
     markEl.hidden = !can("orders.mark_ordered");
     setMessage("", "");
-    load().then(() => selEl.focus());
+    load().then(() => {
+      applyPending();
+      selEl.focus();
+    });
   }
+
+  // Choose the pending supplier and tick its stock items (the Stock section's Order button).
+  function applyPending() {
+    const want = pending;
+    pending = null;
+    if (!want) return;
+    const key = (want.supplier || "").trim().toLowerCase();
+    if (!groups.has(key)) {
+      setMessage("Nothing is waiting to be ordered from " + want.supplier + " now.", "err");
+      return;
+    }
+    selEl.value = key;
+    renderLines();
+    const ids = new Set(want.ids);
+    for (const c of rowsEl.querySelectorAll('input[type="checkbox"][data-sid]')) c.checked = ids.has(Number(c.getAttribute("data-sid")));
+    refreshSummary();
+    const found = tickedStock().length;
+    if (found < ids.size) setMessage(found ? "Some of those stock items are no longer to order." : "Those stock items are no longer to order.", "err");
+  }
+
+  window.SupplierOrder = {
+    open(o) {
+      pending = o && o.supplier ? { supplier: String(o.supplier), ids: Array.isArray(o.stockLineIds) ? o.stockLineIds.map(Number) : [] } : null;
+      P.showView("supplier");
+    },
+  };
 
   P.onShow("supplier", start);
   $("soBack").addEventListener("click", () => P.showView("cards"));

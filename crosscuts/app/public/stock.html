@@ -22,17 +22,20 @@
         <button id="stNext" class="hs-btn" type="button">Next</button>
       </div>
     </div>
-    <p class="st-intro">The Workshop Manager counts what's on the shelf (Have) each fortnight against the target for each item and finishes the count; Order fills in as target minus have. Ordering then checks what to order and marks each supplier ordered. Deliveries are marked received on the Deliveries page.</p>
+    <p class="st-intro">The Workshop Manager counts what's on the shelf (Have) each fortnight against the target for each item and finishes the count. What is below target then goes on the stock order for the month, on the Orders page, where Ordering orders it with the job items. Deliveries are marked received on the Deliveries page.</p>
 
     <div id="stState" class="st-state" hidden>
       <span id="stBadge" class="hs-badge"></span>
       <span id="stStateText" class="st-state-text"></span>
     </div>
+    <p id="stSent" class="st-note st-sent" hidden></p>
+    <p id="stSendRow" class="st-note st-sendrow" hidden>This count has quantities that aren't on a monthly order yet.
+      <button id="stSend" class="hs-btn hs-btn-primary" type="button">Send to monthly order</button></p>
     <p id="stStatus" class="st-status" role="status" aria-live="polite">Loading...</p>
 
     <div id="stTabs" class="st-tabs" aria-label="Stock order views" hidden>
       <button id="stTabCount" class="st-tab" type="button" data-tab="count">Count</button>
-      <button id="stTabOrder" class="st-tab" type="button" data-tab="order">Order</button>
+      <button id="stTabOrdered" class="st-tab" type="button" data-tab="ordered">Ordered</button>
       <button id="stTabList" class="st-tab" type="button" data-tab="list">List</button>
     </div>
 
@@ -40,23 +43,16 @@
       <div class="st-tools">
         <span id="stProgress" class="st-progress"></span>
         <button id="stFinish" class="hs-btn hs-btn-primary" type="button" hidden>Finish count</button>
+        <button id="stReopen" class="hs-btn" type="button" hidden>Reopen count</button>
         <button id="stPrintBlank" class="hs-btn" type="button">Print blank count sheet</button>
       </div>
       <p id="stCountNote" class="st-note" hidden></p>
       <div id="stCountGroups"></div>
     </section>
 
-    <section id="stPanelOrder" class="st-panel" aria-label="Order" hidden>
-      <div class="st-tools">
-        <span id="stOrderSummary" class="st-progress"></span>
-        <button id="stReopen" class="hs-btn" type="button" hidden>Reopen count</button>
-        <button id="stNothing" class="hs-btn" type="button" hidden>Nothing to order this month</button>
-        <button id="stPrintAll" class="hs-btn" type="button">Print all orders</button>
-      </div>
-      <p id="stNothingLine" class="st-note st-nothing" hidden><span id="stNothingText"></span>
-        <button id="stNothingUndo" class="hs-btn" type="button">Undo</button></p>
-      <p id="stOrderNote" class="st-note" hidden></p>
-      <div id="stOrderGroups"></div>
+    <section id="stPanelOrdered" class="st-panel" aria-label="Ordered" hidden>
+      <p class="st-note">Ordered on the old Order tab, before ordering moved to the Orders page. These are read-only; Deliveries receives them.</p>
+      <div id="stOrderedGroups"></div>
     </section>
 
     <section id="stPanelList" class="st-panel" aria-label="Stock list" hidden>
